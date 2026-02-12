@@ -14,7 +14,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import Animated, { FadeIn, FadeOut, SlideInUp, SlideOutUp } from 'react-native-reanimated';
 import Colors from '@/constants/colors';
 import { useListings } from '@/lib/listings-context';
 import { Category, CATEGORIES } from '@/lib/types';
@@ -27,7 +26,6 @@ export default function HomeScreen() {
   const { listings, savedIds, toggleSaved, isLoading, refreshListings } = useListings();
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>('All');
   const [refreshing, setRefreshing] = useState(false);
-  const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredListings = useMemo(() => {
@@ -66,14 +64,6 @@ export default function HomeScreen() {
     [toggleSaved],
   );
 
-  const toggleSearch = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (searchVisible) {
-      setSearchQuery('');
-    }
-    setSearchVisible((prev) => !prev);
-  }, [searchVisible]);
-
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const renderItem = useCallback(
@@ -100,51 +90,36 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: (insets.top || webTopInset) + 8 }]}>
         <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.greeting}>adli</Text>
-            <View style={styles.locationRow}>
-              <Feather name="map-pin" size={13} color={Colors.primary} />
-              <Text style={styles.locationText}>San Francisco, CA</Text>
-            </View>
+          <Text style={styles.greeting}>adli</Text>
+          <View style={styles.locationRow}>
+            <Feather name="map-pin" size={13} color={Colors.primary} />
+            <Text style={styles.locationText}>San Francisco, CA</Text>
           </View>
-          <Pressable
-            style={[styles.searchButton, searchVisible && styles.searchButtonActive]}
-            onPress={toggleSearch}
-          >
-            <Feather name={searchVisible ? 'x' : 'search'} size={20} color={searchVisible ? '#fff' : Colors.text} />
-          </Pressable>
         </View>
 
-        {searchVisible && (
-          <Animated.View
-            entering={FadeIn.duration(200)}
-            exiting={FadeOut.duration(150)}
-            style={styles.searchBarContainer}
-          >
-            <View style={styles.searchBar}>
-              <Feather name="search" size={18} color={Colors.textTertiary} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search listings, categories, sellers..."
-                placeholderTextColor={Colors.textTertiary}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoFocus
-                returnKeyType="search"
-              />
-              {searchQuery.length > 0 && (
-                <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-                  <Feather name="x-circle" size={18} color={Colors.textTertiary} />
-                </Pressable>
-              )}
-            </View>
-            {searchQuery.trim().length > 0 && (
-              <Text style={styles.resultCount}>
-                {filteredListings.length} {filteredListings.length === 1 ? 'result' : 'results'} found
-              </Text>
+        <View style={styles.searchBarContainer}>
+          <View style={styles.searchBar}>
+            <Feather name="search" size={18} color={Colors.textTertiary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search listings, categories, sellers..."
+              placeholderTextColor={Colors.textTertiary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                <Feather name="x-circle" size={18} color={Colors.textTertiary} />
+              </Pressable>
             )}
-          </Animated.View>
-        )}
+          </View>
+          {searchQuery.trim().length > 0 && (
+            <Text style={styles.resultCount}>
+              {filteredListings.length} {filteredListings.length === 1 ? 'result' : 'results'} found
+            </Text>
+          )}
+        </View>
 
         <ScrollView
           horizontal
@@ -210,11 +185,8 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   greeting: {
     fontSize: 24,
@@ -231,17 +203,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
-  },
-  searchButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: Colors.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  searchButtonActive: {
-    backgroundColor: Colors.primary,
   },
   searchBarContainer: {
     paddingHorizontal: 16,
