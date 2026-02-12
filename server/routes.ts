@@ -10,7 +10,72 @@ const ai = new GoogleGenAI({
   },
 });
 
+const otpStore = new Map<string, { otp: string; expiresAt: number }>();
+
+function generateOTP(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.post("/api/auth/send-otp", (req, res) => {
+    try {
+      const { phone } = req.body;
+      if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
+        return res.status(400).json({ success: false, message: "Invalid phone number" });
+      }
+
+      const otp = generateOTP();
+      otpStore.set(phone, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
+
+      console.log(`[OTP] Code for +91${phone}: ${otp}`);
+
+      res.json({ success: true, message: "OTP sent successfully", otp });
+    } catch (error) {
+      console.error("Error sending OTP:", error);
+      res.status(500).json({ success: false, message: "Failed to send OTP" });
+    }
+  });
+
+  app.post("/api/auth/verify-otp", (req, res) => {
+    try {
+      const { phone, otp, name, email, gender } = req.body;
+
+      if (!phone || !otp) {
+        return res.status(400).json({ success: false, message: "Phone and OTP required" });
+      }
+
+      const stored = otpStore.get(phone);
+      if (!stored) {
+        return res.json({ success: false, message: "OTP expired or not sent. Please request a new one." });
+      }
+
+      if (Date.now() > stored.expiresAt) {
+        otpStore.delete(phone);
+        return res.json({ success: false, message: "OTP has expired. Please request a new one." });
+      }
+
+      if (stored.otp !== otp) {
+        return res.json({ success: false, message: "Invalid OTP. Please try again." });
+      }
+
+      otpStore.delete(phone);
+
+      const user = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        phone,
+        name: name || "User",
+        email: email || "",
+        gender: gender || "other",
+        createdAt: new Date().toISOString(),
+      };
+
+      res.json({ success: true, user });
+    } catch (error) {
+      console.error("Error verifying OTP:", error);
+      res.status(500).json({ success: false, message: "Verification failed" });
+    }
+  });
+
   app.post("/api/validate-listing", async (req, res) => {
     try {
       const { imageBase64, category, title, description } = req.body;

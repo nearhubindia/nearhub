@@ -13,6 +13,7 @@ import {
 } from "@expo-google-fonts/inter";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
+import { AuthProvider } from "@/lib/auth-context";
 import { ListingsProvider } from "@/lib/listings-context";
 import { MessagesProvider } from "@/lib/messages-context";
 
@@ -31,6 +32,20 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="chat/[listingId]"
+        options={{
+          headerShown: false,
+          presentation: "card",
+        }}
+      />
+      <Stack.Screen
+        name="auth/register"
+        options={{
+          headerShown: false,
+          presentation: "card",
+        }}
+      />
+      <Stack.Screen
+        name="auth/verify-otp"
         options={{
           headerShown: false,
           presentation: "card",
@@ -63,11 +78,13 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <GestureHandlerRootView>
           <KeyboardProvider>
-            <ListingsProvider>
-              <MessagesProvider>
-                <RootLayoutNav />
-              </MessagesProvider>
-            </ListingsProvider>
+            <AuthProvider>
+              <ListingsProvider>
+                <MessagesProvider>
+                  <RootLayoutNav />
+                </MessagesProvider>
+              </ListingsProvider>
+            </AuthProvider>
           </KeyboardProvider>
         </GestureHandlerRootView>
       </QueryClientProvider>
