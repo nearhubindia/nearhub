@@ -1,8 +1,8 @@
-# Replit Agent Configuration - Adli Marketplace
+# Replit Agent Configuration - adlix Marketplace
 
 ## Overview
 
-Adli is a local classifieds marketplace mobile app built with Expo (React Native) and an Express.js backend. Users can browse, create, save, and message about product listings. The app features a TikTok-style "Shorts" vertical scroll view for browsing listings, AI-powered listing image validation using Google Gemini, and an in-app chat system. Data is primarily stored client-side using AsyncStorage with sample data seeding, while the server provides AI integration endpoints and has a PostgreSQL database configured via Drizzle ORM for chat/conversation persistence.
+adlix is a local classifieds marketplace mobile app built with Expo (React Native) and an Express.js backend. Users can browse, create, save, and message about product listings. The app features a TikTok-style "Shorts" vertical scroll view for browsing listings, AI-powered listing image validation using Google Gemini, and an in-app chat system. Data is primarily stored client-side using AsyncStorage with sample data seeding, while the server provides AI integration endpoints and has a PostgreSQL database configured via Drizzle ORM for chat/conversation persistence.
 
 ## User Preferences
 

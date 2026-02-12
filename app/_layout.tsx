@@ -1,7 +1,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import {
@@ -16,6 +16,7 @@ import { queryClient } from "@/lib/query-client";
 import { AuthProvider } from "@/lib/auth-context";
 import { ListingsProvider } from "@/lib/listings-context";
 import { MessagesProvider } from "@/lib/messages-context";
+import AnimatedSplash from "@/components/AnimatedSplash";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -70,6 +71,7 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -90,6 +92,9 @@ export default function RootLayout() {
               <ListingsProvider>
                 <MessagesProvider>
                   <RootLayoutNav />
+                  {showSplash && (
+                    <AnimatedSplash onFinish={() => setShowSplash(false)} />
+                  )}
                 </MessagesProvider>
               </ListingsProvider>
             </AuthProvider>
