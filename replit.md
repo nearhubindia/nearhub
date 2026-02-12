@@ -15,7 +15,9 @@ Preferred communication style: Simple, everyday language.
 - **Framework**: Expo SDK 54 with expo-router v6 for file-based routing
 - **Navigation**: Tab-based layout with 4 tabs: Browse (index), Sell (create), Saved, and Shorts
 - **Detail screens**: `listing/[id]` for listing details, `chat/[listingId]` for messaging
-- **State management**: React Context API with two main providers:
+- **Authentication**: OTP-based mobile registration flow with name, gender, email collection. Auth screens at `app/auth/register.tsx` and `app/auth/verify-otp.tsx`. Simulated OTP (shown on-screen, no SMS provider connected yet).
+- **State management**: React Context API with three main providers:
+  - `AuthProvider` — manages user authentication state, persisted to AsyncStorage
   - `ListingsProvider` — manages all listings and saved items, persisted to AsyncStorage
   - `MessagesProvider` — manages chat threads, persisted to AsyncStorage
 - **Data fetching**: TanStack React Query is configured (`lib/query-client.ts`) with a helper `apiRequest` function for server communication, though most current data flows use local AsyncStorage
@@ -30,6 +32,8 @@ Preferred communication style: Simple, everyday language.
 - **Runtime**: Node.js with TypeScript, compiled via `tsx` in dev and `esbuild` for production
 - **Server entry**: `server/index.ts` — sets up CORS (Replit domain aware + localhost), JSON parsing, serves static web build in production
 - **Routes** (`server/routes.ts`):
+  - `POST /api/auth/send-otp` — Generates and stores a 6-digit OTP for a phone number (simulated, returns OTP in response since no SMS provider connected)
+  - `POST /api/auth/verify-otp` — Verifies OTP and returns user object on success
   - `POST /api/validate-listing` — AI-powered image validation using Google Gemini (gemini-2.5-flash). Accepts base64 image data and listing metadata, returns validation JSON
 - **Replit AI Integrations** (`server/replit_integrations/`):
   - `chat/` — Full CRUD for conversations and messages, with Gemini-powered AI chat (streaming SSE responses). Uses PostgreSQL via Drizzle
