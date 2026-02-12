@@ -1,17 +1,20 @@
 import React, { useCallback } from 'react';
-import { StyleSheet, Text, View, FlatList, Platform } from 'react-native';
+import { StyleSheet, Text, View, FlatList, Platform, Pressable, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useListings } from '@/lib/listings-context';
+import { useAuth } from '@/lib/auth-context';
 import { getTimeAgo, formatCondition } from '@/lib/utils';
 import ListingCard from '@/components/ListingCard';
 
 export default function SavedScreen() {
   const insets = useSafeAreaInsets();
   const { savedIds, toggleSaved, getSavedListings } = useListings();
+  const { user, isAuthenticated, logout } = useAuth();
   const savedListings = getSavedListings();
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
@@ -24,11 +27,64 @@ export default function SavedScreen() {
     [toggleSaved],
   );
 
+  const handleLogout = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        },
+      },
+    ]);
+  };
+
+  const genderLabel = user?.gender === 'male' ? 'Male' : user?.gender === 'female' ? 'Female' : 'Other';
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: (insets.top || webTopInset) + 8 }]}>
-        <Text style={styles.title}>Saved</Text>
-        <Text style={styles.count}>{savedListings.length} items</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Saved</Text>
+          {isAuthenticated && (
+            <Pressable style={styles.profileButton} onPress={handleLogout}>
+              <Feather name="log-out" size={18} color={Colors.textSecondary} />
+            </Pressable>
+          )}
+        </View>
+
+        {isAuthenticated && user ? (
+          <View style={styles.profileCard}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {user.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileName}>{user.name}</Text>
+              <Text style={styles.profileDetail}>+91 {user.phone} {genderLabel}</Text>
+              <Text style={styles.profileDetail}>{user.email}</Text>
+            </View>
+          </View>
+        ) : (
+          <Pressable
+            style={styles.signInCard}
+            onPress={() => router.push('/auth/register')}
+          >
+            <View style={styles.signInIconCircle}>
+              <Feather name="user-plus" size={20} color={Colors.primary} />
+            </View>
+            <View style={styles.signInInfo}>
+              <Text style={styles.signInTitle}>Sign in to adli</Text>
+              <Text style={styles.signInSubtitle}>Save items and manage your account</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={Colors.textTertiary} />
+          </Pressable>
+        )}
+
+        <Text style={styles.count}>{savedListings.length} saved items</Text>
       </View>
 
       <FlatList
@@ -80,16 +136,96 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   title: {
     fontSize: 28,
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
   },
+  profileButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.borderLight,
+    borderRadius: 16,
+    padding: 14,
+    gap: 12,
+    marginBottom: 12,
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 20,
+    fontFamily: 'Inter_700Bold',
+    color: '#fff',
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.text,
+  },
+  profileDetail: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  signInCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.borderLight,
+    borderRadius: 16,
+    padding: 14,
+    gap: 12,
+    marginBottom: 12,
+  },
+  signInIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(13, 148, 136, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signInInfo: {
+    flex: 1,
+  },
+  signInTitle: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.text,
+  },
+  signInSubtitle: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
   count: {
     fontSize: 14,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
-    marginTop: 2,
   },
   row: {
     justifyContent: 'space-between',
