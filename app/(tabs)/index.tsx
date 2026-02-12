@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,11 +8,13 @@ import {
   Platform,
   RefreshControl,
   Pressable,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import Animated, { FadeIn, FadeOut, SlideInUp, SlideOutUp } from 'react-native-reanimated';
 import Colors from '@/constants/colors';
 import { useListings } from '@/lib/listings-context';
 import { Category, CATEGORIES } from '@/lib/types';
@@ -25,11 +27,30 @@ export default function HomeScreen() {
   const { listings, savedIds, toggleSaved, isLoading, refreshListings } = useListings();
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>('All');
   const [refreshing, setRefreshing] = useState(false);
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredListings =
-    selectedCategory === 'All'
-      ? listings
-      : listings.filter((l) => l.category === selectedCategory);
+  const filteredListings = useMemo(() => {
+    let result = listings;
+
+    if (selectedCategory !== 'All') {
+      result = result.filter((l) => l.category === selectedCategory);
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter(
+        (l) =>
+          l.title.toLowerCase().includes(q) ||
+          l.description.toLowerCase().includes(q) ||
+          l.category.toLowerCase().includes(q) ||
+          l.sellerName.toLowerCase().includes(q) ||
+          l.location.city.toLowerCase().includes(q),
+      );
+    }
+
+    return result;
+  }, [listings, selectedCategory, searchQuery]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -44,6 +65,14 @@ export default function HomeScreen() {
     },
     [toggleSaved],
   );
+
+  const toggleSearch = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (searchVisible) {
+      setSearchQuery('');
+    }
+    setSearchVisible((prev) => !prev);
+  }, [searchVisible]);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -79,12 +108,43 @@ export default function HomeScreen() {
             </View>
           </View>
           <Pressable
-            style={styles.searchButton}
-            onPress={() => {}}
+            style={[styles.searchButton, searchVisible && styles.searchButtonActive]}
+            onPress={toggleSearch}
           >
-            <Feather name="search" size={20} color={Colors.text} />
+            <Feather name={searchVisible ? 'x' : 'search'} size={20} color={searchVisible ? '#fff' : Colors.text} />
           </Pressable>
         </View>
+
+        {searchVisible && (
+          <Animated.View
+            entering={FadeIn.duration(200)}
+            exiting={FadeOut.duration(150)}
+            style={styles.searchBarContainer}
+          >
+            <View style={styles.searchBar}>
+              <Feather name="search" size={18} color={Colors.textTertiary} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search listings, categories, sellers..."
+                placeholderTextColor={Colors.textTertiary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && (
+                <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                  <Feather name="x-circle" size={18} color={Colors.textTertiary} />
+                </Pressable>
+              )}
+            </View>
+            {searchQuery.trim().length > 0 && (
+              <Text style={styles.resultCount}>
+                {filteredListings.length} {filteredListings.length === 1 ? 'result' : 'results'} found
+              </Text>
+            )}
+          </Animated.View>
+        )}
 
         <ScrollView
           horizontal
@@ -120,10 +180,14 @@ export default function HomeScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Feather name="inbox" size={48} color={Colors.textTertiary} />
-            <Text style={styles.emptyTitle}>No listings found</Text>
+            <Feather name={searchQuery.trim() ? 'search' : 'inbox'} size={48} color={Colors.textTertiary} />
+            <Text style={styles.emptyTitle}>
+              {searchQuery.trim() ? 'No results found' : 'No listings found'}
+            </Text>
             <Text style={styles.emptySubtitle}>
-              {selectedCategory !== 'All'
+              {searchQuery.trim()
+                ? `No listings match "${searchQuery.trim()}". Try different keywords.`
+                : selectedCategory !== 'All'
                 ? `No items in ${selectedCategory}. Try a different category.`
                 : 'Pull to refresh or create a new listing.'}
             </Text>
@@ -175,6 +239,36 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  searchButtonActive: {
+    backgroundColor: Colors.primary,
+  },
+  searchBarContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.borderLight,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.text,
+    paddingVertical: 0,
+  },
+  resultCount: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.primary,
+    marginTop: 6,
+    marginLeft: 4,
   },
   categoryScroll: {
     paddingHorizontal: 16,
