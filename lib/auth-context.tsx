@@ -3,6 +3,48 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AUTH_USER_KEY = '@adli_auth_user';
 
+export type SubscriptionPlan = 'basic' | 'standard' | 'premium';
+
+export interface PlanDetails {
+  id: SubscriptionPlan;
+  name: string;
+  price: number;
+  period: string;
+  features: string[];
+  listingLimit: number;
+  highlight: boolean;
+}
+
+export const PLANS: PlanDetails[] = [
+  {
+    id: 'basic',
+    name: 'Basic',
+    price: 99,
+    period: 'month',
+    features: ['5 active listings', 'Standard support', 'Basic analytics'],
+    listingLimit: 5,
+    highlight: false,
+  },
+  {
+    id: 'standard',
+    name: 'Standard',
+    price: 199,
+    period: 'month',
+    features: ['25 active listings', 'Priority support', 'Advanced analytics', 'Featured badge'],
+    listingLimit: 25,
+    highlight: true,
+  },
+  {
+    id: 'premium',
+    name: 'Premium',
+    price: 399,
+    period: 'month',
+    features: ['Unlimited listings', '24/7 support', 'Full analytics', 'Featured badge', 'Top search placement'],
+    listingLimit: -1,
+    highlight: false,
+  },
+];
+
 export interface User {
   id: string;
   phone: string;
@@ -10,15 +52,20 @@ export interface User {
   gender: 'male' | 'female' | 'other';
   email: string;
   createdAt: string;
+  plan?: SubscriptionPlan;
+  planExpiresAt?: string;
 }
 
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  hasActivePlan: boolean;
+  currentPlan: PlanDetails | null;
   login: (user: User) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<void>;
+  subscribeToPlan: (plan: SubscriptionPlan) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -61,16 +108,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
   };
 
+  const subscribeToPlan = async (planId: SubscriptionPlan) => {
+    if (!user) return;
+    const expiresAt = new Date();
+    expiresAt.setMonth(expiresAt.getMonth() + 1);
+    const updated = { ...user, plan: planId, planExpiresAt: expiresAt.toISOString() };
+    setUser(updated);
+    await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
+  };
+
+  const hasActivePlan = !!(user?.plan && user?.planExpiresAt && new Date(user.planExpiresAt) > new Date());
+  const currentPlan = hasActivePlan ? PLANS.find((p) => p.id === user?.plan) || null : null;
+
   const value = useMemo(
     () => ({
       user,
       isLoading,
       isAuthenticated: !!user,
+      hasActivePlan,
+      currentPlan,
       login,
       logout,
       updateUser,
+      subscribeToPlan,
     }),
-    [user, isLoading],
+    [user, isLoading, hasActivePlan, currentPlan],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
