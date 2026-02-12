@@ -16,10 +16,6 @@ function NativeTabLayout() {
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>Browse</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="shorts">
-        <Icon sf={{ default: "play.rectangle", selected: "play.rectangle.fill" }} />
-        <Label>Shorts</Label>
-      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="create">
         <Icon sf={{ default: "plus.circle", selected: "plus.circle.fill" }} />
         <Label>Sell</Label>
@@ -27,6 +23,10 @@ function NativeTabLayout() {
       <NativeTabs.Trigger name="saved">
         <Icon sf={{ default: "heart", selected: "heart.fill" }} />
         <Label>Saved</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="shorts">
+        <Icon sf={{ default: "play.rectangle", selected: "play.rectangle.fill" }} />
+        <Label>Shorts</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -77,15 +77,6 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="shorts"
-        options={{
-          title: "Shorts",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="play" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="create"
         options={{
           title: "Sell",
@@ -100,6 +91,15 @@ function ClassicTabLayout() {
           title: "Saved",
           tabBarIcon: ({ color, size }) => (
             <Feather name="heart" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="shorts"
+        options={{
+          title: "Shorts",
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="play" size={size} color={color} />
           ),
         }}
       />
