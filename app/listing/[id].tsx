@@ -43,7 +43,20 @@ export default function ListingDetailScreen() {
     );
   }
 
-  const handleContact = () => {
+  const handleMessage = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push({
+      pathname: '/chat/[listingId]',
+      params: {
+        listingId: listing.id,
+        sellerName: listing.sellerName,
+        listingTitle: listing.title,
+        listingImage: listing.images[0],
+      },
+    });
+  };
+
+  const handleCall = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (Platform.OS === 'web') {
       Alert.alert('Contact Seller', `Call ${listing.sellerName} at ${listing.sellerPhone}`);
@@ -152,11 +165,11 @@ export default function ListingDetailScreen() {
       </ScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: (insets.bottom || (Platform.OS === 'web' ? 34 : 0)) + 8 }]}>
-        <Pressable style={styles.messageButton} onPress={handleContact}>
+        <Pressable style={styles.messageButton} onPress={handleMessage}>
           <Feather name="message-circle" size={20} color={Colors.primary} />
           <Text style={styles.messageText}>Message</Text>
         </Pressable>
-        <Pressable style={styles.callButton} onPress={handleContact}>
+        <Pressable style={styles.callButton} onPress={handleCall}>
           <Feather name="phone" size={20} color="#fff" />
           <Text style={styles.callText}>Call Seller</Text>
         </Pressable>

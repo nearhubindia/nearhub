@@ -6,9 +6,7 @@ import {
   Dimensions,
   Text,
   Pressable,
-  Alert,
   Platform,
-  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -34,16 +32,17 @@ export default function ShortsScreen() {
     [toggleSaved],
   );
 
-  const handleContact = useCallback((phone: string, sellerName: string) => {
+  const handleContact = useCallback((item: (typeof listings)[0]) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (Platform.OS === 'web') {
-      Alert.alert('Contact Seller', `Call ${sellerName} at ${phone}`);
-    } else {
-      Alert.alert('Contact Seller', `Would you like to call ${sellerName}?`, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Call', onPress: () => Linking.openURL(`tel:${phone}`) },
-      ]);
-    }
+    router.push({
+      pathname: '/chat/[listingId]',
+      params: {
+        listingId: item.id,
+        sellerName: item.sellerName,
+        listingTitle: item.title,
+        listingImage: item.images[0],
+      },
+    });
   }, []);
 
   const onViewableItemsChanged = useCallback(
@@ -85,7 +84,7 @@ export default function ShortsScreen() {
             condition={formatCondition(item.condition)}
             isSaved={savedIds.has(item.id)}
             onSave={() => handleSave(item.id)}
-            onContact={() => handleContact(item.sellerPhone, item.sellerName)}
+            onContact={() => handleContact(item)}
             onDetails={() =>
               router.push({ pathname: '/listing/[id]', params: { id: item.id } })
             }

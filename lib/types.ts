@@ -40,7 +40,7 @@ export const CATEGORIES: Category[] = [
 ];
 
 export const CATEGORY_ICONS: Record<Category, { name: string; family: string }> = {
-  Electronics: { name: 'laptop', family: 'Feather' },
+  Electronics: { name: 'smartphone', family: 'Feather' },
   Vehicles: { name: 'truck', family: 'Feather' },
   Furniture: { name: 'grid', family: 'Feather' },
   Clothing: { name: 'shopping-bag', family: 'Feather' },

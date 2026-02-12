@@ -14,6 +14,7 @@ import {
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { ListingsProvider } from "@/lib/listings-context";
+import { MessagesProvider } from "@/lib/messages-context";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -23,6 +24,13 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="listing/[id]"
+        options={{
+          headerShown: false,
+          presentation: "card",
+        }}
+      />
+      <Stack.Screen
+        name="chat/[listingId]"
         options={{
           headerShown: false,
           presentation: "card",
@@ -56,7 +64,9 @@ export default function RootLayout() {
         <GestureHandlerRootView>
           <KeyboardProvider>
             <ListingsProvider>
-              <RootLayoutNav />
+              <MessagesProvider>
+                <RootLayoutNav />
+              </MessagesProvider>
             </ListingsProvider>
           </KeyboardProvider>
         </GestureHandlerRootView>
