@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -383,6 +384,14 @@ export default function CreateScreen() {
           />
         </View>
 
+      </ScrollView>
+
+      <View style={[styles.floatingContainer, { paddingBottom: (insets.bottom || (Platform.OS === 'web' ? 34 : 0)) + 8 }]}>
+        <LinearGradient
+          colors={['rgba(248,249,250,0)', 'rgba(248,249,250,0.9)', Colors.background]}
+          style={styles.floatingGradient}
+          pointerEvents="none"
+        />
         <Pressable
           style={({ pressed }) => [
             styles.submitButton,
@@ -392,16 +401,26 @@ export default function CreateScreen() {
           onPress={handleSubmit}
           disabled={isSubmitting || isValidating}
         >
-          {isSubmitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Feather name="check" size={20} color="#fff" />
-              <Text style={styles.submitText}>Post Listing</Text>
-            </>
-          )}
+          <LinearGradient
+            colors={['#0D9488', '#0F766E', '#065F56']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.submitGradient}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <View style={styles.submitIconCircle}>
+                  <Feather name="send" size={18} color="#fff" />
+                </View>
+                <Text style={styles.submitText}>Post Listing</Text>
+                <Feather name="arrow-right" size={18} color="rgba(255,255,255,0.7)" />
+              </>
+            )}
+          </LinearGradient>
         </Pressable>
-      </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -587,26 +606,58 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: '#fff',
   },
+  floatingContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingTop: 0,
+  },
+  floatingGradient: {
+    position: 'absolute',
+    top: -30,
+    left: 0,
+    right: 0,
+    height: 30,
+  },
   submitButton: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: Colors.primaryDark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  submitGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
-    paddingVertical: 16,
-    borderRadius: 14,
-    gap: 8,
-    marginTop: 8,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    gap: 10,
+  },
+  submitIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   submitPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.98 }],
+    transform: [{ scale: 0.96 }],
+    shadowOpacity: 0.15,
   },
   submitDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   submitText: {
-    fontSize: 17,
-    fontFamily: 'Inter_600SemiBold',
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
     color: '#fff',
+    flex: 1,
+    textAlign: 'center',
   },
 });
