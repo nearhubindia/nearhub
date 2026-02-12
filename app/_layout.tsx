@@ -51,6 +51,14 @@ function RootLayoutNav() {
           presentation: "card",
         }}
       />
+      <Stack.Screen
+        name="auth/select-plan"
+        options={{
+          headerShown: false,
+          presentation: "card",
+          gestureEnabled: false,
+        }}
+      />
     </Stack>
   );
 }

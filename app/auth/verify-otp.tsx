@@ -112,7 +112,7 @@ export default function VerifyOTPScreen() {
       if (data.success && data.user) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await login(data.user);
-        router.replace('/(tabs)');
+        router.replace('/auth/select-plan');
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert('Invalid OTP', data.message || 'The OTP you entered is incorrect. Please try again.');
