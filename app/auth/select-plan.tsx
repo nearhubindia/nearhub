@@ -107,11 +107,16 @@ export default function SelectPlanScreen() {
       const plan = PLANS.find((p) => p.id === selectedPlan);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      Alert.alert(
-        'Subscription Active',
-        `You're now on the ${plan?.name} plan! Enjoy adli.`,
-        [{ text: 'Start Exploring', onPress: () => router.replace('/(tabs)') }],
-      );
+      if (Platform.OS === 'web') {
+        window.alert(`You're now on the ${plan?.name} plan! Enjoy adli.`);
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert(
+          'Subscription Active',
+          `You're now on the ${plan?.name} plan! Enjoy adli.`,
+          [{ text: 'Start Exploring', onPress: () => router.replace('/(tabs)') }],
+        );
+      }
     } catch (e) {
       Alert.alert('Payment Failed', 'Something went wrong. Please try again.');
     } finally {
