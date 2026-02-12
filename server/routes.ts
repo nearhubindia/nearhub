@@ -81,7 +81,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/validate-listing", async (req, res) => {
     try {
-      const { imageBase64, category, title, description } = req.body;
+      const { imageBase64, category, title, description, isVideo } = req.body;
 
       if (!imageBase64) {
         return res.status(400).json({ error: "Image is required" });
@@ -89,12 +89,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
 
-      const prompt = `You are a classifieds marketplace content moderator. Analyze this image for a listing with:
+      const mediaContext = isVideo
+        ? "This is a frame extracted from a video listing. Analyze this video frame"
+        : "Analyze this image";
+
+      const prompt = `You are a classifieds marketplace content moderator. ${mediaContext} for a listing with:
 Title: "${title || "No title"}"
 Category: "${category || "General"}"
 Description: "${description || "No description"}"
 
-Evaluate the image and respond with a JSON object (no markdown, no code blocks, just raw JSON):
+Evaluate the ${isVideo ? "video frame" : "image"} and respond with a JSON object (no markdown, no code blocks, just raw JSON):
 {
   "isValid": true/false,
   "isAppropriate": true/false,

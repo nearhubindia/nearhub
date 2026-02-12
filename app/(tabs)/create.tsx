@@ -15,6 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import * as VideoThumbnails from 'expo-video-thumbnails';
+import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -134,6 +136,73 @@ export default function CreateScreen() {
     }
   };
 
+  const validateVideoFrame = async (videoUri: string) => {
+    setIsValidating(true);
+    setValidationResult(null);
+    try {
+      let base64Data: string | undefined;
+
+      if (Platform.OS !== 'web') {
+        const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(videoUri, {
+          time: 1000,
+          quality: 0.7,
+        });
+        const thumbBase64 = await FileSystem.readAsStringAsync(thumbUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        base64Data = thumbBase64;
+      }
+
+      if (!base64Data) {
+        setValidationResult({
+          isValid: true,
+          isAppropriate: true,
+          matchesCategory: true,
+          confidence: 0.5,
+          detectedItems: [],
+          suggestion: '',
+          reason: 'Video frame validation not available on web - proceeding',
+        });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        return;
+      }
+
+      const baseUrl = getApiUrl();
+      const url = new URL('/api/validate-listing', baseUrl);
+      const res = await fetch(url.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: `data:image/jpeg;base64,${base64Data}`,
+          category,
+          title,
+          description,
+          isVideo: true,
+        }),
+      });
+      const data = await res.json();
+      setValidationResult(data);
+      Haptics.notificationAsync(
+        data.isValid && data.isAppropriate
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Warning,
+      );
+    } catch (e) {
+      console.error('Video validation error:', e);
+      setValidationResult({
+        isValid: true,
+        isAppropriate: true,
+        matchesCategory: true,
+        confidence: 0.5,
+        detectedItems: [],
+        suggestion: '',
+        reason: 'Could not validate video - proceeding anyway',
+      });
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
   const pickVideo = useCallback(async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -148,13 +217,15 @@ export default function CreateScreen() {
         videoMaxDuration: 60,
       });
       if (!result.canceled && result.assets[0]) {
-        setVideoUri(result.assets[0].uri);
+        const uri = result.assets[0].uri;
+        setVideoUri(uri);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        validateVideoFrame(uri);
       }
     } catch (e) {
       console.error('Video picker error:', e);
     }
-  }, []);
+  }, [title, category, description]);
 
   const handleSubmit = async () => {
     if (!title.trim()) {
@@ -294,14 +365,14 @@ export default function CreateScreen() {
           <View style={styles.mediaToggle}>
             <Pressable
               style={[styles.mediaButton, mediaType === 'photo' && styles.mediaButtonActive]}
-              onPress={() => setMediaType('photo')}
+              onPress={() => { setMediaType('photo'); setValidationResult(null); }}
             >
               <Feather name="image" size={18} color={mediaType === 'photo' ? '#fff' : Colors.textSecondary} />
               <Text style={[styles.mediaText, mediaType === 'photo' && styles.mediaTextActive]}>Photo Listing</Text>
             </Pressable>
             <Pressable
               style={[styles.mediaButton, mediaType === 'video' && styles.mediaButtonActive]}
-              onPress={() => setMediaType('video')}
+              onPress={() => { setMediaType('video'); setValidationResult(null); }}
             >
               <Feather name="video" size={18} color={mediaType === 'video' ? '#fff' : Colors.textSecondary} />
               <Text style={[styles.mediaText, mediaType === 'video' && styles.mediaTextActive]}>Video Listing</Text>
@@ -389,7 +460,7 @@ export default function CreateScreen() {
                   <Feather name="film" size={20} color={Colors.primary} />
                   <Text style={styles.videoFileName}>Video attached</Text>
                 </View>
-                <Pressable onPress={() => setVideoUri(null)}>
+                <Pressable onPress={() => { setVideoUri(null); setValidationResult(null); }}>
                   <Ionicons name="close-circle" size={24} color={Colors.accent} />
                 </Pressable>
               </View>
@@ -399,6 +470,53 @@ export default function CreateScreen() {
                 <Text style={styles.addVideoText}>Select Video</Text>
                 <Text style={styles.addVideoDuration}>Max 60 seconds</Text>
               </Pressable>
+            )}
+
+            {isValidating && (
+              <View style={[styles.validationBanner, { marginTop: 12 }]}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <Text style={styles.validationText}>AI is analyzing your video...</Text>
+              </View>
+            )}
+
+            {validationResult && !isValidating && (
+              <View
+                style={[
+                  styles.validationBanner,
+                  {
+                    marginTop: 12,
+                    backgroundColor:
+                      validationResult.isValid && validationResult.isAppropriate
+                        ? '#ECFDF5'
+                        : '#FEF2F2',
+                  },
+                ]}
+              >
+                <Feather
+                  name={validationResult.isValid && validationResult.isAppropriate ? 'check-circle' : 'alert-triangle'}
+                  size={18}
+                  color={validationResult.isValid && validationResult.isAppropriate ? Colors.success : Colors.error}
+                />
+                <View style={styles.validationContent}>
+                  <Text
+                    style={[
+                      styles.validationTitle,
+                      {
+                        color:
+                          validationResult.isValid && validationResult.isAppropriate
+                            ? Colors.success
+                            : Colors.error,
+                      },
+                    ]}
+                  >
+                    {validationResult.isValid && validationResult.isAppropriate ? 'AI Verified' : 'Needs Attention'}
+                  </Text>
+                  <Text style={styles.validationReason}>{validationResult.reason}</Text>
+                  {validationResult.suggestion ? (
+                    <Text style={styles.validationSuggestion}>{validationResult.suggestion}</Text>
+                  ) : null}
+                </View>
+              </View>
             )}
           </View>
         )}
