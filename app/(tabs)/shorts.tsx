@@ -7,6 +7,7 @@ import {
   Text,
   Pressable,
   Platform,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -14,6 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useListings } from '@/lib/listings-context';
+import { useAuth } from '@/lib/auth-context';
 import { formatCondition } from '@/lib/utils';
 import ShortsCard from '@/components/ShortsCard';
 
@@ -22,6 +24,7 @@ const { height, width } = Dimensions.get('window');
 export default function ShortsScreen() {
   const insets = useSafeAreaInsets();
   const { listings, savedIds, toggleSaved } = useListings();
+  const { isAuthenticated } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const handleSave = useCallback(
@@ -33,6 +36,17 @@ export default function ShortsScreen() {
   );
 
   const handleContact = useCallback((item: (typeof listings)[0]) => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        'Sign in Required',
+        'You need to register to contact sellers.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Register', onPress: () => router.push('/auth/register') },
+        ],
+      );
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push({
       pathname: '/chat/[listingId]',
@@ -43,7 +57,7 @@ export default function ShortsScreen() {
         listingImage: item.images[0],
       },
     });
-  }, []);
+  }, [isAuthenticated]);
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: any[] }) => {

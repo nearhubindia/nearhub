@@ -17,6 +17,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useListings } from '@/lib/listings-context';
+import { useAuth } from '@/lib/auth-context';
 import { getTimeAgo, formatCondition } from '@/lib/utils';
 
 const { width } = Dimensions.get('window');
@@ -25,6 +26,7 @@ export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { getListingById, savedIds, toggleSaved } = useListings();
+  const { isAuthenticated } = useAuth();
 
   const listing = useMemo(() => getListingById(id), [id]);
   const isSaved = savedIds.has(id);
@@ -43,29 +45,48 @@ export default function ListingDetailScreen() {
     );
   }
 
+  const requireAuth = (action: () => void) => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        'Sign in Required',
+        'You need to register to contact sellers.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Register', onPress: () => router.push('/auth/register') },
+        ],
+      );
+      return;
+    }
+    action();
+  };
+
   const handleMessage = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push({
-      pathname: '/chat/[listingId]',
-      params: {
-        listingId: listing.id,
-        sellerName: listing.sellerName,
-        listingTitle: listing.title,
-        listingImage: listing.images[0],
-      },
+    requireAuth(() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      router.push({
+        pathname: '/chat/[listingId]',
+        params: {
+          listingId: listing.id,
+          sellerName: listing.sellerName,
+          listingTitle: listing.title,
+          listingImage: listing.images[0],
+        },
+      });
     });
   };
 
   const handleCall = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (Platform.OS === 'web') {
-      Alert.alert('Contact Seller', `Call ${listing.sellerName} at ${listing.sellerPhone}`);
-    } else {
-      Alert.alert('Contact Seller', `Would you like to call ${listing.sellerName}?`, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Call', onPress: () => Linking.openURL(`tel:${listing.sellerPhone}`) },
-      ]);
-    }
+    requireAuth(() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (Platform.OS === 'web') {
+        Alert.alert('Contact Seller', `Call ${listing.sellerName} at ${listing.sellerPhone}`);
+      } else {
+        Alert.alert('Contact Seller', `Would you like to call ${listing.sellerName}?`, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Call', onPress: () => Linking.openURL(`tel:${listing.sellerPhone}`) },
+        ]);
+      }
+    });
   };
 
   const handleSave = () => {
