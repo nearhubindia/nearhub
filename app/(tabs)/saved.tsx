@@ -77,7 +77,7 @@ export default function SavedScreen() {
               <Feather name="user-plus" size={20} color={Colors.primary} />
             </View>
             <View style={styles.signInInfo}>
-              <Text style={styles.signInTitle}>Sign in to adli</Text>
+              <Text style={styles.signInTitle}>Sign in to adlix</Text>
               <Text style={styles.signInSubtitle}>Save items and manage your account</Text>
             </View>
             <Feather name="chevron-right" size={20} color={Colors.textTertiary} />

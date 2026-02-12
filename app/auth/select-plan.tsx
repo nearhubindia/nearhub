@@ -108,12 +108,12 @@ export default function SelectPlanScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       if (Platform.OS === 'web') {
-        window.alert(`You're now on the ${plan?.name} plan! Enjoy adli.`);
+        window.alert(`You're now on the ${plan?.name} plan! Enjoy adlix.`);
         router.replace('/(tabs)');
       } else {
         Alert.alert(
           'Subscription Active',
-          `You're now on the ${plan?.name} plan! Enjoy adli.`,
+          `You're now on the ${plan?.name} plan! Enjoy adlix.`,
           [{ text: 'Start Exploring', onPress: () => router.replace('/(tabs)') }],
         );
       }
@@ -139,7 +139,7 @@ export default function SelectPlanScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerSection}>
-          <Text style={styles.brandName}>adli</Text>
+          <Text style={styles.brandName}>adlix</Text>
           <Text style={styles.title}>Choose Your Plan</Text>
           <Text style={styles.subtitle}>
             Select a plan that works best for you. You can upgrade or change anytime.

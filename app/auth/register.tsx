@@ -113,7 +113,7 @@ export default function RegisterScreen() {
         </Pressable>
 
         <View style={styles.brandSection}>
-          <Text style={styles.brandName}>adli</Text>
+          <Text style={styles.brandName}>adlix</Text>
           <Text style={styles.brandTagline}>Join the marketplace</Text>
         </View>
 

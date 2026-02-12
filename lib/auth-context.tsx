@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const AUTH_USER_KEY = '@adli_auth_user';
+const AUTH_USER_KEY = '@adlix_auth_user';
 
 export type SubscriptionPlan = 'basic' | 'standard' | 'premium';
 
