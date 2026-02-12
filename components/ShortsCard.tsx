@@ -1,12 +1,10 @@
 import React, { useCallback, useState } from 'react';
-import { StyleSheet, Text, View, Pressable, Dimensions, Platform } from 'react-native';
+import { StyleSheet, Text, View, Pressable, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '@/constants/colors';
-
-const { width, height } = Dimensions.get('window');
 
 interface ShortsCardProps {
   title: string;
@@ -22,6 +20,8 @@ interface ShortsCardProps {
   onSave: () => void;
   onContact: () => void;
   onDetails: () => void;
+  cardHeight: number;
+  cardWidth: number;
 }
 
 function VideoPlayer({ videoUrl, isActive }: { videoUrl: string; isActive: boolean }) {
@@ -44,7 +44,7 @@ function VideoPlayer({ videoUrl, isActive }: { videoUrl: string; isActive: boole
   return (
     <VideoView
       player={player}
-      style={styles.video}
+      style={StyleSheet.absoluteFill}
       nativeControls={false}
       contentFit="cover"
     />
@@ -65,13 +65,15 @@ export default function ShortsCard({
   onSave,
   onContact,
   onDetails,
+  cardHeight,
+  cardWidth,
 }: ShortsCardProps) {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { width: cardWidth, height: cardHeight }]}>
       {videoUrl && isActive ? (
         <VideoPlayer videoUrl={videoUrl} isActive={isActive} />
       ) : (
-        <Image source={{ uri: image }} style={styles.image} contentFit="cover" transition={300} />
+        <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
       )}
 
       {videoUrl && (
@@ -117,7 +119,7 @@ export default function ShortsCard({
           </View>
         </View>
 
-        <Text style={styles.price}>₹{price.toLocaleString('en-IN')}</Text>
+        <Text style={styles.price}>{'\u20B9'}{price.toLocaleString('en-IN')}</Text>
         <Text style={styles.title} numberOfLines={2}>
           {title}
         </Text>
@@ -142,20 +144,9 @@ export default function ShortsCard({
 
 const styles = StyleSheet.create({
   container: {
-    width,
-    height,
     position: 'relative',
     backgroundColor: '#000',
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-    position: 'absolute',
-  },
-  video: {
-    width: '100%',
-    height: '100%',
-    position: 'absolute',
+    overflow: 'hidden',
   },
   videoBadge: {
     position: 'absolute',
@@ -179,7 +170,7 @@ const styles = StyleSheet.create({
   sideActions: {
     position: 'absolute',
     right: 12,
-    bottom: 200,
+    bottom: 160,
     alignItems: 'center',
     gap: 20,
   },
@@ -198,7 +189,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 70,
     padding: 16,
-    paddingBottom: 100,
+    paddingBottom: 20,
   },
   badges: {
     flexDirection: 'row',

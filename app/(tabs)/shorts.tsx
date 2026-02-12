@@ -3,11 +3,11 @@ import {
   StyleSheet,
   View,
   FlatList,
-  Dimensions,
   Text,
   Pressable,
   Platform,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -19,13 +19,18 @@ import { useAuth } from '@/lib/auth-context';
 import { formatCondition } from '@/lib/utils';
 import ShortsCard from '@/components/ShortsCard';
 
-const { height, width } = Dimensions.get('window');
+const TAB_BAR_HEIGHT = Platform.OS === 'web' ? 84 : 50;
+const BOTTOM_INSET_WEB = Platform.OS === 'web' ? 0 : 34;
 
 export default function ShortsScreen() {
   const insets = useSafeAreaInsets();
+  const { width, height: windowHeight } = useWindowDimensions();
   const { listings, savedIds, toggleSaved } = useListings();
   const { isAuthenticated } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  const bottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
+  const cardHeight = windowHeight - TAB_BAR_HEIGHT - BOTTOM_INSET_WEB;
 
   const handleSave = useCallback(
     (id: string) => {
@@ -104,18 +109,20 @@ export default function ShortsScreen() {
             onDetails={() =>
               router.push({ pathname: '/listing/[id]', params: { id: item.id } })
             }
+            cardHeight={cardHeight}
+            cardWidth={width}
           />
         )}
         keyExtractor={(item) => item.id}
         pagingEnabled
         showsVerticalScrollIndicator={false}
-        snapToInterval={height}
+        snapToInterval={cardHeight}
         decelerationRate="fast"
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         getItemLayout={(_, index) => ({
-          length: height,
-          offset: height * index,
+          length: cardHeight,
+          offset: cardHeight * index,
           index,
         })}
       />
