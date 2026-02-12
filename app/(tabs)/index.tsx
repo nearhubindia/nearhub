@@ -72,7 +72,7 @@ export default function HomeScreen() {
       <View style={[styles.header, { paddingTop: (insets.top || webTopInset) + 8 }]}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.greeting}>MarketLocal</Text>
+            <Text style={styles.greeting}>adli</Text>
             <View style={styles.locationRow}>
               <Feather name="map-pin" size={13} color={Colors.primary} />
               <Text style={styles.locationText}>San Francisco, CA</Text>
