@@ -87,16 +87,18 @@ export default function ShortsScreen() {
     <View style={styles.container}>
       <FlatList
         data={listings}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <ShortsCard
             title={item.title}
             price={item.price}
             image={item.images[0]}
+            videoUrl={item.videoUrl}
             sellerName={item.sellerName}
             location={item.location.city}
             category={item.category}
             condition={formatCondition(item.condition)}
             isSaved={savedIds.has(item.id)}
+            isActive={index === currentIndex}
             onSave={() => handleSave(item.id)}
             onContact={() => handleContact(item)}
             onDetails={() =>

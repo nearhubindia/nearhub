@@ -36,6 +36,7 @@ export default function CreateScreen() {
   const [condition, setCondition] = useState<'new' | 'like_new' | 'good' | 'fair' | 'poor'>('good');
   const [listingType, setListingType] = useState<'sell' | 'buy'>('sell');
   const [images, setImages] = useState<string[]>([]);
+  const [videoUri, setVideoUri] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -132,6 +133,28 @@ export default function CreateScreen() {
     }
   };
 
+  const pickVideo = useCallback(async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Gallery access is required to select videos.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['videos'],
+        allowsEditing: true,
+        quality: 0.7,
+        videoMaxDuration: 60,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setVideoUri(result.assets[0].uri);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (e) {
+      console.error('Video picker error:', e);
+    }
+  }, []);
+
   const handleSubmit = async () => {
     if (!title.trim()) {
       Alert.alert('Missing Info', 'Please enter a title for your listing.');
@@ -160,6 +183,7 @@ export default function CreateScreen() {
         price: Number(price),
         category,
         images,
+        videoUrl: videoUri || undefined,
         sellerName: user?.name || 'Anonymous',
         sellerPhone: user?.phone || '',
         location: { latitude: 37.7749, longitude: -122.4194, city: 'San Francisco' },
@@ -176,6 +200,7 @@ export default function CreateScreen() {
             setDescription('');
             setPrice('');
             setImages([]);
+            setVideoUri(null);
             setValidationResult(null);
           },
         },
@@ -319,6 +344,28 @@ export default function CreateScreen() {
                 ) : null}
               </View>
             </View>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Video (for Shorts)</Text>
+          <Text style={styles.sectionHint}>Upload a short video to showcase your product in the Shorts feed</Text>
+          {videoUri ? (
+            <View style={styles.videoSelected}>
+              <View style={styles.videoInfo}>
+                <Feather name="film" size={20} color={Colors.primary} />
+                <Text style={styles.videoFileName}>Video attached</Text>
+              </View>
+              <Pressable onPress={() => setVideoUri(null)}>
+                <Ionicons name="close-circle" size={24} color={Colors.accent} />
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable style={styles.addVideoButton} onPress={pickVideo}>
+              <Feather name="video" size={24} color={Colors.primary} />
+              <Text style={styles.addVideoText}>Select Video</Text>
+              <Text style={styles.addVideoDuration}>Max 60 seconds</Text>
+            </Pressable>
           )}
         </View>
 
@@ -495,6 +542,54 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     color: Colors.text,
     marginBottom: 8,
+  },
+  sectionHint: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textTertiary,
+    marginBottom: 10,
+    marginTop: -4,
+  },
+  addVideoButton: {
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderStyle: 'dashed' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    paddingVertical: 18,
+    gap: 4,
+    backgroundColor: 'rgba(13, 148, 136, 0.05)',
+  },
+  addVideoText: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.primary,
+  },
+  addVideoDuration: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textTertiary,
+  },
+  videoSelected: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    backgroundColor: '#ECFDF5',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.success,
+  },
+  videoInfo: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+  },
+  videoFileName: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.success,
   },
   input: {
     backgroundColor: Colors.surface,

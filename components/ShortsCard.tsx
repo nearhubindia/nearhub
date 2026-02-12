@@ -1,6 +1,7 @@
-import React from 'react';
-import { StyleSheet, Text, View, Pressable, Dimensions } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { StyleSheet, Text, View, Pressable, Dimensions, Platform } from 'react-native';
 import { Image } from 'expo-image';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '@/constants/colors';
@@ -11,32 +12,73 @@ interface ShortsCardProps {
   title: string;
   price: number;
   image: string;
+  videoUrl?: string;
   sellerName: string;
   location: string;
   category: string;
   condition: string;
   isSaved: boolean;
+  isActive?: boolean;
   onSave: () => void;
   onContact: () => void;
   onDetails: () => void;
+}
+
+function VideoPlayer({ videoUrl, isActive }: { videoUrl: string; isActive: boolean }) {
+  const player = useVideoPlayer(videoUrl, (p) => {
+    p.loop = true;
+    p.muted = false;
+    if (isActive) {
+      p.play();
+    }
+  });
+
+  React.useEffect(() => {
+    if (isActive) {
+      player.play();
+    } else {
+      player.pause();
+    }
+  }, [isActive, player]);
+
+  return (
+    <VideoView
+      player={player}
+      style={styles.video}
+      nativeControls={false}
+      contentFit="cover"
+    />
+  );
 }
 
 export default function ShortsCard({
   title,
   price,
   image,
+  videoUrl,
   sellerName,
   location,
   category,
   condition,
   isSaved,
+  isActive = false,
   onSave,
   onContact,
   onDetails,
 }: ShortsCardProps) {
   return (
     <View style={styles.container}>
-      <Image source={{ uri: image }} style={styles.image} contentFit="cover" transition={300} />
+      {videoUrl && isActive ? (
+        <VideoPlayer videoUrl={videoUrl} isActive={isActive} />
+      ) : (
+        <Image source={{ uri: image }} style={styles.image} contentFit="cover" transition={300} />
+      )}
+
+      {videoUrl && (
+        <View style={styles.videoBadge}>
+          <Feather name="film" size={12} color="#fff" />
+        </View>
+      )}
 
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.85)']}
@@ -109,6 +151,23 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     position: 'absolute',
+  },
+  video: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+  },
+  videoBadge: {
+    position: 'absolute',
+    top: 60,
+    right: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   gradient: {
     position: 'absolute',
