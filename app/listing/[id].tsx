@@ -102,7 +102,7 @@ export default function ListingDetailScreen() {
 
         <View style={styles.details}>
           <View style={styles.priceRow}>
-            <Text style={styles.price}>${listing.price.toLocaleString()}</Text>
+            <Text style={styles.price}>₹{listing.price.toLocaleString('en-IN')}</Text>
             <View style={[styles.typeBadge, listing.listingType === 'buy' ? styles.buyBadge : styles.sellBadge]}>
               <Text style={styles.typeText}>{listing.listingType === 'buy' ? 'Wanted' : 'For Sale'}</Text>
             </View>

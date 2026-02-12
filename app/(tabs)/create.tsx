@@ -306,7 +306,7 @@ export default function CreateScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Price</Text>
           <View style={styles.priceInput}>
-            <Text style={styles.currency}>$</Text>
+            <Text style={styles.currency}>₹</Text>
             <TextInput
               style={[styles.input, styles.priceField]}
               placeholder="0"

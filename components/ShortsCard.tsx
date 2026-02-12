@@ -75,7 +75,7 @@ export default function ShortsCard({
           </View>
         </View>
 
-        <Text style={styles.price}>${price.toLocaleString()}</Text>
+        <Text style={styles.price}>₹{price.toLocaleString('en-IN')}</Text>
         <Text style={styles.title} numberOfLines={2}>
           {title}
         </Text>

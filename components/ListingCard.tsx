@@ -50,7 +50,7 @@ export default function ListingCard({
         </View>
       </View>
       <View style={styles.info}>
-        <Text style={styles.price}>${price.toLocaleString()}</Text>
+        <Text style={styles.price}>₹{price.toLocaleString('en-IN')}</Text>
         <Text style={styles.title} numberOfLines={2}>
           {title}
         </Text>
@@ -124,6 +124,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
   },
+
   title: {
     fontSize: 13,
     fontFamily: 'Inter_400Regular',
