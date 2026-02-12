@@ -17,6 +17,9 @@ function generateOTP(): string {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const TEST_PHONE = "9876543210";
+  const TEST_OTP = "123456";
+
   app.post("/api/auth/send-otp", (req, res) => {
     try {
       const { phone } = req.body;
@@ -24,7 +27,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ success: false, message: "Invalid phone number" });
       }
 
-      const otp = generateOTP();
+      const otp = phone === TEST_PHONE ? TEST_OTP : generateOTP();
       otpStore.set(phone, { otp, expiresAt: Date.now() + 5 * 60 * 1000 });
 
       console.log(`[OTP] Code for +91${phone}: ${otp}`);
