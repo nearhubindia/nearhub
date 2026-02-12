@@ -6,6 +6,8 @@ import { SAMPLE_LISTINGS } from './sample-data';
 const LISTINGS_KEY = '@marketlocal_listings';
 const SAVED_KEY = '@marketlocal_saved';
 const INITIALIZED_KEY = '@marketlocal_initialized';
+const DATA_VERSION_KEY = '@marketlocal_data_version';
+const CURRENT_DATA_VERSION = '2';
 
 interface ListingsContextValue {
   listings: Listing[];
@@ -33,10 +35,17 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   const loadData = async () => {
     try {
       const initialized = await AsyncStorage.getItem(INITIALIZED_KEY);
-      if (!initialized) {
-        await AsyncStorage.setItem(LISTINGS_KEY, JSON.stringify(SAMPLE_LISTINGS));
+      const dataVersion = await AsyncStorage.getItem(DATA_VERSION_KEY);
+      if (!initialized || dataVersion !== CURRENT_DATA_VERSION) {
+        const stored = await AsyncStorage.getItem(LISTINGS_KEY);
+        const existingListings: Listing[] = stored ? JSON.parse(stored) : [];
+        const sampleIds = new Set(SAMPLE_LISTINGS.map((l) => l.id));
+        const userListings = existingListings.filter((l) => !sampleIds.has(l.id));
+        const merged = [...SAMPLE_LISTINGS, ...userListings];
+        await AsyncStorage.setItem(LISTINGS_KEY, JSON.stringify(merged));
         await AsyncStorage.setItem(INITIALIZED_KEY, 'true');
-        setListings(SAMPLE_LISTINGS);
+        await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
+        setListings(merged);
       } else {
         const stored = await AsyncStorage.getItem(LISTINGS_KEY);
         if (stored) {
