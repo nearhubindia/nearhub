@@ -17,14 +17,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { Feather, Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import Colors from '@/constants/colors';
 import { useListings } from '@/lib/listings-context';
+import { useAuth } from '@/lib/auth-context';
 import { Category, CATEGORIES, CONDITIONS, ValidationResult } from '@/lib/types';
 import { getApiUrl } from '@/lib/query-client';
 
 export default function CreateScreen() {
   const insets = useSafeAreaInsets();
   const { addListing } = useListings();
+  const { user, isAuthenticated } = useAuth();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -33,8 +36,6 @@ export default function CreateScreen() {
   const [condition, setCondition] = useState<'new' | 'like_new' | 'good' | 'fair' | 'poor'>('good');
   const [listingType, setListingType] = useState<'sell' | 'buy'>('sell');
   const [images, setImages] = useState<string[]>([]);
-  const [sellerName, setSellerName] = useState('');
-  const [sellerPhone, setSellerPhone] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -159,8 +160,8 @@ export default function CreateScreen() {
         price: Number(price),
         category,
         images,
-        sellerName: sellerName.trim() || 'Anonymous',
-        sellerPhone: sellerPhone.trim() || '',
+        sellerName: user?.name || 'Anonymous',
+        sellerPhone: user?.phone || '',
         location: { latitude: 37.7749, longitude: -122.4194, city: 'San Francisco' },
         condition,
         listingType,
@@ -175,8 +176,6 @@ export default function CreateScreen() {
             setDescription('');
             setPrice('');
             setImages([]);
-            setSellerName('');
-            setSellerPhone('');
             setValidationResult(null);
           },
         },
@@ -187,6 +186,36 @@ export default function CreateScreen() {
       setIsSubmitting(false);
     }
   };
+
+  if (!isAuthenticated) {
+    return (
+      <View style={[styles.container, { paddingTop: (insets.top || webTopInset) + 20 }]}>
+        <View style={styles.authGate}>
+          <View style={styles.authIconCircle}>
+            <Feather name="user-plus" size={36} color={Colors.primary} />
+          </View>
+          <Text style={styles.authTitle}>Sign in to {listingType === 'sell' ? 'Sell' : 'Buy'}</Text>
+          <Text style={styles.authSubtitle}>
+            Register with your mobile number to post listings and connect with buyers
+          </Text>
+          <Pressable
+            style={styles.authButton}
+            onPress={() => router.push('/auth/register')}
+          >
+            <LinearGradient
+              colors={['#0D9488', '#0F766E', '#065F56']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.authButtonGradient}
+            >
+              <Feather name="smartphone" size={20} color="#fff" />
+              <Text style={styles.authButtonText}>Register with Mobile</Text>
+            </LinearGradient>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -365,24 +394,21 @@ export default function CreateScreen() {
           />
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Your Info</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Your name"
-            placeholderTextColor={Colors.textTertiary}
-            value={sellerName}
-            onChangeText={setSellerName}
-          />
-          <TextInput
-            style={[styles.input, { marginTop: 10 }]}
-            placeholder="Phone number"
-            placeholderTextColor={Colors.textTertiary}
-            value={sellerPhone}
-            onChangeText={setSellerPhone}
-            keyboardType="phone-pad"
-          />
-        </View>
+        {user && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Posting as</Text>
+            <View style={styles.userInfoCard}>
+              <View style={styles.userAvatar}>
+                <Feather name="user" size={20} color={Colors.primary} />
+              </View>
+              <View style={styles.userDetails}>
+                <Text style={styles.userName}>{user.name}</Text>
+                <Text style={styles.userPhone}>+91 {user.phone}</Text>
+              </View>
+              <Feather name="check-circle" size={18} color={Colors.success} />
+            </View>
+          </View>
+        )}
 
       </ScrollView>
 
@@ -659,5 +685,90 @@ const styles = StyleSheet.create({
     color: '#fff',
     flex: 1,
     textAlign: 'center',
+  },
+  authGate: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 80,
+  },
+  authIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(13, 148, 136, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  authTitle: {
+    fontSize: 22,
+    fontFamily: 'Inter_700Bold',
+    color: Colors.text,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  authSubtitle: {
+    fontSize: 15,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  authButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    width: '100%',
+    shadowColor: Colors.primaryDark,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  authButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    gap: 10,
+  },
+  authButtonText: {
+    fontSize: 17,
+    fontFamily: 'Inter_700Bold',
+    color: '#fff',
+  },
+  userInfoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    gap: 12,
+  },
+  userAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(13, 148, 136, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.text,
+  },
+  userPhone: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
 });
