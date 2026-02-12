@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "My App",
-    "slug": "my-app",
+    "name": "MarketLocal",
+    "slug": "market-local",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0D9488"
     },
     "ios": {
       "supportsTablet": false,
