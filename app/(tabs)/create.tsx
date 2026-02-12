@@ -229,7 +229,7 @@ export default function CreateScreen() {
           styles.content,
           {
             paddingTop: (insets.top || webTopInset) + 16,
-            paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 100,
+            paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -410,14 +410,6 @@ export default function CreateScreen() {
           </View>
         )}
 
-      </ScrollView>
-
-      <View style={[styles.floatingContainer, { paddingBottom: (insets.bottom || (Platform.OS === 'web' ? 34 : 0)) + 8 }]}>
-        <LinearGradient
-          colors={['rgba(248,249,250,0)', 'rgba(248,249,250,0.9)', Colors.background]}
-          style={styles.floatingGradient}
-          pointerEvents="none"
-        />
         <Pressable
           style={({ pressed }) => [
             styles.submitButton,
@@ -437,16 +429,14 @@ export default function CreateScreen() {
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <>
-                <View style={styles.submitIconCircle}>
-                  <Feather name="send" size={18} color="#fff" />
-                </View>
+                <Feather name="send" size={18} color="#fff" />
                 <Text style={styles.submitText}>Post Listing</Text>
-                <Feather name="arrow-right" size={18} color="rgba(255,255,255,0.7)" />
               </>
             )}
           </LinearGradient>
         </Pressable>
-      </View>
+
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -632,59 +622,31 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: '#fff',
   },
-  floatingContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 0,
-  },
-  floatingGradient: {
-    position: 'absolute',
-    top: -30,
-    left: 0,
-    right: 0,
-    height: 30,
-  },
   submitButton: {
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: Colors.primaryDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 12,
+    marginTop: 8,
+    marginBottom: 12,
   },
   submitGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
+    paddingVertical: 16,
     paddingHorizontal: 24,
     gap: 10,
   },
-  submitIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   submitPressed: {
-    transform: [{ scale: 0.96 }],
-    shadowOpacity: 0.15,
+    transform: [{ scale: 0.97 }],
+    opacity: 0.9,
   },
   submitDisabled: {
     opacity: 0.5,
   },
   submitText: {
-    fontSize: 18,
+    fontSize: 17,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
-    flex: 1,
-    textAlign: 'center',
   },
   authGate: {
     flex: 1,
