@@ -35,6 +35,7 @@ export default function CreateScreen() {
   const [category, setCategory] = useState<Category>('Electronics');
   const [condition, setCondition] = useState<'new' | 'like_new' | 'good' | 'fair' | 'poor'>('good');
   const [listingType, setListingType] = useState<'sell' | 'buy'>('sell');
+  const [mediaType, setMediaType] = useState<'photo' | 'video'>('photo');
   const [images, setImages] = useState<string[]>([]);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
@@ -164,8 +165,12 @@ export default function CreateScreen() {
       Alert.alert('Missing Info', 'Please enter a valid price.');
       return;
     }
-    if (images.length === 0) {
+    if (mediaType === 'photo' && images.length === 0) {
       Alert.alert('Missing Info', 'Please add at least one photo.');
+      return;
+    }
+    if (mediaType === 'video' && !videoUri) {
+      Alert.alert('Missing Info', 'Please add a video for your listing.');
       return;
     }
     if (validationResult && !validationResult.isAppropriate) {
@@ -177,13 +182,17 @@ export default function CreateScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      const listingImages = mediaType === 'video' && images.length === 0
+        ? ['https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=400&h=300&fit=crop']
+        : images;
+
       await addListing({
         title: title.trim(),
         description: description.trim(),
         price: Number(price),
         category,
-        images,
-        videoUrl: videoUri || undefined,
+        images: listingImages,
+        videoUrl: mediaType === 'video' ? (videoUri || undefined) : undefined,
         sellerName: user?.name || 'Anonymous',
         sellerPhone: user?.phone || '',
         location: { latitude: 37.7749, longitude: -122.4194, city: 'San Francisco' },
@@ -199,6 +208,7 @@ export default function CreateScreen() {
             setTitle('');
             setDescription('');
             setPrice('');
+            setMediaType('photo');
             setImages([]);
             setVideoUri(null);
             setValidationResult(null);
@@ -280,94 +290,118 @@ export default function CreateScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Photos</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageRow}>
-            <Pressable style={styles.addImageButton} onPress={() => pickImage(false)}>
-              <Feather name="image" size={24} color={Colors.primary} />
-              <Text style={styles.addImageText}>Gallery</Text>
+          <Text style={styles.sectionLabel}>Listing Media</Text>
+          <View style={styles.mediaToggle}>
+            <Pressable
+              style={[styles.mediaButton, mediaType === 'photo' && styles.mediaButtonActive]}
+              onPress={() => setMediaType('photo')}
+            >
+              <Feather name="image" size={18} color={mediaType === 'photo' ? '#fff' : Colors.textSecondary} />
+              <Text style={[styles.mediaText, mediaType === 'photo' && styles.mediaTextActive]}>Photo Listing</Text>
             </Pressable>
-            <Pressable style={styles.addImageButton} onPress={() => pickImage(true)}>
-              <Feather name="camera" size={24} color={Colors.primary} />
-              <Text style={styles.addImageText}>Camera</Text>
+            <Pressable
+              style={[styles.mediaButton, mediaType === 'video' && styles.mediaButtonActive]}
+              onPress={() => setMediaType('video')}
+            >
+              <Feather name="video" size={18} color={mediaType === 'video' ? '#fff' : Colors.textSecondary} />
+              <Text style={[styles.mediaText, mediaType === 'video' && styles.mediaTextActive]}>Video Listing</Text>
             </Pressable>
-            {images.map((uri, index) => (
-              <View key={index} style={styles.imageThumb}>
-                <Image source={{ uri }} style={styles.thumbImage} contentFit="cover" />
-                <Pressable style={styles.removeImage} onPress={() => removeImage(index)}>
-                  <Ionicons name="close-circle" size={22} color={Colors.accent} />
+          </View>
+        </View>
+
+        {mediaType === 'photo' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Photos</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageRow}>
+              <Pressable style={styles.addImageButton} onPress={() => pickImage(false)}>
+                <Feather name="image" size={24} color={Colors.primary} />
+                <Text style={styles.addImageText}>Gallery</Text>
+              </Pressable>
+              <Pressable style={styles.addImageButton} onPress={() => pickImage(true)}>
+                <Feather name="camera" size={24} color={Colors.primary} />
+                <Text style={styles.addImageText}>Camera</Text>
+              </Pressable>
+              {images.map((uri, index) => (
+                <View key={index} style={styles.imageThumb}>
+                  <Image source={{ uri }} style={styles.thumbImage} contentFit="cover" />
+                  <Pressable style={styles.removeImage} onPress={() => removeImage(index)}>
+                    <Ionicons name="close-circle" size={22} color={Colors.accent} />
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+
+            {isValidating && (
+              <View style={styles.validationBanner}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <Text style={styles.validationText}>AI is analyzing your image...</Text>
+              </View>
+            )}
+
+            {validationResult && !isValidating && (
+              <View
+                style={[
+                  styles.validationBanner,
+                  {
+                    backgroundColor:
+                      validationResult.isValid && validationResult.isAppropriate
+                        ? '#ECFDF5'
+                        : '#FEF2F2',
+                  },
+                ]}
+              >
+                <Feather
+                  name={validationResult.isValid && validationResult.isAppropriate ? 'check-circle' : 'alert-triangle'}
+                  size={18}
+                  color={validationResult.isValid && validationResult.isAppropriate ? Colors.success : Colors.error}
+                />
+                <View style={styles.validationContent}>
+                  <Text
+                    style={[
+                      styles.validationTitle,
+                      {
+                        color:
+                          validationResult.isValid && validationResult.isAppropriate
+                            ? Colors.success
+                            : Colors.error,
+                      },
+                    ]}
+                  >
+                    {validationResult.isValid && validationResult.isAppropriate ? 'AI Verified' : 'Needs Attention'}
+                  </Text>
+                  <Text style={styles.validationReason}>{validationResult.reason}</Text>
+                  {validationResult.suggestion ? (
+                    <Text style={styles.validationSuggestion}>{validationResult.suggestion}</Text>
+                  ) : null}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {mediaType === 'video' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Video</Text>
+            <Text style={styles.sectionHint}>Upload a short video to showcase your product in the Shorts feed</Text>
+            {videoUri ? (
+              <View style={styles.videoSelected}>
+                <View style={styles.videoInfo}>
+                  <Feather name="film" size={20} color={Colors.primary} />
+                  <Text style={styles.videoFileName}>Video attached</Text>
+                </View>
+                <Pressable onPress={() => setVideoUri(null)}>
+                  <Ionicons name="close-circle" size={24} color={Colors.accent} />
                 </Pressable>
               </View>
-            ))}
-          </ScrollView>
-
-          {isValidating && (
-            <View style={styles.validationBanner}>
-              <ActivityIndicator size="small" color={Colors.primary} />
-              <Text style={styles.validationText}>AI is analyzing your image...</Text>
-            </View>
-          )}
-
-          {validationResult && !isValidating && (
-            <View
-              style={[
-                styles.validationBanner,
-                {
-                  backgroundColor:
-                    validationResult.isValid && validationResult.isAppropriate
-                      ? '#ECFDF5'
-                      : '#FEF2F2',
-                },
-              ]}
-            >
-              <Feather
-                name={validationResult.isValid && validationResult.isAppropriate ? 'check-circle' : 'alert-triangle'}
-                size={18}
-                color={validationResult.isValid && validationResult.isAppropriate ? Colors.success : Colors.error}
-              />
-              <View style={styles.validationContent}>
-                <Text
-                  style={[
-                    styles.validationTitle,
-                    {
-                      color:
-                        validationResult.isValid && validationResult.isAppropriate
-                          ? Colors.success
-                          : Colors.error,
-                    },
-                  ]}
-                >
-                  {validationResult.isValid && validationResult.isAppropriate ? 'AI Verified' : 'Needs Attention'}
-                </Text>
-                <Text style={styles.validationReason}>{validationResult.reason}</Text>
-                {validationResult.suggestion ? (
-                  <Text style={styles.validationSuggestion}>{validationResult.suggestion}</Text>
-                ) : null}
-              </View>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Video (for Shorts)</Text>
-          <Text style={styles.sectionHint}>Upload a short video to showcase your product in the Shorts feed</Text>
-          {videoUri ? (
-            <View style={styles.videoSelected}>
-              <View style={styles.videoInfo}>
-                <Feather name="film" size={20} color={Colors.primary} />
-                <Text style={styles.videoFileName}>Video attached</Text>
-              </View>
-              <Pressable onPress={() => setVideoUri(null)}>
-                <Ionicons name="close-circle" size={24} color={Colors.accent} />
+            ) : (
+              <Pressable style={styles.addVideoButton} onPress={pickVideo}>
+                <Feather name="video" size={24} color={Colors.primary} />
+                <Text style={styles.addVideoText}>Select Video</Text>
+                <Text style={styles.addVideoDuration}>Max 60 seconds</Text>
               </Pressable>
-            </View>
-          ) : (
-            <Pressable style={styles.addVideoButton} onPress={pickVideo}>
-              <Feather name="video" size={24} color={Colors.primary} />
-              <Text style={styles.addVideoText}>Select Video</Text>
-              <Text style={styles.addVideoDuration}>Max 60 seconds</Text>
-            </Pressable>
-          )}
-        </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Title</Text>
@@ -532,6 +566,34 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   typeTextActive: {
+    color: '#fff',
+  },
+  mediaToggle: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  mediaButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  mediaButtonActive: {
+    backgroundColor: Colors.primaryDark,
+  },
+  mediaText: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.textSecondary,
+  },
+  mediaTextActive: {
     color: '#fff',
   },
   section: {
