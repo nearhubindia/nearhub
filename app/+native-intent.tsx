@@ -1,6 +1,1 @@
-export function redirectSystemPath({
-  path,
-  initial,
-}: { path: string; initial: boolean }) {
-  return '/';
-}
+export * from '@/src/app/+native-intent';

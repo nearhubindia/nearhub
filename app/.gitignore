@@ -1,0 +1,23 @@
+# App-specific ignores
+node_modules/
+.expo/
+dist/
+build/
+*.apk
+*.aab
+android/.gradle/
+android/.cxx/
+android/local.properties
+android/**/build/
+ios/build/
+.env.local
+.env.*.local
+npm-debug.log
+yarn-error.log
+.DS_Store
+*.tsbuildinfo
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision

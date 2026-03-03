@@ -1,0 +1,346 @@
+/**
+ * User Management API Routes
+ * Handles user profile, listings, and subscriptions
+ */
+
+import type { Express, Request, Response } from 'express';
+import { listingsStorage } from '../../listings/services/listings-storage';
+
+// Mock user storage (replace with database in production)
+const usersStorage = new Map<string, any>();
+
+export function registerUserRoutes(app: Express) {
+  /**
+   * GET /api/users/profile
+   * Get authenticated user's profile
+   */
+  app.get('/api/users/profile', async (req: Request, res: Response) => {
+    try {
+      // Get userId from request context (set by middleware)
+      const userId = (req as any).userId;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      // Get user from storage, or create a default user if doesn't exist
+      let user = usersStorage.get(userId);
+
+      if (!user) {
+        // Create a default user in storage
+        user = {
+          id: userId,
+          phone: '',
+          name: '',
+          email: '',
+          bio: '',
+          address: '',
+          gstin: '',
+          location: null,
+          isVerified: true,
+          preferences: {
+            notifications: true,
+            emailNotifications: true,
+            autoLocalizeListings: true,
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        usersStorage.set(userId, user);
+      }
+
+      return res.json({
+        success: true,
+        id: user.id,
+        phone: user.phone,
+        name: user.name,
+        email: user.email,
+        bio: user.bio,
+        address: user.address,
+        gstin: user.gstin,
+        location: user.location,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        isVerified: user.isVerified || true,
+        profileComplete: !!(user.name && user.email && user.address),
+      });
+    } catch (error) {
+      console.error('[Users] Error fetching profile:', error);
+      res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+  });
+
+  /**
+   * GET /api/users/:userId/profile
+   * Get user profile by ID
+   */
+  app.get('/api/users/:userId/profile', async (req: Request, res: Response) => {
+    try {
+      const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+
+      // Get user from storage (mock)
+      const user = usersStorage.get(userId);
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      return res.json({
+        success: true,
+        user: {
+          id: user.id,
+          phone: user.phone,
+          name: user.name,
+          email: user.email,
+          bio: user.bio,
+          address: user.address,
+          gstin: user.gstin,
+          location: user.location,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          isVerified: user.isVerified || true,
+          profileComplete: !!(user.name && user.email && user.address),
+        },
+      });
+    } catch (error) {
+      console.error('[Users] Error fetching profile:', error);
+      res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+  });
+
+  /**
+   * PUT /api/users/:userId/profile
+   * Update user profile (creates user if doesn't exist)
+   */
+  app.put('/api/users/:userId/profile', async (req: Request, res: Response) => {
+    try {
+      const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+      const { name, email, bio, address, gstin } = req.body;
+
+      // Validate required fields
+      if (!name || !name.trim()) {
+        return res.status(400).json({ error: 'Name is required' });
+      }
+
+      // Get existing user or create new one
+      let user = usersStorage.get(userId);
+
+      if (!user) {
+        // Create new user if doesn't exist
+        user = {
+          id: userId,
+          phone: '', // Will be set from auth or phone verification
+          name: '',
+          email: '',
+          bio: '',
+          address: '',
+          gstin: '',
+          location: null,
+          preferences: {
+            notifications: true,
+            emailNotifications: true,
+            autoLocalizeListings: true,
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+
+      // Update user
+      user = {
+        ...user,
+        name: name.trim(),
+        email: email?.trim() || user.email,
+        bio: bio?.trim() || user.bio,
+        address: address?.trim() || user.address,
+        gstin: gstin?.trim() || user.gstin,
+        updatedAt: new Date().toISOString(),
+      };
+
+      usersStorage.set(userId, user);
+
+      return res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        user: {
+          id: user.id,
+          phone: user.phone,
+          name: user.name,
+          email: user.email,
+          bio: user.bio,
+          address: user.address,
+          gstin: user.gstin,
+          location: user.location,
+        },
+      });
+    } catch (error) {
+      console.error('[Users] Error updating profile:', error);
+      res.status(500).json({ error: 'Failed to update profile' });
+    }
+  });
+
+  /**
+   * GET /api/users/:userId/listings
+   * Get user's listings
+   */
+  app.get('/api/users/:userId/listings', async (req: Request, res: Response) => {
+    try {
+      const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+      const { status } = req.query; // 'active', 'sold', 'expired'
+
+      // Get all listings from storage
+      const allListings = listingsStorage.getAllListings();
+
+      // Filter by user
+      let userListings = allListings.filter((listing) => listing.sellerId === userId);
+
+      // Filter by status if provided
+      if (status) {
+        if (status === 'expired') {
+          userListings = userListings.filter((listing) => {
+            if (!listing.expiresAt) return false;
+            return new Date(listing.expiresAt) < new Date();
+          });
+        } else {
+          userListings = userListings.filter((listing) => listing.status === status);
+        }
+      }
+
+      // Sort by creation date (newest first)
+      userListings.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      return res.json({
+        listings: userListings,
+        total: userListings.length,
+      });
+    } catch (error) {
+      console.error('[Users] Error fetching listings:', error);
+      res.status(500).json({ error: 'Failed to fetch listings' });
+    }
+  });
+
+  /**
+   * GET /api/users/:userId/subscriptions
+   * Get user's subscriptions
+   */
+  app.get('/api/users/:userId/subscriptions', async (req: Request, res: Response) => {
+    try {
+      const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+
+      // Get all listings from storage
+      const allListings = listingsStorage.getAllListings();
+
+      // Filter paid listings by user
+      const userSubscriptions = allListings
+        .filter((listing) => listing.sellerId === userId && listing.isPaid)
+        .map((listing) => ({
+          id: `sub-${listing.id}`,
+          listingId: listing.id,
+          listingTitle: listing.title,
+          price: listing.price,
+          duration: listing.durationDays || 0,
+          status:
+            listing.expiresAt && new Date(listing.expiresAt) < new Date()
+              ? 'expired'
+              : listing.isActive
+                ? 'active'
+                : 'cancelled',
+          startDate: listing.createdAt,
+          expiresAt: listing.expiresAt || '',
+          paymentId: `pay_${listing.id.substring(0, 8)}`,
+        }));
+
+      // Sort by creation date (newest first)
+      userSubscriptions.sort(
+        (a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+      );
+
+      return res.json({
+        subscriptions: userSubscriptions,
+        total: userSubscriptions.length,
+        active: userSubscriptions.filter((s) => s.status === 'active').length,
+      });
+    } catch (error) {
+      console.error('[Users] Error fetching subscriptions:', error);
+      res.status(500).json({ error: 'Failed to fetch subscriptions' });
+    }
+  });
+
+  /**
+   * GET /api/users/:userId/stats
+   * Get user statistics
+   */
+  app.get('/api/users/:userId/stats', async (req: Request, res: Response) => {
+    try {
+      const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+
+      // Get all listings from storage
+      const allListings = listingsStorage.getAllListings();
+
+      // Filter by user
+      const userListings = allListings.filter((listing) => listing.sellerId === userId);
+
+      const stats = {
+        totalListings: userListings.length,
+        activeListings: userListings.filter((l) => l.status === 'active').length,
+        soldListings: userListings.filter((l) => l.status === 'sold').length,
+        totalSubscriptions: userListings.filter((l) => l.isPaid).length,
+        totalRevenue: userListings
+          .filter((l) => l.status === 'sold')
+          .reduce((sum, l) => sum + l.price, 0),
+      };
+
+      return res.json({ stats });
+    } catch (error) {
+      console.error('[Users] Error fetching stats:', error);
+      res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+  });
+
+  /**
+   * PUT /api/users/:userId/settings
+   * Update user settings
+   */
+  app.put('/api/users/:userId/settings', async (req: Request, res: Response) => {
+    try {
+      const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+      const { notifications, emailNotifications, autoLocalize } = req.body;
+
+      // Get existing user
+      let user = usersStorage.get(userId);
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Update settings
+      user = {
+        ...user,
+        preferences: {
+          ...user.preferences,
+          notifications: notifications ?? user.preferences?.notifications,
+          emailNotifications: emailNotifications ?? user.preferences?.emailNotifications,
+          autoLocalizeListings: autoLocalize ?? user.preferences?.autoLocalizeListings,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+
+      usersStorage.set(userId, user);
+
+      return res.json({
+        success: true,
+        message: 'Settings updated successfully',
+        preferences: user.preferences,
+      });
+    } catch (error) {
+      console.error('[Users] Error updating settings:', error);
+      res.status(500).json({ error: 'Failed to update settings' });
+    }
+  });
+
+  console.log('[Users] User routes registered');
+}
+
+export { usersStorage };

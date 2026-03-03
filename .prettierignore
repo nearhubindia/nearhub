@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+android
+ios
+.expo
+coverage
+.next
+out
+server/data
+*.geojson
+web/node_modules
+web/dist

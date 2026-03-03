@@ -1,0 +1,69 @@
+{
+  "expo": {
+    "name": "NearHub",
+    "slug": "nearhub",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "nearhub",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/images/near_hub_splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#0A0F1A"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nearhub",
+      "splash": {
+        "image": "./assets/images/near_hub_splash.png",
+        "resizeMode": "cover",
+        "backgroundColor": "#0A0F1A"
+      }
+    },
+    "android": {
+      "package": "com.nearhub",
+      "adaptiveIcon": {
+        "backgroundColor": "#1a2332",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "splash": {
+        "image": "./assets/images/near_hub_splash.png",
+        "resizeMode": "cover",
+        "backgroundColor": "#0A0F1A"
+      }
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": false
+        }
+      ],
+      "expo-font",
+      "expo-splash-screen",
+      "expo-web-browser",
+      "./plugins/withCleartextTraffic",
+      "./plugins/withFullScreenSplash"
+    ],
+    "experiments": {
+      "typedRoutes": false,
+      "reactCompiler": false
+    },
+    "owner": "pavanprasadnarla",
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "0583b34d-a357-4d7d-9321-fdca13a59a43"
+      }
+    }
+  }
+}

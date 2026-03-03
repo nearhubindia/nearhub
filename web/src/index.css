@@ -1,0 +1,36 @@
+@import 'tailwindcss';
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+.scroll-banner {
+  position: relative;
+  overflow: hidden;
+}
+
+.scroll-banner-track {
+  display: flex;
+  gap: 1.25rem;
+  width: max-content;
+  animation: scroll-left 28s linear infinite;
+}
+
+.scroll-banner-track:hover {
+  animation-play-state: paused;
+}
+
+@keyframes scroll-left {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}

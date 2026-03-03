@@ -1,0 +1,116 @@
+[
+  {
+    "id": "image-basic",
+    "name": "Image Basic",
+    "type": "image",
+    "price": 99,
+    "days": 30,
+    "features": {
+      "maxListings": 5,
+      "topSearchPlacement": false,
+      "featuredBadge": false,
+      "verifiedBadge": false,
+      "priorityListing": false,
+      "advancedAnalytics": false,
+      "prioritySupport": false
+    },
+    "highlight": false,
+    "createdAt": "2026-02-17T15:30:01.509Z",
+    "updatedAt": "2026-02-17T15:30:01.509Z"
+  },
+  {
+    "id": "image-standard",
+    "name": "Image Standard",
+    "type": "image",
+    "price": 199,
+    "days": 30,
+    "features": {
+      "maxListings": 25,
+      "topSearchPlacement": false,
+      "featuredBadge": true,
+      "verifiedBadge": false,
+      "priorityListing": true,
+      "advancedAnalytics": true,
+      "prioritySupport": true
+    },
+    "highlight": true,
+    "createdAt": "2026-02-17T15:30:01.509Z",
+    "updatedAt": "2026-02-17T15:30:01.509Z"
+  },
+  {
+    "id": "image-premium",
+    "name": "Image Premium",
+    "type": "image",
+    "price": 399,
+    "days": 30,
+    "features": {
+      "maxListings": -1,
+      "topSearchPlacement": true,
+      "featuredBadge": true,
+      "verifiedBadge": true,
+      "priorityListing": true,
+      "advancedAnalytics": true,
+      "prioritySupport": true
+    },
+    "highlight": false,
+    "createdAt": "2026-02-17T15:30:01.509Z",
+    "updatedAt": "2026-02-17T15:30:01.509Z"
+  },
+  {
+    "id": "video-basic",
+    "name": "Video Basic",
+    "type": "video",
+    "price": 199,
+    "days": 30,
+    "features": {
+      "maxListings": 3,
+      "topSearchPlacement": false,
+      "featuredBadge": false,
+      "verifiedBadge": false,
+      "priorityListing": false,
+      "advancedAnalytics": false,
+      "prioritySupport": false
+    },
+    "highlight": false,
+    "createdAt": "2026-02-17T15:30:01.509Z",
+    "updatedAt": "2026-02-17T15:30:01.509Z"
+  },
+  {
+    "id": "video-standard",
+    "name": "Video Standard",
+    "type": "video",
+    "price": 399,
+    "days": 30,
+    "features": {
+      "maxListings": 10,
+      "topSearchPlacement": false,
+      "featuredBadge": true,
+      "verifiedBadge": false,
+      "priorityListing": true,
+      "advancedAnalytics": true,
+      "prioritySupport": true
+    },
+    "highlight": true,
+    "createdAt": "2026-02-17T15:30:01.509Z",
+    "updatedAt": "2026-02-17T15:30:01.509Z"
+  },
+  {
+    "id": "video-premium",
+    "name": "Video Premium",
+    "type": "video",
+    "price": 799,
+    "days": 30,
+    "features": {
+      "maxListings": -1,
+      "topSearchPlacement": true,
+      "featuredBadge": true,
+      "verifiedBadge": true,
+      "priorityListing": true,
+      "advancedAnalytics": true,
+      "prioritySupport": true
+    },
+    "highlight": false,
+    "createdAt": "2026-02-17T15:30:01.509Z",
+    "updatedAt": "2026-02-17T15:30:01.509Z"
+  }
+]

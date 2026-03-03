@@ -1,41 +1,56 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# Independent Monorepo - Each package is standalone
 
-# dependencies
-node_modules/
+# Dependencies (each package has its own node_modules)
+server/node_modules/
+server/dist/
+app/node_modules/
+app/dist/
+web/node_modules/
+web/dist/
 
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
+# Environment
+.env.local
+.env.*.local
 
-# Native
-ios/
-android/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
+# OS
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
+# Logs
+npm-debug.log
+yarn-error.log
+*.log
+server/server.log
+server/jest-*.txt
+server/test-*.txt
+test-output*.txt
 
-# typescript
+# Mobile/Expo
+app/.expo/
+app/build-*.apk
+app/build-*.aab
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+*~
+
+# TypeScript
 *.tsbuildinfo
-.vercel
 
-.env
+# Misc
+.vercel
+.local/
+.config/
+
+# Server build/test artifacts
+server/coverage/
+server/uploads/
+
+# Accidental shell-command artifact filenames (safety net)
+server/ql -*
+server/ole.log(*
+server/t" && pwd

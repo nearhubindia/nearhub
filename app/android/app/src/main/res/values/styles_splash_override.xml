@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <style name="Theme.App.SplashScreen.FullScreen" parent="Theme.App.SplashScreen">
+    <item name="android:windowBackground">@drawable/splash_fullscreen_bg</item>
+    <item name="windowSplashScreenBackground">#0A0F1A</item>
+    <item name="windowSplashScreenAnimatedIcon">@drawable/splashscreen_logo</item>
+    <item name="android:windowFullscreen">true</item>
+    <item name="android:windowNoTitle">true</item>
+  </style>
+</resources>
