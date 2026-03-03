@@ -546,7 +546,9 @@ export function registerSubscriptionRoutes(app: Express) {
           category,
           price: parseFloat(price as string),
           offerPrice:
-            offerPrice !== undefined && offerPrice !== null ? parseFloat(offerPrice as string) : undefined,
+            offerPrice !== undefined && offerPrice !== null
+              ? parseFloat(offerPrice as string)
+              : undefined,
           condition,
           location,
           priceUnit,
