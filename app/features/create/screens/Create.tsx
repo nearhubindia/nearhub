@@ -3345,9 +3345,7 @@ export default function CreateScreen() {
               keyboardShouldPersistTaps="always"
               contentContainerStyle={{ paddingBottom: 40 }}
             >
-              <Text style={styles.locationDescription}>
-                Enter City or Pincode
-              </Text>
+              <Text style={styles.locationDescription}>Enter City or Pincode</Text>
 
               {/* Pincode Search Input */}
               <View style={styles.pincodeSearchContainer}>

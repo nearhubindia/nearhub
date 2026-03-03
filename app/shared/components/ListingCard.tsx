@@ -40,8 +40,7 @@ export default function ListingCard({
     typeof image === 'string' && image.includes('via.placeholder.com');
   const imageSource =
     !image || hasUnreachablePlaceholder ? require('../../assets/images/icon.png') : { uri: image };
-  const hasValidOfferPrice =
-    typeof offerPrice === 'number' && offerPrice > 0 && offerPrice < price;
+  const hasValidOfferPrice = typeof offerPrice === 'number' && offerPrice > 0 && offerPrice < price;
   const displayPrice = hasValidOfferPrice ? offerPrice : price;
 
   return (

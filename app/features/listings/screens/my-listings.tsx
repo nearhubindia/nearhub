@@ -389,7 +389,9 @@ export default function MyListingsScreen() {
                           : item.price || 0
                       ).toLocaleString('en-IN')}
                     </Text>
-                    {item.priceUnit ? <Text style={styles.priceUnitText}> / {item.priceUnit}</Text> : null}
+                    {item.priceUnit ? (
+                      <Text style={styles.priceUnitText}> / {item.priceUnit}</Text>
+                    ) : null}
                     {item.offerPrice && item.offerPrice > 0 && item.offerPrice < item.price ? (
                       <Text style={styles.originalPriceText}>
                         ₹{Number(item.price || 0).toLocaleString('en-IN')}

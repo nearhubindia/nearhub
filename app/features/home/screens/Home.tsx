@@ -762,13 +762,11 @@ export default function HomeScreen() {
                 ) : citySearchInput.trim().length === 0 ? null : (
                   <View style={styles.noCityResults}>
                     <Text style={styles.noCityResultsText}>
-                      {/^\d+$/.test(citySearchInput.trim()) &&
-                      citySearchInput.trim().length < 6
+                      {/^\d+$/.test(citySearchInput.trim()) && citySearchInput.trim().length < 6
                         ? 'Enter full 6-digit pincode'
-                        : !/^\d+$/.test(citySearchInput.trim()) &&
-                            citySearchInput.trim().length < 2
+                        : !/^\d+$/.test(citySearchInput.trim()) && citySearchInput.trim().length < 2
                           ? 'Type at least 2 letters to search city'
-                        : 'No matching locations found'}
+                          : 'No matching locations found'}
                     </Text>
                   </View>
                 )}

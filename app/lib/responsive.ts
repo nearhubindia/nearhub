@@ -104,9 +104,9 @@ function scaleStyleValue(key: string, value: unknown): unknown {
   return responsiveModerateScale(value);
 }
 
-export function createResponsiveStyles<T extends StyleSheet.NamedStyles<T> | StyleSheet.NamedStyles<any>>(
-  styles: T
-): T {
+export function createResponsiveStyles<
+  T extends StyleSheet.NamedStyles<T> | StyleSheet.NamedStyles<any>,
+>(styles: T): T {
   const scaledStyles: Record<string, any> = {};
 
   for (const [styleKey, styleValue] of Object.entries(styles as Record<string, any>)) {

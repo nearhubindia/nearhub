@@ -141,8 +141,12 @@ export function extractInvoiceFromResponse(verifyResponse: any): StoredInvoice |
     gstAmount: invoice.gstAmount,
     subTotal: invoice.subTotal,
     sellerName:
-      invoice.sellerName || invoice.companyName || invoice.vendorName || DEFAULT_INVOICE_SELLER.companyName,
-    sellerCity: invoice.sellerCity || invoice.city || invoice.vendorCity || DEFAULT_INVOICE_SELLER.city,
+      invoice.sellerName ||
+      invoice.companyName ||
+      invoice.vendorName ||
+      DEFAULT_INVOICE_SELLER.companyName,
+    sellerCity:
+      invoice.sellerCity || invoice.city || invoice.vendorCity || DEFAULT_INVOICE_SELLER.city,
     sellerGstin:
       invoice.sellerGstin || invoice.gstin || invoice.vendorGstin || DEFAULT_INVOICE_SELLER.gstin,
   };

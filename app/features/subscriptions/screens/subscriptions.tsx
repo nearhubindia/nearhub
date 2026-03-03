@@ -571,133 +571,129 @@ export default function SubscriptionsScreen(): React.JSX.Element {
         {/* Active Subscription Card */}
         {activeSubscriptions.length > 0 && (
           <View style={styles.activeSubsList}>
-            <Text style={styles.activeSubsTitle}>
-              Active Plans ({activeSubscriptions.length})
-            </Text>
+            <Text style={styles.activeSubsTitle}>Active Plans ({activeSubscriptions.length})</Text>
             {activeSubscriptions.map((activeSubscription) => {
-                const tier = activeSubscription.tier;
-                if (!tier) {
-                  return null;
-                }
-                const isSelected = selectedActiveSubscriptionId === activeSubscription.id;
-                const isDefault = defaultActiveSubscriptionId === activeSubscription.id;
-                const expiresAt = new Date(activeSubscription.expiresAt);
-            const now = new Date();
-            const daysLeft = Math.max(
-              0,
-              Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-            );
-            const maxListings = tier.maxListings;
-            const listingsUsed = activeSubscription.listingsUsed;
-            const isUnlimited = maxListings === -1;
-            const usagePercent = isUnlimited
-              ? 0
-              : maxListings > 0
-                ? Math.min(100, (listingsUsed / maxListings) * 100)
-                : 0;
+              const tier = activeSubscription.tier;
+              if (!tier) {
+                return null;
+              }
+              const isSelected = selectedActiveSubscriptionId === activeSubscription.id;
+              const isDefault = defaultActiveSubscriptionId === activeSubscription.id;
+              const expiresAt = new Date(activeSubscription.expiresAt);
+              const now = new Date();
+              const daysLeft = Math.max(
+                0,
+                Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+              );
+              const maxListings = tier.maxListings;
+              const listingsUsed = activeSubscription.listingsUsed;
+              const isUnlimited = maxListings === -1;
+              const usagePercent = isUnlimited
+                ? 0
+                : maxListings > 0
+                  ? Math.min(100, (listingsUsed / maxListings) * 100)
+                  : 0;
 
-                return (
-                  <Pressable
-                    key={activeSubscription.id}
-                    style={[styles.activeSubCard, isSelected && styles.activeSubCardSelected]}
-                    onPress={() => {
-                      setSelectedActiveSubscriptionId(activeSubscription.id);
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }}
+              return (
+                <Pressable
+                  key={activeSubscription.id}
+                  style={[styles.activeSubCard, isSelected && styles.activeSubCardSelected]}
+                  onPress={() => {
+                    setSelectedActiveSubscriptionId(activeSubscription.id);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                >
+                  <LinearGradient
+                    colors={['#0A66C2', '#0D8AED']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.activeSubGradient}
                   >
-                    <LinearGradient
-                      colors={['#0A66C2', '#0D8AED']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.activeSubGradient}
-                    >
-                  {/* Header */}
-                      <View style={styles.activeSubHeader}>
-                        <View style={styles.activeSubBadge}>
-                          <Feather name="check-circle" size={14} color="#fff" />
-                          <Text style={styles.activeSubBadgeText}>Active Plan</Text>
-                        </View>
-                        <Text style={styles.activeSubDays}>
-                          {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
-                        </Text>
+                    {/* Header */}
+                    <View style={styles.activeSubHeader}>
+                      <View style={styles.activeSubBadge}>
+                        <Feather name="check-circle" size={14} color="#fff" />
+                        <Text style={styles.activeSubBadgeText}>Active Plan</Text>
                       </View>
-
-                  {/* Plan name */}
-                      <Text style={styles.activeSubPlanName}>{tier.name}</Text>
-                      <Text style={styles.activeSubPrice}>
-                        ₹{parseFloat(tier.price).toFixed(0)}
+                      <Text style={styles.activeSubDays}>
+                        {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
                       </Text>
-                      <View style={styles.activeSubMetaRow}>
-                        {isDefault && (
-                          <View style={[styles.activeSubMetaBadge, styles.activeSubMetaDefault]}>
-                            <Text style={styles.activeSubMetaText}>Default</Text>
-                          </View>
-                        )}
-                        {isSelected && (
-                          <View style={[styles.activeSubMetaBadge, styles.activeSubMetaSelected]}>
-                            <Text style={styles.activeSubMetaText}>Selected</Text>
-                          </View>
-                        )}
-                      </View>
+                    </View>
 
-                  {/* Listing Stats */}
-                      <View style={styles.activeSubStats}>
-                        <View style={styles.activeSubStatRow}>
-                          <View style={styles.activeSubStatItem}>
-                            <Text style={styles.activeSubStatValue}>{listingsUsed}</Text>
-                            <Text style={styles.activeSubStatLabel}>Active Listings</Text>
-                          </View>
-                          <View style={styles.activeSubStatDivider} />
-                          <View style={styles.activeSubStatItem}>
-                            <Text style={styles.activeSubStatValue}>
-                              {isUnlimited ? '∞' : maxListings - listingsUsed}
-                            </Text>
-                            <Text style={styles.activeSubStatLabel}>Available</Text>
-                          </View>
-                          <View style={styles.activeSubStatDivider} />
-                          <View style={styles.activeSubStatItem}>
-                            <Text style={styles.activeSubStatValue}>
-                              {activeSubscription.totalListingsCreated}
-                            </Text>
-                            <Text style={styles.activeSubStatLabel}>Total Created</Text>
-                          </View>
+                    {/* Plan name */}
+                    <Text style={styles.activeSubPlanName}>{tier.name}</Text>
+                    <Text style={styles.activeSubPrice}>₹{parseFloat(tier.price).toFixed(0)}</Text>
+                    <View style={styles.activeSubMetaRow}>
+                      {isDefault && (
+                        <View style={[styles.activeSubMetaBadge, styles.activeSubMetaDefault]}>
+                          <Text style={styles.activeSubMetaText}>Default</Text>
                         </View>
+                      )}
+                      {isSelected && (
+                        <View style={[styles.activeSubMetaBadge, styles.activeSubMetaSelected]}>
+                          <Text style={styles.activeSubMetaText}>Selected</Text>
+                        </View>
+                      )}
+                    </View>
 
-                        {/* Progress bar */}
-                        {!isUnlimited && (
-                          <View style={styles.activeSubProgress}>
-                            <View style={styles.activeSubProgressTrack}>
-                              <View
-                                style={[
-                                  styles.activeSubProgressFill,
-                                  { width: `${usagePercent}%` },
-                                  usagePercent >= 90 && { backgroundColor: '#FF6B6B' },
-                                ]}
-                              />
-                            </View>
-                            <Text style={styles.activeSubProgressText}>
-                              {listingsUsed}/{maxListings} listings used
-                            </Text>
+                    {/* Listing Stats */}
+                    <View style={styles.activeSubStats}>
+                      <View style={styles.activeSubStatRow}>
+                        <View style={styles.activeSubStatItem}>
+                          <Text style={styles.activeSubStatValue}>{listingsUsed}</Text>
+                          <Text style={styles.activeSubStatLabel}>Active Listings</Text>
+                        </View>
+                        <View style={styles.activeSubStatDivider} />
+                        <View style={styles.activeSubStatItem}>
+                          <Text style={styles.activeSubStatValue}>
+                            {isUnlimited ? '∞' : maxListings - listingsUsed}
+                          </Text>
+                          <Text style={styles.activeSubStatLabel}>Available</Text>
+                        </View>
+                        <View style={styles.activeSubStatDivider} />
+                        <View style={styles.activeSubStatItem}>
+                          <Text style={styles.activeSubStatValue}>
+                            {activeSubscription.totalListingsCreated}
+                          </Text>
+                          <Text style={styles.activeSubStatLabel}>Total Created</Text>
+                        </View>
+                      </View>
+
+                      {/* Progress bar */}
+                      {!isUnlimited && (
+                        <View style={styles.activeSubProgress}>
+                          <View style={styles.activeSubProgressTrack}>
+                            <View
+                              style={[
+                                styles.activeSubProgressFill,
+                                { width: `${usagePercent}%` },
+                                usagePercent >= 90 && { backgroundColor: '#FF6B6B' },
+                              ]}
+                            />
                           </View>
-                        )}
-                      </View>
+                          <Text style={styles.activeSubProgressText}>
+                            {listingsUsed}/{maxListings} listings used
+                          </Text>
+                        </View>
+                      )}
+                    </View>
 
-                  {/* Expiry */}
-                      <View style={styles.activeSubExpiry}>
-                        <Feather name="calendar" size={13} color="rgba(255,255,255,0.7)" />
-                        <Text style={styles.activeSubExpiryText}>
-                          Expires{' '}
-                          {expiresAt.toLocaleDateString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </Text>
-                      </View>
-                    </LinearGradient>
-                  </Pressable>
-                );
-              })}
+                    {/* Expiry */}
+                    <View style={styles.activeSubExpiry}>
+                      <Feather name="calendar" size={13} color="rgba(255,255,255,0.7)" />
+                      <Text style={styles.activeSubExpiryText}>
+                        Expires{' '}
+                        {expiresAt.toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </Text>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+              );
+            })}
           </View>
         )}
 
