@@ -11,6 +11,7 @@ import {
   TextInput,
   Alert,
   Keyboard,
+  Modal,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +21,7 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { getApiUrl } from '@/lib/query-client';
+import { extractInvoiceFromResponse, storeInvoice } from '@/lib/invoice-storage';
 
 interface SubscriptionTier {
   id: string;
@@ -78,6 +80,15 @@ interface ActiveSubscription {
   } | null;
 }
 
+interface PaymentSuccessModalState {
+  visible: boolean;
+  planName: string;
+  duration: number;
+  invoiceNumber?: string;
+  totalAmount?: number;
+  invoiceFailed?: boolean;
+}
+
 export default function SubscriptionsScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -93,12 +104,33 @@ export default function SubscriptionsScreen(): React.JSX.Element {
   const [couponDiscount, setCouponDiscount] = useState<CouponDiscount | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [isSubscribing, setIsSubscribing] = useState(false);
-  const [activeSubscription, setActiveSubscription] = useState<ActiveSubscription | null>(null);
+  const [activeSubscriptions, setActiveSubscriptions] = useState<ActiveSubscription[]>([]);
+  const [selectedActiveSubscriptionId, setSelectedActiveSubscriptionId] = useState<string | null>(
+    null
+  );
+  const [defaultActiveSubscriptionId, setDefaultActiveSubscriptionId] = useState<string | null>(
+    null
+  );
+  const [paymentSuccessModal, setPaymentSuccessModal] = useState<PaymentSuccessModalState>({
+    visible: false,
+    planName: '',
+    duration: 30,
+  });
 
   const scrollViewRef = useRef<ScrollView>(null);
   const couponInputRef = useRef<TextInput>(null);
   const couponSectionY = useRef<number>(0);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const selectedActiveSubscriptionIdRef = useRef<string | null>(null);
+  const defaultActiveSubscriptionIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    selectedActiveSubscriptionIdRef.current = selectedActiveSubscriptionId;
+  }, [selectedActiveSubscriptionId]);
+
+  useEffect(() => {
+    defaultActiveSubscriptionIdRef.current = defaultActiveSubscriptionId;
+  }, [defaultActiveSubscriptionId]);
 
   // Keyboard listener to scroll to coupon input & hide bottom bar
   useEffect(() => {
@@ -164,19 +196,39 @@ export default function SubscriptionsScreen(): React.JSX.Element {
       });
       const data = await response.json();
       if (data.success && Array.isArray(data.data) && data.data.length > 0) {
-        // Get all active non-expired subscriptions (no longer combining)
-        const activeSubscriptions = data.data.filter(
+        // Keep all active non-expired subscriptions
+        const activeSubs = data.data.filter(
           (s: ActiveSubscription) => s.status === 'active' && new Date(s.expiresAt) > new Date()
         );
+        setActiveSubscriptions(activeSubs);
+        if (activeSubs.length > 0) {
+          const firstId = activeSubs[0].id;
+          const currentSelected = selectedActiveSubscriptionIdRef.current;
+          const currentDefault = defaultActiveSubscriptionIdRef.current;
 
-        // Just take the first one for display compatibility
-        // (TODO: Show all subscriptions in a list instead)
-        setActiveSubscription(activeSubscriptions.length > 0 ? activeSubscriptions[0] : null);
+          const selectedStillValid = currentSelected
+            ? activeSubs.some((s: ActiveSubscription) => s.id === currentSelected)
+            : false;
+          const defaultStillValid = currentDefault
+            ? activeSubs.some((s: ActiveSubscription) => s.id === currentDefault)
+            : false;
+
+          setSelectedActiveSubscriptionId(selectedStillValid ? currentSelected : firstId);
+          setDefaultActiveSubscriptionId(defaultStillValid ? currentDefault : firstId);
+        } else {
+          setSelectedActiveSubscriptionId(null);
+          setDefaultActiveSubscriptionId(null);
+        }
       } else {
-        setActiveSubscription(null);
+        setActiveSubscriptions([]);
+        setSelectedActiveSubscriptionId(null);
+        setDefaultActiveSubscriptionId(null);
       }
     } catch (error) {
       console.error('[Subscriptions] Error fetching active subscription:', error);
+      setActiveSubscriptions([]);
+      setSelectedActiveSubscriptionId(null);
+      setDefaultActiveSubscriptionId(null);
     }
   }, [user?.id]);
 
@@ -406,37 +458,35 @@ export default function SubscriptionsScreen(): React.JSX.Element {
       if (verifyData.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
+        if (verifyData.invoice) {
+          try {
+            const storedInvoice = extractInvoiceFromResponse({
+              ...verifyData,
+              paymentId: verifyData.paymentId || paymentResult.razorpay_payment_id,
+              orderId: verifyData.orderId || paymentResult.razorpay_order_id,
+            });
+            if (storedInvoice) {
+              await storeInvoice(storedInvoice);
+              console.log('[Subscriptions] Invoice stored locally:', storedInvoice.invoiceNumber);
+            }
+          } catch (invoiceError) {
+            console.error('[Subscriptions] Failed to store invoice locally:', invoiceError);
+          }
+        }
+
         // Force refresh subscription data
         await fetchActiveSubscription();
 
-        // Build success message with invoice info
-        let successMessage = `Your ${selectedTier.name} plan is now active for ${duration} days.`;
-
-        if (verifyData.invoiceGenerated && verifyData.invoice?.invoiceNumber) {
-          successMessage += `\n\n✅ Invoice Generated: ${verifyData.invoice.invoiceNumber}`;
-          successMessage += `\n₹${(verifyData.invoice.total || 0).toFixed(2)}`;
-        } else if (verifyData.invoiceGenerated === false) {
-          successMessage += '\n\n⚠️ Invoice generation failed. Contact support if needed.';
-        }
-
         console.log('[Subscriptions] Payment successful:', verifyData);
 
-        Alert.alert('Payment Successful!', successMessage, [
-          {
-            text: 'OK',
-            onPress: () => {
-              // Force another refresh when user closes alert
-              fetchActiveSubscription();
-            },
-          },
-          {
-            text: 'Create Listing',
-            onPress: () => {
-              fetchActiveSubscription();
-              router.back();
-            },
-          },
-        ]);
+        setPaymentSuccessModal({
+          visible: true,
+          planName: selectedTier.name,
+          duration,
+          invoiceNumber: verifyData.invoice?.invoiceNumber,
+          totalAmount: verifyData.invoice?.total,
+          invoiceFailed: verifyData.invoiceGenerated === false,
+        });
       } else {
         Alert.alert(
           'Verification Failed',
@@ -519,16 +569,25 @@ export default function SubscriptionsScreen(): React.JSX.Element {
         }
       >
         {/* Active Subscription Card */}
-        {activeSubscription &&
-          activeSubscription.tier &&
-          (() => {
-            const expiresAt = new Date(activeSubscription.expiresAt);
+        {activeSubscriptions.length > 0 && (
+          <View style={styles.activeSubsList}>
+            <Text style={styles.activeSubsTitle}>
+              Active Plans ({activeSubscriptions.length})
+            </Text>
+            {activeSubscriptions.map((activeSubscription) => {
+                const tier = activeSubscription.tier;
+                if (!tier) {
+                  return null;
+                }
+                const isSelected = selectedActiveSubscriptionId === activeSubscription.id;
+                const isDefault = defaultActiveSubscriptionId === activeSubscription.id;
+                const expiresAt = new Date(activeSubscription.expiresAt);
             const now = new Date();
             const daysLeft = Math.max(
               0,
               Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
             );
-            const maxListings = activeSubscription.tier.maxListings;
+            const maxListings = tier.maxListings;
             const listingsUsed = activeSubscription.listingsUsed;
             const isUnlimited = maxListings === -1;
             const usagePercent = isUnlimited
@@ -537,92 +596,113 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                 ? Math.min(100, (listingsUsed / maxListings) * 100)
                 : 0;
 
-            return (
-              <View style={styles.activeSubCard}>
-                <LinearGradient
-                  colors={['#0A66C2', '#0D8AED']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.activeSubGradient}
-                >
+                return (
+                  <Pressable
+                    key={activeSubscription.id}
+                    style={[styles.activeSubCard, isSelected && styles.activeSubCardSelected]}
+                    onPress={() => {
+                      setSelectedActiveSubscriptionId(activeSubscription.id);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                  >
+                    <LinearGradient
+                      colors={['#0A66C2', '#0D8AED']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.activeSubGradient}
+                    >
                   {/* Header */}
-                  <View style={styles.activeSubHeader}>
-                    <View style={styles.activeSubBadge}>
-                      <Feather name="check-circle" size={14} color="#fff" />
-                      <Text style={styles.activeSubBadgeText}>Active Plan</Text>
-                    </View>
-                    <Text style={styles.activeSubDays}>
-                      {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
-                    </Text>
-                  </View>
+                      <View style={styles.activeSubHeader}>
+                        <View style={styles.activeSubBadge}>
+                          <Feather name="check-circle" size={14} color="#fff" />
+                          <Text style={styles.activeSubBadgeText}>Active Plan</Text>
+                        </View>
+                        <Text style={styles.activeSubDays}>
+                          {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
+                        </Text>
+                      </View>
 
                   {/* Plan name */}
-                  <Text style={styles.activeSubPlanName}>{activeSubscription.tier.name}</Text>
-                  <Text style={styles.activeSubPrice}>
-                    ₹{parseFloat(activeSubscription.tier.price).toFixed(0)}
-                  </Text>
+                      <Text style={styles.activeSubPlanName}>{tier.name}</Text>
+                      <Text style={styles.activeSubPrice}>
+                        ₹{parseFloat(tier.price).toFixed(0)}
+                      </Text>
+                      <View style={styles.activeSubMetaRow}>
+                        {isDefault && (
+                          <View style={[styles.activeSubMetaBadge, styles.activeSubMetaDefault]}>
+                            <Text style={styles.activeSubMetaText}>Default</Text>
+                          </View>
+                        )}
+                        {isSelected && (
+                          <View style={[styles.activeSubMetaBadge, styles.activeSubMetaSelected]}>
+                            <Text style={styles.activeSubMetaText}>Selected</Text>
+                          </View>
+                        )}
+                      </View>
 
                   {/* Listing Stats */}
-                  <View style={styles.activeSubStats}>
-                    <View style={styles.activeSubStatRow}>
-                      <View style={styles.activeSubStatItem}>
-                        <Text style={styles.activeSubStatValue}>{listingsUsed}</Text>
-                        <Text style={styles.activeSubStatLabel}>Active Listings</Text>
-                      </View>
-                      <View style={styles.activeSubStatDivider} />
-                      <View style={styles.activeSubStatItem}>
-                        <Text style={styles.activeSubStatValue}>
-                          {isUnlimited ? '∞' : maxListings - listingsUsed}
-                        </Text>
-                        <Text style={styles.activeSubStatLabel}>Available</Text>
-                      </View>
-                      <View style={styles.activeSubStatDivider} />
-                      <View style={styles.activeSubStatItem}>
-                        <Text style={styles.activeSubStatValue}>
-                          {activeSubscription.totalListingsCreated}
-                        </Text>
-                        <Text style={styles.activeSubStatLabel}>Total Created</Text>
-                      </View>
-                    </View>
-
-                    {/* Progress bar */}
-                    {!isUnlimited && (
-                      <View style={styles.activeSubProgress}>
-                        <View style={styles.activeSubProgressTrack}>
-                          <View
-                            style={[
-                              styles.activeSubProgressFill,
-                              { width: `${usagePercent}%` },
-                              usagePercent >= 90 && { backgroundColor: '#FF6B6B' },
-                            ]}
-                          />
+                      <View style={styles.activeSubStats}>
+                        <View style={styles.activeSubStatRow}>
+                          <View style={styles.activeSubStatItem}>
+                            <Text style={styles.activeSubStatValue}>{listingsUsed}</Text>
+                            <Text style={styles.activeSubStatLabel}>Active Listings</Text>
+                          </View>
+                          <View style={styles.activeSubStatDivider} />
+                          <View style={styles.activeSubStatItem}>
+                            <Text style={styles.activeSubStatValue}>
+                              {isUnlimited ? '∞' : maxListings - listingsUsed}
+                            </Text>
+                            <Text style={styles.activeSubStatLabel}>Available</Text>
+                          </View>
+                          <View style={styles.activeSubStatDivider} />
+                          <View style={styles.activeSubStatItem}>
+                            <Text style={styles.activeSubStatValue}>
+                              {activeSubscription.totalListingsCreated}
+                            </Text>
+                            <Text style={styles.activeSubStatLabel}>Total Created</Text>
+                          </View>
                         </View>
-                        <Text style={styles.activeSubProgressText}>
-                          {listingsUsed}/{maxListings} listings used
-                        </Text>
+
+                        {/* Progress bar */}
+                        {!isUnlimited && (
+                          <View style={styles.activeSubProgress}>
+                            <View style={styles.activeSubProgressTrack}>
+                              <View
+                                style={[
+                                  styles.activeSubProgressFill,
+                                  { width: `${usagePercent}%` },
+                                  usagePercent >= 90 && { backgroundColor: '#FF6B6B' },
+                                ]}
+                              />
+                            </View>
+                            <Text style={styles.activeSubProgressText}>
+                              {listingsUsed}/{maxListings} listings used
+                            </Text>
+                          </View>
+                        )}
                       </View>
-                    )}
-                  </View>
 
                   {/* Expiry */}
-                  <View style={styles.activeSubExpiry}>
-                    <Feather name="calendar" size={13} color="rgba(255,255,255,0.7)" />
-                    <Text style={styles.activeSubExpiryText}>
-                      Expires{' '}
-                      {expiresAt.toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </Text>
-                  </View>
-                </LinearGradient>
-              </View>
-            );
-          })()}
+                      <View style={styles.activeSubExpiry}>
+                        <Feather name="calendar" size={13} color="rgba(255,255,255,0.7)" />
+                        <Text style={styles.activeSubExpiryText}>
+                          Expires{' '}
+                          {expiresAt.toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </Text>
+                      </View>
+                    </LinearGradient>
+                  </Pressable>
+                );
+              })}
+          </View>
+        )}
 
         {/* Info Banner */}
-        {!activeSubscription && (
+        {activeSubscriptions.length === 0 && (
           <View style={styles.infoBanner}>
             <Feather name="shopping-bag" size={20} color={Colors.primary} />
             <View style={styles.infoBannerContent}>
@@ -770,16 +850,19 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                     <View style={styles.tierTopRow}>
                       <View style={styles.tierNameCol}>
                         <View style={styles.tierNameRow}>
-                          <Text style={[styles.tierName, isSelected && styles.tierNameSelected]}>
+                          <Text
+                            numberOfLines={1}
+                            style={[styles.tierName, isSelected && styles.tierNameSelected]}
+                          >
                             {tier.name}
                           </Text>
-                          {tier.highlight && (
-                            <View style={styles.popularBadge}>
-                              <Feather name="star" size={9} color="#fff" />
-                              <Text style={styles.popularBadgeText}>Popular</Text>
-                            </View>
-                          )}
                         </View>
+                        {tier.highlight && (
+                          <View style={styles.popularBadge}>
+                            <Feather name="star" size={10} color="#fff" />
+                            <Text style={styles.popularBadgeText}>Popular</Text>
+                          </View>
+                        )}
                         <Text style={styles.tierPerDay}>₹{perDay}/day</Text>
                       </View>
 
@@ -844,6 +927,79 @@ export default function SubscriptionsScreen(): React.JSX.Element {
         )}
       </ScrollView>
 
+      <Modal
+        visible={paymentSuccessModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() =>
+          setPaymentSuccessModal((prev) => ({
+            ...prev,
+            visible: false,
+          }))
+        }
+      >
+        <View style={styles.successModalOverlay}>
+          <View style={styles.successModalCard}>
+            <View style={styles.successIconWrap}>
+              <Feather name="check-circle" size={22} color="#fff" />
+            </View>
+
+            <Text style={styles.successTitle}>Payment Successful</Text>
+            <Text style={styles.successSubtitle}>
+              Your {paymentSuccessModal.planName} {paymentSuccessModal.duration}-day plan is now
+              active.
+            </Text>
+
+            {!!paymentSuccessModal.invoiceNumber && (
+              <View style={styles.successInvoiceBox}>
+                <Text style={styles.successInvoiceLabel}>Invoice Generated</Text>
+                <Text style={styles.successInvoiceNumber}>{paymentSuccessModal.invoiceNumber}</Text>
+                {typeof paymentSuccessModal.totalAmount === 'number' && (
+                  <Text style={styles.successInvoiceAmount}>
+                    ₹{paymentSuccessModal.totalAmount.toFixed(2)}
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {paymentSuccessModal.invoiceFailed && (
+              <Text style={styles.successInvoiceWarning}>
+                Invoice generation failed. Please contact support if needed.
+              </Text>
+            )}
+
+            <View style={styles.successActionsRow}>
+              <Pressable
+                style={[styles.successActionButton, styles.successActionSecondary]}
+                onPress={() => {
+                  setPaymentSuccessModal((prev) => ({
+                    ...prev,
+                    visible: false,
+                  }));
+                  fetchActiveSubscription();
+                }}
+              >
+                <Text style={styles.successActionSecondaryText}>OK</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.successActionButton, styles.successActionPrimary]}
+                onPress={() => {
+                  setPaymentSuccessModal((prev) => ({
+                    ...prev,
+                    visible: false,
+                  }));
+                  fetchActiveSubscription();
+                  router.back();
+                }}
+              >
+                <Text style={styles.successActionPrimaryText}>Create Listing</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Sticky Subscribe Button */}
       {selectedTierId && !keyboardVisible && (
         <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
@@ -894,7 +1050,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                   <Text style={styles.subscribeButtonText}>
                     {couponDiscount?.coupon.discountPercentage === 100
                       ? 'Activate Free Plan'
-                      : 'Subscribe & Pay'}
+                      : 'Pay'}
                   </Text>
                 </>
               )}
@@ -1062,13 +1218,15 @@ const styles = StyleSheet.create({
   tierNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   tierName: {
     fontSize: 15,
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
     letterSpacing: -0.2,
+    maxWidth: '100%',
+    flexShrink: 1,
   },
   tierNameSelected: {
     color: Colors.primary,
@@ -1107,17 +1265,20 @@ const styles = StyleSheet.create({
   popularBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    backgroundColor: Colors.warning,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    gap: 4,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    marginBottom: 2,
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   popularBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
     textTransform: 'uppercase',
   },
   radioCircle: {
@@ -1327,63 +1488,103 @@ const styles = StyleSheet.create({
 
   // Active Subscription Card
   activeSubCard: {
-    borderRadius: 20,
+    borderRadius: 12,
     overflow: 'hidden',
-    marginBottom: 20,
+    marginBottom: 12,
     shadowColor: '#0A66C2',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  activeSubCardSelected: {
+    borderWidth: 1.5,
+    borderColor: '#083A72',
+  },
+  activeSubsList: {
+    marginBottom: 4,
+  },
+  activeSubsTitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.textSecondary,
+    marginBottom: 8,
+    paddingHorizontal: 2,
   },
   activeSubGradient: {
-    padding: 20,
-    borderRadius: 20,
+    padding: 12,
+    borderRadius: 12,
   },
   activeSubHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 6,
   },
   activeSubBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
   activeSubBadgeText: {
-    fontSize: 12,
+    fontSize: 9,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   activeSubDays: {
-    fontSize: 13,
+    fontSize: 10,
     fontFamily: 'Inter_600SemiBold',
     color: 'rgba(255,255,255,0.9)',
   },
   activeSubPlanName: {
-    fontSize: 22,
+    fontSize: 15,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
-    marginBottom: 2,
+    marginBottom: 1,
   },
   activeSubPrice: {
-    fontSize: 14,
+    fontSize: 11,
     fontFamily: 'Inter_500Medium',
     color: 'rgba(255,255,255,0.75)',
-    marginBottom: 16,
+    marginBottom: 8,
+  },
+  activeSubMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  activeSubMetaBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  activeSubMetaDefault: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  activeSubMetaSelected: {
+    backgroundColor: 'rgba(16,185,129,0.22)',
+    borderColor: 'rgba(167,243,208,0.55)',
+  },
+  activeSubMetaText: {
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#fff',
   },
   activeSubStats: {
     backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    marginBottom: 6,
   },
   activeSubStatRow: {
     flexDirection: 'row',
@@ -1395,31 +1596,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   activeSubStatValue: {
-    fontSize: 24,
+    fontSize: 15,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
-    marginBottom: 2,
+    marginBottom: 1,
   },
   activeSubStatLabel: {
-    fontSize: 11,
+    fontSize: 9,
     fontFamily: 'Inter_400Regular',
     color: 'rgba(255,255,255,0.75)',
     textAlign: 'center',
   },
   activeSubStatDivider: {
     width: 1,
-    height: 30,
+    height: 22,
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
   activeSubProgress: {
-    marginTop: 14,
+    marginTop: 6,
   },
   activeSubProgressTrack: {
-    height: 6,
+    height: 4,
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 3,
     overflow: 'hidden',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   activeSubProgressFill: {
     height: '100%',
@@ -1427,7 +1628,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   activeSubProgressText: {
-    fontSize: 11,
+    fontSize: 9,
     fontFamily: 'Inter_400Regular',
     color: 'rgba(255,255,255,0.7)',
     textAlign: 'right',
@@ -1438,8 +1639,107 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   activeSubExpiryText: {
-    fontSize: 12,
+    fontSize: 10,
     fontFamily: 'Inter_400Regular',
     color: 'rgba(255,255,255,0.7)',
+  },
+  successModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  successModalCard: {
+    width: '100%',
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  successIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  successTitle: {
+    fontSize: 22,
+    fontFamily: 'Inter_700Bold',
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  successSubtitle: {
+    fontSize: 15,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textSecondary,
+    lineHeight: 22,
+  },
+  successInvoiceBox: {
+    marginTop: 14,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    padding: 12,
+    gap: 2,
+  },
+  successInvoiceLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  successInvoiceNumber: {
+    fontSize: 16,
+    fontFamily: 'Inter_700Bold',
+    color: Colors.text,
+  },
+  successInvoiceAmount: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.success,
+  },
+  successInvoiceWarning: {
+    marginTop: 12,
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.warning,
+  },
+  successActionsRow: {
+    marginTop: 18,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  successActionButton: {
+    flex: 1,
+    borderRadius: 12,
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  successActionSecondary: {
+    backgroundColor: Colors.background,
+    borderColor: Colors.border,
+  },
+  successActionPrimary: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  successActionSecondaryText: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.textSecondary,
+  },
+  successActionPrimaryText: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#fff',
   },
 });

@@ -57,6 +57,7 @@ import {
 import * as ImageStorage from '@/lib/image-storage';
 import * as ImageHasher from '@/lib/image-hasher';
 import RichTextEditor from '@/shared/components/RichTextEditor';
+import { createResponsiveStyles } from '@/lib/responsive';
 
 interface LocationSuggestion {
   pincode: string;
@@ -68,6 +69,28 @@ interface LocationSuggestion {
   longitude: number;
   region: string;
 }
+
+const JOB_CATEGORIES: Category[] = [
+  'Jobs',
+  'Freelance',
+  'Services',
+  'Business',
+  'Education',
+  'Health',
+  'Other',
+];
+
+const SERVICE_CATEGORIES: Category[] = [
+  'Services',
+  'Freelance',
+  'Home & Garden',
+  'Education',
+  'Health',
+  'Business',
+  'Events',
+  'Food',
+  'Other',
+];
 
 export default function CreateScreen() {
   const insets = useSafeAreaInsets();
@@ -164,6 +187,22 @@ export default function CreateScreen() {
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const pincodeInputRef = useRef<TextInput>(null);
+
+  const visibleCategories =
+    listingType === 'job'
+      ? JOB_CATEGORIES
+      : listingType === 'service'
+        ? SERVICE_CATEGORIES
+        : CATEGORIES;
+
+  useEffect(() => {
+    if (listingType === 'job' && !JOB_CATEGORIES.includes(category)) {
+      setCategory('Jobs');
+    }
+    if (listingType === 'service' && !SERVICE_CATEGORIES.includes(category)) {
+      setCategory('Services');
+    }
+  }, [listingType, category]);
 
   const applyLocationSuggestion = useCallback((suggestion: LocationSuggestion) => {
     const cityName = suggestion.locationName?.trim() || suggestion.city?.trim() || 'Unknown';
@@ -820,6 +859,7 @@ export default function CreateScreen() {
   }, [title, description, images, videoUri, mediaType, price, category, condition]);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const bottomCtaSafeSpacing = Platform.OS === 'web' ? 34 : 86;
 
   const convertBlobUrlToBase64 = async (uri: string): Promise<string> => {
     try {
@@ -843,6 +883,57 @@ export default function CreateScreen() {
       console.error('[Create] Error converting blob to base64:', error);
       // Return a placeholder or throw error instead of falling back to blob
       throw new Error('Failed to convert blob URL to base64');
+    }
+  };
+
+  const getMimeTypeFromUri = (uri: string): string => {
+    const lower = uri.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.heic') || lower.endsWith('.heif')) return 'image/heic';
+    return 'image/jpeg';
+  };
+
+  const toPortableImageUri = async (uri: string): Promise<string> => {
+    if (!uri) return uri;
+
+    // Already portable
+    if (
+      uri.startsWith('data:image/') ||
+      uri.startsWith('http://') ||
+      uri.startsWith('https://') ||
+      uri.startsWith('/uploads/') ||
+      uri.startsWith('/images/')
+    ) {
+      return uri;
+    }
+
+    if (uri.startsWith('blob:')) {
+      return await convertBlobUrlToBase64(uri);
+    }
+
+    // Convert device-local URIs (file://, content://, ph://, assets-library://) to data URI
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      return `data:${getMimeTypeFromUri(uri)};base64,${base64}`;
+    } catch (readError) {
+      console.warn('[Create] FileSystem read failed, trying fetch fallback:', readError);
+      try {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        return await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (fallbackError) {
+        console.error('[Create] Failed to make image portable:', fallbackError);
+        throw new Error('Unable to process selected image for upload');
+      }
     }
   };
 
@@ -903,25 +994,15 @@ export default function CreateScreen() {
             if (compressedResults.length > 0) {
               const compressedUri = compressedResults[0].uri;
 
-              // Convert blob URL to base64 for web platform
               let finalImageData = compressedUri;
-              if (compressedUri.startsWith('blob:')) {
-                console.log('[Create] Detected blob URL, converting...');
-                try {
-                  finalImageData = await convertBlobUrlToBase64(compressedUri);
-                  console.log(
-                    '[Create] Conversion successful, data type:',
-                    finalImageData.substring(0, 30)
-                  );
-                } catch (conversionError) {
-                  console.error('[Create] Blob conversion failed:', conversionError);
-                  Alert.alert('Image Error', 'Failed to process image. Please try again.');
-                  setIsCompressingImages(false);
-                  setImageCompressionProgress(null);
-                  return;
-                }
-              } else {
-                console.log('[Create] Image URI is not a blob, using as-is');
+              try {
+                finalImageData = await toPortableImageUri(compressedUri);
+              } catch (conversionError) {
+                console.error('[Create] Image portability conversion failed:', conversionError);
+                Alert.alert('Image Error', 'Failed to process image. Please try again.');
+                setIsCompressingImages(false);
+                setImageCompressionProgress(null);
+                return;
               }
 
               // Check for duplicate using hash
@@ -966,18 +1047,14 @@ export default function CreateScreen() {
             console.error('Image compression error:', compressionError);
             // Fallback: use original image if compression fails
             let finalImageData = asset.uri;
-
-            if (asset.uri.startsWith('blob:')) {
-              console.log('[Create] Fallback: Converting blob URL to base64...');
-              try {
-                finalImageData = await convertBlobUrlToBase64(asset.uri);
-              } catch (conversionError) {
-                console.error('[Create] Fallback conversion failed:', conversionError);
-                Alert.alert('Image Error', 'Failed to process image. Please try again.');
-                setIsCompressingImages(false);
-                setImageCompressionProgress(null);
-                return;
-              }
+            try {
+              finalImageData = await toPortableImageUri(asset.uri);
+            } catch (conversionError) {
+              console.error('[Create] Fallback conversion failed:', conversionError);
+              Alert.alert('Image Error', 'Failed to process image. Please try again.');
+              setIsCompressingImages(false);
+              setImageCompressionProgress(null);
+              return;
             }
 
             Alert.alert('Processing Info', 'Using original image.', [{ text: 'OK' }]);
@@ -1481,6 +1558,9 @@ export default function CreateScreen() {
         ];
       }
 
+      // Ensure images are portable across devices (avoid file:// or content:// in DB)
+      listingImages = await Promise.all(listingImages.map((uri) => toPortableImageUri(uri)));
+
       console.log(
         '[Create] Submitting listing with images count:',
         listingImages.length,
@@ -1812,7 +1892,7 @@ export default function CreateScreen() {
       <View style={[styles.container, { paddingTop: (insets.top || webTopInset) + 20 }]}>
         <View style={styles.authGate}>
           <View style={styles.authIconCircle}>
-            <Feather name="user-plus" size={36} color={Colors.primary} />
+            <Feather name="user-plus" size={30} color={Colors.primary} />
           </View>
           <Text style={styles.authTitle}>Sign in to Post</Text>
           <Text style={styles.authSubtitle}>
@@ -1826,7 +1906,7 @@ export default function CreateScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.authButtonGradient}
             >
-              <Feather name="smartphone" size={20} color="#fff" />
+              <Feather name="smartphone" size={18} color="#fff" />
               <Text style={styles.authButtonText}>Register with Mobile</Text>
             </LinearGradient>
           </Pressable>
@@ -1848,7 +1928,7 @@ export default function CreateScreen() {
             styles.content,
             {
               paddingTop: 16,
-              paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 30,
+              paddingBottom: insets.bottom + bottomCtaSafeSpacing + 30,
             },
           ]}
           showsVerticalScrollIndicator={false}
@@ -1872,7 +1952,7 @@ export default function CreateScreen() {
               >
                 <Feather
                   name="tag"
-                  size={18}
+                  size={16}
                   color={listingType === 'sell' ? '#fff' : Colors.textSecondary}
                 />
                 <Text style={[styles.typeText, listingType === 'sell' && styles.typeTextActive]}>
@@ -1885,7 +1965,7 @@ export default function CreateScreen() {
               >
                 <Feather
                   name="shopping-cart"
-                  size={18}
+                  size={16}
                   color={listingType === 'buy' ? '#fff' : Colors.textSecondary}
                 />
                 <Text style={[styles.typeText, listingType === 'buy' && styles.typeTextActive]}>
@@ -1898,7 +1978,7 @@ export default function CreateScreen() {
               >
                 <Feather
                   name="tool"
-                  size={18}
+                  size={16}
                   color={listingType === 'service' ? '#fff' : Colors.textSecondary}
                 />
                 <Text style={[styles.typeText, listingType === 'service' && styles.typeTextActive]}>
@@ -1911,7 +1991,7 @@ export default function CreateScreen() {
               >
                 <Feather
                   name="briefcase"
-                  size={18}
+                  size={16}
                   color={listingType === 'job' ? '#fff' : Colors.textSecondary}
                 />
                 <Text style={[styles.typeText, listingType === 'job' && styles.typeTextActive]}>
@@ -1937,18 +2017,18 @@ export default function CreateScreen() {
               contentContainerStyle={styles.imageRow}
             >
               <Pressable style={styles.addImageButton} onPress={() => pickImage(false)}>
-                <Feather name="image" size={24} color="#fff" />
+                <Feather name="image" size={20} color="#fff" />
                 <Text style={styles.addImageText}>Gallery</Text>
               </Pressable>
               <Pressable style={styles.addImageButton} onPress={() => pickImage(true)}>
-                <Feather name="camera" size={24} color="#fff" />
+                <Feather name="camera" size={20} color="#fff" />
                 <Text style={styles.addImageText}>Camera</Text>
               </Pressable>
               {images.map((uri, index) => (
                 <View key={index} style={styles.imageThumb}>
                   <Image source={{ uri }} style={styles.thumbImage} contentFit="cover" />
                   <Pressable style={styles.removeImage} onPress={() => removeImage(index)}>
-                    <Ionicons name="close-circle" size={22} color={Colors.accent} />
+                    <Ionicons name="close-circle" size={18} color={Colors.accent} />
                   </Pressable>
                   {validationResult &&
                     validationResult.isValid &&
@@ -2071,17 +2151,17 @@ export default function CreateScreen() {
                 contentContainerStyle={styles.imageRow}
               >
                 <Pressable
-                  style={[styles.addVideoButton, { width: 90, height: 90 }]}
+                  style={[styles.addVideoButton, { width: 80, height: 80 }]}
                   onPress={() => setShowRecorder(true)}
                 >
-                  <Feather name="camera" size={20} color="#fff" />
+                  <Feather name="camera" size={18} color="#fff" />
                   <Text style={styles.addImageText}>Record</Text>
                 </Pressable>
                 <Pressable
-                  style={[styles.addVideoButton, { width: 90, height: 90 }]}
+                  style={[styles.addVideoButton, { width: 80, height: 80 }]}
                   onPress={pickVideo}
                 >
-                  <Feather name="video" size={20} color="#fff" />
+                  <Feather name="video" size={18} color="#fff" />
                   <Text style={styles.addImageText}>Select</Text>
                 </Pressable>
                 {videoUri && (
@@ -2103,11 +2183,11 @@ export default function CreateScreen() {
                           },
                         ]}
                       >
-                        <Feather name="film" size={28} color={Colors.textSecondary} />
+                        <Feather name="film" size={24} color={Colors.textSecondary} />
                       </View>
                     )}
                     <View style={styles.videoPlayOverlay}>
-                      <Feather name="play-circle" size={20} color="#FFFFFF" />
+                      <Feather name="play-circle" size={18} color="#FFFFFF" />
                     </View>
                     <Pressable
                       style={styles.removeImage}
@@ -2117,7 +2197,7 @@ export default function CreateScreen() {
                         setValidationResult(null);
                       }}
                     >
-                      <Ionicons name="close-circle" size={22} color={Colors.accent} />
+                      <Ionicons name="close-circle" size={18} color={Colors.accent} />
                     </Pressable>
                     {validationResult &&
                       validationResult.isValid &&
@@ -2335,7 +2415,7 @@ export default function CreateScreen() {
               <Text style={styles.sectionLabel}>Category</Text>
             </View>
             <View style={styles.chipRow}>
-              {CATEGORIES.map((cat) => (
+              {visibleCategories.map((cat) => (
                 <Pressable
                   key={cat}
                   style={[styles.chip, category === cat && styles.chipActive]}
@@ -2360,7 +2440,7 @@ export default function CreateScreen() {
             {locationCity || (latitude !== null && longitude !== null) ? (
               <View style={styles.selectedLocationCard}>
                 <View style={styles.locationInfo}>
-                  <Feather name="map-pin" size={18} color={Colors.success} />
+                  <Feather name="map-pin" size={16} color={Colors.success} />
                   <View style={styles.locationText}>
                     <Text style={styles.locationName}>{locationCity || 'Current Location'}</Text>
                     <Text style={styles.locationCity}>
@@ -2396,9 +2476,9 @@ export default function CreateScreen() {
                   setShowLocationModal(true);
                 }}
               >
-                <Feather name="map-pin" size={18} color={Colors.primary} />
+                <Feather name="map-pin" size={16} color={Colors.primary} />
                 <Text style={styles.selectLocationText}>Select Location</Text>
-                <Feather name="chevron-right" size={18} color={Colors.textTertiary} />
+                <Feather name="chevron-right" size={16} color={Colors.textTertiary} />
               </Pressable>
             )}
           </View>
@@ -2483,7 +2563,7 @@ export default function CreateScreen() {
                   <View
                     style={{
                       backgroundColor: Colors.primary,
-                      borderRadius: 16,
+                      borderRadius: 12,
                       width: 22,
                       height: 22,
                       alignItems: 'center',
@@ -2685,7 +2765,7 @@ export default function CreateScreen() {
                   <View
                     style={{
                       backgroundColor: '#FFD54F',
-                      borderRadius: 16,
+                      borderRadius: 12,
                       width: 26,
                       height: 26,
                       alignItems: 'center',
@@ -2783,7 +2863,7 @@ export default function CreateScreen() {
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <Feather name="send" size={18} color="#fff" />
+                  <Feather name="send" size={16} color="#fff" />
                   <Text style={styles.submitText}>Post Listing</Text>
                 </>
               )}
@@ -2935,6 +3015,8 @@ export default function CreateScreen() {
                   bottom: 0,
                   backgroundColor: 'rgba(0,0,0,0.5)',
                   justifyContent: 'flex-end',
+                  zIndex: 999,
+                  elevation: 999,
                 }}
               >
                 <Pressable
@@ -2947,15 +3029,15 @@ export default function CreateScreen() {
                 <View
                   style={{
                     backgroundColor: '#fff',
-                    borderTopLeftRadius: 20,
-                    borderTopRightRadius: 20,
-                    paddingTop: 16,
-                    paddingBottom: insets.bottom + 16,
+                    borderTopLeftRadius: 12,
+                    borderTopRightRadius: 12,
+                    paddingTop: 12,
+                    paddingBottom: insets.bottom + (Platform.OS === 'web' ? 12 : 76),
                     maxHeight: '80%',
                   }}
                 >
                   {/* Header */}
-                  <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+                  <View style={{ paddingHorizontal: 14, marginBottom: 8 }}>
                     <View
                       style={{
                         flexDirection: 'row',
@@ -2963,7 +3045,7 @@ export default function CreateScreen() {
                         justifyContent: 'space-between',
                       }}
                     >
-                      <Text style={{ fontSize: 18, fontWeight: '700', color: Colors.text }}>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.text }}>
                         Choose Subscription
                       </Text>
                       <Pressable
@@ -2972,26 +3054,26 @@ export default function CreateScreen() {
                           setShowSubscriptionSelector(false);
                         }}
                         style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 16,
+                          width: 30,
+                          height: 30,
+                          borderRadius: 12,
                           backgroundColor: Colors.border,
                           alignItems: 'center',
                           justifyContent: 'center',
                         }}
                       >
-                        <Feather name="x" size={18} color={Colors.text} />
+                        <Feather name="x" size={16} color={Colors.text} />
                       </Pressable>
                     </View>
-                    <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 2 }}>
                       Select which subscription to use for this listing
                     </Text>
                   </View>
 
                   {/* Subscription List */}
                   <ScrollView
-                    style={{ paddingHorizontal: 20 }}
-                    contentContainerStyle={{ paddingBottom: 30 }}
+                    style={{ paddingHorizontal: 14 }}
+                    contentContainerStyle={{ paddingBottom: Platform.OS === 'web' ? 20 : 90 }}
                     showsVerticalScrollIndicator={false}
                   >
                     {groupedSubs.map((group) => {
@@ -3043,37 +3125,37 @@ export default function CreateScreen() {
                           }}
                           style={{
                             backgroundColor: isGroupSelected ? '#E8F4FD' : '#F8F9FA',
-                            borderRadius: 16,
-                            padding: 16,
-                            marginBottom: 12,
-                            borderWidth: 2,
+                            borderRadius: 12,
+                            padding: 12,
+                            marginBottom: 8,
+                            borderWidth: 1.5,
                             borderColor: isGroupSelected ? Colors.primary : 'transparent',
                             opacity: group.hasAvailable ? 1 : 0.6,
                           }}
                         >
                           {/* Header */}
                           <View
-                            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}
+                            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}
                           >
                             <View
                               style={{
-                                width: 24,
-                                height: 24,
+                                width: 20,
+                                height: 20,
                                 borderRadius: 12,
                                 borderWidth: 2,
                                 borderColor: isGroupSelected ? Colors.primary : Colors.border,
                                 backgroundColor: isGroupSelected ? Colors.primary : '#fff',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                marginRight: 12,
+                                marginRight: 10,
                               }}
                             >
-                              {isGroupSelected && <Feather name="check" size={14} color="#fff" />}
+                              {isGroupSelected && <Feather name="check" size={12} color="#fff" />}
                             </View>
                             <View style={{ flex: 1 }}>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                 <Text
-                                  style={{ fontSize: 15, fontWeight: '700', color: Colors.text }}
+                                  style={{ fontSize: 14, fontWeight: '700', color: Colors.text }}
                                 >
                                   {group.tierName}
                                 </Text>
@@ -3083,7 +3165,7 @@ export default function CreateScreen() {
                                       backgroundColor: Colors.primary,
                                       paddingHorizontal: 8,
                                       paddingVertical: 2,
-                                      borderRadius: 10,
+                                      borderRadius: 8,
                                     }}
                                   >
                                     <Text
@@ -3095,7 +3177,7 @@ export default function CreateScreen() {
                                 )}
                               </View>
                               <Text
-                                style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 2 }}
+                                style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 2 }}
                               >
                                 {group.shortestExpiryDays}{' '}
                                 {group.shortestExpiryDays === 1 ? 'day' : 'days'} remaining
@@ -3107,7 +3189,7 @@ export default function CreateScreen() {
                                 style={{
                                   backgroundColor: '#FFF3E0',
                                   paddingHorizontal: 8,
-                                  paddingVertical: 4,
+                                  paddingVertical: 3,
                                   borderRadius: 6,
                                 }}
                               >
@@ -3123,14 +3205,14 @@ export default function CreateScreen() {
                             style={{
                               flexDirection: 'row',
                               backgroundColor: '#fff',
-                              borderRadius: 10,
-                              padding: 10,
-                              gap: 8,
+                              borderRadius: 8,
+                              padding: 8,
+                              gap: 6,
                             }}
                           >
                             <View style={{ flex: 1, alignItems: 'center' }}>
                               <Text
-                                style={{ fontSize: 16, fontWeight: '700', color: Colors.primary }}
+                                style={{ fontSize: 14, fontWeight: '700', color: Colors.primary }}
                               >
                                 {group.totalUsed}
                               </Text>
@@ -3141,7 +3223,7 @@ export default function CreateScreen() {
                             <View style={{ width: 1, backgroundColor: Colors.border }} />
                             <View style={{ flex: 1, alignItems: 'center' }}>
                               <Text
-                                style={{ fontSize: 16, fontWeight: '700', color: Colors.success }}
+                                style={{ fontSize: 14, fontWeight: '700', color: Colors.success }}
                               >
                                 {group.totalAvailable === -1 ? '\u221e' : group.totalAvailable}
                               </Text>
@@ -3151,7 +3233,7 @@ export default function CreateScreen() {
                             </View>
                             <View style={{ width: 1, backgroundColor: Colors.border }} />
                             <View style={{ flex: 1, alignItems: 'center' }}>
-                              <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.text }}>
+                              <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.text }}>
                                 {group.totalLimit === -1 ? '\u221e' : group.totalLimit}
                               </Text>
                               <Text style={{ fontSize: 10, color: Colors.textSecondary }}>
@@ -3166,8 +3248,8 @@ export default function CreateScreen() {
                               style={{
                                 backgroundColor: '#F0F7FF',
                                 borderRadius: 8,
-                                padding: 8,
-                                marginTop: 8,
+                                padding: 6,
+                                marginTop: 6,
                               }}
                             >
                               <Text
@@ -3186,7 +3268,7 @@ export default function CreateScreen() {
                       style={{
                         height: 1,
                         backgroundColor: Colors.border,
-                        marginVertical: 16,
+                        marginVertical: 12,
                       }}
                     />
 
@@ -3204,7 +3286,7 @@ export default function CreateScreen() {
                           justifyContent: 'center',
                           backgroundColor: Colors.primary,
                           borderRadius: 12,
-                          padding: 18,
+                          padding: 14,
                           shadowColor: Colors.primary,
                           shadowOffset: { width: 0, height: 4 },
                           shadowOpacity: 0.3,
@@ -3214,9 +3296,9 @@ export default function CreateScreen() {
                         pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
                       ]}
                     >
-                      <Feather name="plus-circle" size={18} color="#fff" />
+                      <Feather name="plus-circle" size={16} color="#fff" />
                       <Text
-                        style={{ color: '#fff', fontSize: 16, fontWeight: '700', marginLeft: 10 }}
+                        style={{ color: '#fff', fontSize: 14, fontWeight: '700', marginLeft: 8 }}
                       >
                         Buy More Subscriptions
                       </Text>
@@ -3264,7 +3346,7 @@ export default function CreateScreen() {
               contentContainerStyle={{ paddingBottom: 40 }}
             >
               <Text style={styles.locationDescription}>
-                Enter a location name or pincode to set listing location
+                Enter City or Pincode
               </Text>
 
               {/* Pincode Search Input */}
@@ -3278,7 +3360,7 @@ export default function CreateScreen() {
                 <TextInput
                   ref={pincodeInputRef}
                   style={styles.pincodeSearchInput}
-                  placeholder="Enter location or pincode (e.g., Kurnool / 518001)"
+                  placeholder="Enter City or Pincode"
                   placeholderTextColor={Colors.textTertiary}
                   value={pincodeSearchInput}
                   onChangeText={setPincodeSearchInput}
@@ -3377,7 +3459,7 @@ export default function CreateScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -3534,9 +3616,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: 11,
+    borderRadius: 10,
+    gap: 6,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -3546,7 +3628,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   typeText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
     color: Colors.textSecondary,
   },
@@ -3563,14 +3645,14 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
     gap: 6,
     backgroundColor: 'rgba(10, 102, 194, 0.08)',
     borderWidth: 2,
     borderColor: 'rgba(10, 102, 194, 0.25)',
-    minHeight: 100,
+    minHeight: 88,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -3591,9 +3673,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   mediaIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 8,
     backgroundColor: 'rgba(10, 102, 194, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3602,7 +3684,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
   mediaText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
     textAlign: 'center',
@@ -3634,11 +3716,11 @@ const styles = StyleSheet.create({
   aiButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    gap: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
     backgroundColor: Colors.primary,
-    borderRadius: 6,
+    borderRadius: 5,
     borderWidth: 1,
     borderColor: Colors.primary,
   },
@@ -3646,7 +3728,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   aiButtonText: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
   },
@@ -3676,16 +3758,16 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   aiSmallButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     backgroundColor: Colors.primary,
-    borderRadius: 6,
+    borderRadius: 5,
   },
   aiSmallButtonDisabled: {
     opacity: 0.6,
   },
   aiSmallButtonText: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
   },
@@ -3698,7 +3780,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 12,
   },
   keywordText: {
     fontSize: 11,
@@ -3727,13 +3809,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   usePriceButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     backgroundColor: Colors.primary,
-    borderRadius: 6,
+    borderRadius: 5,
   },
   usePriceText: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
   },
@@ -3756,7 +3838,7 @@ const styles = StyleSheet.create({
     marginTop: -4,
   },
   addVideoButton: {
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
@@ -3892,30 +3974,30 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   imageRow: {
-    gap: 10,
+    gap: 8,
     paddingVertical: 4,
   },
   addImageButton: {
-    width: 90,
-    height: 90,
-    borderRadius: 12,
+    width: 80,
+    height: 80,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: Colors.primary,
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 3,
     backgroundColor: Colors.primary,
   },
   addImageText: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: 'Inter_500Medium',
     color: '#fff',
   },
   imageThumb: {
-    width: 90,
-    height: 90,
-    borderRadius: 12,
+    width: 80,
+    height: 80,
+    borderRadius: 10,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -3979,7 +4061,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECFDF5',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#A7F3D0',
     alignSelf: 'flex-start',
@@ -4055,7 +4137,7 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 12,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -4104,7 +4186,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   submitButton: {
-    borderRadius: 12,
+    borderRadius: 10,
     overflow: 'hidden',
     marginTop: 6,
     marginBottom: 10,
@@ -4113,9 +4195,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 6,
   },
   submitPressed: {
     transform: [{ scale: 0.97 }],
@@ -4125,7 +4207,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   submitText: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
   },
@@ -4139,7 +4221,7 @@ const styles = StyleSheet.create({
   authIconCircle: {
     width: 80,
     height: 80,
-    borderRadius: 40,
+    borderRadius: 12,
     backgroundColor: 'rgba(10, 102, 194, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -4161,7 +4243,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   authButton: {
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: 'hidden',
     width: '100%',
     shadowColor: Colors.primaryDark,
@@ -4174,11 +4256,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
-    gap: 10,
+    paddingVertical: 14,
+    gap: 8,
   },
   authButtonText: {
-    fontSize: 17,
+    fontSize: 15,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
   },
@@ -4195,7 +4277,7 @@ const styles = StyleSheet.create({
   userAvatar: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 12,
     backgroundColor: 'rgba(10, 102, 194, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -4359,14 +4441,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    gap: 12,
+    borderRadius: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    gap: 8,
   },
   selectLocationText: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 13,
     fontFamily: 'Inter_500Medium',
     color: Colors.primary,
     textAlign: 'center',
@@ -4376,23 +4458,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderWidth: 1.5,
+    borderWidth: 1.2,
     borderColor: Colors.success,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
   locationInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
     flex: 1,
   },
   locationText: {
     flex: 1,
   },
   locationName: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
     color: Colors.success,
   },
@@ -4409,11 +4491,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   changeLocationButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   changeLocationText: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Inter_600SemiBold',
     color: Colors.primary,
   },
@@ -4454,10 +4536,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 13,
+    borderRadius: 10,
+    paddingVertical: 11,
     marginBottom: 20,
-    gap: 8,
+    gap: 6,
   },
   searchPincodeButtonPressed: {
     opacity: 0.8,
@@ -4466,7 +4548,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   searchPincodeButtonText: {
-    fontSize: 15,
+    fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
   },
@@ -4609,7 +4691,7 @@ const styles = StyleSheet.create({
   validationBanner: {
     marginTop: 16,
     marginBottom: 8,
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#0369A1',
     shadowOffset: { width: 0, height: 4 },

@@ -26,6 +26,9 @@ interface Invoice {
   invoiceDate: string;
   customerName: string;
   total: number;
+  sellerName?: string;
+  sellerCity?: string;
+  sellerGstin?: string;
   paymentId?: string;
   orderId?: string;
   status: string;
@@ -77,7 +80,7 @@ export default function InvoicesScreen() {
       // For now, show invoice details in an alert
       Alert.alert(
         'Invoice Details',
-        `Invoice: ${invoice.invoiceNumber}\nDate: ${invoice.invoiceDate}\nAmount: ₹${invoice.total.toLocaleString('en-IN')}\nStatus: ${invoice.status}`,
+        `Invoice: ${invoice.invoiceNumber}\nDate: ${invoice.invoiceDate}\nSeller: ${invoice.sellerName || 'Synvide Business Solutions Private Limited'}\nCity: ${invoice.sellerCity || 'Bangalore'}\nGSTN: ${invoice.sellerGstin || '29ABKCS0463R1ZI'}\nAmount: ₹${invoice.total.toLocaleString('en-IN')}\nStatus: ${invoice.status}`,
         [
           {
             text: 'Close',

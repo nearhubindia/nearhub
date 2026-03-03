@@ -6,8 +6,28 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '@/constants/colors';
 import PhotoSlideshow from './PhotoSlideshow';
+import { getApiUrl } from '@/lib/query-client';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
+function remapLoopbackUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const isLoopbackHost =
+      parsed.hostname === 'localhost' ||
+      parsed.hostname === '127.0.0.1' ||
+      parsed.hostname === '0.0.0.0';
+
+    if (!isLoopbackHost) {
+      return url;
+    }
+
+    const apiBase = new URL(getApiUrl());
+    parsed.protocol = apiBase.protocol;
+    parsed.host = apiBase.host;
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
 
 interface ShortsCardProps {
   title: string;
@@ -29,18 +49,20 @@ interface ShortsCardProps {
 }
 
 function getStreamingUrl(videoUrl: string): string {
+  const apiBaseUrl = getApiUrl();
+
   // Use direct absolute URLs as-is (do not force protocol changes)
   if (videoUrl.startsWith('https://') || videoUrl.startsWith('http://')) {
-    return videoUrl;
+    return remapLoopbackUrl(videoUrl);
   }
 
   // If backend returns a relative path, resolve via API stream endpoint
   if (videoUrl.startsWith('/videos/')) {
     const filename = videoUrl.replace(/^\/videos\//, '');
-    return `${API_BASE_URL}/api/videos/stream/${filename}`;
+    return `${apiBaseUrl}/api/videos/stream/${filename}`;
   }
 
-  return `${API_BASE_URL}/api/videos/stream/${videoUrl}`;
+  return `${apiBaseUrl}/api/videos/stream/${videoUrl}`;
 }
 
 function VideoPlayer({

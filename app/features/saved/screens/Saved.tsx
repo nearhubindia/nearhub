@@ -10,6 +10,7 @@ import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { formatCondition } from '@/lib/utils';
 import ListingCard from '@/shared/components/ListingCard';
+import { createResponsiveStyles } from '@/lib/responsive';
 
 export default function SavedScreen() {
   const insets = useSafeAreaInsets();
@@ -104,6 +105,7 @@ export default function SavedScreen() {
               title={item.title}
               description={item.description}
               price={item.price}
+              offerPrice={item.offerPrice}
               priceUnit={item.priceUnit}
               image={item.images[0]}
               location={item.location.city}
@@ -133,7 +135,7 @@ export default function SavedScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -168,7 +170,7 @@ const styles = StyleSheet.create({
   profileButton: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: 12,
     backgroundColor: Colors.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -177,7 +179,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.borderLight,
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 14,
     gap: 12,
     marginBottom: 12,
@@ -185,7 +187,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: 12,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -213,7 +215,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.borderLight,
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 14,
     gap: 12,
     marginBottom: 12,
@@ -221,7 +223,7 @@ const styles = StyleSheet.create({
   signInIconCircle: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 12,
     backgroundColor: 'rgba(10, 102, 194, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',

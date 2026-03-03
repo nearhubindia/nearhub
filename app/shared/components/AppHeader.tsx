@@ -19,6 +19,7 @@ import Colors from '@/constants/colors';
 import { NotificationBell } from '@/shared/components/NotificationBell';
 import { Logo } from '@/shared/components/Logo';
 import BrandWordmark from '@/shared/components/BrandWordmark';
+import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
 
 interface AppHeaderProps {
   selectedCategory?: string;
@@ -173,7 +174,11 @@ export function AppHeader({
             activeOpacity={0.7}
             style={styles.menuButton}
           >
-            <Feather name="menu" size={24} color={isDark ? '#f3f4f6' : '#1f2937'} />
+            <Feather
+              name="menu"
+              size={responsiveModerateScale(20)}
+              color={isDark ? '#f3f4f6' : '#1f2937'}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -201,11 +206,11 @@ export function AppHeader({
             >
               <Feather
                 name={category.icon as any}
-                size={14}
+                size={responsiveModerateScale(12)}
                 color={
                   selectedCategory === category.label ? '#fff' : isDark ? '#9ca3af' : '#6b7280'
                 }
-                style={{ marginRight: 4 }}
+                style={{ marginRight: 3 }}
               />
               <Text
                 style={[
@@ -258,7 +263,11 @@ export function AppHeader({
                 Menu
               </Text>
               <Pressable onPress={() => setShowMenu(false)} style={styles.closeButton}>
-                <Feather name="x" size={24} color={isDark ? '#f3f4f6' : '#1f2937'} />
+                <Feather
+                  name="x"
+                  size={responsiveModerateScale(20)}
+                  color={isDark ? '#f3f4f6' : '#1f2937'}
+                />
               </Pressable>
             </View>
 
@@ -268,9 +277,9 @@ export function AppHeader({
                 <Pressable key={item.label} style={styles.drawerItem} onPress={item.onPress}>
                   <Feather
                     name={item.icon as any}
-                    size={20}
+                    size={responsiveModerateScale(18)}
                     color={Colors.light.tint}
-                    style={{ marginRight: 16 }}
+                    style={{ marginRight: 12 }}
                   />
                   <Text style={[styles.drawerItemText, { color: isDark ? '#f3f4f6' : '#1f2937' }]}>
                     {item.label}
@@ -295,7 +304,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: responsiveModerateScale(10),
     gap: 12,
   },
   logoContainer: {
@@ -312,10 +321,10 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: responsiveModerateScale(8),
   },
   menuButton: {
-    padding: 8,
+    padding: responsiveModerateScale(6),
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
@@ -350,32 +359,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingHorizontal: responsiveModerateScale(16),
+    paddingBottom: responsiveModerateScale(12),
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
   },
   drawerTitle: {
-    fontSize: 20,
+    fontSize: responsiveFont(18),
     fontWeight: '600',
     fontFamily: 'Inter_600SemiBold',
   },
   closeButton: {
-    padding: 8,
+    padding: responsiveModerateScale(6),
     borderRadius: 8,
   },
   drawerContent: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: responsiveModerateScale(12),
   },
   drawerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: responsiveModerateScale(16),
+    paddingVertical: 12,
   },
   drawerItemText: {
-    fontSize: 16,
+    fontSize: responsiveFont(14),
     fontWeight: '500',
     fontFamily: 'Inter_500Medium',
   },
@@ -404,30 +413,30 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
   },
   navScroll: {
-    maxHeight: 50,
+    maxHeight: responsiveModerateScale(44),
     borderTopWidth: 1,
     borderTopColor: '#f3f4f6',
   },
   navContent: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
+    paddingHorizontal: responsiveModerateScale(12),
+    paddingVertical: responsiveModerateScale(6),
+    gap: responsiveModerateScale(6),
   },
   categoryTab: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingHorizontal: responsiveModerateScale(10),
+    paddingVertical: responsiveModerateScale(5),
+    borderRadius: 12,
     backgroundColor: '#f3f4f6',
-    minWidth: 80,
+    minWidth: responsiveModerateScale(72),
     justifyContent: 'center',
   },
   categoryTabActive: {
     backgroundColor: Colors.light.tint,
   },
   categoryLabel: {
-    fontSize: 12,
+    fontSize: responsiveFont(11),
     fontWeight: '600',
     fontFamily: 'Inter_600SemiBold',
   },

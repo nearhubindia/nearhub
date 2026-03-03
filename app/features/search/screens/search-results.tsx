@@ -26,6 +26,7 @@ import { formatCondition } from '@/lib/utils';
 import ListingCard from '@/shared/components/ListingCard';
 import CategoryPill from '@/shared/components/CategoryPill';
 import { useAdminSettings } from '@/lib/use-admin-settings';
+import { createResponsiveStyles } from '@/lib/responsive';
 
 export default function SearchResultsScreen() {
   const insets = useSafeAreaInsets();
@@ -156,6 +157,7 @@ export default function SearchResultsScreen() {
           title={item.title}
           description={item.description}
           price={item.price}
+          offerPrice={item.offerPrice}
           priceUnit={item.priceUnit}
           image={item.images[0]}
           location={item.location.city}
@@ -272,7 +274,7 @@ export default function SearchResultsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -290,7 +292,7 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },

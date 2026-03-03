@@ -23,6 +23,7 @@ import { useListings } from '@/shared/contexts/listings-context';
 import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
 import { getTimeAgo, formatCondition } from '@/lib/utils';
 import { getApiUrl } from '@/lib/query-client';
+import { createResponsiveStyles } from '@/lib/responsive';
 
 type TabType = 'active' | 'sold' | 'expired';
 
@@ -379,12 +380,22 @@ export default function MyListingsScreen() {
                 </View>
 
                 <View style={styles.detailsSection}>
-                  <Text style={styles.priceText}>
-                    ₹{Number(item.price || 0).toLocaleString('en-IN')}
-                    {item.priceUnit ? (
-                      <Text style={styles.priceUnitText}> / {item.priceUnit}</Text>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceText}>
+                      ₹
+                      {Number(
+                        item.offerPrice && item.offerPrice > 0 && item.offerPrice < item.price
+                          ? item.offerPrice
+                          : item.price || 0
+                      ).toLocaleString('en-IN')}
+                    </Text>
+                    {item.priceUnit ? <Text style={styles.priceUnitText}> / {item.priceUnit}</Text> : null}
+                    {item.offerPrice && item.offerPrice > 0 && item.offerPrice < item.price ? (
+                      <Text style={styles.originalPriceText}>
+                        ₹{Number(item.price || 0).toLocaleString('en-IN')}
+                      </Text>
                     ) : null}
-                  </Text>
+                  </View>
                   <Text style={styles.titleText} numberOfLines={2}>
                     {item.title}
                   </Text>
@@ -658,7 +669,7 @@ export default function MyListingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -676,7 +687,7 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -693,7 +704,7 @@ const styles = StyleSheet.create({
   analyticsButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.surface,
@@ -701,7 +712,7 @@ const styles = StyleSheet.create({
   addButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.surface,
@@ -738,7 +749,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   cardContainer: {
-    borderRadius: 18,
+    borderRadius: 12,
     backgroundColor: Colors.surface,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -794,7 +805,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 999,
+    borderRadius: 12,
   },
   conditionBadgeText: {
     color: '#fff',
@@ -812,10 +823,21 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
   },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 6,
+  },
   priceUnitText: {
     fontSize: 13,
     color: Colors.textSecondary,
     fontFamily: 'Inter_400Regular',
+  },
+  originalPriceText: {
+    fontSize: 13,
+    color: Colors.textTertiary,
+    fontFamily: 'Inter_500Medium',
+    textDecorationLine: 'line-through',
   },
   titleText: {
     marginTop: 4,
@@ -1012,7 +1034,7 @@ const styles = StyleSheet.create({
   upgradeModalCloseButton: {
     width: 30,
     height: 30,
-    borderRadius: 15,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.borderLight,
@@ -1101,7 +1123,7 @@ const styles = StyleSheet.create({
   feedbackModalCard: {
     width: '100%',
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: 12,
     paddingHorizontal: 20,
     paddingVertical: 18,
     alignItems: 'center',
@@ -1111,7 +1133,7 @@ const styles = StyleSheet.create({
   feedbackIconWrap: {
     width: 42,
     height: 42,
-    borderRadius: 21,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,

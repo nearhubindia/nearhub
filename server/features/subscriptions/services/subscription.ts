@@ -23,6 +23,7 @@ export interface CreateListingRequest {
   description: string;
   category: string;
   price: number;
+  offerPrice?: number;
   priceUnit?: string;
   condition: string;
   images?: string[];

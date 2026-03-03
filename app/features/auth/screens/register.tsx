@@ -17,8 +17,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
-import BrandWordmark from '@/shared/components/BrandWordmark';
+import { Logo } from '@/shared/components/Logo';
 import { getApiUrl } from '@/lib/query-client';
+import { createResponsiveStyles } from '@/lib/responsive';
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
@@ -167,11 +168,11 @@ export default function RegisterScreen() {
         scrollEnabled={true}
       >
         <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={22} color={Colors.text} />
+          <Feather name="arrow-left" size={20} color={Colors.text} />
         </Pressable>
 
         <View style={styles.brandSection}>
-          <BrandWordmark size={34} showAiTag />
+          <Logo size="md" />
           <Text style={styles.brandTagline}>Join the marketplace</Text>
         </View>
 
@@ -284,7 +285,7 @@ export default function RegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -293,15 +294,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
   brandSection: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   brandName: {
     fontSize: 36,
@@ -310,14 +311,14 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   brandTagline: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
   },
   formCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
     borderColor: Colors.borderLight,
     shadowColor: '#000',
@@ -325,13 +326,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 12,
     elevation: 4,
-    marginBottom: 24,
+    marginBottom: 18,
   },
   field: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   label: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Inter_600SemiBold',
     color: Colors.text,
     marginBottom: 8,
@@ -340,21 +341,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.borderLight,
-    borderRadius: 14,
-    paddingHorizontal: 14,
+    borderRadius: 12,
+    paddingHorizontal: 12,
   },
   inputIcon: {
     marginRight: 10,
   },
   input: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'Inter_400Regular',
     color: Colors.text,
-    paddingVertical: 14,
+    paddingVertical: 12,
   },
   countryCode: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
     color: Colors.text,
     paddingRight: 10,
@@ -374,8 +375,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
     backgroundColor: Colors.borderLight,
     gap: 6,
   },
@@ -383,7 +384,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   genderText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Inter_500Medium',
     color: Colors.textSecondary,
   },
@@ -391,7 +392,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   sendButton: {
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
     shadowColor: Colors.primaryDark,
     shadowOffset: { width: 0, height: 6 },
@@ -410,11 +411,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
+    paddingVertical: 15,
     gap: 10,
   },
   sendText: {
-    fontSize: 17,
+    fontSize: 15,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
   },

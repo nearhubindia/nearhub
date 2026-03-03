@@ -12,6 +12,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useNotifications } from '@/shared/contexts/notifications-context';
 import Colors from '@/constants/colors';
+import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
 
 export function NotificationBell() {
   const { notifications, removeNotification, clearAll } = useNotifications();
@@ -40,7 +41,7 @@ export function NotificationBell() {
         onPress={() => setIsOpen(true)}
         activeOpacity={0.7}
       >
-        <Feather name="bell" size={24} color={Colors.light.tint} />
+        <Feather name="bell" size={responsiveModerateScale(20)} color={Colors.light.tint} />
         {notifications.length > 0 && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>
@@ -67,7 +68,11 @@ export function NotificationBell() {
                 Notifications
               </Text>
               <TouchableOpacity onPress={() => setIsOpen(false)}>
-                <Feather name="x" size={24} color={isDark ? '#9ca3af' : '#6b7280'} />
+                <Feather
+                  name="x"
+                  size={responsiveModerateScale(20)}
+                  color={isDark ? '#9ca3af' : '#6b7280'}
+                />
               </TouchableOpacity>
             </View>
 
@@ -95,7 +100,7 @@ export function NotificationBell() {
                         >
                           <Feather
                             name={item.type === 'success' ? 'check' : 'info'}
-                            size={16}
+                            size={responsiveModerateScale(14)}
                             color={getIconColor(item.type)}
                           />
                         </View>
@@ -118,7 +123,7 @@ export function NotificationBell() {
                         >
                           <Feather
                             name="trash-2"
-                            size={18}
+                            size={responsiveModerateScale(16)}
                             color={isDark ? '#6b7280' : '#9ca3af'}
                           />
                         </TouchableOpacity>
@@ -150,7 +155,11 @@ export function NotificationBell() {
               </>
             ) : (
               <View style={styles.emptyState}>
-                <Feather name="bell-off" size={48} color={isDark ? '#4b5563' : '#d1d5db'} />
+                <Feather
+                  name="bell-off"
+                  size={responsiveModerateScale(40)}
+                  color={isDark ? '#4b5563' : '#d1d5db'}
+                />
                 <Text style={[styles.emptyText, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
                   No notifications yet
                 </Text>
@@ -166,7 +175,7 @@ export function NotificationBell() {
 const styles = StyleSheet.create({
   bellButton: {
     position: 'relative',
-    padding: 8,
+    padding: responsiveModerateScale(6),
   },
   badge: {
     position: 'absolute',
@@ -174,8 +183,8 @@ const styles = StyleSheet.create({
     right: 2,
     backgroundColor: '#ef4444',
     borderRadius: 10,
-    minWidth: 22,
-    height: 22,
+    minWidth: responsiveModerateScale(18),
+    height: responsiveModerateScale(18),
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
@@ -183,7 +192,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: '#fff',
-    fontSize: 11,
+    fontSize: responsiveFont(10),
     fontWeight: '700',
   },
   backdrop: {
@@ -216,40 +225,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: responsiveModerateScale(14),
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: responsiveFont(16),
     fontWeight: '700',
   },
   notificationItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: responsiveModerateScale(10),
+    paddingHorizontal: responsiveModerateScale(14),
     borderBottomWidth: 1,
   },
   itemContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: responsiveModerateScale(10),
   },
   iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: responsiveModerateScale(30),
+    height: responsiveModerateScale(30),
+    borderRadius: responsiveModerateScale(15),
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 2,
   },
   itemTitle: {
-    fontSize: 14,
+    fontSize: responsiveFont(13),
     fontWeight: '600',
     marginBottom: 2,
   },
   itemMessage: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: responsiveFont(11),
+    lineHeight: responsiveModerateScale(15),
   },
   emptyState: {
     paddingVertical: 40,

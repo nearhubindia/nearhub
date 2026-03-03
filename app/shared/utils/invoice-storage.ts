@@ -6,6 +6,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const INVOICES_STORAGE_KEY = '@nearhub_invoices';
+export const DEFAULT_INVOICE_SELLER = {
+  companyName: 'Synvide Business Solutions Private Limited',
+  city: 'Bangalore',
+  gstin: '29ABKCS0463R1ZI',
+} as const;
 
 export interface StoredInvoice {
   invoiceNumber: string;
@@ -17,6 +22,9 @@ export interface StoredInvoice {
   orderId?: string;
   gstAmount?: number;
   subTotal?: number;
+  sellerName?: string;
+  sellerCity?: string;
+  sellerGstin?: string;
   storedAt?: string;
 }
 
@@ -31,6 +39,9 @@ export async function storeInvoice(invoice: StoredInvoice): Promise<void> {
     // Add storedAt timestamp if not present
     const invoiceToStore = {
       ...invoice,
+      sellerName: invoice.sellerName || DEFAULT_INVOICE_SELLER.companyName,
+      sellerCity: invoice.sellerCity || DEFAULT_INVOICE_SELLER.city,
+      sellerGstin: invoice.sellerGstin || DEFAULT_INVOICE_SELLER.gstin,
       storedAt: invoice.storedAt || new Date().toISOString(),
     };
 
@@ -124,10 +135,15 @@ export function extractInvoiceFromResponse(verifyResponse: any): StoredInvoice |
     invoiceDate: invoice.invoiceDate,
     customerName: invoice.customerName,
     total: invoice.total,
-    status: 'paid',
-    paymentId: verifyResponse.paymentId,
-    orderId: verifyResponse.orderId,
+    status: invoice.status || 'paid',
+    paymentId: verifyResponse.paymentId || verifyResponse.razorpay_payment_id,
+    orderId: verifyResponse.orderId || verifyResponse.razorpay_order_id,
     gstAmount: invoice.gstAmount,
     subTotal: invoice.subTotal,
+    sellerName:
+      invoice.sellerName || invoice.companyName || invoice.vendorName || DEFAULT_INVOICE_SELLER.companyName,
+    sellerCity: invoice.sellerCity || invoice.city || invoice.vendorCity || DEFAULT_INVOICE_SELLER.city,
+    sellerGstin:
+      invoice.sellerGstin || invoice.gstin || invoice.vendorGstin || DEFAULT_INVOICE_SELLER.gstin,
   };
 }

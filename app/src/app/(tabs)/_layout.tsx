@@ -5,6 +5,7 @@ import React from 'react';
 import { Feather, Ionicons } from '@expo/vector-icons';
 
 import Colors from '@/constants/colors';
+import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
 
 function ClassicTabLayout() {
   const colorScheme = useColorScheme();
@@ -25,7 +26,7 @@ function ClassicTabLayout() {
           }),
           borderTopWidth: 0,
           elevation: 0,
-          height: Platform.OS === 'web' ? 84 : undefined,
+          height: Platform.OS === 'web' ? responsiveModerateScale(74) : responsiveModerateScale(62),
         },
         tabBarBackground: () =>
           Platform.OS === 'ios' ? (
@@ -37,11 +38,14 @@ function ClassicTabLayout() {
           ) : null,
         tabBarLabelStyle: {
           fontFamily: 'Inter_500Medium',
-          fontSize: 12,
-          marginBottom: Platform.OS === 'web' ? 8 : 0,
+          fontSize: responsiveFont(11),
+          marginBottom: Platform.OS === 'web' ? 6 : 2,
         },
         tabBarIconStyle: {
-          marginBottom: Platform.OS === 'web' ? 4 : 0,
+          marginBottom: Platform.OS === 'web' ? 2 : 0,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 2,
         },
       }}
     >
@@ -49,28 +53,36 @@ function ClassicTabLayout() {
         name="index"
         options={{
           title: 'Browse',
-          tabBarIcon: ({ color }) => <Feather size={24} name="home" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Feather size={responsiveModerateScale(21)} name="home" color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="shorts"
         options={{
           title: 'Shorts',
-          tabBarIcon: ({ color }) => <Feather size={24} name="video" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Feather size={responsiveModerateScale(21)} name="video" color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="create"
         options={{
           title: 'Post',
-          tabBarIcon: ({ color }) => <Ionicons size={24} name="add-circle" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Ionicons size={responsiveModerateScale(21)} name="add-circle" color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="messages"
         options={{
           title: 'Messages',
-          tabBarIcon: ({ color }) => <Feather size={24} name="message-circle" color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Feather size={responsiveModerateScale(21)} name="message-circle" color={color} />
+          ),
         }}
       />
       <Tabs.Screen

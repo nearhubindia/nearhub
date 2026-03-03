@@ -37,6 +37,7 @@ import AppScreenBanners from '@/shared/components/AppScreenBanners';
 import { getApiUrl } from '@/lib/query-client';
 import { useAdminSettings } from '@/lib/use-admin-settings';
 import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
+import { createResponsiveStyles } from '@/lib/responsive';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -108,8 +109,21 @@ export default function HomeScreen() {
     let active = true;
     let abortController: AbortController | undefined;
     const query = citySearchInput.trim();
+    const isNumericQuery = /^\d+$/.test(query);
 
-    if (query.length < 2) {
+    if (!query) {
+      setCitySuggestions([]);
+      setIsSearchingCities(false);
+      return;
+    }
+
+    if (!isNumericQuery && query.length < 2) {
+      setCitySuggestions([]);
+      setIsSearchingCities(false);
+      return;
+    }
+
+    if (isNumericQuery && query.length < 6) {
       setCitySuggestions([]);
       setIsSearchingCities(false);
       return;
@@ -121,6 +135,43 @@ export default function HomeScreen() {
 
       try {
         const apiUrl = await getApiUrl();
+
+        if (/^\d{6}$/.test(query)) {
+          const response = await fetch(`${apiUrl}/api/location/pincode/${query}`, {
+            signal: abortController.signal,
+          });
+
+          if (!response.ok) {
+            if (active) {
+              setCitySuggestions([]);
+            }
+            return;
+          }
+
+          const responseData = await response.json();
+          const location = responseData?.data;
+
+          const suggestion: CitySuggestion | null =
+            location && location.latitude !== undefined && location.longitude !== undefined
+              ? {
+                  pincode: query,
+                  locationName:
+                    location.locationName || location.city || location.state || 'Unknown',
+                  city: location.city || location.state || 'Unknown',
+                  state: location.state || '',
+                  district: location.district || '',
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                  region: '',
+                }
+              : null;
+
+          if (active) {
+            setCitySuggestions(suggestion ? [suggestion] : []);
+          }
+          return;
+        }
+
         const response = await fetch(
           `${apiUrl}/api/location/cities/search?q=${encodeURIComponent(query)}&limit=10`,
           {
@@ -277,6 +328,7 @@ export default function HomeScreen() {
       const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
         setShowLocationModal(false);
         setCitySearchInput('');
+        setCitySuggestions([]);
         return true;
       });
       return () => {
@@ -294,6 +346,7 @@ export default function HomeScreen() {
       // Close modal immediately for better UX
       setShowLocationModal(false);
       setCitySearchInput('');
+      setCitySuggestions([]);
     },
     [updateLocation]
   );
@@ -394,6 +447,7 @@ export default function HomeScreen() {
           title={item.title}
           description={item.description}
           price={item.price}
+          offerPrice={item.offerPrice}
           priceUnit={item.priceUnit}
           image={item.images[0]}
           location={item.location.city}
@@ -434,7 +488,7 @@ export default function HomeScreen() {
                 </Pressable>
 
                 <Pressable style={styles.locationPill} onPress={() => setShowLocationModal(true)}>
-                  <Feather name="map-pin" size={14} color={Colors.primary} />
+                  <Feather name="map-pin" size={13} color={Colors.primary} />
                   {isAutoLocatingUser ? (
                     <>
                       <ActivityIndicator
@@ -449,7 +503,7 @@ export default function HomeScreen() {
                       <Text style={styles.locationPillText} numberOfLines={1}>
                         {userCity}
                       </Text>
-                      <Feather name="chevron-down" size={14} color={Colors.textSecondary} />
+                      <Feather name="chevron-down" size={13} color={Colors.textSecondary} />
                     </>
                   )}
                 </Pressable>
@@ -471,11 +525,11 @@ export default function HomeScreen() {
                     })
                   }
                 >
-                  <Feather name="search" size={18} color={Colors.textTertiary} />
+                  <Feather name="search" size={16} color={Colors.textTertiary} />
                   <Text style={styles.searchPlaceholder} numberOfLines={1}>
                     Search Listing
                   </Text>
-                  <Feather name="chevron-right" size={18} color={Colors.textTertiary} />
+                  <Feather name="chevron-right" size={16} color={Colors.textTertiary} />
                 </Pressable>
                 <NotificationBell />
                 <Pressable
@@ -485,7 +539,7 @@ export default function HomeScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Open profile menu"
                 >
-                  <Feather name="user" size={18} color={Colors.text} />
+                  <Feather name="user" size={16} color={Colors.text} />
                 </Pressable>
               </View>
             </View>
@@ -631,6 +685,7 @@ export default function HomeScreen() {
                 onPress={() => {
                   setShowLocationModal(false);
                   setCitySearchInput('');
+                  setCitySuggestions([]);
                 }}
               >
                 <Feather name="arrow-left" size={24} color={Colors.text} />
@@ -661,7 +716,7 @@ export default function HomeScreen() {
                 <TextInput
                   ref={cityInputRef}
                   style={styles.pincodeSearchInput}
-                  placeholder="Search city (e.g., Hyderabad)"
+                  placeholder="Enter City or Pincode"
                   placeholderTextColor={Colors.textTertiary}
                   value={citySearchInput}
                   onChangeText={setCitySearchInput}
@@ -669,7 +724,10 @@ export default function HomeScreen() {
                 />
                 {citySearchInput.trim().length > 0 && (
                   <Pressable
-                    onPress={() => setCitySearchInput('')}
+                    onPress={() => {
+                      setCitySearchInput('');
+                      setCitySuggestions([]);
+                    }}
                     style={styles.pincodeSearchClear}
                   >
                     <Ionicons name="close-circle" size={18} color={Colors.textTertiary} />
@@ -681,7 +739,7 @@ export default function HomeScreen() {
                 {isSearchingCities ? (
                   <View style={styles.citySearchLoading}>
                     <ActivityIndicator size="small" color={Colors.primary} />
-                    <Text style={styles.citySearchLoadingText}>Searching cities...</Text>
+                    <Text style={styles.citySearchLoadingText}>Searching locations...</Text>
                   </View>
                 ) : null}
                 {citySuggestions.length > 0 ? (
@@ -695,17 +753,22 @@ export default function HomeScreen() {
                         <Text style={styles.citySuggestionName}>{city.locationName}</Text>
                         <Text style={styles.citySuggestionMeta}>
                           {city.district ? `${city.district}, ${city.state}` : city.state}
+                          {city.pincode ? ` • ${city.pincode}` : ''}
                         </Text>
                       </View>
                       <Feather name="chevron-right" size={16} color={Colors.textTertiary} />
                     </Pressable>
                   ))
-                ) : (
+                ) : citySearchInput.trim().length === 0 ? null : (
                   <View style={styles.noCityResults}>
                     <Text style={styles.noCityResultsText}>
-                      {citySearchInput.trim().length < 2
-                        ? 'Type at least 2 letters to search city'
-                        : 'No matching cities found'}
+                      {/^\d+$/.test(citySearchInput.trim()) &&
+                      citySearchInput.trim().length < 6
+                        ? 'Enter full 6-digit pincode'
+                        : !/^\d+$/.test(citySearchInput.trim()) &&
+                            citySearchInput.trim().length < 2
+                          ? 'Type at least 2 letters to search city'
+                        : 'No matching locations found'}
                     </Text>
                   </View>
                 )}
@@ -820,7 +883,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -846,7 +909,7 @@ const styles = StyleSheet.create({
   menuButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
@@ -901,32 +964,32 @@ const styles = StyleSheet.create({
     maxWidth: '56%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     borderWidth: 1,
     borderColor: Colors.borderLight,
     backgroundColor: Colors.background,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
   },
   locationPillText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Inter_500Medium',
     color: Colors.textSecondary,
   },
   searchBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     paddingHorizontal: 12,
-    marginBottom: 8,
+    marginBottom: 6,
     marginTop: 2,
   },
   profileShortcutButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 12,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.borderLight,
@@ -1028,7 +1091,7 @@ const styles = StyleSheet.create({
   },
   promoDotActive: {
     width: 18,
-    borderRadius: 999,
+    borderRadius: 12,
     backgroundColor: Colors.primary,
   },
   searchBar: {
@@ -1036,17 +1099,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.background,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    gap: 8,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    gap: 6,
     borderWidth: 1,
     borderColor: Colors.borderLight,
     justifyContent: 'space-between',
   },
   searchPlaceholder: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Inter_400Regular',
     color: Colors.text,
   },
@@ -1063,7 +1126,8 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingLeft: 0,
+    paddingRight: 16,
     marginBottom: 4,
     gap: 8,
   },
@@ -1321,7 +1385,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 999,
+    borderRadius: 12,
     backgroundColor: Colors.background,
   },
   radiusPresetChipActive: {

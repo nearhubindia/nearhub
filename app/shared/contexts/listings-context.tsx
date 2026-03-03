@@ -55,6 +55,35 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
 
       const backendURL = getBackendURL();
+      const normalizeMediaUrl = (url: unknown): string => {
+        if (typeof url !== 'string') return '';
+        const value = url.trim();
+        if (!value) return value;
+
+        if (value.startsWith('/')) {
+          return `${backendURL}${value}`;
+        }
+
+        if (value.startsWith('http://') || value.startsWith('https://')) {
+          try {
+            const parsed = new URL(value);
+            if (
+              parsed.hostname === 'localhost' ||
+              parsed.hostname === '127.0.0.1' ||
+              parsed.hostname === '0.0.0.0'
+            ) {
+              const apiBase = new URL(backendURL);
+              parsed.protocol = apiBase.protocol;
+              parsed.host = apiBase.host;
+              return parsed.toString();
+            }
+          } catch {
+            return value;
+          }
+        }
+
+        return value;
+      };
 
       // Get user location and radius from AsyncStorage (set by auth context)
       let url = `${backendURL}/api/listings?limit=100&offset=0`;
@@ -108,10 +137,16 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                 description: listing.description || '',
                 price:
                   typeof listing.price === 'string' ? parseFloat(listing.price) : listing.price,
+                offerPrice:
+                  listing.offerPrice !== undefined && listing.offerPrice !== null
+                    ? typeof listing.offerPrice === 'string'
+                      ? parseFloat(listing.offerPrice)
+                      : listing.offerPrice
+                    : undefined,
                 category: listing.category as Category,
                 condition: listing.condition || 'good',
-                images: images || [],
-                videos: videos || [],
+                images: (images || []).map(normalizeMediaUrl).filter(Boolean),
+                videos: (videos || []).map(normalizeMediaUrl).filter(Boolean),
                 location: {
                   city: listing.location || 'Unknown',
                   latitude: listing.latitude ? parseFloat(listing.latitude) : 0,
@@ -256,6 +291,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         description: listing.description,
         category: listing.category,
         price: listing.price,
+        offerPrice: listing.offerPrice,
         priceUnit: listing.priceUnit,
         condition: listing.condition,
         location: listing.location?.city || 'Unknown',
@@ -529,9 +565,11 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                 title: listing.title,
                 description: listing.description || '',
                 price: listing.price,
+                offerPrice: listing.offerPrice,
                 category: listing.category as Category,
                 condition: listing.condition,
                 images: listing.images || [],
+                videos: listing.videos || [],
                 location: {
                   city: listing.location || 'Unknown',
                   latitude: 0,
@@ -555,9 +593,11 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                     title: listing.title,
                     description: listing.description || '',
                     price: listing.price,
+                    offerPrice: listing.offerPrice,
                     category: listing.category as Category,
                     condition: listing.condition,
                     images: listing.images || [],
+                    videos: listing.videos || [],
                     location: {
                       city: listing.location || 'Unknown',
                       latitude: 0,

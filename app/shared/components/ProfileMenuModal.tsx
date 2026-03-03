@@ -14,6 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/shared/contexts/auth-context';
+import { responsiveFont, responsiveModerateScale, responsiveWidth } from '@/lib/responsive';
 
 interface ProfileMenuModalProps {
   visible: boolean;
@@ -47,6 +48,11 @@ const MENU_ITEMS: MenuItem[] = [
     icon: 'credit-card',
     label: 'Subscriptions',
     route: '/subscriptions',
+  },
+  {
+    icon: 'file-text',
+    label: 'Invoices',
+    route: '/invoices',
   },
   {
     icon: 'message-circle',
@@ -84,6 +90,7 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
     // Map to existing routes
     const routeMap: { [key: string]: string } = {
       '/saved': '/(tabs)/saved',
+      '/invoices': '/(tabs)/invoices',
       '/messages': '/chat',
       // Other routes will be handled as-is when implemented
     };
@@ -123,7 +130,7 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
           {/* Header */}
           <View style={styles.header}>
             <Pressable onPress={onClose} style={styles.closeButton} hitSlop={8}>
-              <Feather name="x" size={24} color={Colors.text} />
+              <Feather name="x" size={responsiveModerateScale(20)} color={Colors.text} />
             </Pressable>
           </View>
 
@@ -148,7 +155,7 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
                 router.push('/auth/register');
               }}
             >
-              <Feather name="log-in" size={20} color={Colors.primary} />
+              <Feather name="log-in" size={responsiveModerateScale(18)} color={Colors.primary} />
               <Text style={styles.loginText}>Sign In / Register</Text>
             </Pressable>
           )}
@@ -172,11 +179,19 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
                       item.color && { backgroundColor: item.color + '15' },
                     ]}
                   >
-                    <Feather name={item.icon} size={20} color={item.color || Colors.text} />
+                    <Feather
+                      name={item.icon}
+                      size={responsiveModerateScale(18)}
+                      color={item.color || Colors.text}
+                    />
                   </View>
                   <Text style={styles.menuItemLabel}>{item.label}</Text>
                 </View>
-                <Feather name="chevron-right" size={20} color={Colors.textTertiary} />
+                <Feather
+                  name="chevron-right"
+                  size={responsiveModerateScale(17)}
+                  color={Colors.textTertiary}
+                />
               </Pressable>
             ))}
 
@@ -191,7 +206,11 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
               >
                 <View style={styles.menuItemContent}>
                   <View style={[styles.iconContainer, { backgroundColor: Colors.accent + '15' }]}>
-                    <Feather name="log-out" size={20} color={Colors.accent} />
+                    <Feather
+                      name="log-out"
+                      size={responsiveModerateScale(18)}
+                      color={Colors.accent}
+                    />
                   </View>
                   <Text style={[styles.menuItemLabel, { color: Colors.accent }]}>Logout</Text>
                 </View>
@@ -215,7 +234,7 @@ const styles = StyleSheet.create({
   },
   menuContainer: {
     width: '82%',
-    maxWidth: 340,
+    maxWidth: responsiveWidth(90),
     height: '100%',
     backgroundColor: Colors.background,
     borderTopLeftRadius: 24,
@@ -238,13 +257,13 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingHorizontal: responsiveModerateScale(16),
+    paddingBottom: responsiveModerateScale(10),
   },
   closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: responsiveModerateScale(36),
+    height: responsiveModerateScale(36),
+    borderRadius: responsiveModerateScale(18),
     backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
@@ -252,23 +271,23 @@ const styles = StyleSheet.create({
   profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingHorizontal: responsiveModerateScale(16),
+    paddingVertical: responsiveModerateScale(16),
     backgroundColor: Colors.surface,
     marginHorizontal: 16,
     borderRadius: 16,
     marginBottom: 16,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: responsiveModerateScale(48),
+    height: responsiveModerateScale(48),
+    borderRadius: responsiveModerateScale(24),
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    fontSize: 24,
+    fontSize: responsiveFont(20),
     fontFamily: 'Inter_700Bold',
     color: '#fff',
   },
@@ -277,13 +296,13 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   profileName: {
-    fontSize: 18,
+    fontSize: responsiveFont(16),
     fontFamily: 'Inter_600SemiBold',
     color: Colors.text,
     marginBottom: 2,
   },
   profilePhone: {
-    fontSize: 14,
+    fontSize: responsiveFont(13),
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
   },
@@ -291,18 +310,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: responsiveModerateScale(12),
+    paddingHorizontal: responsiveModerateScale(16),
     backgroundColor: Colors.surface,
     marginHorizontal: 16,
     borderRadius: 16,
     marginBottom: 16,
-    gap: 10,
+    gap: responsiveModerateScale(8),
     borderWidth: 2,
     borderColor: Colors.primary,
   },
   loginText: {
-    fontSize: 16,
+    fontSize: responsiveFont(14),
     fontFamily: 'Inter_600SemiBold',
     color: Colors.primary,
   },
@@ -313,8 +332,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: responsiveModerateScale(12),
+    paddingHorizontal: responsiveModerateScale(16),
     marginHorizontal: 16,
     borderRadius: 12,
     marginBottom: 4,
@@ -325,18 +344,18 @@ const styles = StyleSheet.create({
   menuItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: responsiveModerateScale(10),
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: responsiveModerateScale(34),
+    height: responsiveModerateScale(34),
+    borderRadius: responsiveModerateScale(10),
     backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   menuItemLabel: {
-    fontSize: 16,
+    fontSize: responsiveFont(14),
     fontFamily: 'Inter_500Medium',
     color: Colors.text,
   },

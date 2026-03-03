@@ -3,6 +3,7 @@ import { StyleSheet, Text, Pressable } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
 import { Category, CATEGORY_ICONS } from '@/lib/types';
+import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
 
 interface CategoryPillProps {
   category: Category | 'All';
@@ -36,7 +37,11 @@ export default function CategoryPill({ category, isSelected, onPress }: Category
       onPress={onPress}
     >
       {iconInfo && (
-        <Feather name={iconInfo.name as any} size={14} color={isSelected ? '#fff' : color} />
+        <Feather
+          name={iconInfo.name as any}
+          size={responsiveModerateScale(12)}
+          color={isSelected ? '#fff' : color}
+        />
       )}
       <Text style={[styles.text, { color: isSelected ? '#fff' : Colors.textSecondary }]}>
         {category}
@@ -49,14 +54,14 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 5,
-    marginRight: 8,
+    paddingHorizontal: responsiveModerateScale(12),
+    paddingVertical: responsiveModerateScale(6),
+    borderRadius: responsiveModerateScale(12),
+    gap: responsiveModerateScale(5),
+    marginRight: responsiveModerateScale(8),
   },
   text: {
-    fontSize: 13,
+    fontSize: responsiveFont(12),
     fontFamily: 'Inter_500Medium',
   },
 });

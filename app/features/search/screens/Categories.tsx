@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.surface,
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   iconTile: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: 14,
+    borderRadius: 12,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.borderLight,

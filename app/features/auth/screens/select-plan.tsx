@@ -20,6 +20,7 @@ import BrandWordmark from '@/shared/components/BrandWordmark';
 import { useAuth, PLANS, SubscriptionPlan, PlanDetails } from '@/shared/contexts/auth-context';
 import { getCityFromCoordinates } from '@/lib/location-data';
 import { getApiUrl } from '@/lib/query-client';
+import { createResponsiveStyles } from '@/lib/responsive';
 
 function PlanCard({
   plan,
@@ -62,7 +63,7 @@ function PlanCard({
       <View style={styles.featuresContainer}>
         {plan.features.map((feature, index) => (
           <View key={index} style={styles.featureRow}>
-            <Feather name="check" size={16} color={isSelected ? '#fff' : Colors.success} />
+            <Feather name="check" size={14} color={isSelected ? '#fff' : Colors.success} />
             <Text style={[styles.featureText, isSelected && styles.featureTextSelected]}>
               {feature}
             </Text>
@@ -71,7 +72,7 @@ function PlanCard({
       </View>
 
       <View style={[styles.selectIndicator, isSelected && styles.selectIndicatorActive]}>
-        {isSelected && <Feather name="check" size={16} color="#fff" />}
+        {isSelected && <Feather name="check" size={14} color="#fff" />}
       </View>
     </Pressable>
   );
@@ -320,7 +321,7 @@ export default function SelectPlanScreen() {
                 </>
               ) : (
                 <>
-                  <Feather name="credit-card" size={20} color="#fff" />
+                  <Feather name="credit-card" size={18} color="#fff" />
                   <Text style={styles.payText}>
                     {selected?.price === 0 ? 'Get Free Plan' : `Pay ₹${selected?.price}`}
                   </Text>
@@ -334,28 +335,28 @@ export default function SelectPlanScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
   },
   content: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   skipButton: {
     alignSelf: 'flex-end',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginBottom: 8,
   },
   skipText: {
-    fontSize: 15,
+    fontSize: 13,
     fontFamily: 'Inter_500Medium',
     color: Colors.textSecondary,
   },
   headerSection: {
     alignItems: 'center',
-    marginBottom: 28,
+    marginBottom: 20,
   },
   brandName: {
     fontSize: 28,
@@ -364,27 +365,27 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   title: {
-    fontSize: 24,
+    fontSize: 21,
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
     paddingHorizontal: 10,
   },
   plansContainer: {
-    gap: 14,
-    marginBottom: 20,
+    gap: 10,
+    marginBottom: 16,
   },
   planCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 2,
     borderColor: Colors.border,
     position: 'relative',
@@ -402,20 +403,20 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     backgroundColor: Colors.warning,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderBottomLeftRadius: 14,
   },
   popularText: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
   },
   planHeader: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   planName: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
     marginBottom: 4,
@@ -428,7 +429,7 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   planPrice: {
-    fontSize: 36,
+    fontSize: 30,
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
   },
@@ -436,7 +437,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   planPeriod: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
     marginLeft: 2,
@@ -445,7 +446,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
   },
   featuresContainer: {
-    gap: 10,
+    gap: 8,
   },
   featureRow: {
     flexDirection: 'row',
@@ -453,7 +454,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   featureText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
   },
@@ -462,11 +463,11 @@ const styles = StyleSheet.create({
   },
   selectIndicator: {
     position: 'absolute',
-    top: 20,
-    right: 20,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    top: 16,
+    right: 16,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: Colors.border,
     alignItems: 'center',
@@ -484,7 +485,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   guaranteeText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Inter_500Medium',
     color: Colors.success,
   },
@@ -493,7 +494,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   bottomGradient: {
     position: 'absolute',
@@ -512,17 +513,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   totalLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: 'Inter_500Medium',
     color: Colors.textSecondary,
   },
   totalPrice: {
-    fontSize: 22,
+    fontSize: 19,
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
   },
   payButton: {
-    borderRadius: 18,
+    borderRadius: 14,
     overflow: 'hidden',
     shadowColor: Colors.primaryDark,
     shadowOffset: { width: 0, height: 8 },
@@ -540,11 +541,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
+    paddingVertical: 14,
     gap: 10,
   },
   payText: {
-    fontSize: 17,
+    fontSize: 15,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
   },
@@ -552,10 +553,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 12,
-    marginHorizontal: 20,
-    marginBottom: 20,
+    borderRadius: 10,
+    padding: 10,
+    marginHorizontal: 16,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: Colors.primary,
     gap: 12,
@@ -564,12 +565,12 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   locationIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(10, 102, 194, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -578,24 +579,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   locationTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Inter_600SemiBold',
     color: Colors.text,
   },
   locationDesc: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
     marginTop: 2,
   },
   detectButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     backgroundColor: Colors.primary,
     borderRadius: 8,
   },
   detectButtonText: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
   },
@@ -606,9 +607,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FEE2E2',
-    borderRadius: 12,
-    padding: 12,
-    marginHorizontal: 20,
+    borderRadius: 10,
+    padding: 10,
+    marginHorizontal: 16,
     marginBottom: 12,
     gap: 10,
     borderWidth: 1,
@@ -616,7 +617,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Inter_500Medium',
     color: '#DC2626',
   },

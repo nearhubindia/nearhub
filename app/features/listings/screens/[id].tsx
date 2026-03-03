@@ -20,6 +20,7 @@ import { useAuth } from '@/shared/contexts/auth-context';
 import { getTimeAgo, formatCondition } from '@/lib/utils';
 import { getBackendURL } from '@/lib/config';
 import MediaCarousel from '@/shared/components/MediaCarousel';
+import { createResponsiveStyles } from '@/lib/responsive';
 
 const { width } = Dimensions.get('window');
 
@@ -136,6 +137,11 @@ export default function ListingDetailScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     toggleSaved(id);
   };
+  const hasValidOfferPrice =
+    typeof listing.offerPrice === 'number' &&
+    listing.offerPrice > 0 &&
+    listing.offerPrice < listing.price;
+  const displayPrice = hasValidOfferPrice ? (listing.offerPrice as number) : listing.price;
 
   return (
     <View style={styles.container}>
@@ -181,10 +187,13 @@ export default function ListingDetailScreen() {
 
         <View style={styles.details}>
           <View style={styles.priceRow}>
-            <Text style={styles.price}>
-              ₹{listing.price.toLocaleString('en-IN')}
+            <View style={styles.priceWrap}>
+              <Text style={styles.price}>₹{displayPrice.toLocaleString('en-IN')}</Text>
               {listing.priceUnit && <Text style={styles.priceUnit}> / {listing.priceUnit}</Text>}
-            </Text>
+              {hasValidOfferPrice && (
+                <Text style={styles.originalPrice}>₹{listing.price.toLocaleString('en-IN')}</Text>
+              )}
+            </View>
             <View
               style={[
                 styles.typeBadge,
@@ -259,7 +268,7 @@ export default function ListingDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -333,10 +342,21 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
   },
+  priceWrap: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 7,
+  },
   priceUnit: {
     fontSize: 16,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
+  },
+  originalPrice: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textTertiary,
+    textDecorationLine: 'line-through',
   },
   typeBadge: {
     paddingHorizontal: 12,

@@ -17,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { getApiUrl } from '@/lib/query-client';
+import { createResponsiveStyles } from '@/lib/responsive';
 
 const OTP_LENGTH = 6;
 
@@ -158,12 +159,12 @@ export default function VerifyOTPScreen() {
   return (
     <View style={[styles.container, { paddingTop: (insets.top || webTopInset) + 20 }]}>
       <Pressable style={styles.backButton} onPress={() => router.back()}>
-        <Feather name="arrow-left" size={22} color={Colors.text} />
+        <Feather name="arrow-left" size={20} color={Colors.text} />
       </Pressable>
 
       <View style={styles.content}>
         <View style={styles.iconCircle}>
-          <Feather name="shield" size={32} color={Colors.primary} />
+          <Feather name="shield" size={28} color={Colors.primary} />
         </View>
         <Text style={styles.title}>Verify OTP</Text>
         <Text style={styles.subtitle}>
@@ -229,45 +230,45 @@ export default function VerifyOTPScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
     paddingHorizontal: 20,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   content: {
     alignItems: 'center',
     paddingTop: 20,
   },
   iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     backgroundColor: 'rgba(10, 102, 194, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 26,
+    fontSize: 22,
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 36,
+    lineHeight: 20,
+    marginBottom: 28,
   },
   phoneHighlight: {
     fontFamily: 'Inter_600SemiBold',
@@ -275,18 +276,18 @@ const styles = StyleSheet.create({
   },
   otpRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 36,
+    gap: 8,
+    marginBottom: 28,
   },
   otpInput: {
-    width: 48,
-    height: 56,
-    borderRadius: 14,
+    width: 44,
+    height: 52,
+    borderRadius: 12,
     backgroundColor: Colors.surface,
     borderWidth: 2,
     borderColor: Colors.border,
     textAlign: 'center',
-    fontSize: 22,
+    fontSize: 20,
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
   },
@@ -295,7 +296,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10, 102, 194, 0.05)',
   },
   verifyButton: {
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
     width: '100%',
     shadowColor: Colors.primaryDark,
@@ -315,11 +316,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
+    paddingVertical: 15,
     gap: 10,
   },
   verifyText: {
-    fontSize: 17,
+    fontSize: 15,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
   },
