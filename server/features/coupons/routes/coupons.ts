@@ -194,7 +194,15 @@ export function registerCouponRoutes(app: Express) {
    */
   app.post('/api/admin/coupons', adminAuthMiddleware, async (req: Request, res: Response) => {
     try {
-      const { code, discountPercentage, applicableTiers, maxUsageCount, expiresAt, freeListings, freeListingDurationDays } = req.body;
+      const {
+        code,
+        discountPercentage,
+        applicableTiers,
+        maxUsageCount,
+        expiresAt,
+        freeListings,
+        freeListingDurationDays,
+      } = req.body;
       const admin = (req as any).admin;
 
       // Validate request body

@@ -1,11 +1,6 @@
 import { type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  Zap,
-  Users,
-  TrendingUp,
-  Shield,
-} from 'lucide-react';
+import { Zap, Users, TrendingUp, Shield } from 'lucide-react';
 import { LandingFooter, Logo } from '@/shared/components';
 
 export default function Features(): ReactElement {
@@ -49,8 +44,8 @@ export default function Features(): ReactElement {
               </span>
             </h1>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Everything you need for successful buying, selling, and connecting. Built with modern technology
-              and designed for the Indian market.
+              Everything you need for successful buying, selling, and connecting. Built with modern
+              technology and designed for the Indian market.
             </p>
           </div>
 
@@ -82,7 +77,10 @@ export default function Features(): ReactElement {
                 key={title}
                 className="group bg-white/80 border border-blue-100 hover:border-[#1e5da8]/30 rounded-xl p-8 backdrop-blur transition hover:shadow-xl hover:translate-y-[-4px]"
               >
-                <Icon className="text-[#1e5da8] mb-4 group-hover:text-[#ff9933] transition" size={40} />
+                <Icon
+                  className="text-[#1e5da8] mb-4 group-hover:text-[#ff9933] transition"
+                  size={40}
+                />
                 <h3 className="text-2xl font-bold text-slate-900 mb-3">{title}</h3>
                 <p className="text-slate-600 leading-relaxed">{desc}</p>
               </div>
@@ -91,17 +89,31 @@ export default function Features(): ReactElement {
 
           {/* Additional Features */}
           <div className="bg-gradient-to-br from-[#1e5da8]/5 via-white to-[#ff9933]/5 rounded-2xl p-8 md:p-12">
-            <h2 className="text-3xl font-bold text-slate-900 mb-8 text-center">More Features You'll Love</h2>
+            <h2 className="text-3xl font-bold text-slate-900 mb-8 text-center">
+              More Features You'll Love
+            </h2>
             <div className="grid md:grid-cols-3 gap-6">
               {[
-                { title: 'Video Listings', desc: 'Upload short-form and long-form videos to showcase products' },
-                { title: 'AI Moderation', desc: 'Automatic content validation for safety and quality' },
-                { title: 'Geo-Location', desc: 'Find listings near you with smart location search' },
+                {
+                  title: 'Video Listings',
+                  desc: 'Upload short-form and long-form videos to showcase products',
+                },
+                {
+                  title: 'AI Moderation',
+                  desc: 'Automatic content validation for safety and quality',
+                },
+                {
+                  title: 'Geo-Location',
+                  desc: 'Find listings near you with smart location search',
+                },
                 { title: 'Multi-Language', desc: 'Support for multiple Indian languages' },
                 { title: 'Payment Integration', desc: 'Built-in payment processing with Razorpay' },
                 { title: 'Analytics Dashboard', desc: 'Track views, engagement, and performance' },
               ].map(({ title, desc }) => (
-                <div key={title} className="bg-white rounded-lg p-6 shadow-sm hover:shadow-md transition">
+                <div
+                  key={title}
+                  className="bg-white rounded-lg p-6 shadow-sm hover:shadow-md transition"
+                >
                   <h4 className="font-bold text-slate-900 mb-2">{title}</h4>
                   <p className="text-sm text-slate-600">{desc}</p>
                 </div>

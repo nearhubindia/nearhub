@@ -25,7 +25,11 @@ import { router, useFocusEffect } from 'expo-router';
 import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
 import UploadProgressBar from '@/shared/components/UploadProgressBar';
-import { useAuth, isProfileComplete, getMissingProfileFields } from '@/shared/contexts/auth-context';
+import {
+  useAuth,
+  isProfileComplete,
+  getMissingProfileFields,
+} from '@/shared/contexts/auth-context';
 import {
   Category,
   CATEGORIES,
@@ -93,7 +97,7 @@ export default function CreateScreen() {
   const [overallProgress, setOverallProgress] = useState(0); // 0-100 percentage
 
   const priceValue = Number(price) || 0;
-  
+
   // Subscription type
   type SubscriptionData = {
     id: string;
@@ -112,7 +116,7 @@ export default function CreateScreen() {
       features: string[];
     } | null;
   };
-  
+
   // Active subscription state
   const [allSubscriptions, setAllSubscriptions] = useState<SubscriptionData[]>([]);
   const [selectedSubscription, setSelectedSubscription] = useState<SubscriptionData | null>(null);
@@ -232,7 +236,8 @@ export default function CreateScreen() {
             location && location.latitude !== undefined && location.longitude !== undefined
               ? {
                   pincode: query,
-                  locationName: location.locationName || location.city || location.state || 'Unknown',
+                  locationName:
+                    location.locationName || location.city || location.state || 'Unknown',
                   city: location.city || location.state || 'Unknown',
                   state: location.state || '',
                   district: location.district || '',
@@ -380,157 +385,172 @@ export default function CreateScreen() {
   }, [getLocationDetailsFromCoordinates]);
 
   // Fetch active subscription on mount
-  const fetchActiveSubscription = useCallback(async (options?: { force?: boolean }): Promise<number> => {
-    if (!user?.id) {
-      setIsLoadingSubscription(false);
-      return 0;
-    }
+  const fetchActiveSubscription = useCallback(
+    async (options?: { force?: boolean }): Promise<number> => {
+      if (!user?.id) {
+        setIsLoadingSubscription(false);
+        return 0;
+      }
 
-    const now = Date.now();
-    const shouldThrottle = !options?.force && (now - lastSubscriptionFetchAtRef.current) < SUBSCRIPTION_FETCH_THROTTLE_MS;
-    if (shouldThrottle) {
-      console.log('[Create] fetchActiveSubscription - Throttled', {
-        elapsedMs: now - lastSubscriptionFetchAtRef.current,
-        throttleMs: SUBSCRIPTION_FETCH_THROTTLE_MS,
-      });
-      return previousSubscriptionCount.current;
-    }
+      const now = Date.now();
+      const shouldThrottle =
+        !options?.force &&
+        now - lastSubscriptionFetchAtRef.current < SUBSCRIPTION_FETCH_THROTTLE_MS;
+      if (shouldThrottle) {
+        console.log('[Create] fetchActiveSubscription - Throttled', {
+          elapsedMs: now - lastSubscriptionFetchAtRef.current,
+          throttleMs: SUBSCRIPTION_FETCH_THROTTLE_MS,
+        });
+        return previousSubscriptionCount.current;
+      }
 
-    if (isFetchingSubscriptionRef.current) {
-      return previousSubscriptionCount.current;
-    }
-    isFetchingSubscriptionRef.current = true;
-    lastSubscriptionFetchAtRef.current = now;
-    
-    console.log('[Create] fetchActiveSubscription - Starting fetch for user:', user.id);
-    
-    try {
-      const apiUrl = getApiUrl();
-      const timestamp = Date.now();
-      const response = await fetch(`${apiUrl}/api/subscriptions?t=${timestamp}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.id,
-          'x-user-phone': user.phone || '',
-        },
-        cache: 'no-store',
-      });
-      
-      const data = await response.json();
-      console.log('[Create] fetchActiveSubscription - Response:', {
-        status: response.status,
-        ok: response.ok,
-        success: data.success,
-        subscriptionCount: data.data?.length || 0,
-        error: data.error,
-        subscriptions: data.data?.map((s: SubscriptionData) => ({
-          id: s.id,
-          status: s.status,
-          tierName: s.tier?.name,
-          listingsUsed: s.listingsUsed,
-          maxListings: s.tier?.maxListings,
-        })),
-      });
+      if (isFetchingSubscriptionRef.current) {
+        return previousSubscriptionCount.current;
+      }
+      isFetchingSubscriptionRef.current = true;
+      lastSubscriptionFetchAtRef.current = now;
 
-      if (!response.ok || data.success !== true) {
-        console.warn('[Create] fetchActiveSubscription - API returned failure', {
-          status: response.status,
-          success: data.success,
-          error: data.error,
+      console.log('[Create] fetchActiveSubscription - Starting fetch for user:', user.id);
+
+      try {
+        const apiUrl = getApiUrl();
+        const timestamp = Date.now();
+        const response = await fetch(`${apiUrl}/api/subscriptions?t=${timestamp}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': user.id,
+            'x-user-phone': user.phone || '',
+          },
+          cache: 'no-store',
         });
 
-        if (response.status === 401) {
+        const data = await response.json();
+        console.log('[Create] fetchActiveSubscription - Response:', {
+          status: response.status,
+          ok: response.ok,
+          success: data.success,
+          subscriptionCount: data.data?.length || 0,
+          error: data.error,
+          subscriptions: data.data?.map((s: SubscriptionData) => ({
+            id: s.id,
+            status: s.status,
+            tierName: s.tier?.name,
+            listingsUsed: s.listingsUsed,
+            maxListings: s.tier?.maxListings,
+          })),
+        });
+
+        if (!response.ok || data.success !== true) {
+          console.warn('[Create] fetchActiveSubscription - API returned failure', {
+            status: response.status,
+            success: data.success,
+            error: data.error,
+          });
+
+          if (response.status === 401) {
+            setAllSubscriptions([]);
+            setSelectedSubscription(null);
+            setActiveSubscription(null);
+            previousSubscriptionCount.current = 0;
+            return 0;
+          }
+
+          // Keep existing UI state on transient errors to avoid subscriptions disappearing suddenly
+          return previousSubscriptionCount.current;
+        }
+
+        if (Array.isArray(data.data) && data.data.length > 0) {
+          // Get all active non-expired subscriptions
+          const activeSubs = data.data.filter(
+            (s: SubscriptionData) => s.status === 'active' && new Date(s.expiresAt) > new Date()
+          );
+
+          console.log(
+            '[Create] fetchActiveSubscription - Active subscriptions:',
+            activeSubs.length
+          );
+
+          setAllSubscriptions(activeSubs);
+
+          // Try to keep current selection if it's still valid and has quota
+          let selected = null;
+          const currentSelectedSubscription = selectedSubscriptionRef.current;
+          if (currentSelectedSubscription) {
+            const stillValid = activeSubs.find(
+              (s: SubscriptionData) =>
+                s.id === currentSelectedSubscription.id &&
+                s.tier &&
+                (s.tier.maxListings === -1 || s.listingsUsed < s.tier.maxListings)
+            );
+            if (stillValid) {
+              selected = stillValid;
+              console.log(
+                '[Create] fetchActiveSubscription - Keeping current selection:',
+                selected.id
+              );
+            }
+          }
+
+          // If no valid selection, auto-select first subscription with available quota
+          if (!selected) {
+            const firstAvailable = activeSubs.find(
+              (s: SubscriptionData) =>
+                s.tier && (s.tier.maxListings === -1 || s.listingsUsed < s.tier.maxListings)
+            );
+            selected = firstAvailable || activeSubs[0] || null;
+            console.log(
+              '[Create] fetchActiveSubscription - Auto-selected subscription:',
+              selected?.id
+            );
+          }
+
+          setSelectedSubscription(selected);
+          setActiveSubscription(selected); // For backward compatibility
+
+          // Update ref for tracking subscription count changes
+          const prevCount = previousSubscriptionCount.current;
+          previousSubscriptionCount.current = activeSubs.length;
+
+          console.log('[Create] fetchActiveSubscription - Updated state:', {
+            previousCount: prevCount,
+            newCount: activeSubs.length,
+            selectedId: selected?.id,
+          });
+
+          return activeSubs.length;
+        } else {
+          console.log('[Create] fetchActiveSubscription - No subscriptions found');
           setAllSubscriptions([]);
           setSelectedSubscription(null);
           setActiveSubscription(null);
           previousSubscriptionCount.current = 0;
           return 0;
         }
-
-        // Keep existing UI state on transient errors to avoid subscriptions disappearing suddenly
+      } catch (error) {
+        console.error('[Create] Error fetching active subscription:', error);
+        // Keep existing subscription state on network/runtime failures
         return previousSubscriptionCount.current;
+      } finally {
+        isFetchingSubscriptionRef.current = false;
+        setIsLoadingSubscription(false);
       }
-      
-      if (Array.isArray(data.data) && data.data.length > 0) {
-        // Get all active non-expired subscriptions
-        const activeSubs = data.data.filter(
-          (s: SubscriptionData) => s.status === 'active' && new Date(s.expiresAt) > new Date()
-        );
-        
-        console.log('[Create] fetchActiveSubscription - Active subscriptions:', activeSubs.length);
-        
-        setAllSubscriptions(activeSubs);
-        
-        // Try to keep current selection if it's still valid and has quota
-        let selected = null;
-        const currentSelectedSubscription = selectedSubscriptionRef.current;
-        if (currentSelectedSubscription) {
-          const stillValid = activeSubs.find(
-            (s: SubscriptionData) => 
-              s.id === currentSelectedSubscription.id && 
-              s.tier && 
-              (s.tier.maxListings === -1 || s.listingsUsed < s.tier.maxListings)
-          );
-          if (stillValid) {
-            selected = stillValid;
-            console.log('[Create] fetchActiveSubscription - Keeping current selection:', selected.id);
-          }
-        }
-        
-        // If no valid selection, auto-select first subscription with available quota
-        if (!selected) {
-          const firstAvailable = activeSubs.find(
-            (s: SubscriptionData) => s.tier && (s.tier.maxListings === -1 || s.listingsUsed < s.tier.maxListings)
-          );
-          selected = firstAvailable || activeSubs[0] || null;
-          console.log('[Create] fetchActiveSubscription - Auto-selected subscription:', selected?.id);
-        }
-        
-        setSelectedSubscription(selected);
-        setActiveSubscription(selected); // For backward compatibility
-        
-        // Update ref for tracking subscription count changes
-        const prevCount = previousSubscriptionCount.current;
-        previousSubscriptionCount.current = activeSubs.length;
-        
-        console.log('[Create] fetchActiveSubscription - Updated state:', {
-          previousCount: prevCount,
-          newCount: activeSubs.length,
-          selectedId: selected?.id,
-        });
-        
-        return activeSubs.length;
-      } else {
-        console.log('[Create] fetchActiveSubscription - No subscriptions found');
-        setAllSubscriptions([]);
-        setSelectedSubscription(null);
-        setActiveSubscription(null);
-        previousSubscriptionCount.current = 0;
-        return 0;
-      }
-    } catch (error) {
-      console.error('[Create] Error fetching active subscription:', error);
-      // Keep existing subscription state on network/runtime failures
-      return previousSubscriptionCount.current;
-    } finally {
-      isFetchingSubscriptionRef.current = false;
-      setIsLoadingSubscription(false);
-    }
-  }, [user?.id, user?.phone]);
+    },
+    [user?.id, user?.phone]
+  );
 
   // Refetch subscriptions when screen comes into focus (e.g., after purchasing a subscription)
   useFocusEffect(
     useCallback(() => {
       console.log('[Create] Screen focused - refreshing subscriptions');
       const previousCount = previousSubscriptionCount.current;
-      
+
       fetchActiveSubscription().then((newCount) => {
         console.log('[Create] useFocusEffect - Fetch complete:', {
           previousCount,
           newCount,
           shouldShowAlert: newCount > previousCount && previousCount > 0,
         });
-        
+
         // Show alert if new subscriptions were added (after purchase)
         if (newCount > previousCount && previousCount > 0) {
           requestAnimationFrame(() => {
@@ -988,10 +1008,10 @@ export default function CreateScreen() {
     // Run validation in background (non-blocking) with timeout
     setIsValidating(true);
     setValidationResult(null);
-    
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000); // 8 second timeout
-    
+
     try {
       const baseUrl = await getApiUrl();
       const url = new URL('/api/validate-listing', baseUrl);
@@ -1006,7 +1026,7 @@ export default function CreateScreen() {
         }),
         signal: controller.signal,
       });
-      
+
       const data = await res.json();
 
       // Also check with local AI moderation if available
@@ -1039,7 +1059,7 @@ export default function CreateScreen() {
         isValid: true, // Allow all uploads - validation is informational
         isAppropriate: data.isAppropriate !== false, // Only flag if explicitly set
       };
-      
+
       setValidationResult(validationResult);
       Haptics.notificationAsync(
         validationResult.isAppropriate
@@ -1085,10 +1105,10 @@ export default function CreateScreen() {
   const validateVideoFrame = async (videoUri: string) => {
     setIsValidating(true);
     setValidationResult(null);
-    
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000); // 8 second timeout
-    
+
     try {
       let base64Data: string | undefined;
       let videoDurationMs: number | undefined;
@@ -1101,9 +1121,9 @@ export default function CreateScreen() {
             quality: 0.7,
           });
           console.log('[Create] Thumbnail generated:', thumbUri);
-          
+
           videoDurationMs = undefined; // duration field removed in expo-video-thumbnails SDK 54+
-          
+
           const thumbBase64 = await FileSystem.readAsStringAsync(thumbUri, {
             encoding: FileSystem.EncodingType.Base64,
           });
@@ -1180,7 +1200,7 @@ export default function CreateScreen() {
         isValid: true, // Allow all uploads - validation is informational
         isAppropriate: data.isAppropriate !== false, // Only flag if explicitly set
       };
-      
+
       setValidationResult(validationResult);
       Haptics.notificationAsync(
         validationResult.isAppropriate
@@ -1208,7 +1228,7 @@ export default function CreateScreen() {
   const handleRecordedVideo = useCallback(async (recordedUri: string) => {
     try {
       console.log('[Create] Received recorded video URI:', recordedUri);
-      
+
       // Compress the recorded video
       setIsCompressing(true);
       setCompressionProgress(0);
@@ -1258,7 +1278,7 @@ export default function CreateScreen() {
       console.error('[Create] Video compression error:', compressionError);
       Alert.alert('Compression Info', 'Using original video quality.', [{ text: 'OK' }]);
       setVideoUri(recordedUri);
-      
+
       // Generate thumbnail for fallback
       try {
         const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(recordedUri, {
@@ -1269,7 +1289,7 @@ export default function CreateScreen() {
       } catch (thumbError) {
         console.warn('[Create] Could not generate video thumbnail:', thumbError);
       }
-      
+
       validateVideoFrame(recordedUri);
     } finally {
       setIsCompressing(false);
@@ -1316,10 +1336,13 @@ export default function CreateScreen() {
 
           // Generate thumbnail
           try {
-            const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(compressedResult.uri, {
-              time: 0,
-              quality: 0.7,
-            });
+            const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(
+              compressedResult.uri,
+              {
+                time: 0,
+                quality: 0.7,
+              }
+            );
             setVideoThumbnail(thumbUri);
           } catch (thumbError) {
             console.warn('[Create] Could not generate video thumbnail:', thumbError);
@@ -1339,7 +1362,7 @@ export default function CreateScreen() {
           // Fall back to original video if compression fails
           Alert.alert('Compression Info', 'Using original video quality.', [{ text: 'OK' }]);
           setVideoUri(uri);
-          
+
           // Generate thumbnail for fallback
           try {
             const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(uri, {
@@ -1350,7 +1373,7 @@ export default function CreateScreen() {
           } catch (thumbError) {
             console.warn('[Create] Could not generate video thumbnail:', thumbError);
           }
-          
+
           validateVideoFrame(uri);
         } finally {
           setIsCompressing(false);
@@ -1384,7 +1407,11 @@ export default function CreateScreen() {
     return match?.[1];
   };
 
-  const showDailyLimitAlert = (error: { message?: string; retryAfter?: string; limit?: number }): void => {
+  const showDailyLimitAlert = (error: {
+    message?: string;
+    retryAfter?: string;
+    limit?: number;
+  }): void => {
     const retryAfter = error.retryAfter || parseRetryAfter(error.message) || '24 hours';
     const limit = typeof error.limit === 'number' ? error.limit : 50;
 
@@ -1398,7 +1425,7 @@ export default function CreateScreen() {
   const submitListing = async (duration?: number, overrideSubscription?: SubscriptionData) => {
     // Use override subscription if provided, otherwise use selected subscription
     const subscriptionToUse = overrideSubscription || selectedSubscription;
-    
+
     console.log(
       '[Create] submitListing called — isSubmitting:',
       isSubmitting,
@@ -1555,7 +1582,7 @@ export default function CreateScreen() {
 
       setOverallProgress(75);
       setValidationMessage('📝 Finalizing your listing... Almost done!');
-      
+
       await addListing(
         {
           title: title.trim(),
@@ -1591,9 +1618,9 @@ export default function CreateScreen() {
 
       setOverallProgress(100);
       setValidationMessage('✅ Success! Your listing is live.');
-      
+
       // Show success message briefly before clearing
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
       Alert.alert('Listed!', 'Your item has been posted successfully.', [
         {
@@ -1618,7 +1645,7 @@ export default function CreateScreen() {
     } catch (e) {
       const error = e as any;
       console.error('[Create] Listing creation error:', error);
-      
+
       // Check if it's an AI validation error
       if (error?.code === 'INAPPROPRIATE_CONTENT') {
         const violations = error.details?.violations?.join(', ') || 'inappropriate content';
@@ -1630,7 +1657,8 @@ export default function CreateScreen() {
       } else if (error?.code === 'PRODUCT_IMAGE_MISMATCH') {
         Alert.alert(
           '🔍 Product Verification Failed',
-          error.message || 'Your image doesn\'t match the product you\'re selling. Please upload correct product images.',
+          error.message ||
+            "Your image doesn't match the product you're selling. Please upload correct product images.",
           [{ text: 'Update Images' }]
         );
       } else if (
@@ -1699,23 +1727,23 @@ export default function CreateScreen() {
     const currentTierId = selectedSubscription.tier.id;
     const currentDuration = selectedSubscription.tier.durationDays;
     const sameTypeSubs = allSubscriptions.filter(
-      s => s.tier?.id === currentTierId && s.tier?.durationDays === currentDuration
+      (s) => s.tier?.id === currentTierId && s.tier?.durationDays === currentDuration
     );
-    
+
     // Calculate total available across all same-type subscriptions
     let totalAvailable = 0;
     let hasUnlimited = false;
-    
-    sameTypeSubs.forEach(sub => {
+
+    sameTypeSubs.forEach((sub) => {
       if (sub.tier) {
         if (sub.tier.maxListings === -1) {
           hasUnlimited = true;
         } else {
-          totalAvailable += (sub.tier.maxListings - sub.listingsUsed);
+          totalAvailable += sub.tier.maxListings - sub.listingsUsed;
         }
       }
     });
-    
+
     if (!hasUnlimited && totalAvailable <= 0) {
       // All subscriptions of this type are full
       Alert.alert(
@@ -1733,12 +1761,14 @@ export default function CreateScreen() {
       );
       return;
     }
-    
+
     // Auto-select a subscription with available quota from the same-type group
-    const subscriptionToUse = sameTypeSubs.find(
-      sub => sub.tier && (sub.tier.maxListings === -1 || sub.listingsUsed < sub.tier.maxListings)
-    ) || selectedSubscription;
-    
+    const subscriptionToUse =
+      sameTypeSubs.find(
+        (sub) =>
+          sub.tier && (sub.tier.maxListings === -1 || sub.listingsUsed < sub.tier.maxListings)
+      ) || selectedSubscription;
+
     console.log('[Create] handleSubmit - Using subscription:', {
       id: subscriptionToUse.id,
       tierName: subscriptionToUse.tier?.name,
@@ -1920,11 +1950,13 @@ export default function CreateScreen() {
                   <Pressable style={styles.removeImage} onPress={() => removeImage(index)}>
                     <Ionicons name="close-circle" size={22} color={Colors.accent} />
                   </Pressable>
-                  {validationResult && validationResult.isValid && validationResult.isAppropriate && (
-                    <View style={styles.aiVerifiedOverlay}>
-                      <Text style={styles.aiVerifiedOverlayText}>✓ AI Verified</Text>
-                    </View>
-                  )}
+                  {validationResult &&
+                    validationResult.isValid &&
+                    validationResult.isAppropriate && (
+                      <View style={styles.aiVerifiedOverlay}>
+                        <Text style={styles.aiVerifiedOverlayText}>✓ AI Verified</Text>
+                      </View>
+                    )}
                 </View>
               ))}
             </ScrollView>
@@ -1984,7 +2016,12 @@ export default function CreateScreen() {
             )}
 
             {validationResult && !isValidating && !validationResult.isValid && (
-              <View style={[styles.validationInlineBanner, { backgroundColor: '#FEF2F2', marginTop: 10 }]}>
+              <View
+                style={[
+                  styles.validationInlineBanner,
+                  { backgroundColor: '#FEF2F2', marginTop: 10 },
+                ]}
+              >
                 <View style={styles.validationInlineContent}>
                   <View style={styles.validationError}>
                     <Feather name="alert-triangle" size={16} color={Colors.error} />
@@ -2009,102 +2046,117 @@ export default function CreateScreen() {
             </View>
 
             <Text style={styles.sectionHint}>
-                  Upload a short video to showcase your product in the Shorts feed
-                </Text>
+              Upload a short video to showcase your product in the Shorts feed
+            </Text>
 
-                {isCompressing ? (
-                  <View
-                    style={[
-                      styles.videoSelected,
-                      { justifyContent: 'center', alignItems: 'center' },
-                    ]}
-                  >
-                    <ActivityIndicator
-                      size="large"
-                      color={Colors.primary}
-                      style={{ marginBottom: 12 }}
-                    />
-                    <Text style={styles.videoFileName}>Compressing video...</Text>
-                    <Text style={styles.addVideoDuration}>{compressionProgress}%</Text>
-                    <View style={styles.progressBar}>
-                      <View style={[styles.progressFill, { width: `${compressionProgress}%` }]} />
-                    </View>
-                  </View>
-                ) : (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.imageRow}
-                  >
-                    <Pressable
-                      style={[styles.addVideoButton, { width: 90, height: 90 }]}
-                      onPress={() => setShowRecorder(true)}
-                    >
-                      <Feather name="camera" size={20} color="#fff" />
-                      <Text style={styles.addImageText}>Record</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.addVideoButton, { width: 90, height: 90 }]}
-                      onPress={pickVideo}
-                    >
-                      <Feather name="video" size={20} color="#fff" />
-                      <Text style={styles.addImageText}>Select</Text>
-                    </Pressable>
-                    {videoUri && (
-                      <View style={styles.imageThumb}>
-                        {videoThumbnail ? (
-                          <Image source={{ uri: videoThumbnail }} style={styles.thumbImage} contentFit="cover" />
-                        ) : (
-                          <View style={[styles.thumbImage, { backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' }]}>
-                            <Feather name="film" size={28} color={Colors.textSecondary} />
-                          </View>
-                        )}
-                        <View style={styles.videoPlayOverlay}>
-                          <Feather name="play-circle" size={20} color="#FFFFFF" />
-                        </View>
-                        <Pressable
-                          style={styles.removeImage}
-                          onPress={() => {
-                            setVideoUri(null);
-                            setVideoThumbnail(null);
-                            setValidationResult(null);
-                          }}
-                        >
-                          <Ionicons name="close-circle" size={22} color={Colors.accent} />
-                        </Pressable>
-                        {validationResult && validationResult.isValid && validationResult.isAppropriate && (
-                          <View style={styles.aiVerifiedOverlay}>
-                            <Text style={styles.aiVerifiedOverlayText}>✓ AI Verified</Text>
-                          </View>
-                        )}
+            {isCompressing ? (
+              <View
+                style={[styles.videoSelected, { justifyContent: 'center', alignItems: 'center' }]}
+              >
+                <ActivityIndicator
+                  size="large"
+                  color={Colors.primary}
+                  style={{ marginBottom: 12 }}
+                />
+                <Text style={styles.videoFileName}>Compressing video...</Text>
+                <Text style={styles.addVideoDuration}>{compressionProgress}%</Text>
+                <View style={styles.progressBar}>
+                  <View style={[styles.progressFill, { width: `${compressionProgress}%` }]} />
+                </View>
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.imageRow}
+              >
+                <Pressable
+                  style={[styles.addVideoButton, { width: 90, height: 90 }]}
+                  onPress={() => setShowRecorder(true)}
+                >
+                  <Feather name="camera" size={20} color="#fff" />
+                  <Text style={styles.addImageText}>Record</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.addVideoButton, { width: 90, height: 90 }]}
+                  onPress={pickVideo}
+                >
+                  <Feather name="video" size={20} color="#fff" />
+                  <Text style={styles.addImageText}>Select</Text>
+                </Pressable>
+                {videoUri && (
+                  <View style={styles.imageThumb}>
+                    {videoThumbnail ? (
+                      <Image
+                        source={{ uri: videoThumbnail }}
+                        style={styles.thumbImage}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.thumbImage,
+                          {
+                            backgroundColor: Colors.surface,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          },
+                        ]}
+                      >
+                        <Feather name="film" size={28} color={Colors.textSecondary} />
                       </View>
                     )}
-                  </ScrollView>
-                )}
-
-                {isValidating && (
-                  <View style={[styles.validationInlineBanner, { marginTop: 12 }]}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                    <Text style={styles.validationText}>AI is analyzing your video...</Text>
-                  </View>
-                )}
-
-                {validationResult && !isValidating && !validationResult.isValid && (
-                  <View style={[styles.validationInlineBanner, { marginTop: 12, backgroundColor: '#FEF2F2' }]}>
-                    <View style={styles.validationInlineContent}>
-                      <View style={styles.validationError}>
-                        <Feather name="alert-triangle" size={16} color={Colors.error} />
-                        <Text style={styles.validationErrorText}>Please upload a valid video</Text>
-                      </View>
-                      <Text style={styles.validationReason}>{validationResult.reason}</Text>
-                      {validationResult.suggestion ? (
-                        <Text style={styles.validationSuggestion}>
-                          {validationResult.suggestion}
-                        </Text>
-                      ) : null}
+                    <View style={styles.videoPlayOverlay}>
+                      <Feather name="play-circle" size={20} color="#FFFFFF" />
                     </View>
+                    <Pressable
+                      style={styles.removeImage}
+                      onPress={() => {
+                        setVideoUri(null);
+                        setVideoThumbnail(null);
+                        setValidationResult(null);
+                      }}
+                    >
+                      <Ionicons name="close-circle" size={22} color={Colors.accent} />
+                    </Pressable>
+                    {validationResult &&
+                      validationResult.isValid &&
+                      validationResult.isAppropriate && (
+                        <View style={styles.aiVerifiedOverlay}>
+                          <Text style={styles.aiVerifiedOverlayText}>✓ AI Verified</Text>
+                        </View>
+                      )}
                   </View>
                 )}
+              </ScrollView>
+            )}
+
+            {isValidating && (
+              <View style={[styles.validationInlineBanner, { marginTop: 12 }]}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <Text style={styles.validationText}>AI is analyzing your video...</Text>
+              </View>
+            )}
+
+            {validationResult && !isValidating && !validationResult.isValid && (
+              <View
+                style={[
+                  styles.validationInlineBanner,
+                  { marginTop: 12, backgroundColor: '#FEF2F2' },
+                ]}
+              >
+                <View style={styles.validationInlineContent}>
+                  <View style={styles.validationError}>
+                    <Feather name="alert-triangle" size={16} color={Colors.error} />
+                    <Text style={styles.validationErrorText}>Please upload a valid video</Text>
+                  </View>
+                  <Text style={styles.validationReason}>{validationResult.reason}</Text>
+                  {validationResult.suggestion ? (
+                    <Text style={styles.validationSuggestion}>{validationResult.suggestion}</Text>
+                  ) : null}
+                </View>
+              </View>
+            )}
           </View>
 
           {/* Step 4: Title */}
@@ -2150,7 +2202,7 @@ export default function CreateScreen() {
                 keyboardType="numeric"
               />
             </View>
-            
+
             {/* AI Price Suggestion */}
             {category && (
               <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -2192,7 +2244,7 @@ export default function CreateScreen() {
                 )}
               </View>
             )}
-            
+
             <View style={styles.unitSelectorInline}>
               <Text style={styles.unitInlineLabel}>Unit:</Text>
               <View style={styles.unitChipsContainer}>
@@ -2317,7 +2369,9 @@ export default function CreateScreen() {
                           ? `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
                           : 'Current location')}
                     </Text>
-                    {pincode ? <Text style={styles.locationPincode}>Pincode: {pincode}</Text> : null}
+                    {pincode ? (
+                      <Text style={styles.locationPincode}>Pincode: {pincode}</Text>
+                    ) : null}
                   </View>
                 </View>
                 <Pressable
@@ -2414,38 +2468,42 @@ export default function CreateScreen() {
               </View>
             ) : allSubscriptions.length > 0 ? (
               /* Active subscription banner */
-              <View style={{
-                backgroundColor: '#E8F4FD',
-                borderRadius: 12,
-                padding: 12,
-                borderWidth: 1,
-                borderColor: Colors.primary + '30',
-              }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                  <View style={{
-                    backgroundColor: Colors.primary,
-                    borderRadius: 16,
-                    width: 22,
-                    height: 22,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
+              <View
+                style={{
+                  backgroundColor: '#E8F4FD',
+                  borderRadius: 12,
+                  padding: 12,
+                  borderWidth: 1,
+                  borderColor: Colors.primary + '30',
+                }}
+              >
+                <View
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}
+                >
+                  <View
+                    style={{
+                      backgroundColor: Colors.primary,
+                      borderRadius: 16,
+                      width: 22,
+                      height: 22,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
                     <Feather name="check" size={13} color="#fff" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.text }}>
-                        {allSubscriptions.length > 1 
+                        {allSubscriptions.length > 1
                           ? `Active Subscriptions (${allSubscriptions.length})`
-                          : `${allSubscriptions[0]?.tier?.name} Plan Active`
-                        }
+                          : `${allSubscriptions[0]?.tier?.name} Plan Active`}
                       </Text>
                     </View>
                     <Text style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 1 }}>
                       {allSubscriptions.length > 1
                         ? 'Combined listing quota from all plans'
-                        : `Expires ${new Date(allSubscriptions[0]?.expiresAt || new Date()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
-                      }
+                        : `Expires ${new Date(allSubscriptions[0]?.expiresAt || new Date()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}
                     </Text>
                   </View>
                   {allSubscriptions.length > 1 && (
@@ -2465,38 +2523,40 @@ export default function CreateScreen() {
                     </Pressable>
                   )}
                 </View>
-                
+
                 {/* Stats - Show consolidated across ALL subscriptions */}
                 {(() => {
                   // Always show ALL subscriptions consolidated
                   const isMultiple = allSubscriptions.length > 1;
-                  
+
                   // Calculate consolidated stats across ALL subscriptions
                   let totalUsed = 0;
                   let totalAvailable = 0;
                   let totalLimit = 0;
                   let isUnlimited = false;
-                  
-                  allSubscriptions.forEach(sub => {
+
+                  allSubscriptions.forEach((sub) => {
                     if (sub.tier) {
                       totalUsed += sub.listingsUsed;
                       if (sub.tier.maxListings === -1) {
                         isUnlimited = true;
                       } else {
                         totalLimit += sub.tier.maxListings;
-                        totalAvailable += (sub.tier.maxListings - sub.listingsUsed);
+                        totalAvailable += sub.tier.maxListings - sub.listingsUsed;
                       }
                     }
                   });
-                  
+
                   return (
-                    <View style={{
-                      flexDirection: 'row',
-                      backgroundColor: '#fff',
-                      borderRadius: 8,
-                      padding: 8,
-                      gap: 10,
-                    }}>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        backgroundColor: '#fff',
+                        borderRadius: 8,
+                        padding: 8,
+                        gap: 10,
+                      }}
+                    >
                       <View style={{ flex: 1, alignItems: 'center' }}>
                         <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.primary }}>
                           {totalUsed}
@@ -2526,49 +2586,54 @@ export default function CreateScreen() {
                     </View>
                   );
                 })()}
-                
+
                 {/* Info note when user has multiple subscriptions */}
                 {allSubscriptions.length > 1 && (
-                  <View style={{
-                    backgroundColor: '#F0F7FF',
-                    borderRadius: 6,
-                    padding: 8,
-                    marginTop: 8,
-                  }}>
+                  <View
+                    style={{
+                      backgroundColor: '#F0F7FF',
+                      borderRadius: 6,
+                      padding: 8,
+                      marginTop: 8,
+                    }}
+                  >
                     <Text style={{ fontSize: 10, color: Colors.primary, textAlign: 'center' }}>
-                      💡 Showing combined stats for all {allSubscriptions.length} subscriptions. Tap "Select" to choose one.
+                      💡 Showing combined stats for all {allSubscriptions.length} subscriptions. Tap
+                      "Select" to choose one.
                     </Text>
                   </View>
                 )}
-                
+
                 {/* Full subscription warning */}
                 {(() => {
                   // Check if ALL subscriptions combined have available quota
                   let totalAvailable = 0;
                   let hasUnlimited = false;
-                  
-                  allSubscriptions.forEach(sub => {
+
+                  allSubscriptions.forEach((sub) => {
                     if (sub.tier) {
                       if (sub.tier.maxListings === -1) {
                         hasUnlimited = true;
                       } else {
-                        totalAvailable += (sub.tier.maxListings - sub.listingsUsed);
+                        totalAvailable += sub.tier.maxListings - sub.listingsUsed;
                       }
                     }
                   });
-                  
+
                   const isFull = !hasUnlimited && totalAvailable <= 0;
-                  
+
                   return isFull ? (
-                    <View style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      marginTop: 8,
-                      gap: 6,
-                      backgroundColor: '#FFF3E0',
-                      borderRadius: 6,
-                      padding: 8,
-                    }}>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        marginTop: 8,
+                        gap: 6,
+                        backgroundColor: '#FFF3E0',
+                        borderRadius: 6,
+                        padding: 8,
+                      }}
+                    >
                       <Feather name="alert-triangle" size={12} color="#F57C00" />
                       <Text style={{ color: '#F57C00', fontSize: 11, flex: 1 }}>
                         {allSubscriptions.length > 1
@@ -2602,24 +2667,31 @@ export default function CreateScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push('/subscriptions');
                 }}
-                style={({ pressed }) => [{
-                  backgroundColor: '#FFF8E1',
-                  borderRadius: 12,
-                  padding: 12,
-                  borderWidth: 1.5,
-                  borderColor: '#FFD54F',
-                  borderStyle: 'dashed' as const,
-                }, pressed && { opacity: 0.85 }]}
+                style={({ pressed }) => [
+                  {
+                    backgroundColor: '#FFF8E1',
+                    borderRadius: 12,
+                    padding: 12,
+                    borderWidth: 1.5,
+                    borderColor: '#FFD54F',
+                    borderStyle: 'dashed' as const,
+                  },
+                  pressed && { opacity: 0.85 },
+                ]}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <View style={{
-                    backgroundColor: '#FFD54F',
-                    borderRadius: 16,
-                    width: 26,
-                    height: 26,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}>
+                <View
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}
+                >
+                  <View
+                    style={{
+                      backgroundColor: '#FFD54F',
+                      borderRadius: 16,
+                      width: 26,
+                      height: 26,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
                     <Feather name="shopping-bag" size={14} color="#F57C00" />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -2632,17 +2704,20 @@ export default function CreateScreen() {
                   </View>
                   <Feather name="chevron-right" size={18} color="#F57C00" />
                 </View>
-                <View style={{
-                  backgroundColor: '#fff',
-                  borderRadius: 8,
-                  padding: 10,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                }}>
+                <View
+                  style={{
+                    backgroundColor: '#fff',
+                    borderRadius: 8,
+                    padding: 10,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
                   <Feather name="star" size={12} color={Colors.primary} />
                   <Text style={{ fontSize: 12, color: Colors.text, flex: 1 }}>
-                    Plans start at affordable prices with features like featured listings, video uploads & more
+                    Plans start at affordable prices with features like featured listings, video
+                    uploads & more
                   </Text>
                 </View>
               </Pressable>
@@ -2667,29 +2742,26 @@ export default function CreateScreen() {
 
           {/* Subscription Plans Banner - only show if no subscription */}
           {allSubscriptions.length === 0 && !isLoadingSubscription && (
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/subscriptions' as any);
-            }}
-            style={({ pressed }) => [
-              styles.subscriptionBanner,
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <View style={styles.subscriptionBannerContent}>
-              <View style={styles.subscriptionBannerLeft}>
-                <Feather name="star" size={16} color={Colors.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.subscriptionBannerTitle}>Get a Subscription</Text>
-                  <Text style={styles.subscriptionBannerSubtext}>
-                    Subscribe to create listings & unlock premium features
-                  </Text>
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/subscriptions' as any);
+              }}
+              style={({ pressed }) => [styles.subscriptionBanner, pressed && { opacity: 0.85 }]}
+            >
+              <View style={styles.subscriptionBannerContent}>
+                <View style={styles.subscriptionBannerLeft}>
+                  <Feather name="star" size={16} color={Colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.subscriptionBannerTitle}>Get a Subscription</Text>
+                    <Text style={styles.subscriptionBannerSubtext}>
+                      Subscribe to create listings & unlock premium features
+                    </Text>
+                  </View>
                 </View>
+                <Feather name="chevron-right" size={18} color={Colors.primary} />
               </View>
-              <Feather name="chevron-right" size={18} color={Colors.primary} />
-            </View>
-          </Pressable>
+            </Pressable>
           )}
 
           <Pressable
@@ -2722,7 +2794,11 @@ export default function CreateScreen() {
           {(isValidating || isSubmitting || validationMessage) && (
             <View style={styles.validationBanner}>
               <LinearGradient
-                colors={overallProgress === 100 ? ['#DCFCE7', '#BBF7D0', '#86EFAC'] : ['#E0F2FE', '#BAE6FD', '#7DD3FC']}
+                colors={
+                  overallProgress === 100
+                    ? ['#DCFCE7', '#BBF7D0', '#86EFAC']
+                    : ['#E0F2FE', '#BAE6FD', '#7DD3FC']
+                }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.validationGradient}
@@ -2731,7 +2807,7 @@ export default function CreateScreen() {
                 <View style={styles.progressBarContainer}>
                   <View style={[styles.progressBarFill, { width: `${overallProgress}%` }]} />
                 </View>
-                
+
                 <View style={styles.validationContent}>
                   {overallProgress < 100 ? (
                     <ActivityIndicator size="small" color="#0369A1" style={{ marginRight: 12 }} />
@@ -2754,7 +2830,7 @@ export default function CreateScreen() {
                       <Text style={styles.percentageText}>{overallProgress}%</Text>
                     </View>
                     <Text style={styles.validationMessage}>
-                      {validationMessage || 
+                      {validationMessage ||
                         (isValidating
                           ? 'Checking content quality and safety...'
                           : isSubmitting
@@ -2769,328 +2845,387 @@ export default function CreateScreen() {
         </ScrollView>
 
         {/* Subscription Picker Modal */}
-        {showSubscriptionSelector && (() => {
-          // Group subscriptions by tier ID and duration
-          type GroupedSubscription = {
-            tierId: string;
-            tierName: string;
-            durationDays: number;
-            count: number;
-            totalUsed: number;
-            totalAvailable: number;
-            totalLimit: number;
-            subscriptions: SubscriptionData[];
-            hasAvailable: boolean;
-            shortestExpiryDays: number;
-          };
+        {showSubscriptionSelector &&
+          (() => {
+            // Group subscriptions by tier ID and duration
+            type GroupedSubscription = {
+              tierId: string;
+              tierName: string;
+              durationDays: number;
+              count: number;
+              totalUsed: number;
+              totalAvailable: number;
+              totalLimit: number;
+              subscriptions: SubscriptionData[];
+              hasAvailable: boolean;
+              shortestExpiryDays: number;
+            };
 
-          const groupedSubs: GroupedSubscription[] = [];
-          const groupMap = new Map<string, GroupedSubscription>();
+            const groupedSubs: GroupedSubscription[] = [];
+            const groupMap = new Map<string, GroupedSubscription>();
 
-          allSubscriptions.forEach((sub) => {
-            if (!sub.tier) return;
-            
-            const key = `${sub.tier.id}-${sub.tier.durationDays}`;
-            
-            if (!groupMap.has(key)) {
-              groupMap.set(key, {
-                tierId: sub.tier.id,
-                tierName: sub.tier.name,
-                durationDays: sub.tier.durationDays,
-                count: 0,
-                totalUsed: 0,
-                totalAvailable: 0,
-                totalLimit: sub.tier.maxListings === -1 ? -1 : 0,
-                subscriptions: [],
-                hasAvailable: false,
-                shortestExpiryDays: Infinity,
-              });
-            }
-            
-            const group = groupMap.get(key)!;
-            group.count++;
-            group.subscriptions.push(sub);
-            group.totalUsed += sub.listingsUsed;
-            
-            const daysLeft = Math.max(0, Math.ceil((new Date(sub.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-            group.shortestExpiryDays = Math.min(group.shortestExpiryDays, daysLeft);
-            
-            if (sub.tier.maxListings === -1) {
-              group.totalLimit = -1;
-              group.totalAvailable = -1;
-              group.hasAvailable = true;
-            } else {
-              const available = sub.tier.maxListings - sub.listingsUsed;
-              if (available > 0) group.hasAvailable = true;
-              group.totalAvailable += available;
-              if (group.totalLimit !== -1) {
-                group.totalLimit += sub.tier.maxListings;
+            allSubscriptions.forEach((sub) => {
+              if (!sub.tier) return;
+
+              const key = `${sub.tier.id}-${sub.tier.durationDays}`;
+
+              if (!groupMap.has(key)) {
+                groupMap.set(key, {
+                  tierId: sub.tier.id,
+                  tierName: sub.tier.name,
+                  durationDays: sub.tier.durationDays,
+                  count: 0,
+                  totalUsed: 0,
+                  totalAvailable: 0,
+                  totalLimit: sub.tier.maxListings === -1 ? -1 : 0,
+                  subscriptions: [],
+                  hasAvailable: false,
+                  shortestExpiryDays: Infinity,
+                });
               }
-            }
-          });
 
-          groupedSubs.push(...groupMap.values());
+              const group = groupMap.get(key)!;
+              group.count++;
+              group.subscriptions.push(sub);
+              group.totalUsed += sub.listingsUsed;
 
-          console.log('[Create] Picker Modal - Grouped Subscriptions:', {
-            totalGroups: groupedSubs.length,
-            totalSubscriptions: allSubscriptions.length,
-            groups: groupedSubs.map(g => ({
-              tierName: g.tierName,
-              count: g.count,
-              totalUsed: g.totalUsed,
-              totalAvailable: g.totalAvailable,
-              totalLimit: g.totalLimit,
-              hasAvailable: g.hasAvailable,
-              subscriptionIds: g.subscriptions.map(s => s.id),
-            })),
-          });
+              const daysLeft = Math.max(
+                0,
+                Math.ceil((new Date(sub.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+              );
+              group.shortestExpiryDays = Math.min(group.shortestExpiryDays, daysLeft);
 
-          return (
-            <View style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0,0,0,0.5)',
-              justifyContent: 'flex-end',
-            }}>
-              <Pressable
-                style={{ flex: 1 }}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowSubscriptionSelector(false);
+              if (sub.tier.maxListings === -1) {
+                group.totalLimit = -1;
+                group.totalAvailable = -1;
+                group.hasAvailable = true;
+              } else {
+                const available = sub.tier.maxListings - sub.listingsUsed;
+                if (available > 0) group.hasAvailable = true;
+                group.totalAvailable += available;
+                if (group.totalLimit !== -1) {
+                  group.totalLimit += sub.tier.maxListings;
+                }
+              }
+            });
+
+            groupedSubs.push(...groupMap.values());
+
+            console.log('[Create] Picker Modal - Grouped Subscriptions:', {
+              totalGroups: groupedSubs.length,
+              totalSubscriptions: allSubscriptions.length,
+              groups: groupedSubs.map((g) => ({
+                tierName: g.tierName,
+                count: g.count,
+                totalUsed: g.totalUsed,
+                totalAvailable: g.totalAvailable,
+                totalLimit: g.totalLimit,
+                hasAvailable: g.hasAvailable,
+                subscriptionIds: g.subscriptions.map((s) => s.id),
+              })),
+            });
+
+            return (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(0,0,0,0.5)',
+                  justifyContent: 'flex-end',
                 }}
-              />
-              <View style={{
-                backgroundColor: '#fff',
-                borderTopLeftRadius: 20,
-                borderTopRightRadius: 20,
-                paddingTop: 16,
-                paddingBottom: insets.bottom + 16,
-                maxHeight: '80%',
-              }}>
-                {/* Header */}
-                <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: 18, fontWeight: '700', color: Colors.text }}>
-                      Choose Subscription
+              >
+                <Pressable
+                  style={{ flex: 1 }}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowSubscriptionSelector(false);
+                  }}
+                />
+                <View
+                  style={{
+                    backgroundColor: '#fff',
+                    borderTopLeftRadius: 20,
+                    borderTopRightRadius: 20,
+                    paddingTop: 16,
+                    paddingBottom: insets.bottom + 16,
+                    maxHeight: '80%',
+                  }}
+                >
+                  {/* Header */}
+                  <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <Text style={{ fontSize: 18, fontWeight: '700', color: Colors.text }}>
+                        Choose Subscription
+                      </Text>
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setShowSubscriptionSelector(false);
+                        }}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 16,
+                          backgroundColor: Colors.border,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Feather name="x" size={18} color={Colors.text} />
+                      </Pressable>
+                    </View>
+                    <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 4 }}>
+                      Select which subscription to use for this listing
                     </Text>
+                  </View>
+
+                  {/* Subscription List */}
+                  <ScrollView
+                    style={{ paddingHorizontal: 20 }}
+                    contentContainerStyle={{ paddingBottom: 30 }}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {groupedSubs.map((group) => {
+                      // Check if selected subscription is in this group
+                      const isGroupSelected = group.subscriptions.some(
+                        (sub) => selectedSubscription?.id === sub.id
+                      );
+
+                      return (
+                        <Pressable
+                          key={`${group.tierId}-${group.durationDays}`}
+                          onPress={() => {
+                            if (group.hasAvailable) {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+                              // Auto-select the subscription with the most available quota
+                              const bestSub = group.subscriptions
+                                .filter(
+                                  (sub) =>
+                                    sub.tier &&
+                                    (sub.tier.maxListings === -1 ||
+                                      sub.listingsUsed < sub.tier.maxListings)
+                                )
+                                .sort((a, b) => {
+                                  const aAvailable =
+                                    a.tier!.maxListings === -1
+                                      ? Infinity
+                                      : a.tier!.maxListings - a.listingsUsed;
+                                  const bAvailable =
+                                    b.tier!.maxListings === -1
+                                      ? Infinity
+                                      : b.tier!.maxListings - b.listingsUsed;
+                                  return bAvailable - aAvailable;
+                                })[0];
+
+                              if (bestSub) {
+                                setSelectedSubscription(bestSub);
+                                setActiveSubscription(bestSub);
+                                setShowSubscriptionSelector(false);
+                              }
+                            } else {
+                              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                              Alert.alert(
+                                'All Subscriptions Full',
+                                `All ${group.count} of your ${group.tierName} subscriptions have used their listings.`,
+                                [{ text: 'OK' }]
+                              );
+                            }
+                          }}
+                          style={{
+                            backgroundColor: isGroupSelected ? '#E8F4FD' : '#F8F9FA',
+                            borderRadius: 16,
+                            padding: 16,
+                            marginBottom: 12,
+                            borderWidth: 2,
+                            borderColor: isGroupSelected ? Colors.primary : 'transparent',
+                            opacity: group.hasAvailable ? 1 : 0.6,
+                          }}
+                        >
+                          {/* Header */}
+                          <View
+                            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}
+                          >
+                            <View
+                              style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: 12,
+                                borderWidth: 2,
+                                borderColor: isGroupSelected ? Colors.primary : Colors.border,
+                                backgroundColor: isGroupSelected ? Colors.primary : '#fff',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginRight: 12,
+                              }}
+                            >
+                              {isGroupSelected && <Feather name="check" size={14} color="#fff" />}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Text
+                                  style={{ fontSize: 15, fontWeight: '700', color: Colors.text }}
+                                >
+                                  {group.tierName}
+                                </Text>
+                                {group.count > 1 && (
+                                  <View
+                                    style={{
+                                      backgroundColor: Colors.primary,
+                                      paddingHorizontal: 8,
+                                      paddingVertical: 2,
+                                      borderRadius: 10,
+                                    }}
+                                  >
+                                    <Text
+                                      style={{ fontSize: 11, fontWeight: '700', color: '#fff' }}
+                                    >
+                                      ×{group.count}
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
+                              <Text
+                                style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 2 }}
+                              >
+                                {group.shortestExpiryDays}{' '}
+                                {group.shortestExpiryDays === 1 ? 'day' : 'days'} remaining
+                                {group.count > 1 && ' (shortest)'}
+                              </Text>
+                            </View>
+                            {!group.hasAvailable && (
+                              <View
+                                style={{
+                                  backgroundColor: '#FFF3E0',
+                                  paddingHorizontal: 8,
+                                  paddingVertical: 4,
+                                  borderRadius: 6,
+                                }}
+                              >
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#F57C00' }}>
+                                  FULL
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+
+                          {/* Stats */}
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              backgroundColor: '#fff',
+                              borderRadius: 10,
+                              padding: 10,
+                              gap: 8,
+                            }}
+                          >
+                            <View style={{ flex: 1, alignItems: 'center' }}>
+                              <Text
+                                style={{ fontSize: 16, fontWeight: '700', color: Colors.primary }}
+                              >
+                                {group.totalUsed}
+                              </Text>
+                              <Text style={{ fontSize: 10, color: Colors.textSecondary }}>
+                                {group.count > 1 ? 'Total Used' : 'Used'}
+                              </Text>
+                            </View>
+                            <View style={{ width: 1, backgroundColor: Colors.border }} />
+                            <View style={{ flex: 1, alignItems: 'center' }}>
+                              <Text
+                                style={{ fontSize: 16, fontWeight: '700', color: Colors.success }}
+                              >
+                                {group.totalAvailable === -1 ? '\u221e' : group.totalAvailable}
+                              </Text>
+                              <Text style={{ fontSize: 10, color: Colors.textSecondary }}>
+                                {group.count > 1 ? 'Total Left' : 'Available'}
+                              </Text>
+                            </View>
+                            <View style={{ width: 1, backgroundColor: Colors.border }} />
+                            <View style={{ flex: 1, alignItems: 'center' }}>
+                              <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.text }}>
+                                {group.totalLimit === -1 ? '\u221e' : group.totalLimit}
+                              </Text>
+                              <Text style={{ fontSize: 10, color: Colors.textSecondary }}>
+                                {group.count > 1 ? 'Combined' : 'Per Plan'}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Grouping Info */}
+                          {group.count > 1 && (
+                            <View
+                              style={{
+                                backgroundColor: '#F0F7FF',
+                                borderRadius: 8,
+                                padding: 8,
+                                marginTop: 8,
+                              }}
+                            >
+                              <Text
+                                style={{ fontSize: 11, color: Colors.primary, textAlign: 'center' }}
+                              >
+                                💡 Stats combined for all {group.count} subscriptions
+                              </Text>
+                            </View>
+                          )}
+                        </Pressable>
+                      );
+                    })}
+
+                    {/* Divider */}
+                    <View
+                      style={{
+                        height: 1,
+                        backgroundColor: Colors.border,
+                        marginVertical: 16,
+                      }}
+                    />
+
+                    {/* Buy More Button */}
                     <Pressable
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setShowSubscriptionSelector(false);
+                        router.push('/subscriptions');
                       }}
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 16,
-                        backgroundColor: Colors.border,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <Feather name="x" size={18} color={Colors.text} />
-                    </Pressable>
-                  </View>
-                  <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 4 }}>
-                    Select which subscription to use for this listing
-                  </Text>
-                </View>
-
-                {/* Subscription List */}
-                <ScrollView
-                  style={{ paddingHorizontal: 20 }}
-                  contentContainerStyle={{ paddingBottom: 30 }}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {groupedSubs.map((group) => {
-                    // Check if selected subscription is in this group
-                    const isGroupSelected = group.subscriptions.some(sub => selectedSubscription?.id === sub.id);
-                    
-                    return (
-                      <Pressable
-                        key={`${group.tierId}-${group.durationDays}`}
-                        onPress={() => {
-                          if (group.hasAvailable) {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            
-                            // Auto-select the subscription with the most available quota
-                            const bestSub = group.subscriptions
-                              .filter(sub => sub.tier && (sub.tier.maxListings === -1 || sub.listingsUsed < sub.tier.maxListings))
-                              .sort((a, b) => {
-                                const aAvailable = a.tier!.maxListings === -1 ? Infinity : (a.tier!.maxListings - a.listingsUsed);
-                                const bAvailable = b.tier!.maxListings === -1 ? Infinity : (b.tier!.maxListings - b.listingsUsed);
-                                return bAvailable - aAvailable;
-                              })[0];
-                            
-                            if (bestSub) {
-                              setSelectedSubscription(bestSub);
-                              setActiveSubscription(bestSub);
-                              setShowSubscriptionSelector(false);
-                            }
-                          } else {
-                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                            Alert.alert(
-                              'All Subscriptions Full',
-                              `All ${group.count} of your ${group.tierName} subscriptions have used their listings.`,
-                              [{ text: 'OK' }]
-                            );
-                          }
-                        }}
-                        style={{
-                          backgroundColor: isGroupSelected ? '#E8F4FD' : '#F8F9FA',
-                          borderRadius: 16,
-                          padding: 16,
-                          marginBottom: 12,
-                          borderWidth: 2,
-                          borderColor: isGroupSelected ? Colors.primary : 'transparent',
-                          opacity: group.hasAvailable ? 1 : 0.6,
-                        }}
-                      >
-                        {/* Header */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-                          <View style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: 12,
-                            borderWidth: 2,
-                            borderColor: isGroupSelected ? Colors.primary : Colors.border,
-                            backgroundColor: isGroupSelected ? Colors.primary : '#fff',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            marginRight: 12,
-                          }}>
-                            {isGroupSelected && <Feather name="check" size={14} color="#fff" />}
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                              <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.text }}>
-                                {group.tierName}
-                              </Text>
-                              {group.count > 1 && (
-                                <View style={{
-                                  backgroundColor: Colors.primary,
-                                  paddingHorizontal: 8,
-                                  paddingVertical: 2,
-                                  borderRadius: 10,
-                                }}>
-                                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#fff' }}>
-                                    ×{group.count}
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                            <Text style={{ fontSize: 12, color: Colors.textSecondary, marginTop: 2 }}>
-                              {group.shortestExpiryDays} {group.shortestExpiryDays === 1 ? 'day' : 'days'} remaining
-                              {group.count > 1 && ' (shortest)'}
-                            </Text>
-                          </View>
-                          {!group.hasAvailable && (
-                            <View style={{
-                              backgroundColor: '#FFF3E0',
-                              paddingHorizontal: 8,
-                              paddingVertical: 4,
-                              borderRadius: 6,
-                            }}>
-                              <Text style={{ fontSize: 11, fontWeight: '600', color: '#F57C00' }}>
-                                FULL
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-
-                        {/* Stats */}
-                        <View style={{
+                      style={({ pressed }) => [
+                        {
                           flexDirection: 'row',
-                          backgroundColor: '#fff',
-                          borderRadius: 10,
-                          padding: 10,
-                          gap: 8,
-                        }}>
-                          <View style={{ flex: 1, alignItems: 'center' }}>
-                            <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.primary }}>
-                              {group.totalUsed}
-                            </Text>
-                            <Text style={{ fontSize: 10, color: Colors.textSecondary }}>
-                              {group.count > 1 ? 'Total Used' : 'Used'}
-                            </Text>
-                          </View>
-                          <View style={{ width: 1, backgroundColor: Colors.border }} />
-                          <View style={{ flex: 1, alignItems: 'center' }}>
-                            <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.success }}>
-                              {group.totalAvailable === -1 ? '\u221e' : group.totalAvailable}
-                            </Text>
-                            <Text style={{ fontSize: 10, color: Colors.textSecondary }}>
-                              {group.count > 1 ? 'Total Left' : 'Available'}
-                            </Text>
-                          </View>
-                          <View style={{ width: 1, backgroundColor: Colors.border }} />
-                          <View style={{ flex: 1, alignItems: 'center' }}>
-                            <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.text }}>
-                              {group.totalLimit === -1 ? '\u221e' : group.totalLimit}
-                            </Text>
-                            <Text style={{ fontSize: 10, color: Colors.textSecondary }}>
-                              {group.count > 1 ? 'Combined' : 'Per Plan'}
-                            </Text>
-                          </View>
-                        </View>
-                        
-                        {/* Grouping Info */}
-                        {group.count > 1 && (
-                          <View style={{
-                            backgroundColor: '#F0F7FF',
-                            borderRadius: 8,
-                            padding: 8,
-                            marginTop: 8,
-                          }}>
-                            <Text style={{ fontSize: 11, color: Colors.primary, textAlign: 'center' }}>
-                              💡 Stats combined for all {group.count} subscriptions
-                            </Text>
-                          </View>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                
-                  {/* Divider */}
-                  <View style={{
-                    height: 1,
-                    backgroundColor: Colors.border,
-                    marginVertical: 16,
-                  }} />
-                  
-                  {/* Buy More Button */}
-                  <Pressable
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setShowSubscriptionSelector(false);
-                      router.push('/subscriptions');
-                    }}
-                    style={({ pressed }) => [{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: Colors.primary,
-                      borderRadius: 12,
-                      padding: 18,
-                      shadowColor: Colors.primary,
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.3,
-                      shadowRadius: 8,
-                      elevation: 6,
-                    }, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-                  >
-                    <Feather name="plus-circle" size={18} color="#fff" />
-                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', marginLeft: 10 }}>
-                      Buy More Subscriptions
-                    </Text>
-                  </Pressable>
-                </ScrollView>
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: Colors.primary,
+                          borderRadius: 12,
+                          padding: 18,
+                          shadowColor: Colors.primary,
+                          shadowOffset: { width: 0, height: 4 },
+                          shadowOpacity: 0.3,
+                          shadowRadius: 8,
+                          elevation: 6,
+                        },
+                        pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                      ]}
+                    >
+                      <Feather name="plus-circle" size={18} color="#fff" />
+                      <Text
+                        style={{ color: '#fff', fontSize: 16, fontWeight: '700', marginLeft: 10 }}
+                      >
+                        Buy More Subscriptions
+                      </Text>
+                    </Pressable>
+                  </ScrollView>
+                </View>
               </View>
-            </View>
-          );
-        })()}
+            );
+          })()}
 
         <VideoRecorderModal
           visible={showRecorder}

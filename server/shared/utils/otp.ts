@@ -152,7 +152,9 @@ class OTPService {
               });
               if (dltResponse.success) {
                 sentVia = 'dlt';
-                console.log(`[OTP] Sent via BSNL DLT to +91${phone} (ID: ${dltResponse.messageId})`);
+                console.log(
+                  `[OTP] Sent via BSNL DLT to +91${phone} (ID: ${dltResponse.messageId})`
+                );
               } else {
                 console.warn(`[OTP] BSNL DLT also failed: ${dltResponse.error}`);
                 console.log(`[OTP] Code for +91${phone}: ${otp}`);
@@ -172,7 +174,9 @@ class OTPService {
               });
               if (dltResponse.success) {
                 sentVia = 'dlt';
-                console.log(`[OTP] Sent via BSNL DLT to +91${phone} (ID: ${dltResponse.messageId})`);
+                console.log(
+                  `[OTP] Sent via BSNL DLT to +91${phone} (ID: ${dltResponse.messageId})`
+                );
               } else {
                 console.log(`[OTP] Code for +91${phone}: ${otp}`);
               }

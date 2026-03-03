@@ -131,7 +131,7 @@ export async function finalizeUpload(uploadId: string): Promise<string> {
     // Write chunks in order using async streams
     for (let i = 0; i < session.totalChunks; i++) {
       const chunkPath = path.join(UPLOAD_DIR, `${uploadId}_chunk_${i}`);
-      
+
       // Use stream pipeline for efficient async copy (no blocking)
       const readStream = fs.createReadStream(chunkPath);
       await new Promise<void>((resolve, reject) => {
@@ -139,11 +139,11 @@ export async function finalizeUpload(uploadId: string): Promise<string> {
         readStream.on('end', () => resolve());
         readStream.on('error', reject);
       });
-      
+
       // Clean up chunk file asynchronously
-      await fsPromises.unlink(chunkPath).catch((err) =>
-        console.warn(`[VideoUpload] Failed to delete chunk ${i}:`, err)
-      );
+      await fsPromises
+        .unlink(chunkPath)
+        .catch((err) => console.warn(`[VideoUpload] Failed to delete chunk ${i}:`, err));
     }
 
     return new Promise((resolve, reject) => {
@@ -190,7 +190,7 @@ export async function cancelUpload(uploadId: string): Promise<void> {
         })
       );
     }
-    
+
     await Promise.all(deletePromises);
     uploadSessions.delete(uploadId);
     console.log(`[VideoUpload] Cancelled upload ${uploadId}`);
@@ -229,8 +229,9 @@ export async function cleanupExpiredUploads(): Promise<void> {
 }
 
 // Run cleanup every hour
-setInterval(() => {
-  cleanupExpiredUploads().catch((err) => 
-    console.error('[VideoUpload] Cleanup error:', err)
-  );
-}, 60 * 60 * 1000);
+setInterval(
+  () => {
+    cleanupExpiredUploads().catch((err) => console.error('[VideoUpload] Cleanup error:', err));
+  },
+  60 * 60 * 1000
+);

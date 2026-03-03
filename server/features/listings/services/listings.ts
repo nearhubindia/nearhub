@@ -96,8 +96,8 @@ export async function getActiveListing(
   // If geo-filtering is requested, filter by distance
   if (latitude !== undefined && longitude !== undefined && radiusKm !== undefined && radiusKm > 0) {
     // Haversine formula for distance calculation in PostgreSQL
-    // Distance in km = 6371 * 2 * ASIN(SQRT(POWER(SIN((lat2 - lat1) * PI() / 180 / 2), 2) + 
-    //                COS(lat1 * PI() / 180) * COS(lat2 * PI() / 180) * 
+    // Distance in km = 6371 * 2 * ASIN(SQRT(POWER(SIN((lat2 - lat1) * PI() / 180 / 2), 2) +
+    //                COS(lat1 * PI() / 180) * COS(lat2 * PI() / 180) *
     //                POWER(SIN((lon2 - lon1) * PI() / 180 / 2), 2)))
     const distanceFormula = sql`(
       6371 * 2 * ASIN(SQRT(
@@ -108,7 +108,7 @@ export async function getActiveListing(
     )`;
 
     const allResults = await query;
-    
+
     // Filter results by distance (since we can't use HAVING without GROUP BY)
     const filtered = allResults.filter((listing) => {
       if (!listing.latitude || !listing.longitude) return false;
@@ -116,21 +116,23 @@ export async function getActiveListing(
       const lon1 = parseFloat(listing.longitude);
       const lat2 = latitude;
       const lon2 = longitude;
-      
+
       // Haversine formula in JavaScript
       const R = 6371; // Earth's radius in km
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = 
+      const dLat = ((lat2 - lat1) * Math.PI) / 180;
+      const dLon = ((lon2 - lon1) * Math.PI) / 180;
+      const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        Math.cos((lat1 * Math.PI) / 180) *
+          Math.cos((lat2 * Math.PI) / 180) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       const distance = R * c;
-      
+
       return distance <= radiusKm;
     });
-    
+
     return filtered;
   }
 

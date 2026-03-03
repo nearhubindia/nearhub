@@ -146,7 +146,12 @@ export default function ListingDetailScreen() {
         }}
       >
         <View style={styles.imageContainer}>
-          <MediaCarousel images={listing.images} videos={listing.videos} height={width * 1.3} isFocused={isFocused} />
+          <MediaCarousel
+            images={listing.images}
+            videos={listing.videos}
+            height={width * 1.3}
+            isFocused={isFocused}
+          />
 
           <Pressable
             style={[styles.headerButton, styles.backIcon, { top: (insets.top || webTopInset) + 8 }]}

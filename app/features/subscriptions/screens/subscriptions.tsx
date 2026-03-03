@@ -168,7 +168,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
         const activeSubscriptions = data.data.filter(
           (s: ActiveSubscription) => s.status === 'active' && new Date(s.expiresAt) > new Date()
         );
-        
+
         // Just take the first one for display compatibility
         // (TODO: Show all subscriptions in a list instead)
         setActiveSubscription(activeSubscriptions.length > 0 ? activeSubscriptions[0] : null);
@@ -405,44 +405,43 @@ export default function SubscriptionsScreen(): React.JSX.Element {
 
       if (verifyData.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
+
         // Force refresh subscription data
         await fetchActiveSubscription();
-        
+
         // Build success message with invoice info
         let successMessage = `Your ${selectedTier.name} plan is now active for ${duration} days.`;
-        
+
         if (verifyData.invoiceGenerated && verifyData.invoice?.invoiceNumber) {
           successMessage += `\n\n✅ Invoice Generated: ${verifyData.invoice.invoiceNumber}`;
           successMessage += `\n₹${(verifyData.invoice.total || 0).toFixed(2)}`;
         } else if (verifyData.invoiceGenerated === false) {
           successMessage += '\n\n⚠️ Invoice generation failed. Contact support if needed.';
         }
-        
+
         console.log('[Subscriptions] Payment successful:', verifyData);
-        
-        Alert.alert(
-          'Payment Successful!',
-          successMessage,
-          [
-            { 
-              text: 'OK',
-              onPress: () => {
-                // Force another refresh when user closes alert
-                fetchActiveSubscription();
-              }
+
+        Alert.alert('Payment Successful!', successMessage, [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Force another refresh when user closes alert
+              fetchActiveSubscription();
             },
-            {
-              text: 'Create Listing',
-              onPress: () => {
-                fetchActiveSubscription();
-                router.back();
-              },
+          },
+          {
+            text: 'Create Listing',
+            onPress: () => {
+              fetchActiveSubscription();
+              router.back();
             },
-          ]
-        );
+          },
+        ]);
       } else {
-        Alert.alert('Verification Failed', verifyData.error || 'Payment verification failed. Contact support.');
+        Alert.alert(
+          'Verification Failed',
+          verifyData.error || 'Payment verification failed. Contact support.'
+        );
       }
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : 'Payment failed';
@@ -460,11 +459,9 @@ export default function SubscriptionsScreen(): React.JSX.Element {
   const getFeaturesList = (tier: SubscriptionTier): string[] => {
     const features: string[] = [];
     features.push(
-      tier.maxListings === -1
-        ? 'Unlimited listings'
-        : `Up to ${tier.maxListings} listings/month`
+      tier.maxListings === -1 ? 'Unlimited listings' : `Up to ${tier.maxListings} listings/month`
     );
-    
+
     // Only show featured listings if the tier actually includes them
     if (tier.featuredListingsPerMonth > 0) {
       features.push(
@@ -473,7 +470,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
           : `${tier.featuredListingsPerMonth} featured listing${tier.featuredListingsPerMonth !== 1 ? 's' : ''}`
       );
     }
-    
+
     if (tier.features?.includes('priority_support')) {
       features.push('Priority support');
     }
@@ -522,91 +519,107 @@ export default function SubscriptionsScreen(): React.JSX.Element {
         }
       >
         {/* Active Subscription Card */}
-        {activeSubscription && activeSubscription.tier && (() => {
-          const expiresAt = new Date(activeSubscription.expiresAt);
-          const now = new Date();
-          const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-          const maxListings = activeSubscription.tier.maxListings;
-          const listingsUsed = activeSubscription.listingsUsed;
-          const isUnlimited = maxListings === -1;
-          const usagePercent = isUnlimited ? 0 : maxListings > 0 ? Math.min(100, (listingsUsed / maxListings) * 100) : 0;
+        {activeSubscription &&
+          activeSubscription.tier &&
+          (() => {
+            const expiresAt = new Date(activeSubscription.expiresAt);
+            const now = new Date();
+            const daysLeft = Math.max(
+              0,
+              Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+            );
+            const maxListings = activeSubscription.tier.maxListings;
+            const listingsUsed = activeSubscription.listingsUsed;
+            const isUnlimited = maxListings === -1;
+            const usagePercent = isUnlimited
+              ? 0
+              : maxListings > 0
+                ? Math.min(100, (listingsUsed / maxListings) * 100)
+                : 0;
 
-          return (
-            <View style={styles.activeSubCard}>
-              <LinearGradient
-                colors={['#0A66C2', '#0D8AED']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.activeSubGradient}
-              >
-                {/* Header */}
-                <View style={styles.activeSubHeader}>
-                  <View style={styles.activeSubBadge}>
-                    <Feather name="check-circle" size={14} color="#fff" />
-                    <Text style={styles.activeSubBadgeText}>Active Plan</Text>
+            return (
+              <View style={styles.activeSubCard}>
+                <LinearGradient
+                  colors={['#0A66C2', '#0D8AED']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.activeSubGradient}
+                >
+                  {/* Header */}
+                  <View style={styles.activeSubHeader}>
+                    <View style={styles.activeSubBadge}>
+                      <Feather name="check-circle" size={14} color="#fff" />
+                      <Text style={styles.activeSubBadgeText}>Active Plan</Text>
+                    </View>
+                    <Text style={styles.activeSubDays}>
+                      {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
+                    </Text>
                   </View>
-                  <Text style={styles.activeSubDays}>
-                    {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
+
+                  {/* Plan name */}
+                  <Text style={styles.activeSubPlanName}>{activeSubscription.tier.name}</Text>
+                  <Text style={styles.activeSubPrice}>
+                    ₹{parseFloat(activeSubscription.tier.price).toFixed(0)}
                   </Text>
-                </View>
 
-                {/* Plan name */}
-                <Text style={styles.activeSubPlanName}>{activeSubscription.tier.name}</Text>
-                <Text style={styles.activeSubPrice}>₹{parseFloat(activeSubscription.tier.price).toFixed(0)}</Text>
-
-                {/* Listing Stats */}
-                <View style={styles.activeSubStats}>
-                  <View style={styles.activeSubStatRow}>
-                    <View style={styles.activeSubStatItem}>
-                      <Text style={styles.activeSubStatValue}>{listingsUsed}</Text>
-                      <Text style={styles.activeSubStatLabel}>Active Listings</Text>
-                    </View>
-                    <View style={styles.activeSubStatDivider} />
-                    <View style={styles.activeSubStatItem}>
-                      <Text style={styles.activeSubStatValue}>
-                        {isUnlimited ? '∞' : maxListings - listingsUsed}
-                      </Text>
-                      <Text style={styles.activeSubStatLabel}>Available</Text>
-                    </View>
-                    <View style={styles.activeSubStatDivider} />
-                    <View style={styles.activeSubStatItem}>
-                      <Text style={styles.activeSubStatValue}>
-                        {activeSubscription.totalListingsCreated}
-                      </Text>
-                      <Text style={styles.activeSubStatLabel}>Total Created</Text>
-                    </View>
-                  </View>
-
-                  {/* Progress bar */}
-                  {!isUnlimited && (
-                    <View style={styles.activeSubProgress}>
-                      <View style={styles.activeSubProgressTrack}>
-                        <View
-                          style={[
-                            styles.activeSubProgressFill,
-                            { width: `${usagePercent}%` },
-                            usagePercent >= 90 && { backgroundColor: '#FF6B6B' },
-                          ]}
-                        />
+                  {/* Listing Stats */}
+                  <View style={styles.activeSubStats}>
+                    <View style={styles.activeSubStatRow}>
+                      <View style={styles.activeSubStatItem}>
+                        <Text style={styles.activeSubStatValue}>{listingsUsed}</Text>
+                        <Text style={styles.activeSubStatLabel}>Active Listings</Text>
                       </View>
-                      <Text style={styles.activeSubProgressText}>
-                        {listingsUsed}/{maxListings} listings used
-                      </Text>
+                      <View style={styles.activeSubStatDivider} />
+                      <View style={styles.activeSubStatItem}>
+                        <Text style={styles.activeSubStatValue}>
+                          {isUnlimited ? '∞' : maxListings - listingsUsed}
+                        </Text>
+                        <Text style={styles.activeSubStatLabel}>Available</Text>
+                      </View>
+                      <View style={styles.activeSubStatDivider} />
+                      <View style={styles.activeSubStatItem}>
+                        <Text style={styles.activeSubStatValue}>
+                          {activeSubscription.totalListingsCreated}
+                        </Text>
+                        <Text style={styles.activeSubStatLabel}>Total Created</Text>
+                      </View>
                     </View>
-                  )}
-                </View>
 
-                {/* Expiry */}
-                <View style={styles.activeSubExpiry}>
-                  <Feather name="calendar" size={13} color="rgba(255,255,255,0.7)" />
-                  <Text style={styles.activeSubExpiryText}>
-                    Expires {expiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </Text>
-                </View>
-              </LinearGradient>
-            </View>
-          );
-        })()}
+                    {/* Progress bar */}
+                    {!isUnlimited && (
+                      <View style={styles.activeSubProgress}>
+                        <View style={styles.activeSubProgressTrack}>
+                          <View
+                            style={[
+                              styles.activeSubProgressFill,
+                              { width: `${usagePercent}%` },
+                              usagePercent >= 90 && { backgroundColor: '#FF6B6B' },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.activeSubProgressText}>
+                          {listingsUsed}/{maxListings} listings used
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Expiry */}
+                  <View style={styles.activeSubExpiry}>
+                    <Feather name="calendar" size={13} color="rgba(255,255,255,0.7)" />
+                    <Text style={styles.activeSubExpiryText}>
+                      Expires{' '}
+                      {expiresAt.toLocaleDateString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </Text>
+                  </View>
+                </LinearGradient>
+              </View>
+            );
+          })()}
 
         {/* Info Banner */}
         {!activeSubscription && (
@@ -615,7 +628,8 @@ export default function SubscriptionsScreen(): React.JSX.Element {
             <View style={styles.infoBannerContent}>
               <Text style={styles.infoBannerTitle}>Subscribe to List</Text>
               <Text style={styles.infoBannerText}>
-                Choose a plan to create listings and unlock premium features. Or use a coupon code for free listings.
+                Choose a plan to create listings and unlock premium features. Or use a coupon code
+                for free listings.
               </Text>
             </View>
           </View>
@@ -771,8 +785,20 @@ export default function SubscriptionsScreen(): React.JSX.Element {
 
                       <View style={styles.tierPriceCol}>
                         <View style={styles.tierPriceRow}>
-                          <Text style={[styles.tierPriceCurrency, isSelected && { color: Colors.primary }]}>₹</Text>
-                          <Text style={[styles.tierPriceAmount, isSelected && { color: Colors.primary }]}>
+                          <Text
+                            style={[
+                              styles.tierPriceCurrency,
+                              isSelected && { color: Colors.primary },
+                            ]}
+                          >
+                            ₹
+                          </Text>
+                          <Text
+                            style={[
+                              styles.tierPriceAmount,
+                              isSelected && { color: Colors.primary },
+                            ]}
+                          >
                             {price.toLocaleString('en-IN')}
                           </Text>
                         </View>
@@ -791,10 +817,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                       {features.slice(0, 4).map((feature, idx) => (
                         <View
                           key={idx}
-                          style={[
-                            styles.featureChip,
-                            isSelected && styles.featureChipSelected,
-                          ]}
+                          style={[styles.featureChip, isSelected && styles.featureChipSelected]}
                         >
                           <Feather
                             name="check"

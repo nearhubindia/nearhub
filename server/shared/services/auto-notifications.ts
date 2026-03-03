@@ -502,7 +502,9 @@ export async function notifyReportReviewed(
         priority: 'high',
       });
 
-      console.log(`[Auto-Notify] Report action notification sent to reported user: ${reportedUserId}`);
+      console.log(
+        `[Auto-Notify] Report action notification sent to reported user: ${reportedUserId}`
+      );
     }
   } catch (error) {
     console.error('[Auto-Notify] Failed to send report reviewed notification:', error);
@@ -730,7 +732,9 @@ export async function notifyViewMilestone(
       priority: 'default',
     });
 
-    console.log(`[Auto-Notify] View milestone (${viewCount}) notification sent to seller: ${sellerId}`);
+    console.log(
+      `[Auto-Notify] View milestone (${viewCount}) notification sent to seller: ${sellerId}`
+    );
   } catch (error) {
     console.error('[Auto-Notify] Failed to send view milestone notification:', error);
   }

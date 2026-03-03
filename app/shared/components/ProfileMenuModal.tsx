@@ -1,5 +1,14 @@
 import React, { useEffect, useRef } from 'react';
-import { Modal, View, Text, Pressable, ScrollView, StyleSheet, Platform, Animated } from 'react-native';
+import {
+  Modal,
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Platform,
+  Animated,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

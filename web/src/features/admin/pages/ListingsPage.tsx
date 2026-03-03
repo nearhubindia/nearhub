@@ -29,19 +29,11 @@ export default function ListingsPage() {
 
   return (
     <>
-      <ListingsView
-        onEditListing={openEditModal}
-        onCreateListing={openCreateModal}
-      />
+      <ListingsView onEditListing={openEditModal} onCreateListing={openCreateModal} />
       {showEditModal && editingListing && (
-        <EditListingModal
-          listing={editingListing}
-          onClose={closeEditModal}
-        />
+        <EditListingModal listing={editingListing} onClose={closeEditModal} />
       )}
-      {showCreateModal && (
-        <CreateListingModal onClose={closeCreateModal} />
-      )}
+      {showCreateModal && <CreateListingModal onClose={closeCreateModal} />}
     </>
   );
 }

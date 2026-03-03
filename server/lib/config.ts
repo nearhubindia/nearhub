@@ -10,8 +10,7 @@ export const SERVER_CONFIG = {
   HOST: process.env.SERVER_HOST || 'localhost',
 
   // Database configuration
-  DATABASE_URL:
-    process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/nearhub',
+  DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/nearhub',
   DB_MAX_CONNECTIONS: parseInt(process.env.DB_MAX_CONNECTIONS || '20', 10),
   DB_IDLE_TIMEOUT_MS: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '30000', 10),
   DB_CONNECTION_TIMEOUT_MS: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS || '2000', 10),
@@ -76,7 +75,9 @@ export const SERVER_CONFIG = {
   // Admin
   ADMIN_DEFAULT_EMAIL: process.env.ADMIN_DEFAULT_EMAIL || 'admin@nearhub.local',
   ADMIN_DEFAULT_PASSWORD: process.env.ADMIN_DEFAULT_PASSWORD || 'admin@123',
-  ADMIN_JWT_SECRET: process.env.ADMIN_JWT_SECRET || 'your_very_secure_admin_jwt_secret_key_change_this_in_production',
+  ADMIN_JWT_SECRET:
+    process.env.ADMIN_JWT_SECRET ||
+    'your_very_secure_admin_jwt_secret_key_change_this_in_production',
   ADMIN_JWT_EXPIRES_IN: process.env.ADMIN_JWT_EXPIRES_IN || '24h',
 
   // Logging

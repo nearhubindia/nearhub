@@ -1,17 +1,92 @@
 [
-  { "username": "seller001", "password": "seller001", "mobile": "9876543210", "location": "Mumbai, Maharashtra" },
-  { "username": "seller002", "password": "seller002", "mobile": "9876543211", "location": "Delhi, Delhi" },
-  { "username": "seller003", "password": "seller003", "mobile": "9876543212", "location": "Bangalore, Karnataka" },
-  { "username": "seller004", "password": "seller004", "mobile": "9876543213", "location": "Pune, Maharashtra" },
-  { "username": "seller005", "password": "seller005", "mobile": "9876543214", "location": "Hyderabad, Telangana" },
-  { "username": "seller006", "password": "seller006", "mobile": "9876543215", "location": "Chennai, Tamil Nadu" },
-  { "username": "seller007", "password": "seller007", "mobile": "9876543216", "location": "Kolkata, West Bengal" },
-  { "username": "seller008", "password": "seller008", "mobile": "9876543217", "location": "Ahmedabad, Gujarat" },
-  { "username": "seller009", "password": "seller009", "mobile": "9876543218", "location": "Jaipur, Rajasthan" },
-  { "username": "seller010", "password": "seller010", "mobile": "9876543219", "location": "Lucknow, Uttar Pradesh" },
-  { "username": "buyer001", "password": "buyer001", "mobile": "9876543220", "location": "Indore, Madhya Pradesh" },
-  { "username": "buyer002", "password": "buyer002", "mobile": "9876543221", "location": "Surat, Gujarat" },
-  { "username": "buyer003", "password": "buyer003", "mobile": "9876543222", "location": "Chandigarh, Chandigarh" },
-  { "username": "admin", "password": "admin", "mobile": "9876543223", "location": "Gurgaon, Haryana" },
-  { "username": "testuser", "password": "testuser", "mobile": "9876543224", "location": "Visakhapatnam, Andhra Pradesh" }
+  {
+    "username": "seller001",
+    "password": "seller001",
+    "mobile": "9876543210",
+    "location": "Mumbai, Maharashtra"
+  },
+  {
+    "username": "seller002",
+    "password": "seller002",
+    "mobile": "9876543211",
+    "location": "Delhi, Delhi"
+  },
+  {
+    "username": "seller003",
+    "password": "seller003",
+    "mobile": "9876543212",
+    "location": "Bangalore, Karnataka"
+  },
+  {
+    "username": "seller004",
+    "password": "seller004",
+    "mobile": "9876543213",
+    "location": "Pune, Maharashtra"
+  },
+  {
+    "username": "seller005",
+    "password": "seller005",
+    "mobile": "9876543214",
+    "location": "Hyderabad, Telangana"
+  },
+  {
+    "username": "seller006",
+    "password": "seller006",
+    "mobile": "9876543215",
+    "location": "Chennai, Tamil Nadu"
+  },
+  {
+    "username": "seller007",
+    "password": "seller007",
+    "mobile": "9876543216",
+    "location": "Kolkata, West Bengal"
+  },
+  {
+    "username": "seller008",
+    "password": "seller008",
+    "mobile": "9876543217",
+    "location": "Ahmedabad, Gujarat"
+  },
+  {
+    "username": "seller009",
+    "password": "seller009",
+    "mobile": "9876543218",
+    "location": "Jaipur, Rajasthan"
+  },
+  {
+    "username": "seller010",
+    "password": "seller010",
+    "mobile": "9876543219",
+    "location": "Lucknow, Uttar Pradesh"
+  },
+  {
+    "username": "buyer001",
+    "password": "buyer001",
+    "mobile": "9876543220",
+    "location": "Indore, Madhya Pradesh"
+  },
+  {
+    "username": "buyer002",
+    "password": "buyer002",
+    "mobile": "9876543221",
+    "location": "Surat, Gujarat"
+  },
+  {
+    "username": "buyer003",
+    "password": "buyer003",
+    "mobile": "9876543222",
+    "location": "Chandigarh, Chandigarh"
+  },
+  {
+    "username": "admin",
+    "password": "admin",
+    "mobile": "9876543223",
+    "location": "Gurgaon, Haryana"
+  },
+  {
+    "username": "testuser",
+    "password": "testuser",
+    "mobile": "9876543224",
+    "location": "Visakhapatnam, Andhra Pradesh"
+  }
 ]

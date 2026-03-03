@@ -116,59 +116,59 @@ then.responseArrayLength(context, 5);
 // Check object matches
 then.responseMatches(context, {
   id: 'expected-id',
-  status: 'active'
+  status: 'active',
 });
 ```
 
 ### Test Data
 
 ```typescript
-testData.validPhone()        // '+919876543210'
-testData.validOTP()          // '123456'
-testData.validEmail()        // 'test{timestamp}@example.com'
-testData.validName()         // 'Test User {timestamp}'
-testData.validListing()      // Complete listing object
-testData.validCoupon()       // Complete coupon object
-testData.validSubscription() // Complete subscription object
+testData.validPhone(); // '+919876543210'
+testData.validOTP(); // '123456'
+testData.validEmail(); // 'test{timestamp}@example.com'
+testData.validName(); // 'Test User {timestamp}'
+testData.validListing(); // Complete listing object
+testData.validCoupon(); // Complete coupon object
+testData.validSubscription(); // Complete subscription object
 ```
 
 ## GWT Helper Reference
 
 ### Given (Setup)
 
-| Helper | Purpose |
-|--------|---------|
-| `given.appIsRunning(app)` | Create test context with app |
-| `given.userIsAuthenticated(context, token, userId)` | Add auth to context |
-| `given.userExists(context, userData)` | Add user data to context |
-| `given.listingExists(context, listing)` | Add listing to context |
-| `given.dataExists(context, key, data)` | Add custom data to context |
+| Helper                                              | Purpose                      |
+| --------------------------------------------------- | ---------------------------- |
+| `given.appIsRunning(app)`                           | Create test context with app |
+| `given.userIsAuthenticated(context, token, userId)` | Add auth to context          |
+| `given.userExists(context, userData)`               | Add user data to context     |
+| `given.listingExists(context, listing)`             | Add listing to context       |
+| `given.dataExists(context, key, data)`              | Add custom data to context   |
 
 ### When (Actions)
 
-| Helper | Purpose |
-|--------|---------|
-| `when.post(context, endpoint, body)` | Make POST request |
-| `when.get(context, endpoint)` | Make GET request |
-| `when.patch(context, endpoint, body)` | Make PATCH request |
-| `when.delete(context, endpoint)` | Make DELETE request |
-| `when.put(context, endpoint, body)` | Make PUT request |
+| Helper                                | Purpose             |
+| ------------------------------------- | ------------------- |
+| `when.post(context, endpoint, body)`  | Make POST request   |
+| `when.get(context, endpoint)`         | Make GET request    |
+| `when.patch(context, endpoint, body)` | Make PATCH request  |
+| `when.delete(context, endpoint)`      | Make DELETE request |
+| `when.put(context, endpoint, body)`   | Make PUT request    |
 
 ### Then (Assertions)
 
-| Helper | Purpose |
-|--------|---------|
-| `then.statusCodeIs(context, code)` | Check HTTP status code |
-| `then.responseIsSuccessful(context)` | Check success flag true |
-| `then.responseHasError(context)` | Check error exists |
-| `then.responseHasField(context, field)` | Check field exists |
-| `then.responseHasField(context, field, value)` | Check field value |
-| `then.responseMatches(context, obj)` | Check response matches object |
-| `then.responseIsEmptyArray(context)` | Check empty array |
-| `then.responseIsNonEmptyArray(context)` | Check non-empty array |
-| `then.responseArrayLength(context, len)` | Check array length |
-| `then.errorIsThrown(context)` | Check error thrown |
-| `then.assert(condition, msg)` | Custom assertion |
+| Helper                                         | Purpose                       |
+| ---------------------------------------------- | ----------------------------- |
+| `then.statusCodeIs(context, code)`             | Check HTTP status code        |
+| `then.responseIsSuccessful(context)`           | Check success flag true       |
+| `then.responseHasError(context)`               | Check error exists            |
+| `then.responseHasField(context, field)`        | Check field exists            |
+| `then.responseHasField(context, field, value)` | Check field value             |
+| `then.responseMatches(context, obj)`           | Check response matches object |
+| `then.responseIsEmptyArray(context)`           | Check empty array             |
+| `then.responseIsNonEmptyArray(context)`        | Check non-empty array         |
+| `then.responseArrayLength(context, len)`       | Check array length            |
+| `then.errorIsThrown(context)`                  | Check error thrown            |
+| `then.assert(condition, msg)`                  | Custom assertion              |
 
 ## Common Test Scenarios
 
@@ -178,7 +178,7 @@ testData.validSubscription() // Complete subscription object
 it('should create listing successfully', async () => {
   const listingData = testData.validListing();
   context = await when.post(context, '/api/listings', listingData);
-  
+
   then.statusCodeIs(context, 201);
   then.responseIsSuccessful(context);
   then.responseHasField(context, 'id');
@@ -192,7 +192,7 @@ it('should create listing successfully', async () => {
 it('should reject invalid listing', async () => {
   const invalidData = { title: 'Missing category' };
   context = await when.post(context, '/api/listings', invalidData);
-  
+
   then.statusCodeIs(context, 400);
   then.responseHasError(context, 'category is required');
 });
@@ -204,7 +204,7 @@ it('should reject invalid listing', async () => {
 it('should require authentication', async () => {
   const unauthContext = given.appIsRunning(context.app);
   const result = await when.post(unauthContext, '/api/listings', data);
-  
+
   expect([401, 403]).toContain(result.statusCode);
 });
 ```
@@ -213,18 +213,12 @@ it('should require authentication', async () => {
 
 ```typescript
 it('should prevent user from updating others listing', async () => {
-  const otherUserContext = given.userIsAuthenticated(
-    context,
-    'other-token',
-    'other-user-id'
-  );
-  
-  const result = await when.patch(
-    otherUserContext,
-    '/api/listings/other-users-listing',
-    { title: 'Hacked!' }
-  );
-  
+  const otherUserContext = given.userIsAuthenticated(context, 'other-token', 'other-user-id');
+
+  const result = await when.patch(otherUserContext, '/api/listings/other-users-listing', {
+    title: 'Hacked!',
+  });
+
   then.statusCodeIs(result, 403);
 });
 ```
@@ -234,10 +228,10 @@ it('should prevent user from updating others listing', async () => {
 ```typescript
 it('should filter listings by category', async () => {
   context = await when.get(context, '/api/listings?category=Electronics');
-  
+
   then.statusCodeIs(context, 200);
   then.responseIsNonEmptyArray(context);
-  
+
   const listings = context.response;
   listings.forEach((item: any) => {
     expect(item.category).toBe('Electronics');
@@ -250,7 +244,7 @@ it('should filter listings by category', async () => {
 ```typescript
 it('should support pagination', async () => {
   context = await when.get(context, '/api/listings?page=1&limit=10');
-  
+
   then.statusCodeIs(context, 200);
   then.responseArrayLength(context, 10);
 });
@@ -309,21 +303,22 @@ it.skip('should skip this', async () => {
 
 ## File Locations
 
-| File | Purpose |
-|------|---------|
-| `jest.config.js` | Jest configuration |
-| `__tests__/setup/test-app.ts` | Test app setup |
-| `__tests__/utils/gwt-helpers.ts` | GWT helpers |
-| `__tests__/features/auth.test.ts` | Auth tests |
-| `__tests__/features/listings.test.ts` | Listings tests |
-| `__tests__/features/coupons.test.ts` | Coupons tests |
-| `__tests__/features/subscriptions.test.ts` | Subscriptions tests |
-| `__tests__/features/users.test.ts` | Users tests |
-| `TESTING_GUIDE.md` | Full testing documentation |
+| File                                       | Purpose                    |
+| ------------------------------------------ | -------------------------- |
+| `jest.config.js`                           | Jest configuration         |
+| `__tests__/setup/test-app.ts`              | Test app setup             |
+| `__tests__/utils/gwt-helpers.ts`           | GWT helpers                |
+| `__tests__/features/auth.test.ts`          | Auth tests                 |
+| `__tests__/features/listings.test.ts`      | Listings tests             |
+| `__tests__/features/coupons.test.ts`       | Coupons tests              |
+| `__tests__/features/subscriptions.test.ts` | Subscriptions tests        |
+| `__tests__/features/users.test.ts`         | Users tests                |
+| `TESTING_GUIDE.md`                         | Full testing documentation |
 
 ## Best Practices
 
 ✅ **DO:**
+
 - Use GWT pattern for clarity
 - Test happy path AND error cases
 - Keep tests independent (no shared state)
@@ -333,6 +328,7 @@ it.skip('should skip this', async () => {
 - Document complex logic
 
 ❌ **DON'T:**
+
 - Share state between tests
 - Test implementation details
 - Ignore error cases
@@ -354,25 +350,45 @@ describe('Feature API - GWT Tests', () => {
 
   // Group related tests
   describe('POST /api/endpoint', () => {
-    it('should handle success case', async () => { /* ... */ });
-    it('should handle error case', async () => { /* ... */ });
-    it('should require authentication', async () => { /* ... */ });
+    it('should handle success case', async () => {
+      /* ... */
+    });
+    it('should handle error case', async () => {
+      /* ... */
+    });
+    it('should require authentication', async () => {
+      /* ... */
+    });
   });
 
   describe('GET /api/endpoint', () => {
-    it('should fetch data', async () => { /* ... */ });
-    it('should support filtering', async () => { /* ... */ });
-    it('should support pagination', async () => { /* ... */ });
+    it('should fetch data', async () => {
+      /* ... */
+    });
+    it('should support filtering', async () => {
+      /* ... */
+    });
+    it('should support pagination', async () => {
+      /* ... */
+    });
   });
 
   describe('PATCH /api/endpoint/:id', () => {
-    it('should update resource', async () => { /* ... */ });
-    it('should validate input', async () => { /* ... */ });
+    it('should update resource', async () => {
+      /* ... */
+    });
+    it('should validate input', async () => {
+      /* ... */
+    });
   });
 
   describe('DELETE /api/endpoint/:id', () => {
-    it('should delete resource', async () => { /* ... */ });
-    it('should check ownership', async () => { /* ... */ });
+    it('should delete resource', async () => {
+      /* ... */
+    });
+    it('should check ownership', async () => {
+      /* ... */
+    });
   });
 });
 ```

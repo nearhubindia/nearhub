@@ -213,17 +213,8 @@ export function registerPushNotificationRoutes(app: Express) {
    */
   app.post('/api/admin/push/broadcast', async (req: Request, res: Response) => {
     try {
-      const {
-        title,
-        body,
-        data,
-        userType,
-        notificationType,
-        adminId,
-        sound,
-        badge,
-        channelId,
-      } = req.body;
+      const { title, body, data, userType, notificationType, adminId, sound, badge, channelId } =
+        req.body;
 
       if (!title || !body || !notificationType) {
         return res.status(400).json({
@@ -251,8 +242,8 @@ export function registerPushNotificationRoutes(app: Express) {
         message: result.success
           ? `Broadcast sent to ${result.sentCount} devices`
           : result.errors.length > 0
-          ? result.errors[0]
-          : 'Failed to broadcast notification',
+            ? result.errors[0]
+            : 'Failed to broadcast notification',
       });
     } catch (error) {
       console.error('[Push API] Broadcast error:', error);

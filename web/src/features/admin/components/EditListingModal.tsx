@@ -93,10 +93,7 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
     });
 
     if (errors.length > 0) {
-      const errorMap = errors.reduce(
-        (acc, err) => ({ ...acc, [err.field]: err.message }),
-        {}
-      );
+      const errorMap = errors.reduce((acc, err) => ({ ...acc, [err.field]: err.message }), {});
       setFormErrors(errorMap);
       return;
     }
@@ -276,7 +273,12 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                 <label className="block text-sm font-bold text-slate-900 mb-2">Status</label>
                 <select
                   value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'sold' | 'pending' })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      status: e.target.value as 'active' | 'sold' | 'pending',
+                    })
+                  }
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
                 >
                   <option value="active">Active</option>
@@ -403,24 +405,24 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
             )}
           </div>
 
-        {/* Footer */}
-        <div className="sticky bottom-0 flex gap-3 bg-slate-100 border-t border-slate-200 p-6">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={updateListing.isPending}
-            className="flex-1 px-6 py-3 rounded-lg font-bold border border-slate-300 text-slate-900 hover:bg-slate-100 hover:border-slate-400 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={updateListing.isPending}
-            className="flex-1 bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg hover:scale-105 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {updateListing.isPending ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
+          {/* Footer */}
+          <div className="sticky bottom-0 flex gap-3 bg-slate-100 border-t border-slate-200 p-6">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={updateListing.isPending}
+              className="flex-1 px-6 py-3 rounded-lg font-bold border border-slate-300 text-slate-900 hover:bg-slate-100 hover:border-slate-400 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={updateListing.isPending}
+              className="flex-1 bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg hover:scale-105 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {updateListing.isPending ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

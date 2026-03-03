@@ -78,7 +78,7 @@ export class RazorpayService {
         throw new Error(`Razorpay API error: ${error}`);
       }
 
-      return await response.json() as {
+      return (await response.json()) as {
         id: string;
         entity: string;
         amount: number;

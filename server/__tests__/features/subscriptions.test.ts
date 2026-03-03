@@ -42,7 +42,11 @@ describe('Subscriptions API - GWT Tests', () => {
       const unauthContext = given.appIsRunning(context.app);
 
       // When: Unauthenticated request to create subscription
-      const result = await when.post(unauthContext, '/api/subscriptions', testData.validSubscription());
+      const result = await when.post(
+        unauthContext,
+        '/api/subscriptions',
+        testData.validSubscription()
+      );
 
       // Then: Should return 401
       expect([401, 403, 404, 200, 201, 500]).toContain(result.statusCode);

@@ -6,7 +6,10 @@
 import '../data/env';
 
 import { db } from '../data/db';
-import { subscriptionTiers, type InsertSubscriptionTier } from '../features/admin/models/admin-settings';
+import {
+  subscriptionTiers,
+  type InsertSubscriptionTier,
+} from '../features/admin/models/admin-settings';
 import { eq } from 'drizzle-orm';
 
 const TIERS: InsertSubscriptionTier[] = [
@@ -47,13 +50,18 @@ const TIERS: InsertSubscriptionTier[] = [
     annualPrice: '6999' as any,
     price: '699' as any,
     durationDays: 30,
-    features: JSON.stringify(['featured', 'priority_support', 'verified_badge', 'advanced_analytics']),
+    features: JSON.stringify([
+      'featured',
+      'priority_support',
+      'verified_badge',
+      'advanced_analytics',
+    ]),
     maxListings: -1,
     featuredListingsPerMonth: 999,
     highlight: false,
     isActive: true,
   },
-  
+
   // 90-Day Plans (Quarterly)
   {
     name: 'Basic 90-Day',
@@ -91,13 +99,18 @@ const TIERS: InsertSubscriptionTier[] = [
     annualPrice: '19999' as any,
     price: '1999' as any,
     durationDays: 90,
-    features: JSON.stringify(['featured', 'priority_support', 'verified_badge', 'advanced_analytics']),
+    features: JSON.stringify([
+      'featured',
+      'priority_support',
+      'verified_badge',
+      'advanced_analytics',
+    ]),
     maxListings: -1,
     featuredListingsPerMonth: 999,
     highlight: false,
     isActive: true,
   },
-  
+
   // 180-Day Plans (Semi-Annual)
   {
     name: 'Basic 180-Day',
@@ -135,7 +148,13 @@ const TIERS: InsertSubscriptionTier[] = [
     annualPrice: '39999' as any,
     price: '3999' as any,
     durationDays: 180,
-    features: JSON.stringify(['featured', 'priority_support', 'verified_badge', 'advanced_analytics', 'custom_branding']),
+    features: JSON.stringify([
+      'featured',
+      'priority_support',
+      'verified_badge',
+      'advanced_analytics',
+      'custom_branding',
+    ]),
     maxListings: -1,
     featuredListingsPerMonth: 999,
     highlight: false,

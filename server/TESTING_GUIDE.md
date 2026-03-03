@@ -64,6 +64,7 @@ it('should create a new listing successfully', async () => {
 ### Implemented Test Suites
 
 #### 1. Authentication API (`auth.test.ts`)
+
 - Send OTP to phone number
 - Verify OTP and create user
 - Validate listings (AI-powered)
@@ -72,6 +73,7 @@ it('should create a new listing successfully', async () => {
 **Test Count**: 25+
 
 #### 2. Listings API (`listings.test.ts`)
+
 - Create listings
 - Retrieve listings (with filters and pagination)
 - Get listing by ID
@@ -82,6 +84,7 @@ it('should create a new listing successfully', async () => {
 **Test Count**: 30+
 
 #### 3. Coupons API (`coupons.test.ts`)
+
 - Create coupons (admin only)
 - Retrieve coupons with filters
 - Get coupon details
@@ -92,6 +95,7 @@ it('should create a new listing successfully', async () => {
 **Test Count**: 35+
 
 #### 4. Subscriptions API (`subscriptions.test.ts`)
+
 - Create subscriptions
 - Retrieve user subscriptions
 - Get subscription details
@@ -102,6 +106,7 @@ it('should create a new listing successfully', async () => {
 **Test Count**: 30+
 
 #### 5. Users API (`users.test.ts`)
+
 - Get user profile
 - Update profile information
 - Get public user profiles
@@ -221,13 +226,13 @@ then.assert(condition, message);
 
 ```typescript
 // Generate test data
-testData.validPhone();           // +919876543210
-testData.validOTP();             // 123456
-testData.validEmail();           // test@example.com
-testData.validName();            // Test User
-testData.validListing();         // Complete listing object
-testData.validCoupon();          // Complete coupon object
-testData.validSubscription();    // Complete subscription object
+testData.validPhone(); // +919876543210
+testData.validOTP(); // 123456
+testData.validEmail(); // test@example.com
+testData.validName(); // Test User
+testData.validListing(); // Complete listing object
+testData.validCoupon(); // Complete coupon object
+testData.validSubscription(); // Complete subscription object
 ```
 
 ## Writing New Tests
@@ -343,10 +348,10 @@ it('should auto-renew subscription when enabled', async () => {
   // Setup: Create subscription with auto-renew
   // The system should automatically renew subscriptions on billing date
   // We verify the autoRenew flag is stored and respected
-  
+
   const sub = { ...testData.validSubscription(), autoRenew: true };
   context = await when.post(context, '/api/subscriptions', sub);
-  
+
   then.responseHasField(context, 'autoRenew', true);
 });
 ```
@@ -367,7 +372,7 @@ Extend `gwt-helpers.ts`:
 ```typescript
 export const given = {
   // ... existing helpers
-  
+
   featureSpecificSetup: (context, data) => {
     // Custom setup logic
     return { ...context, customData: data };
@@ -516,6 +521,7 @@ When adding new API endpoints:
 ## Support
 
 For questions about the testing framework:
+
 1. Check existing test examples
 2. Review GWT helper functions
 3. Consult Jest/Supertest documentation

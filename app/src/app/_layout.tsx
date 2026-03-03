@@ -132,7 +132,7 @@ export default function RootLayout() {
     async function prepare() {
       if (fontsLoaded) {
         // Show the native splash for ~2 seconds then hide
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
         await SplashScreen.hideAsync();
       }
     }

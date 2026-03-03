@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+uploads
+*.log
+jest-*.txt
+test-*.txt
+*.geojson

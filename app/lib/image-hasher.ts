@@ -51,10 +51,7 @@ export async function generateImageHash(fileUriOrBase64: string): Promise<string
     }
 
     // Generate SHA256 hash using expo-crypto
-    const hash = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      base64Data
-    );
+    const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, base64Data);
     return hash;
   } catch (error) {
     console.error('Error generating image hash:', error);

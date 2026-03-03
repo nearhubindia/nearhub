@@ -26,7 +26,7 @@ export function registerInAppNotificationRoutes(app: Express) {
   app.get('/api/notifications', async (req: Request, res: Response) => {
     try {
       // In production, get userId from auth middleware
-      const userId = (req as any).user?.id || req.query.userId as string;
+      const userId = (req as any).user?.id || (req.query.userId as string);
 
       if (!userId) {
         return res.status(401).json({
@@ -67,7 +67,7 @@ export function registerInAppNotificationRoutes(app: Express) {
         });
       }
 
-      const result = await markAsRead(id, userId);
+      const result = await markAsRead(String(id), String(userId));
 
       res.json(result);
     } catch (error) {
@@ -112,7 +112,7 @@ export function registerInAppNotificationRoutes(app: Express) {
    */
   app.get('/api/notifications/unread-count', async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id || req.query.userId as string;
+      const userId = (req as any).user?.id || (req.query.userId as string);
 
       if (!userId) {
         return res.status(401).json({
@@ -303,7 +303,7 @@ export function registerInAppNotificationRoutes(app: Express) {
     try {
       const { id } = req.params;
 
-      const result = await deleteNotification(id);
+      const result = await deleteNotification(String(id));
 
       res.json(result);
     } catch (error) {

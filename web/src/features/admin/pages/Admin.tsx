@@ -79,12 +79,7 @@ export default function AdminDashboard() {
       case 'dashboard':
         return <DashboardView />;
       case 'listings':
-        return (
-          <ListingsView
-            onEditListing={openEditModal}
-            onCreateListing={openCreateModal}
-          />
-        );
+        return <ListingsView onEditListing={openEditModal} onCreateListing={openCreateModal} />;
       case 'users':
         return <UsersView />;
       case 'plans':
@@ -149,18 +144,18 @@ export default function AdminDashboard() {
           ].map((item) => {
             const Icon = item.icon;
             return (
-            <button
-              key={item.id}
-              onClick={() => setActivePage(item.id)}
-              className={`w-full text-left px-4 py-3 rounded-lg transition flex items-center gap-3 font-medium cursor-pointer ${
-                activePage === item.id
-                  ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-lg'
-                  : 'text-slate-300 hover:bg-gradient-to-r hover:from-teal-500/30 hover:to-cyan-500/30 hover:text-white'
-              }`}
-            >
-              <Icon size={20} />
-              {sidebarOpen && <span>{item.name}</span>}
-            </button>
+              <button
+                key={item.id}
+                onClick={() => setActivePage(item.id)}
+                className={`w-full text-left px-4 py-3 rounded-lg transition flex items-center gap-3 font-medium cursor-pointer ${
+                  activePage === item.id
+                    ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-lg'
+                    : 'text-slate-300 hover:bg-gradient-to-r hover:from-teal-500/30 hover:to-cyan-500/30 hover:text-white'
+                }`}
+              >
+                <Icon size={20} />
+                {sidebarOpen && <span>{item.name}</span>}
+              </button>
             );
           })}
         </nav>
@@ -181,18 +176,11 @@ export default function AdminDashboard() {
 
       {/* Edit Listing Modal */}
       {showEditModal && editingListing && (
-        <EditListingModal
-          listing={editingListing}
-          onClose={closeEditModal}
-        />
+        <EditListingModal listing={editingListing} onClose={closeEditModal} />
       )}
 
       {/* Create Listing Modal */}
-      {showCreateModal && (
-        <CreateListingModal
-          onClose={closeCreateModal}
-        />
-      )}
+      {showCreateModal && <CreateListingModal onClose={closeCreateModal} />}
     </div>
   );
 }

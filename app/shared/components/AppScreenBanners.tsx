@@ -1,5 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Dimensions, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Dimensions,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { Image } from 'expo-image';
 import Colors from '@/constants/colors';
 import type { AppScreenBanner } from '@/shared/hooks/use-app-screen-banners';
@@ -85,13 +94,7 @@ export default function AppScreenBanners({ banners, isLoading }: AppScreenBanner
       {banners.length > 1 && (
         <View style={styles.dotsContainer}>
           {banners.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.dot,
-                index === currentIndex && styles.dotActive,
-              ]}
-            />
+            <View key={index} style={[styles.dot, index === currentIndex && styles.dotActive]} />
           ))}
         </View>
       )}

@@ -14,10 +14,7 @@ import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import { Audio } from 'expo-av';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import {
-  formatRecordingTime,
-  getRecordingTimeRemaining,
-} from '@/lib/video-recorder';
+import { formatRecordingTime, getRecordingTimeRemaining } from '@/lib/video-recorder';
 
 interface VideoRecorderModalProps {
   visible: boolean;
@@ -54,7 +51,7 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
   const hasAudioPermission = audioPermission?.granted ?? false;
   const hasMediaLibraryPermission = mediaLibraryPermission?.granted ?? false;
   const hasAllPermissions = hasCameraPermission && hasAudioPermission;
-  
+
   const canAskCameraPermission = cameraPermission?.canAskAgain ?? true;
   const canAskAudioPermission = audioPermission?.canAskAgain ?? true;
   const canAskMediaLibraryPermission = mediaLibraryPermission?.canAskAgain ?? true;
@@ -67,13 +64,13 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
       const audioStatus = await Audio.getPermissionsAsync();
       setAudioPermission(audioStatus);
       console.log('[VideoRecorderModal] Audio permission:', audioStatus.granted);
-      
+
       // Check media library permission
       const mediaStatus = await MediaLibrary.getPermissionsAsync();
       setMediaLibraryPermission(mediaStatus);
       console.log('[VideoRecorderModal] MediaLibrary permission:', mediaStatus.granted);
     };
-    
+
     if (visible) {
       checkPermissions();
     } else {
@@ -91,13 +88,13 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
   const handleRequestPermissions = async () => {
     try {
       console.log('[VideoRecorderModal] Requesting permissions...');
-      console.log('[VideoRecorderModal] Current permissions:', { 
-        camera: hasCameraPermission, 
+      console.log('[VideoRecorderModal] Current permissions:', {
+        camera: hasCameraPermission,
         audio: hasAudioPermission,
         mediaLibrary: hasMediaLibraryPermission,
         canAskCamera: canAskCameraPermission,
         canAskAudio: canAskAudioPermission,
-        canAskMediaLibrary: canAskMediaLibraryPermission
+        canAskMediaLibrary: canAskMediaLibraryPermission,
       });
 
       let cameraGranted = hasCameraPermission;
@@ -135,15 +132,15 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
         const missingPermissions = [];
         if (!cameraGranted) missingPermissions.push('Camera');
         if (!audioGranted) missingPermissions.push('Microphone');
-        
+
         console.log('[VideoRecorderModal] Missing permissions:', missingPermissions);
-        
+
         Alert.alert(
           'Permission Required',
           `${missingPermissions.join(' and ')} access is needed to record videos. Please grant permission in your device settings.`,
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
           ]
         );
       } else {
@@ -192,26 +189,26 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
 
   const startRecording = async () => {
     if (!cameraRef.current || isRecording) return;
-    
+
     if (!isCameraReady) {
       console.log('[VideoRecorderModal] Camera not ready yet, cannot start recording');
       return;
     }
-    
+
     try {
       console.log('[VideoRecorderModal] Starting recording...');
       setIsRecording(true);
       setRecordingTime(0);
       setRecordedVideoUri('');
       recordingStartTimeRef.current = Date.now();
-      
+
       // Start recording - this promise resolves when recording stops
       const video = await cameraRef.current.recordAsync({
         maxDuration: maxDuration,
       });
-      
+
       console.log('[VideoRecorderModal] Recording completed, video:', video);
-      
+
       // Recording finished successfully
       if (video && video.uri) {
         console.log('[VideoRecorderModal] Video URI received:', video.uri);
@@ -224,20 +221,24 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
       }
     } catch (error: any) {
       console.error('[VideoRecorderModal] Recording error:', error?.message || error);
-      
+
       setIsRecording(false);
       setRecordingTime(0);
       setRecordedVideoUri('');
-      
+
       // "stopped before any data" means it was cancelled - not a real error
       const errorMsg = (error?.message || '').toLowerCase();
-      const isCancellation = errorMsg.includes('stopped') || 
-                             errorMsg.includes('cancelled') || 
-                             errorMsg.includes('cancel') ||
-                             errorMsg.includes('abort');
-      
+      const isCancellation =
+        errorMsg.includes('stopped') ||
+        errorMsg.includes('cancelled') ||
+        errorMsg.includes('cancel') ||
+        errorMsg.includes('abort');
+
       if (!isCancellation) {
-        Alert.alert('Recording Error', `Failed to record video: ${error?.message || 'Unknown error'}`);
+        Alert.alert(
+          'Recording Error',
+          `Failed to record video: ${error?.message || 'Unknown error'}`
+        );
       }
     }
   };
@@ -247,10 +248,10 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
       console.log('[VideoRecorderModal] Stop recording called but not recording');
       return;
     }
-    
+
     const actualDuration = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000);
     console.log('[VideoRecorderModal] Stopping recording at', actualDuration, 'seconds...');
-    
+
     // stopRecording() is synchronous (returns void)
     // It triggers recordAsync() promise to resolve with the video URI
     cameraRef.current.stopRecording();
@@ -260,7 +261,7 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
   const handleRecordingComplete = async (uri: string) => {
     try {
       console.log('[VideoRecorderModal] Processing recorded video:', uri);
-      
+
       // If camera successfully recorded and returned a URI, accept it
       // Camera URIs may not be immediately accessible via FileSystem
       if (!uri || uri.trim() === '') {
@@ -298,11 +299,7 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
       <Modal visible={visible} animationType="slide">
         <SafeAreaView style={styles.centerContainer}>
           <View style={styles.permissionContainer}>
-            <MaterialCommunityIcons 
-              name="video-plus-outline" 
-              size={80} 
-              color="#3B82F6" 
-            />
+            <MaterialCommunityIcons name="video-plus-outline" size={80} color="#3B82F6" />
             <Text style={styles.permissionTitle}>
               {!hasCameraPermission && !hasAudioPermission
                 ? 'Camera & Microphone Access'
@@ -314,7 +311,7 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
               To record videos, we need permission to access your camera
               {!hasAudioPermission && ' and microphone'}.
             </Text>
-            
+
             <View style={styles.permissionFeatures}>
               <View style={styles.featureItem}>
                 <MaterialCommunityIcons name="video" size={24} color="#10B981" />
@@ -330,11 +327,8 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
               </View>
             </View>
 
-            {(canAskCameraPermission || canAskAudioPermission) ? (
-              <TouchableOpacity 
-                style={styles.grantButton} 
-                onPress={handleRequestPermissions}
-              >
+            {canAskCameraPermission || canAskAudioPermission ? (
+              <TouchableOpacity style={styles.grantButton} onPress={handleRequestPermissions}>
                 <MaterialCommunityIcons name="check-circle" size={20} color="white" />
                 <Text style={styles.grantButtonText}>Grant Permission</Text>
               </TouchableOpacity>
@@ -343,8 +337,8 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
                 <Text style={styles.settingsHint}>
                   Permission was denied. Please enable it in Settings.
                 </Text>
-                <TouchableOpacity 
-                  style={styles.settingsButton} 
+                <TouchableOpacity
+                  style={styles.settingsButton}
                   onPress={() => Linking.openSettings()}
                 >
                   <MaterialCommunityIcons name="cog" size={20} color="white" />
@@ -384,7 +378,10 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
             setIsCameraReady(true);
           }}
           onMountError={(event) => {
-            console.error('[VideoRecorderModal] Camera mount error:', event.message || String(event));
+            console.error(
+              '[VideoRecorderModal] Camera mount error:',
+              event.message || String(event)
+            );
             Alert.alert('Camera Error', 'Failed to start camera. Please try again.');
           }}
         >

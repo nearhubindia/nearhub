@@ -4,7 +4,7 @@ import { getApiUrl } from '@/lib/config';
 /**
  * Admin Feature API Layer
  * Centralized API methods for all admin operations
- * 
+ *
  * Query Keys Pattern:
  * - Organized by resource type
  * - Supports nested filtering and pagination
@@ -19,7 +19,7 @@ const API_BASE_URL = getApiUrl();
 
 export const adminKeys = {
   all: ['admin'] as const,
-  
+
   // Listings
   listings: () => [...adminKeys.all, 'listings'] as const,
   listingsList: (params?: { limit?: number; offset?: number }) =>
@@ -44,8 +44,7 @@ export const adminKeys = {
 
   // Videos
   videos: () => [...adminKeys.all, 'videos'] as const,
-  videosList: (params?: { type?: string }) =>
-    [...adminKeys.videos(), { params }] as const,
+  videosList: (params?: { type?: string }) => [...adminKeys.videos(), { params }] as const,
 
   // Revenue
   revenue: () => [...adminKeys.all, 'revenue'] as const,
@@ -262,8 +261,10 @@ export const videosApi = {
     const response = await fetch(`${API_BASE_URL}/api/listings`, {
       headers: getAuthHeaders(),
     });
-    const result = await handleResponse<{ data?: Array<Record<string, unknown>> } & Record<string, unknown>>(response);
-    
+    const result = await handleResponse<
+      { data?: Array<Record<string, unknown>> } & Record<string, unknown>
+    >(response);
+
     // Filter to only listings that have videos
     if (Array.isArray(result.data)) {
       const videosOnly = result.data.filter((listing) => {
@@ -273,7 +274,7 @@ export const videosApi = {
       });
       return { ...result, videos: videosOnly };
     }
-    
+
     return result;
   },
 
@@ -391,7 +392,10 @@ export const usersApi = {
     return handleResponse(response);
   },
 
-  async updateUser(id: string, data: { username: string; mobile: string; location: string }): Promise<unknown> {
+  async updateUser(
+    id: string,
+    data: { username: string; mobile: string; location: string }
+  ): Promise<unknown> {
     const response = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),

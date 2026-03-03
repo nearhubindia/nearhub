@@ -40,7 +40,12 @@ interface MediaCarouselProps {
  * Displays images and videos in a single horizontal swipeable carousel
  * Combines images and videos with proper pagination
  */
-export default function MediaCarousel({ images = [], videos = [], height, isFocused = true }: MediaCarouselProps) {
+export default function MediaCarousel({
+  images = [],
+  videos = [],
+  height,
+  isFocused = true,
+}: MediaCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [activePlayers, setActivePlayers] = useState<Set<string>>(new Set());
   const flatListRef = useRef<FlatList>(null);
@@ -55,7 +60,12 @@ export default function MediaCarousel({ images = [], videos = [], height, isFocu
 
   // Auto-play first video on load if available
   React.useEffect(() => {
-    console.log('[MediaCarousel] mounted, mediaItems:', mediaItems.length, 'first item:', mediaItems[0]?.type);
+    console.log(
+      '[MediaCarousel] mounted, mediaItems:',
+      mediaItems.length,
+      'first item:',
+      mediaItems[0]?.type
+    );
     if (isFocused && mediaItems.length > 0 && mediaItems[0].type === 'video') {
       console.log('[MediaCarousel] Auto-playing first video:', mediaItems[0].id);
       setActivePlayers(new Set([mediaItems[0].id]));
@@ -86,7 +96,7 @@ export default function MediaCarousel({ images = [], videos = [], height, isFocu
     const contentOffsetX = e.nativeEvent.contentOffset.x;
     const index = Math.round(contentOffsetX / width);
     setCurrentIndex(index);
-    
+
     // Auto-play video when scrolled into view (only if screen is focused)
     const item = mediaItems[index];
     console.log('[MediaCarousel] Scrolled to index:', { index, type: item?.type, id: item?.id });
@@ -176,9 +186,11 @@ function VideoPlayer({
   const [showControls, setShowControls] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const hideControlsTimeout = useRef<NodeJS.Timeout | null>(null);
-  
-  console.log(`[VideoPlayer] Creating player - ID: ${itemId}, URI: ${videoUri}, Streaming: ${streamingUrl}`);
-  
+
+  console.log(
+    `[VideoPlayer] Creating player - ID: ${itemId}, URI: ${videoUri}, Streaming: ${streamingUrl}`
+  );
+
   const player = useVideoPlayer(streamingUrl, (p) => {
     p.loop = true;
     p.muted = true;
@@ -190,14 +202,16 @@ function VideoPlayer({
 
   React.useEffect(() => {
     const isActive = activePlayers.has(itemId);
-    console.log(`[VideoPlayer] Mounted - ID: ${itemId}, Active: ${isActive}, URI Valid: ${!!videoUri}`);
-    
+    console.log(
+      `[VideoPlayer] Mounted - ID: ${itemId}, Active: ${isActive}, URI Valid: ${!!videoUri}`
+    );
+
     // Add status observation
     const subscription = player.addListener('statusChange', (status: any) => {
       const statusStr = `isPlaying=${status?.isPlaying}, duration=${status?.durationMillis}, position=${status?.positionMillis}, state=${status?.state}`;
       console.log(`[VideoPlayer] Status - ID: ${itemId}, ${statusStr}`);
     });
-    
+
     return () => {
       subscription.remove();
     };
@@ -206,7 +220,7 @@ function VideoPlayer({
   React.useEffect(() => {
     const isActive = activePlayers.has(itemId);
     console.log(`[VideoPlayer] Play state change - ID: ${itemId}, Active: ${isActive}`);
-    
+
     if (isActive) {
       try {
         console.log(`[VideoPlayer] Attempting to play: ${itemId}`);
@@ -285,10 +299,7 @@ function VideoPlayer({
         </View>
       ) : (
         <>
-          <Pressable 
-            style={StyleSheet.absoluteFill}
-            onPress={handleVideoPress}
-          >
+          <Pressable style={StyleSheet.absoluteFill} onPress={handleVideoPress}>
             <VideoView
               player={player}
               style={StyleSheet.absoluteFill}
@@ -299,24 +310,13 @@ function VideoPlayer({
           {/* Mute/Unmute button */}
           <Pressable style={styles.muteButton} onPress={toggleMute}>
             <View style={styles.muteButtonInner}>
-              <Feather
-                name={isMuted ? 'volume-x' : 'volume-2'}
-                size={20}
-                color="#fff"
-              />
+              <Feather name={isMuted ? 'volume-x' : 'volume-2'} size={20} color="#fff" />
             </View>
           </Pressable>
           {/* Play/Pause button - auto-hides */}
           {showControls && (
-            <Pressable
-              style={styles.playPauseButton}
-              onPress={togglePlayPause}
-            >
-              <Feather
-                name={isPlaying ? 'pause' : 'play'}
-                size={28}
-                color="#fff"
-              />
+            <Pressable style={styles.playPauseButton} onPress={togglePlayPause}>
+              <Feather name={isPlaying ? 'pause' : 'play'} size={28} color="#fff" />
             </Pressable>
           )}
           {/* Video indicator badge */}

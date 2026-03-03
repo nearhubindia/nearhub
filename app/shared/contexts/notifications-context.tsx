@@ -25,7 +25,7 @@ const NotificationsContext = createContext<NotificationsContextType | undefined>
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  
+
   // Integrate push notifications
   const { expoPushToken, notification: pushNotification } = usePushNotifications();
 

@@ -30,49 +30,59 @@ export function useAppScreenBanners(screen: BannerScreen): {
   const [banners, setBanners] = useState<AppScreenBanner[]>(bannerCache[screen] ?? []);
   const [isLoading, setIsLoading] = useState<boolean>(bannerCache[screen] === undefined);
 
-  const fetchBanners = useCallback(async (retryCount = 0): Promise<AppScreenBanner[]> => {
-    const apiUrl = getApiUrl();
-    const url = `${apiUrl}/api/banners?screen=${screen}`;
-    const maxRetries = 3;
-    
-    try {
-      console.log('[useAppScreenBanners] Fetching from:', url);
-      const response = await fetch(url, {
-        headers: { 'Content-Type': 'application/json' },
-      });
+  const fetchBanners = useCallback(
+    async (retryCount = 0): Promise<AppScreenBanner[]> => {
+      const apiUrl = getApiUrl();
+      const url = `${apiUrl}/api/banners?screen=${screen}`;
+      const maxRetries = 3;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        
-        // Handle rate limiting with exponential backoff
-        if (response.status === 429 && retryCount < maxRetries) {
-          const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
-          console.log(`[useAppScreenBanners] Rate limited, retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return fetchBanners(retryCount + 1);
+      try {
+        console.log('[useAppScreenBanners] Fetching from:', url);
+        const response = await fetch(url, {
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+
+          // Handle rate limiting with exponential backoff
+          if (response.status === 429 && retryCount < maxRetries) {
+            const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+            console.log(`[useAppScreenBanners] Rate limited, retrying in ${delay}ms...`);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            return fetchBanners(retryCount + 1);
+          }
+
+          // Graceful fallback after retries: keep cache/empty banners without throwing hard error
+          if (response.status === 429) {
+            console.warn(
+              `[useAppScreenBanners] Rate limited for ${screen}. Using cached banners until retry window resets.`
+            );
+            return bannerCache[screen] ?? [];
+          }
+
+          const errorMsg = `Failed to fetch ${screen} banners: ${response.status} ${errorText}`;
+          console.error('[useAppScreenBanners]', errorMsg);
+          throw new Error(errorMsg);
         }
 
-        // Graceful fallback after retries: keep cache/empty banners without throwing hard error
-        if (response.status === 429) {
-          console.warn(
-            `[useAppScreenBanners] Rate limited for ${screen}. Using cached banners until retry window resets.`
-          );
-          return bannerCache[screen] ?? [];
-        }
-        
-        const errorMsg = `Failed to fetch ${screen} banners: ${response.status} ${errorText}`;
-        console.error('[useAppScreenBanners]', errorMsg);
-        throw new Error(errorMsg);
+        const data = (await response.json()) as BannersResponse;
+        console.log(
+          '[useAppScreenBanners] Success, got',
+          Array.isArray(data.banners) ? data.banners.length : 0,
+          'banners'
+        );
+        return Array.isArray(data.banners) ? data.banners : [];
+      } catch (error) {
+        console.error(
+          '[useAppScreenBanners] Network/parse error:',
+          error instanceof Error ? error.message : String(error)
+        );
+        throw error;
       }
-
-      const data = (await response.json()) as BannersResponse;
-      console.log('[useAppScreenBanners] Success, got', Array.isArray(data.banners) ? data.banners.length : 0, 'banners');
-      return Array.isArray(data.banners) ? data.banners : [];
-    } catch (error) {
-      console.error('[useAppScreenBanners] Network/parse error:', error instanceof Error ? error.message : String(error));
-      throw error;
-    }
-  }, [screen]);
+    },
+    [screen]
+  );
 
   const refreshBanners = useCallback(async (): Promise<void> => {
     setIsLoading(true);
@@ -83,7 +93,7 @@ export function useAppScreenBanners(screen: BannerScreen): {
     } catch (error: unknown) {
       console.error('[useAppScreenBanners] Failed to fetch banners', error);
       // Preserve existing UI state when request fails
-      setBanners((prev) => prev.length > 0 ? prev : (bannerCache[screen] ?? []));
+      setBanners((prev) => (prev.length > 0 ? prev : (bannerCache[screen] ?? [])));
     } finally {
       setIsLoading(false);
     }

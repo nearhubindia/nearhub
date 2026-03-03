@@ -53,10 +53,7 @@ export default function CouponsView() {
     });
 
     if (errors.length > 0) {
-      const errorMap = errors.reduce(
-        (acc, err) => ({ ...acc, [err.field]: err.message }),
-        {}
-      );
+      const errorMap = errors.reduce((acc, err) => ({ ...acc, [err.field]: err.message }), {});
       setFormErrors(errorMap);
       return;
     }
@@ -180,9 +177,7 @@ export default function CouponsView() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      {coupon.expiresAt
-                        ? formatters.formatDate(coupon.expiresAt)
-                        : '-'}
+                      {coupon.expiresAt ? formatters.formatDate(coupon.expiresAt) : '-'}
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <span
@@ -365,8 +360,8 @@ export default function CouponsView() {
 
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
                 <p className="text-sm text-amber-800">
-                  <span className="font-bold">Current Usage:</span> {couponToDelete.usageCount || 0} /{' '}
-                  {couponToDelete.maxUsageCount}
+                  <span className="font-bold">Current Usage:</span> {couponToDelete.usageCount || 0}{' '}
+                  / {couponToDelete.maxUsageCount}
                 </p>
               </div>
 

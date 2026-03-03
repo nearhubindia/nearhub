@@ -46,7 +46,8 @@ function mapBanner(banner: typeof appScreenBanners.$inferSelect): {
 export function registerAdminBannersRoutes(app: Express): void {
   app.get('/api/admin/banners', async (req: Request, res: Response) => {
     try {
-      const screen = typeof req.query.screen === 'string' ? normalizeScreen(req.query.screen) : undefined;
+      const screen =
+        typeof req.query.screen === 'string' ? normalizeScreen(req.query.screen) : undefined;
 
       const rows = screen
         ? await db
@@ -70,7 +71,8 @@ export function registerAdminBannersRoutes(app: Express): void {
 
   app.get('/api/banners', async (req: Request, res: Response) => {
     try {
-      const screen = typeof req.query.screen === 'string' ? normalizeScreen(req.query.screen) : undefined;
+      const screen =
+        typeof req.query.screen === 'string' ? normalizeScreen(req.query.screen) : undefined;
       const filters = [eq(appScreenBanners.isActive, true)];
 
       if (screen) {
@@ -105,7 +107,9 @@ export function registerAdminBannersRoutes(app: Express): void {
         return validationError(res, 'Banner image URL is required');
       }
 
-      if (!VALID_BANNER_SCREENS.includes(normalizedScreen as (typeof VALID_BANNER_SCREENS)[number])) {
+      if (
+        !VALID_BANNER_SCREENS.includes(normalizedScreen as (typeof VALID_BANNER_SCREENS)[number])
+      ) {
         return validationError(res, `Invalid screen. Allowed: ${VALID_BANNER_SCREENS.join(', ')}`);
       }
 
@@ -149,8 +153,13 @@ export function registerAdminBannersRoutes(app: Express): void {
 
       if (screen !== undefined) {
         const normalizedScreen = normalizeScreen(screen);
-        if (!VALID_BANNER_SCREENS.includes(normalizedScreen as (typeof VALID_BANNER_SCREENS)[number])) {
-          return validationError(res, `Invalid screen. Allowed: ${VALID_BANNER_SCREENS.join(', ')}`);
+        if (
+          !VALID_BANNER_SCREENS.includes(normalizedScreen as (typeof VALID_BANNER_SCREENS)[number])
+        ) {
+          return validationError(
+            res,
+            `Invalid screen. Allowed: ${VALID_BANNER_SCREENS.join(', ')}`
+          );
         }
         updates.screen = normalizedScreen;
       }

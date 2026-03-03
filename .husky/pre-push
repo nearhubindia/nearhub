@@ -1,19 +1,71 @@
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
 
-echo "🔍 Running full quality check before push..."
+echo "🔍 Running per-project quality checks before push..."
 echo ""
 
-echo "📝 Type checking..."
-npm run type-check || { echo "❌ Type check failed!"; exit 1; }
+run_app=0
+run_server=0
+run_web=0
 
-echo ""
-echo "🔍 Linting..."
-npm run lint || { echo "❌ Lint check failed!"; exit 1; }
+# Check against upstream if available; fallback to last commit.
+if git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
+  CHANGED_FILES="$(git diff --name-only @{u}...HEAD)"
+else
+  CHANGED_FILES="$(git diff --name-only HEAD~1..HEAD 2>/dev/null || true)"
+fi
 
-echo ""
-echo "✨ Format checking..."
-npm run format:check || { echo "❌ Format check failed! Run 'npm run format' to fix."; exit 1; }
+if [ -z "$CHANGED_FILES" ]; then
+  run_app=1
+  run_server=1
+  run_web=1
+else
+  echo "$CHANGED_FILES" | grep -qE '^app/' && run_app=1
+  echo "$CHANGED_FILES" | grep -qE '^server/' && run_server=1
+  echo "$CHANGED_FILES" | grep -qE '^web/' && run_web=1
+fi
+
+if [ "$run_app" -eq 1 ]; then
+  echo "📱 Checking app/"
+  (
+    cd app &&
+      npm run type-check &&
+      npm run lint &&
+      npm run format:check
+  ) || {
+    echo "❌ app quality check failed!"
+    exit 1
+  }
+  echo ""
+fi
+
+if [ "$run_server" -eq 1 ]; then
+  echo "🖥️  Checking server/"
+  (
+    cd server &&
+      npm run type-check &&
+      npm run lint &&
+      npm run format:check
+  ) || {
+    echo "❌ server quality check failed!"
+    exit 1
+  }
+  echo ""
+fi
+
+if [ "$run_web" -eq 1 ]; then
+  echo "🌐 Checking web/"
+  (
+    cd web &&
+      npm run type-check &&
+      npm run lint &&
+      npm run format:check
+  ) || {
+    echo "❌ web quality check failed!"
+    exit 1
+  }
+  echo ""
+fi
 
 echo ""
 echo "✅ All quality checks passed!"

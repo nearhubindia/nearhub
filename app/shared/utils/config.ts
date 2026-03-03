@@ -96,9 +96,7 @@ export function logError(message: string, error?: any): void {
 export function validateEnvironment(): void {
   const requiredEnv: (keyof typeof process.env)[] = ['EXPO_PUBLIC_API_URL', 'EXPO_PUBLIC_DOMAIN'];
 
-  const missing = requiredEnv.filter(
-    (key) => !process.env[key]
-  );
+  const missing = requiredEnv.filter((key) => !process.env[key]);
 
   if (missing.length === 0 && getDebug()) {
     logDebug('All required environment variables are configured');

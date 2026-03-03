@@ -46,8 +46,10 @@ describe('Coupons API - GWT Tests', () => {
       const context2 = await when.post(context, '/api/admin/coupons', coupon2);
 
       // Then: IDs should be unique
-      if ((context1.statusCode === 200 || context1.statusCode === 201) &&
-          (context2.statusCode === 200 || context2.statusCode === 201)) {
+      if (
+        (context1.statusCode === 200 || context1.statusCode === 201) &&
+        (context2.statusCode === 200 || context2.statusCode === 201)
+      ) {
         expect(context1.response?.id).not.toBe(context2.response?.id);
       }
     });
@@ -565,7 +567,7 @@ describe('Coupons API - GWT Tests', () => {
           context,
           `/api/coupons/calculate-discount?code=${couponData.code}&amount=1000&tierId=tier_premium_180`
         );
-        
+
         expect([200, 400, 404, 401, 500]).toContain(basicTierResult.statusCode);
         expect([200, 400, 404, 401, 500]).toContain(premiumTierResult.statusCode);
       }

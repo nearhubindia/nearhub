@@ -1,7 +1,7 @@
 /**
  * Video Compression for S3 Direct Upload
  * Optimized client-side compression before uploading directly to S3
- * 
+ *
  * This eliminates the need for server-side compression when using S3:
  * - Compress on client with preview
  * - Upload compressed file directly to S3
@@ -13,7 +13,7 @@ import * as VideoThumbnails from 'expo-video-thumbnails';
 
 export interface CompressionOptions {
   quality?: 'low' | 'medium' | 'high';
-  targetSizeMB?: number;  // Target final size in MB
+  targetSizeMB?: number; // Target final size in MB
 }
 
 export interface CompressionResult {
@@ -53,7 +53,7 @@ export const S3_COMPRESSION_PROFILES = {
     description: '📺 Best Quality',
     targetBitrate: '2500kbps',
     targetResolution: '1080p',
-    estimatedRatio: 0.60, // 40% reduction
+    estimatedRatio: 0.6, // 40% reduction
     s3StorageSavings: '40%',
     uploadTimeReduction: '40%',
     useCases: ['Premium content', 'High-end products', 'Professional'],
@@ -75,8 +75,7 @@ export async function analyzeVideoForS3(videoUri: string): Promise<{
 
   let recommendation = '';
   if (sizeMB > 200) {
-    recommendation =
-      '⚠️ VERY LARGE! Compression essential. Will upload ~30-120MB instead.';
+    recommendation = '⚠️ VERY LARGE! Compression essential. Will upload ~30-120MB instead.';
   } else if (sizeMB > 100) {
     recommendation = '⚠️ Large file. Compression will reduce to ~15-60MB.';
   } else if (sizeMB > 50) {
@@ -112,7 +111,10 @@ export async function analyzeVideoForS3(videoUri: string): Promise<{
 /**
  * Get estimated S3 costs for different compression levels
  */
-export function estimateS3Costs(videoSizeMB: number, monthlyUploads: number = 100): {
+export function estimateS3Costs(
+  videoSizeMB: number,
+  monthlyUploads: number = 100
+): {
   quality: string;
   storageMonth: number;
   transferMonth: number;
@@ -127,7 +129,8 @@ export function estimateS3Costs(videoSizeMB: number, monthlyUploads: number = 10
   // Original (uncompressed)
   const originalStorageGB = (videoSizeMB * monthlyUploads) / 1024;
   const originalTransferGB = (videoSizeMB * monthlyUploads) / 1024;
-  const originalCost = originalStorageGB * STORAGE_COST_PER_GB + originalTransferGB * TRANSFER_COST_PER_GB;
+  const originalCost =
+    originalStorageGB * STORAGE_COST_PER_GB + originalTransferGB * TRANSFER_COST_PER_GB;
 
   results.push({
     quality: 'original',
@@ -222,15 +225,15 @@ export async function recommendCompressionForS3(videoUri: string): Promise<{
 
 /**
  * Compress video locally (simulated for mobile)
- * 
+ *
  * DEFAULT QUALITY: LOW (85% reduction)
  * This is the most cost-effective for S3 direct uploads
- * 
+ *
  * NOTE: For actual compression on mobile, you would need to:
  * 1. Use react-native-video-processing or similar
  * 2. Or use Expo's limited compression via Media Library
  * 3. Or upload to server for FFmpeg compression (then to S3)
- * 
+ *
  * For now, returns compression estimates that will be applied server-side
  * OR by the client using native compression libraries
  */

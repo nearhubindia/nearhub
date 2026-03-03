@@ -17,11 +17,9 @@ const CACHE_TTL = {
 /**
  * Get cached subscription tiers or fetch from database
  */
-export async function getCachedSubscriptionTiers<T>(
-  fetchFn: () => Promise<T>
-): Promise<T> {
+export async function getCachedSubscriptionTiers<T>(fetchFn: () => Promise<T>): Promise<T> {
   const cacheKey = 'subscription:tiers:all';
-  
+
   try {
     const cached = await redisCache.get(cacheKey);
     if (cached) {
@@ -32,7 +30,7 @@ export async function getCachedSubscriptionTiers<T>(
   }
 
   const data = await fetchFn();
-  
+
   try {
     await redisCache.set(cacheKey, JSON.stringify(data), { ttl: CACHE_TTL.SUBSCRIPTION_TIERS });
   } catch (error) {
@@ -45,11 +43,9 @@ export async function getCachedSubscriptionTiers<T>(
 /**
  * Get cached active subscription tiers
  */
-export async function getCachedActiveTiers<T>(
-  fetchFn: () => Promise<T>
-): Promise<T> {
+export async function getCachedActiveTiers<T>(fetchFn: () => Promise<T>): Promise<T> {
   const cacheKey = 'subscription:tiers:active';
-  
+
   try {
     const cached = await redisCache.get(cacheKey);
     if (cached) {
@@ -60,7 +56,7 @@ export async function getCachedActiveTiers<T>(
   }
 
   const data = await fetchFn();
-  
+
   try {
     await redisCache.set(cacheKey, JSON.stringify(data), { ttl: CACHE_TTL.ACTIVE_TIERS });
   } catch (error) {
@@ -73,12 +69,9 @@ export async function getCachedActiveTiers<T>(
 /**
  * Get cached tier by ID
  */
-export async function getCachedTierById<T>(
-  tierId: string,
-  fetchFn: () => Promise<T>
-): Promise<T> {
+export async function getCachedTierById<T>(tierId: string, fetchFn: () => Promise<T>): Promise<T> {
   const cacheKey = `subscription:tier:${tierId}`;
-  
+
   try {
     const cached = await redisCache.get(cacheKey);
     if (cached) {
@@ -89,7 +82,7 @@ export async function getCachedTierById<T>(
   }
 
   const data = await fetchFn();
-  
+
   try {
     await redisCache.set(cacheKey, JSON.stringify(data), { ttl: CACHE_TTL.TIER_BY_ID });
   } catch (error) {
@@ -107,7 +100,7 @@ export async function getCachedUserSubscriptions<T>(
   fetchFn: () => Promise<T>
 ): Promise<T> {
   const cacheKey = `user:${userId}:subscriptions`;
-  
+
   try {
     const cached = await redisCache.get(cacheKey);
     if (cached) {
@@ -118,7 +111,7 @@ export async function getCachedUserSubscriptions<T>(
   }
 
   const data = await fetchFn();
-  
+
   try {
     await redisCache.set(cacheKey, JSON.stringify(data), { ttl: CACHE_TTL.USER_SUBSCRIPTIONS });
   } catch (error) {
@@ -132,13 +125,10 @@ export async function getCachedUserSubscriptions<T>(
  * Invalidate all subscription tier caches
  */
 export async function invalidateSubscriptionTierCache(): Promise<void> {
-  const keys = [
-    'subscription:tiers:all',
-    'subscription:tiers:active',
-  ];
-  
+  const keys = ['subscription:tiers:all', 'subscription:tiers:active'];
+
   try {
-    await Promise.all(keys.map(key => redisCache.delete(key)));
+    await Promise.all(keys.map((key) => redisCache.delete(key)));
     console.log('[SubscriptionCache] Invalidated tier cache');
   } catch (error) {
     console.error('[SubscriptionCache] Failed to invalidate tier cache:', error);
@@ -154,9 +144,9 @@ export async function invalidateTierCache(tierId: string): Promise<void> {
     'subscription:tiers:all',
     'subscription:tiers:active',
   ];
-  
+
   try {
-    await Promise.all(keys.map(key => redisCache.delete(key)));
+    await Promise.all(keys.map((key) => redisCache.delete(key)));
     console.log(`[SubscriptionCache] Invalidated cache for tier ${tierId}`);
   } catch (error) {
     console.error('[SubscriptionCache] Failed to invalidate tier cache:', error);
@@ -168,7 +158,7 @@ export async function invalidateTierCache(tierId: string): Promise<void> {
  */
 export async function invalidateUserSubscriptionCache(userId: string): Promise<void> {
   const cacheKey = `user:${userId}:subscriptions`;
-  
+
   try {
     await redisCache.delete(cacheKey);
     console.log(`[SubscriptionCache] Invalidated cache for user ${userId}`);

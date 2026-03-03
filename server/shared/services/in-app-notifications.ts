@@ -60,10 +60,7 @@ export async function createInAppNotification(
 /**
  * Get notifications for a specific user
  */
-export async function getUserNotifications(
-  userId: string,
-  limit = 50
-): Promise<any[]> {
+export async function getUserNotifications(userId: string, limit = 50): Promise<any[]> {
   try {
     // Get notifications for this user or all users
     const notifications = await db.query.inAppNotifications.findMany({
@@ -105,10 +102,7 @@ export async function markAsRead(
       .where(
         and(
           eq(inAppNotifications.id, notificationId),
-          or(
-            eq(inAppNotifications.userId, userId),
-            isNull(inAppNotifications.userId)
-          )
+          or(eq(inAppNotifications.userId, userId), isNull(inAppNotifications.userId))
         )
       );
 
@@ -130,12 +124,7 @@ export async function markAllAsRead(userId: string): Promise<{ success: boolean 
         isRead: true,
         readAt: new Date(),
       })
-      .where(
-        or(
-          eq(inAppNotifications.userId, userId),
-          eq(inAppNotifications.userType, 'all')
-        )
-      );
+      .where(or(eq(inAppNotifications.userId, userId), eq(inAppNotifications.userType, 'all')));
 
     return { success: true };
   } catch (error) {
@@ -147,13 +136,9 @@ export async function markAllAsRead(userId: string): Promise<{ success: boolean 
 /**
  * Delete notification
  */
-export async function deleteNotification(
-  notificationId: string
-): Promise<{ success: boolean }> {
+export async function deleteNotification(notificationId: string): Promise<{ success: boolean }> {
   try {
-    await db
-      .delete(inAppNotifications)
-      .where(eq(inAppNotifications.id, notificationId));
+    await db.delete(inAppNotifications).where(eq(inAppNotifications.id, notificationId));
 
     return { success: true };
   } catch (error) {

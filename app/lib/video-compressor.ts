@@ -27,17 +27,17 @@ export interface CompressionResult {
  */
 export const VIDEO_RECORDING_PRESETS = {
   low: {
-    bitrate: 500_000,      // 500kbps
+    bitrate: 500_000, // 500kbps
     quality: 'low',
     recommendation: 'Use for slow networks or storage constraints',
   },
   medium: {
-    bitrate: 1_200_000,    // 1.2Mbps
+    bitrate: 1_200_000, // 1.2Mbps
     quality: 'medium',
     recommendation: 'Balanced quality and file size (recommended)',
   },
   high: {
-    bitrate: 2_500_000,    // 2.5Mbps
+    bitrate: 2_500_000, // 2.5Mbps
     quality: 'high',
     recommendation: 'Best quality, larger files',
   },
@@ -76,9 +76,9 @@ export async function getVideoFileSize(uri: string): Promise<number> {
 function getEstimatedCompressionRatio(quality: 'low' | 'medium' | 'high'): number {
   // These ratios are based on FFmpeg H.264 compression results
   const ratios = {
-    low: 0.15,     // ~85% reduction (very aggressive)
-    medium: 0.35,  // ~65% reduction (balanced)
-    high: 0.60,    // ~40% reduction (high quality preserved)
+    low: 0.15, // ~85% reduction (very aggressive)
+    medium: 0.35, // ~65% reduction (balanced)
+    high: 0.6, // ~40% reduction (high quality preserved)
   };
   return ratios[quality];
 }

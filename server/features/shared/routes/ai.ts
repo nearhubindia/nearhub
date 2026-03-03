@@ -31,8 +31,14 @@ export function registerAIRoutes(app: Express) {
   app.post('/api/ai/generate-description', aiLimiter, async (req: Request, res: Response) => {
     try {
       const { title, category, price, condition } = req.body;
-      if (!title || !category) return res.status(400).json({ error: 'Title and category are required' });
-      const result = await generateListingDescription(title, category, price || 'Not specified', condition);
+      if (!title || !category)
+        return res.status(400).json({ error: 'Title and category are required' });
+      const result = await generateListingDescription(
+        title,
+        category,
+        price || 'Not specified',
+        condition
+      );
       res.json(result);
     } catch (error) {
       console.error('Description generation error:', error);
@@ -63,7 +69,8 @@ export function registerAIRoutes(app: Express) {
   app.post('/api/ai/generate-title', aiLimiter, async (req: Request, res: Response) => {
     try {
       const { description, category } = req.body;
-      if (!description || !category) return res.status(400).json({ error: 'Description and category are required' });
+      if (!description || !category)
+        return res.status(400).json({ error: 'Description and category are required' });
       const result = await generateTitle(description, category);
       res.json(result);
     } catch (error) {

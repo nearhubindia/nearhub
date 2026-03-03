@@ -243,7 +243,8 @@ export const CATEGORY_PICTURE_IMAGES: Record<Category, string> = {
   Computers: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4bb.png',
   Appliances: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f9ca.png',
   Vehicles: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f697.png',
-  'Commercial Vehicles': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f69a.png',
+  'Commercial Vehicles':
+    'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f69a.png',
   Bikes: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f3cd-fe0f.png',
   'Spare Parts': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/2699-fe0f.png',
   'Real Estate': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f3e0.png',

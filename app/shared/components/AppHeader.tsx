@@ -160,7 +160,9 @@ export function AppHeader({
           {title === 'NearHub' ? (
             <Logo size="md" showText={true} />
           ) : (
-            <Text style={[styles.appTitle, { color: isDark ? '#f3f4f6' : '#1f2937' }]}>{title}</Text>
+            <Text style={[styles.appTitle, { color: isDark ? '#f3f4f6' : '#1f2937' }]}>
+              {title}
+            </Text>
           )}
         </TouchableOpacity>
 

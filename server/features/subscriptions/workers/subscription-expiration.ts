@@ -20,7 +20,7 @@ interface ExpirationResult {
 export async function checkAndExpireSubscriptions(): Promise<ExpirationResult> {
   const startTime = Date.now();
   const now = new Date();
-  
+
   console.log('[SubscriptionWorker] Starting expiration check...');
 
   try {
@@ -28,12 +28,7 @@ export async function checkAndExpireSubscriptions(): Promise<ExpirationResult> {
     const expiredSubscriptions = await db
       .select()
       .from(userSubscriptions)
-      .where(
-        and(
-          eq(userSubscriptions.status, 'active'),
-          lt(userSubscriptions.expiresAt, now)
-        )
-      );
+      .where(and(eq(userSubscriptions.status, 'active'), lt(userSubscriptions.expiresAt, now)));
 
     if (expiredSubscriptions.length === 0) {
       console.log('[SubscriptionWorker] No expired subscriptions found');
@@ -53,22 +48,15 @@ export async function checkAndExpireSubscriptions(): Promise<ExpirationResult> {
         status: 'expired',
         updatedAt: now,
       })
-      .where(
-        and(
-          eq(userSubscriptions.status, 'active'),
-          lt(userSubscriptions.expiresAt, now)
-        )
-      )
+      .where(and(eq(userSubscriptions.status, 'active'), lt(userSubscriptions.expiresAt, now)))
       .returning();
 
     // Invalidate cache for affected users
-    const affectedUserIds = [...new Set(expiredSubscriptions.map(s => s.userId))];
+    const affectedUserIds = [...new Set(expiredSubscriptions.map((s) => s.userId))];
     await invalidateUserSubscriptionCache(affectedUserIds);
 
     const duration = Date.now() - startTime;
-    console.log(
-      `[SubscriptionWorker] Expired ${result.length} subscriptions in ${duration}ms`
-    );
+    console.log(`[SubscriptionWorker] Expired ${result.length} subscriptions in ${duration}ms`);
 
     return {
       expiredCount: result.length,
@@ -90,8 +78,8 @@ export async function checkAndExpireSubscriptions(): Promise<ExpirationResult> {
  */
 async function invalidateUserSubscriptionCache(userIds: string[]): Promise<void> {
   try {
-    const cacheKeys = userIds.map(id => `user:${id}:subscriptions`);
-    await Promise.all(cacheKeys.map(key => redisCache.delete(key)));
+    const cacheKeys = userIds.map((id) => `user:${id}:subscriptions`);
+    await Promise.all(cacheKeys.map((key) => redisCache.delete(key)));
     console.log(`[SubscriptionWorker] Invalidated cache for ${userIds.length} users`);
   } catch (error) {
     console.error('[SubscriptionWorker] Cache invalidation failed:', error);
@@ -116,12 +104,7 @@ export async function getSubscriptionExpirationStats(): Promise<{
     db
       .select()
       .from(userSubscriptions)
-      .where(
-        and(
-          eq(userSubscriptions.status, 'active'),
-          gt(userSubscriptions.expiresAt, now)
-        )
-      ),
+      .where(and(eq(userSubscriptions.status, 'active'), gt(userSubscriptions.expiresAt, now))),
     db
       .select()
       .from(userSubscriptions)
@@ -142,10 +125,7 @@ export async function getSubscriptionExpirationStats(): Promise<{
           gt(userSubscriptions.expiresAt, now)
         )
       ),
-    db
-      .select()
-      .from(userSubscriptions)
-      .where(eq(userSubscriptions.status, 'expired')),
+    db.select().from(userSubscriptions).where(eq(userSubscriptions.status, 'expired')),
   ]);
 
   return {

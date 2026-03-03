@@ -2,7 +2,7 @@
 /**
  * Database Seeding Script
  * Seeds test users into the database
- * 
+ *
  * Usage: npm run seed:users
  */
 
@@ -14,12 +14,12 @@ import bcrypt from 'bcryptjs';
 
 async function seedUsers() {
   console.log('[Seed] Starting user seeding...');
-  
+
   try {
     // Check existing users
     const existingUsers = await db.select().from(users);
     console.log(`[Seed] Found ${existingUsers.length} existing users`);
-    
+
     if (existingUsers.length > 0) {
       console.log('[Seed] Database already has users. Skipping user seed.');
       return;
@@ -27,11 +27,11 @@ async function seedUsers() {
 
     // Hash passwords and insert users
     console.log(`[Seed] Inserting ${seedUsersData.length} test users...`);
-    
+
     for (const userData of seedUsersData) {
       // Generate a simple hash for demo purposes
       const hashedPassword = await bcrypt.hash(userData.password || 'password123', 10);
-      
+
       try {
         await db.insert(users).values({
           username: userData.username,
@@ -49,7 +49,7 @@ async function seedUsers() {
         }
       }
     }
-    
+
     console.log('[Seed] ✅ User seeding completed');
   } catch (error) {
     console.error('[Seed] Error during seeding:', error);

@@ -29,9 +29,9 @@ export default function Contact(): ReactElement {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     }));
   };
 
@@ -76,7 +76,8 @@ export default function Contact(): ReactElement {
               </span>
             </h1>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Have questions? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
+              Have questions? We'd love to hear from you. Send us a message and we'll respond as
+              soon as possible.
             </p>
           </div>
 
@@ -116,8 +117,10 @@ export default function Contact(): ReactElement {
                     <div>
                       <h3 className="font-bold text-slate-900 mb-1">Office</h3>
                       <p className="text-slate-600">
-                        NearHub Technologies Pvt. Ltd.<br />
-                        Bangalore, Karnataka<br />
+                        NearHub Technologies Pvt. Ltd.
+                        <br />
+                        Bangalore, Karnataka
+                        <br />
                         India 560001
                       </p>
                     </div>
@@ -129,7 +132,8 @@ export default function Contact(): ReactElement {
               <div className="bg-gradient-to-br from-[#1e5da8]/10 via-white to-[#ff9933]/10 rounded-xl p-8 border border-blue-100">
                 <h3 className="text-xl font-bold text-slate-900 mb-3">Ready to Get Started?</h3>
                 <p className="text-slate-600 mb-6">
-                  Join the growing community of sellers, buyers, and service providers in India and beyond.
+                  Join the growing community of sellers, buyers, and service providers in India and
+                  beyond.
                 </p>
                 <a
                   href="/app"
@@ -162,7 +166,10 @@ export default function Contact(): ReactElement {
                 </div>
 
                 <div>
-                  <label htmlFor="email" className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label
+                    htmlFor="email"
+                    className="block text-sm font-semibold text-slate-700 mb-2"
+                  >
                     Email Address *
                   </label>
                   <input
@@ -178,7 +185,10 @@ export default function Contact(): ReactElement {
                 </div>
 
                 <div>
-                  <label htmlFor="subject" className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label
+                    htmlFor="subject"
+                    className="block text-sm font-semibold text-slate-700 mb-2"
+                  >
                     Subject *
                   </label>
                   <input
@@ -194,7 +204,10 @@ export default function Contact(): ReactElement {
                 </div>
 
                 <div>
-                  <label htmlFor="message" className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label
+                    htmlFor="message"
+                    className="block text-sm font-semibold text-slate-700 mb-2"
+                  >
                     Message *
                   </label>
                   <textarea

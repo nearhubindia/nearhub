@@ -168,7 +168,7 @@ export default function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
 
       <View style={styles.bottomBar}>
         <View style={styles.loadingTrack}>
-          <Animated.View style={[styles.loadingFill, { width: loadingWidth }]}> 
+          <Animated.View style={[styles.loadingFill, { width: loadingWidth }]}>
             <LinearGradient
               colors={['#7DD3FC', '#3B82F6', '#A78BFA']}
               start={{ x: 0, y: 0 }}

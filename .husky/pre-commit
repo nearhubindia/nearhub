@@ -1,4 +1,13 @@
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
 
-npx lint-staged
+# Block committing real env files (allow only *.env.example templates)
+STAGED_ENV_FILES="$(git diff --cached --name-only | grep -E '(^|/)\.env($|\.local|\.development|\.test|\.production)' || true)"
+
+if [ -n "$STAGED_ENV_FILES" ]; then
+  echo "❌ Commit blocked: staged environment secret files detected."
+  echo "$STAGED_ENV_FILES"
+  echo ""
+  echo "Use .env.example files for templates and keep real .env files local."
+  exit 1
+fi

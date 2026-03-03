@@ -45,7 +45,7 @@ export default function CategoriesScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top || webTopInset }]}> 
+      <View style={[styles.header, { paddingTop: insets.top || webTopInset }]}>
         <Pressable style={styles.backButton} onPress={() => router.back()} hitSlop={8}>
           <Feather name="arrow-left" size={20} color={Colors.text} />
         </Pressable>

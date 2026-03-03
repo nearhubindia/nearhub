@@ -68,7 +68,7 @@ export function registerSearchRoutes(app: Express) {
       // Parse price filters
       const minPriceNum = minPrice ? parseFloat(minPrice as string) : undefined;
       const maxPriceNum = maxPrice ? parseFloat(maxPrice as string) : undefined;
-      
+
       // Parse geo filters
       const latNum = latitude ? parseFloat(latitude as string) : undefined;
       const lonNum = longitude ? parseFloat(longitude as string) : undefined;

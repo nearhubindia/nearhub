@@ -2,7 +2,7 @@
 /**
  * Database Listings Seeding Script
  * Seeds realistic sample listings into the database
- * 
+ *
  * Usage: npm run seed:listings
  */
 
@@ -15,7 +15,15 @@ const CONDITIONS = ['New', 'Like New', 'Good Condition', 'Used', 'Fair'];
 const CITIES = ['Mumbai', 'Delhi', 'Bangalore', 'Pune', 'Hyderabad', 'Chennai', 'Kolkata'];
 
 const PRODUCTS: Record<string, string[]> = {
-  Electronics: ['iPhone', 'Samsung Galaxy', 'iPad', 'MacBook', 'Dell Laptop', 'Sony TV', 'Gaming Laptop'],
+  Electronics: [
+    'iPhone',
+    'Samsung Galaxy',
+    'iPad',
+    'MacBook',
+    'Dell Laptop',
+    'Sony TV',
+    'Gaming Laptop',
+  ],
   Vehicles: ['Honda City', 'Maruti Swift', 'Toyota Fortuner', 'Hyundai Creta', 'Royal Enfield'],
   Furniture: ['Sofa Set', 'Bed Frame', 'Dining Table', 'Bookshelf', 'Office Chair'],
   Clothing: ['Designer T-Shirt', 'Jeans', 'Formal Shirt', 'Saree', 'Winter Jacket'],
@@ -23,7 +31,18 @@ const PRODUCTS: Record<string, string[]> = {
   Books: ['Self-Help Book', 'Fiction Novel', 'Technical Manual', 'History Book', 'Biography'],
 };
 
-const SELLERS = ['seller001', 'seller002', 'seller003', 'seller004', 'seller005', 'seller006', 'seller007', 'seller008', 'seller009', 'seller010'];
+const SELLERS = [
+  'seller001',
+  'seller002',
+  'seller003',
+  'seller004',
+  'seller005',
+  'seller006',
+  'seller007',
+  'seller008',
+  'seller009',
+  'seller010',
+];
 
 async function seedListings() {
   console.log('[Seed] Starting listings seeding...');

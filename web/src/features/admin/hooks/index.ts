@@ -1,7 +1,7 @@
 /**
  * Admin Feature React-Query Hooks
  * Custom hooks using React-Query for state management and caching
- * 
+ *
  * Pattern: Each hook wraps API methods with optimal caching configuration
  * - useQuery for fetching data
  * - useMutation for creating/updating/deleting data
@@ -332,7 +332,7 @@ export function useVideoById(id: string) {
 
 export function useDeleteVideo() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (videoId: string) => videosApi.deleteVideo(videoId),
     onSuccess: () => {
@@ -343,7 +343,7 @@ export function useDeleteVideo() {
 
 export function useToggleVideoStatus() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (videoId: string) => videosApi.toggleVideoStatus(videoId),
     onSuccess: () => {
@@ -505,8 +505,13 @@ export function useDeleteBanner() {
 export function useUpdateUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { username: string; mobile: string; location: string } }) =>
-      usersApi.updateUser(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: { username: string; mobile: string; location: string };
+    }) => usersApi.updateUser(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });
       queryClient.invalidateQueries({ queryKey: adminKeys.userDetail(variables.id) });

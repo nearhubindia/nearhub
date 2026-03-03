@@ -17,10 +17,7 @@ interface ListingFolder {
   listingsCount: number;
 }
 
-export default function ListingsView({
-  onEditListing,
-  onCreateListing,
-}: ListingsViewProps) {
+export default function ListingsView({ onEditListing, onCreateListing }: ListingsViewProps) {
   const { data: listingsData, isLoading } = useListings();
   const deleteListing = useDeleteListing();
 

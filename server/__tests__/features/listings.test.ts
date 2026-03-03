@@ -56,7 +56,11 @@ describe('Listings API - GWT Tests', () => {
       const unauthenticatedContext = given.appIsRunning(context.app);
 
       // When: Unauthenticated request is made
-      const result = await when.post(unauthenticatedContext, '/api/listings', testData.validListing());
+      const result = await when.post(
+        unauthenticatedContext,
+        '/api/listings',
+        testData.validListing()
+      );
 
       // Then: Should return 401 Unauthorized (if auth is implemented)
       // Currently may return 200 if auth not fully implemented
@@ -162,7 +166,8 @@ describe('Listings API - GWT Tests', () => {
         if (Array.isArray(listings)) {
           listings.forEach((listing: any) => {
             if (listing.price) {
-              const price = typeof listing.price === 'string' ? parseFloat(listing.price) : listing.price;
+              const price =
+                typeof listing.price === 'string' ? parseFloat(listing.price) : listing.price;
               expect(price).toBeGreaterThanOrEqual(100);
               expect(price).toBeLessThanOrEqual(1000);
             }

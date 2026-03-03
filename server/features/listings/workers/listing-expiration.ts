@@ -20,7 +20,7 @@ interface ExpirationResult {
 export async function checkAndDeactivateListings(): Promise<ExpirationResult> {
   const startTime = Date.now();
   const now = new Date();
-  
+
   console.log('[ListingWorker] Starting expiration check...');
 
   try {
@@ -29,11 +29,7 @@ export async function checkAndDeactivateListings(): Promise<ExpirationResult> {
       .select()
       .from(listings)
       .where(
-        and(
-          eq(listings.isActive, true),
-          eq(listings.status, 'active'),
-          lt(listings.expiresAt, now)
-        )
+        and(eq(listings.isActive, true), eq(listings.status, 'active'), lt(listings.expiresAt, now))
       );
 
     if (expiredListings.length === 0) {
@@ -56,25 +52,19 @@ export async function checkAndDeactivateListings(): Promise<ExpirationResult> {
         updatedAt: now,
       })
       .where(
-        and(
-          eq(listings.isActive, true),
-          eq(listings.status, 'active'),
-          lt(listings.expiresAt, now)
-        )
+        and(eq(listings.isActive, true), eq(listings.status, 'active'), lt(listings.expiresAt, now))
       )
       .returning();
 
     // Invalidate cache for affected listings and categories
-    await invalidateListingCache(expiredListings.map(l => l.id));
-    
+    await invalidateListingCache(expiredListings.map((l) => l.id));
+
     // Invalidate category caches
-    const affectedCategories = [...new Set(expiredListings.map(l => l.category))];
+    const affectedCategories = [...new Set(expiredListings.map((l) => l.category))];
     await invalidateCategoryCache(affectedCategories);
 
     const duration = Date.now() - startTime;
-    console.log(
-      `[ListingWorker] Deactivated ${result.length} listings in ${duration}ms`
-    );
+    console.log(`[ListingWorker] Deactivated ${result.length} listings in ${duration}ms`);
 
     return {
       deactivatedCount: result.length,
@@ -99,9 +89,9 @@ async function invalidateListingCache(listingIds: string[]): Promise<void> {
     const cacheKeys = [
       'listings:active',
       'listings:all',
-      ...listingIds.map(id => `listing:${id}`)
+      ...listingIds.map((id) => `listing:${id}`),
     ];
-    await Promise.all(cacheKeys.map(key => redisCache.delete(key)));
+    await Promise.all(cacheKeys.map((key) => redisCache.delete(key)));
     console.log(`[ListingWorker] Invalidated cache for ${listingIds.length} listings`);
   } catch (error) {
     console.error('[ListingWorker] Cache invalidation failed:', error);
@@ -113,8 +103,8 @@ async function invalidateListingCache(listingIds: string[]): Promise<void> {
  */
 async function invalidateCategoryCache(categories: string[]): Promise<void> {
   try {
-    const cacheKeys = categories.map(cat => `listings:category:${cat}`);
-    await Promise.all(cacheKeys.map(key => redisCache.delete(key)));
+    const cacheKeys = categories.map((cat) => `listings:category:${cat}`);
+    await Promise.all(cacheKeys.map((key) => redisCache.delete(key)));
     console.log(`[ListingWorker] Invalidated cache for ${categories.length} categories`);
   } catch (error) {
     console.error('[ListingWorker] Category cache invalidation failed:', error);
@@ -139,11 +129,7 @@ export async function getListingExpirationStats(): Promise<{
       .select()
       .from(listings)
       .where(
-        and(
-          eq(listings.isActive, true),
-          eq(listings.status, 'active'),
-          gt(listings.expiresAt, now)
-        )
+        and(eq(listings.isActive, true), eq(listings.status, 'active'), gt(listings.expiresAt, now))
       ),
     db
       .select()
@@ -167,10 +153,7 @@ export async function getListingExpirationStats(): Promise<{
           gt(listings.expiresAt, now)
         )
       ),
-    db
-      .select()
-      .from(listings)
-      .where(eq(listings.status, 'expired')),
+    db.select().from(listings).where(eq(listings.status, 'expired')),
   ]);
 
   return {

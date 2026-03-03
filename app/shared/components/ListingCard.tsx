@@ -33,10 +33,10 @@ export default function ListingCard({
   onPress,
   onSave,
 }: ListingCardProps) {
-  const hasUnreachablePlaceholder = typeof image === 'string' && image.includes('via.placeholder.com');
-  const imageSource = !image || hasUnreachablePlaceholder
-    ? require('../../assets/images/icon.png')
-    : { uri: image };
+  const hasUnreachablePlaceholder =
+    typeof image === 'string' && image.includes('via.placeholder.com');
+  const imageSource =
+    !image || hasUnreachablePlaceholder ? require('../../assets/images/icon.png') : { uri: image };
 
   return (
     <Pressable

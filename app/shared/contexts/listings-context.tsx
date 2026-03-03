@@ -55,7 +55,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
 
       const backendURL = getBackendURL();
-      
+
       // Get user location and radius from AsyncStorage (set by auth context)
       let url = `${backendURL}/api/listings?limit=100&offset=0`;
       try {
@@ -65,10 +65,12 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           const latitude = userData?.location?.latitude;
           const longitude = userData?.location?.longitude;
           const radiusKm = userData?.preferences?.searchRadiusKm || 50; // Default 50km
-          
+
           if (latitude !== undefined && longitude !== undefined) {
             url += `&latitude=${latitude}&longitude=${longitude}&radius=${radiusKm}`;
-            console.log(`[Listings] Geo-filtering: lat=${latitude}, lon=${longitude}, radius=${radiusKm}km`);
+            console.log(
+              `[Listings] Geo-filtering: lat=${latitude}, lon=${longitude}, radius=${radiusKm}km`
+            );
           }
         }
       } catch (userError) {
@@ -91,18 +93,21 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           if (data.success && data.data) {
             const apiListings: Listing[] = (data.data || []).map((listing: any) => {
               // Parse JSON fields if they're strings
-              const images = typeof listing.images === 'string' 
-                ? JSON.parse(listing.images || '[]') 
-                : (listing.images || []);
-              const videos = typeof listing.videos === 'string' 
-                ? JSON.parse(listing.videos || '[]') 
-                : (listing.videos || []);
+              const images =
+                typeof listing.images === 'string'
+                  ? JSON.parse(listing.images || '[]')
+                  : listing.images || [];
+              const videos =
+                typeof listing.videos === 'string'
+                  ? JSON.parse(listing.videos || '[]')
+                  : listing.videos || [];
 
               return {
                 id: listing.id,
                 title: listing.title,
                 description: listing.description || '',
-                price: typeof listing.price === 'string' ? parseFloat(listing.price) : listing.price,
+                price:
+                  typeof listing.price === 'string' ? parseFloat(listing.price) : listing.price,
                 category: listing.category as Category,
                 condition: listing.condition || 'good',
                 images: images || [],
@@ -125,16 +130,16 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
             // Merge with existing local listings to preserve unsync'd ones
             const stored = await AsyncStorage.getItem(LISTINGS_KEY);
             const existingListings: Listing[] = stored ? JSON.parse(stored) : [];
-            
+
             // Get IDs from API for deduplication
-            const apiIds = new Set(apiListings.map(l => l.id));
-            
+            const apiIds = new Set(apiListings.map((l) => l.id));
+
             // Keep local listings that aren't on the server yet
-            const localOnlyListings = existingListings.filter(l => !apiIds.has(l.id));
-            
+            const localOnlyListings = existingListings.filter((l) => !apiIds.has(l.id));
+
             // Merge: API listings first (latest), then local-only listings
             const merged = [...apiListings, ...localOnlyListings];
-            
+
             console.log(
               '[Listings] Merged listings: API=',
               apiListings.length,
@@ -143,7 +148,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
               'total=',
               merged.length
             );
-            
+
             setListings(merged);
             await AsyncStorage.setItem(LISTINGS_KEY, JSON.stringify(merged));
             await AsyncStorage.setItem(INITIALIZED_KEY, 'true');
@@ -160,7 +165,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       // Fallback: Load from cache if API fails
       const initialized = await AsyncStorage.getItem(INITIALIZED_KEY);
       const dataVersion = await AsyncStorage.getItem(DATA_VERSION_KEY);
-      
+
       if (!initialized || dataVersion !== CURRENT_DATA_VERSION) {
         const stored = await AsyncStorage.getItem(LISTINGS_KEY);
         const existingListings: Listing[] = stored ? JSON.parse(stored) : [];
@@ -262,7 +267,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         ...(subscriptionTierId && { subscriptionTierId }), // Include subscription tier ID if provided
         ...(userSubscriptionId && { userSubscriptionId }), // Include user subscription ID for quota tracking
       };
-      
+
       console.log('[Listings] REQUEST BODY DEBUG:', {
         hasVideos: !!listing.videos,
         videosLength: listing.videos?.length || 0,
@@ -307,7 +312,10 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         );
 
         // Check if it's an AI validation error
-        if (errorData.code === 'INAPPROPRIATE_CONTENT' || errorData.code === 'PRODUCT_IMAGE_MISMATCH') {
+        if (
+          errorData.code === 'INAPPROPRIATE_CONTENT' ||
+          errorData.code === 'PRODUCT_IMAGE_MISMATCH'
+        ) {
           // Throw a detailed error for AI validation failures
           const error = new Error(errorData.message || 'Content validation failed');
           (error as any).code = errorData.code;
@@ -323,7 +331,9 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           errorData.code === 'SUBSCRIPTION_LIMIT_REACHED'
         ) {
           const error = new Error(errorData.error || errorData.message || 'Listing limit reached');
-          (error as any).code = errorData.code || (response.status === 429 ? 'RATE_LIMIT_EXCEEDED' : 'LISTING_LIMIT_REACHED');
+          (error as any).code =
+            errorData.code ||
+            (response.status === 429 ? 'RATE_LIMIT_EXCEEDED' : 'LISTING_LIMIT_REACHED');
           (error as any).retryAfter = errorData.retryAfter;
           (error as any).limit = errorData.limit;
           (error as any).details = errorData;
@@ -410,14 +420,14 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       }
     } catch (apiError) {
       console.error('[Listings] API update error:', apiError);
-      
+
       // Fallback: Update locally if API fails
       const updatedListings = listings.map((listing) =>
         listing.id === id ? { ...listing, ...updates } : listing
       );
       setListings(updatedListings);
       await AsyncStorage.setItem(LISTINGS_KEY, JSON.stringify(updatedListings));
-      
+
       throw apiError; // Re-throw to let UI handle error
     }
   };

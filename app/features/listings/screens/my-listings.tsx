@@ -139,70 +139,62 @@ export default function MyListingsScreen() {
   };
 
   const handleMarkAsSold = async (listingId: string, listingTitle: string) => {
-    Alert.alert(
-      'Mark as Sold',
-      `Mark "${listingTitle}" as sold?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
+    Alert.alert('Mark as Sold', `Mark "${listingTitle}" as sold?`, [
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+      {
+        text: 'Mark as Sold',
+        onPress: async () => {
+          setMarkingSoldId(listingId);
+          try {
+            await updateListing(listingId, { status: 'sold' });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            showSuccessModal('Listing marked as sold');
+          } catch (error) {
+            console.error('Error marking as sold:', error);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            showErrorModal('Failed to mark listing as sold. Please try again.');
+          } finally {
+            setMarkingSoldId(null);
+          }
         },
-        {
-          text: 'Mark as Sold',
-          onPress: async () => {
-            setMarkingSoldId(listingId);
-            try {
-              await updateListing(listingId, { status: 'sold' });
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              showSuccessModal('Listing marked as sold');
-            } catch (error) {
-              console.error('Error marking as sold:', error);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-              showErrorModal('Failed to mark listing as sold. Please try again.');
-            } finally {
-              setMarkingSoldId(null);
-            }
-          },
-        },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleMarkAsActive = async (listingId: string, listingTitle: string) => {
-    Alert.alert(
-      'Mark as Active',
-      `Move "${listingTitle}" back to active listings?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
+    Alert.alert('Mark as Active', `Move "${listingTitle}" back to active listings?`, [
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+      {
+        text: 'Mark as Active',
+        onPress: async () => {
+          setMarkingActiveId(listingId);
+          try {
+            await updateListing(listingId, { status: 'active' });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            showSuccessModal('Listing moved back to Active');
+          } catch (error) {
+            console.error('Error marking as active:', error);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            showErrorModal('Failed to move listing to active. Please try again.');
+          } finally {
+            setMarkingActiveId(null);
+          }
         },
-        {
-          text: 'Mark as Active',
-          onPress: async () => {
-            setMarkingActiveId(listingId);
-            try {
-              await updateListing(listingId, { status: 'active' });
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              showSuccessModal('Listing moved back to Active');
-            } catch (error) {
-              console.error('Error marking as active:', error);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-              showErrorModal('Failed to move listing to active. Please try again.');
-            } finally {
-              setMarkingActiveId(null);
-            }
-          },
-        },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleViewSubscription = (item: any) => {
     const isPaid = item.isPaid;
     const duration = item.durationDays || item.duration || 30;
     const expiresAt = item.expiresAt ? new Date(item.expiresAt).toLocaleDateString() : 'N/A';
-    
+
     const message = isPaid
       ? `Subscription: Premium\nDuration: ${duration} days\nExpires: ${expiresAt}`
       : `Subscription: Coupon\nDuration: ${duration} days\nExpires: ${expiresAt}`;
@@ -267,7 +259,7 @@ export default function MyListingsScreen() {
 
       if (response.ok) {
         await response.json();
-        
+
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         closeUpgradeModal();
         showSuccessModal(`Listing upgraded to ${duration} days plan!`);
@@ -389,7 +381,9 @@ export default function MyListingsScreen() {
                 <View style={styles.detailsSection}>
                   <Text style={styles.priceText}>
                     ₹{Number(item.price || 0).toLocaleString('en-IN')}
-                    {item.priceUnit ? <Text style={styles.priceUnitText}> / {item.priceUnit}</Text> : null}
+                    {item.priceUnit ? (
+                      <Text style={styles.priceUnitText}> / {item.priceUnit}</Text>
+                    ) : null}
                   </Text>
                   <Text style={styles.titleText} numberOfLines={2}>
                     {item.title}
@@ -441,7 +435,7 @@ export default function MyListingsScreen() {
                     <Feather name="edit-2" size={18} color="#374151" />
                     <Text style={styles.editButtonText}>Edit</Text>
                   </Pressable>
-                  
+
                   <Pressable
                     style={[styles.actionButton, styles.boostButton]}
                     onPress={(e) => handleUpgradeButton(item, e)}
@@ -587,7 +581,9 @@ export default function MyListingsScreen() {
             <View style={styles.plansContainer}>
               {getAvailableUpgradePlans(selectedUpgradeItem).length === 0 ? (
                 <View style={styles.noPlansContainer}>
-                  <Text style={styles.noPlansText}>No higher plans available for this listing.</Text>
+                  <Text style={styles.noPlansText}>
+                    No higher plans available for this listing.
+                  </Text>
                 </View>
               ) : (
                 getAvailableUpgradePlans(selectedUpgradeItem).map((plan) => (
@@ -602,7 +598,9 @@ export default function MyListingsScreen() {
 
                     <Pressable
                       style={styles.selectPlanButton}
-                      onPress={() => processUpgrade(selectedUpgradeItem.id, plan.duration, plan.price)}
+                      onPress={() =>
+                        processUpgrade(selectedUpgradeItem.id, plan.duration, plan.price)
+                      }
                       disabled={upgradingDuration !== null}
                     >
                       {upgradingDuration === plan.duration ? (
@@ -634,10 +632,16 @@ export default function MyListingsScreen() {
             <View
               style={[
                 styles.feedbackIconWrap,
-                feedbackModalType === 'success' ? styles.feedbackIconSuccess : styles.feedbackIconError,
+                feedbackModalType === 'success'
+                  ? styles.feedbackIconSuccess
+                  : styles.feedbackIconError,
               ]}
             >
-              <Feather name={feedbackModalType === 'success' ? 'check' : 'x'} size={20} color="#fff" />
+              <Feather
+                name={feedbackModalType === 'success' ? 'check' : 'x'}
+                size={20}
+                color="#fff"
+              />
             </View>
             <Text style={styles.feedbackModalTitle}>{feedbackModalTitle}</Text>
             <Text style={styles.feedbackModalMessage}>{feedbackModalMessage}</Text>

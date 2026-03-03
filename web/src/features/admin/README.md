@@ -15,7 +15,7 @@ admin/
 ├── hooks/                    # React-Query hooks for state management
 │   └── index.ts             # useQuery and useMutation hooks
 ├── utils/                    # Utility functions
-│   ├── formatters.ts        # Data formatting for display  
+│   ├── formatters.ts        # Data formatting for display
 │   ├── validators.ts        # Form validation and data validation
 │   └── index.ts             # Barrel exports
 ├── components/               # UI components for views
@@ -44,19 +44,20 @@ admin/
 Centralized API methods organized by resource type with react-query key generation:
 
 ```typescript
-import { listingsApi, adminKeys } from '@/features/admin'
+import { listingsApi, adminKeys } from '@/features/admin';
 
 // Fetch listings
-const listings = await listingsApi.getListings({ limit: 50, offset: 0 })
+const listings = await listingsApi.getListings({ limit: 50, offset: 0 });
 
 // Create listing
-const newListing = await listingsApi.createListing(listingData)
+const newListing = await listingsApi.createListing(listingData);
 
 // Query keys for caching
-const listingQueryKey = adminKeys.listingsList({ limit: 50 })
+const listingQueryKey = adminKeys.listingsList({ limit: 50 });
 ```
 
 **Available APIs:**
+
 - `listingsApi` - Listing CRUD operations
 - `couponsApi` - Coupon management
 - `subscriptionTiersApi` - Tier management
@@ -98,6 +99,7 @@ export function CouponsView() {
 ```
 
 **Available Hooks:**
+
 - `useListings`, `useListingById`, `useCreateListing`, `useUpdateListing`, `useDeleteListing`
 - `useCoupons`, `useCreateCoupon`, `useUpdateCoupon`, `useDeleteCoupon`
 - `useSubscriptionTiers`, `useSubscriptionTierById`, `useCreateSubscriptionTier`, `useUpdateSubscriptionTier`, `useDeleteSubscriptionTier`
@@ -112,24 +114,24 @@ export function CouponsView() {
 #### Formatters
 
 ```typescript
-import { formatters } from '@/features/admin'
+import { formatters } from '@/features/admin';
 
-formatters.formatPrice(2500)           // "₹2,500"
-formatters.formatDate('2024-02-21')    // "21 Feb 2024"
-formatters.formatCouponCode('save30')  // "SAVE30"
-formatters.formatPercentage(0.15)      // "15.0%"
-formatters.getTierTypeLabel('image')   // "Image Listing"
+formatters.formatPrice(2500); // "₹2,500"
+formatters.formatDate('2024-02-21'); // "21 Feb 2024"
+formatters.formatCouponCode('save30'); // "SAVE30"
+formatters.formatPercentage(0.15); // "15.0%"
+formatters.getTierTypeLabel('image'); // "Image Listing"
 ```
 
 #### Validators
 
 ```typescript
-import { validators } from '@/features/admin'
+import { validators } from '@/features/admin';
 
 // Validate individual fields
-const error = validators.validateCouponCode('ABC123')
+const error = validators.validateCouponCode('ABC123');
 if (error) {
-  console.error(error.message) // Validation error
+  console.error(error.message); // Validation error
 }
 
 // Validate entire forms
@@ -137,15 +139,18 @@ const errors = validators.validateCouponForm({
   code: 'SAVE30',
   discountPercentage: '30',
   maxUsageCount: '100',
-  expiresAt: '2025-12-31T23:59:59Z'
-})
+  expiresAt: '2025-12-31T23:59:59Z',
+});
 
 if (errors.length > 0) {
   // Map to form errors
-  const errorMap = errors.reduce((acc, err) => ({
-    ...acc,
-    [err.field]: err.message
-  }), {})
+  const errorMap = errors.reduce(
+    (acc, err) => ({
+      ...acc,
+      [err.field]: err.message,
+    }),
+    {}
+  );
 }
 ```
 
@@ -154,10 +159,10 @@ if (errors.length > 0) {
 ### Fetching Data with Hooks
 
 ```typescript
-import { 
-  useCoupons, 
+import {
+  useCoupons,
   useSubscriptionTiers,
-  useSpamReports 
+  useSpamReports
 } from '@/features/admin'
 
 export function AdminDashboard() {
@@ -191,7 +196,7 @@ export function CreateCouponForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     // Validate
     const validationErrors = validators.validateCouponForm(formData)
     if (validationErrors.length > 0) {
@@ -251,16 +256,17 @@ React-Query uses a hierarchical query key system for cache management:
 
 ```typescript
 adminKeys = {
-  all: ['admin'],                              // "Root" key
-  listings: () => [...adminKeys.all, 'listings'],       // Resource
+  all: ['admin'], // "Root" key
+  listings: () => [...adminKeys.all, 'listings'], // Resource
   listingsList: (params) => [...adminKeys.listings(), { params }], // Query variant
   listingDetail: (id) => [...adminKeys.listings(), id], // Detail scope
-}
+};
 ```
 
 When mutations succeed, related caches are invalidated:
+
 - Creating a listing invalidates all `listings` queries
-- Deleting a listing invalidates all `listings` queries  
+- Deleting a listing invalidates all `listings` queries
 - Updating a listing invalidates `listings` + `listingDetail(id)`
 
 ## Caching Strategy
@@ -268,11 +274,12 @@ When mutations succeed, related caches are invalidated:
 All data follows this cache configuration:
 
 ```typescript
-const STALE_TIME = 5 * 60 * 1000    // 5 minutes
-const CACHE_TIME = 10 * 60 * 1000   // 10 minutes
+const STALE_TIME = 5 * 60 * 1000; // 5 minutes
+const CACHE_TIME = 10 * 60 * 1000; // 10 minutes
 ```
 
 Data is considered:
+
 - **Fresh**: After fetch, until 5 minutes pass
 - **Stale**: After 5 minutes, still in cache but can be refetched
 - **Garbage collected**: After 10 minutes without use
@@ -283,9 +290,9 @@ Override per query if needed:
 useQuery({
   queryKey: adminKeys.coupons(),
   queryFn: couponsApi.getCoupons,
-  staleTime: 0,    // Always fetch fresh
-  gcTime: 0,       // Don't cache
-})
+  staleTime: 0, // Always fetch fresh
+  gcTime: 0, // Don't cache
+});
 ```
 
 ## Type Safety
@@ -293,13 +300,7 @@ useQuery({
 All components are fully typed:
 
 ```typescript
-import type { 
-  Listing, 
-  Coupon, 
-  SubscriptionTier,
-  User,
-  ValidationError 
-} from '@/features/admin'
+import type { Listing, Coupon, SubscriptionTier, User, ValidationError } from '@/features/admin';
 ```
 
 ## Adding New Features
@@ -311,11 +312,11 @@ To add a new admin resource (e.g., Categories):
 ```typescript
 export const categoriesApi = {
   async getCategories(): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/categories`)
-    return handleResponse(response)
+    const response = await fetch(`${API_BASE_URL}/api/admin/categories`);
+    return handleResponse(response);
   },
   // ... other methods
-}
+};
 ```
 
 ### 2. Add Query Keys (`api/index.ts`)
@@ -325,7 +326,7 @@ export const adminKeys = {
   // ... existing
   categories: () => [...adminKeys.all, 'categories'] as const,
   categoriesList: () => [...adminKeys.categories(), 'list'] as const,
-}
+};
 ```
 
 ### 3. Add Hooks (`hooks/index.ts`)
@@ -337,36 +338,36 @@ export function useCategories() {
     queryFn: () => categoriesApi.getCategories(),
     staleTime: STALE_TIME,
     gcTime: CACHE_TIME,
-  })
+  });
 }
 
 export function useCreateCategory() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data) => categoriesApi.createCategory(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        queryKey: adminKeys.categories() 
-      })
+      queryClient.invalidateQueries({
+        queryKey: adminKeys.categories(),
+      });
     },
-  })
+  });
 }
 ```
 
 ### 4. Export from Feature (`index.ts`)
 
 ```typescript
-export { useCategories, useCreateCategory } from './hooks'
+export { useCategories, useCreateCategory } from './hooks';
 ```
 
 ### 5. Use in Components
 
 ```typescript
-import { useCategories, useCreateCategory } from '@/features/admin'
+import { useCategories, useCreateCategory } from '@/features/admin';
 
 export function CategoriesView() {
-  const { data } = useCategories()
-  const create = useCreateCategory()
+  const { data } = useCategories();
+  const create = useCreateCategory();
   // ...
 }
 ```
@@ -405,13 +406,13 @@ export function CouponsView() {
 Mutations handle errors via hook state:
 
 ```typescript
-const create = useCreateCoupon()
+const create = useCreateCoupon();
 
 try {
-  await create.mutateAsync(data)
+  await create.mutateAsync(data);
 } catch (error) {
   // Error automatically available in network
-  setFormErrors({ submit: error.message })
+  setFormErrors({ submit: error.message });
 }
 ```
 

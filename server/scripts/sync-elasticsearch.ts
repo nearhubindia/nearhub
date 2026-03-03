@@ -24,7 +24,10 @@ for (const envPath of possiblePaths) {
   }
 }
 
-import { syncAllListings, initializeElasticsearch } from '../features/search/services/elasticsearch';
+import {
+  syncAllListings,
+  initializeElasticsearch,
+} from '../features/search/services/elasticsearch';
 
 async function main() {
   console.log(`

@@ -13,7 +13,7 @@ export default defineConfig({
   build: {
     // Increase chunk size warning limit (in KB)
     chunkSizeWarningLimit: 1000,
-    
+
     // Enable code splitting for better caching
     rollupOptions: {
       output: {
@@ -34,6 +34,5 @@ export default defineConfig({
         },
       },
     },
-    
   },
 });

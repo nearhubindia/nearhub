@@ -106,7 +106,7 @@ function generateListings(count: number) {
     const listingType = getRandomItem(listingTypes);
     const status = getRandomItem(statuses);
     const durationDays = getRandomItem(durationOptions);
-    
+
     // Calculate expiry date based on duration and current time
     const createdDate = new Date(Date.now() - getRandomInt(0, 180) * 24 * 60 * 60 * 1000); // 0-180 days ago
     const expiryDate = new Date(createdDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
@@ -121,10 +121,15 @@ function generateListings(count: number) {
     ];
 
     // Generate 0-2 videos (less common than images)
-    const videoCount = listingType === 'video' ? 1 : listingType === 'mixed' ? getRandomInt(1, 2) : 0;
-    const videos = videoCount > 0
-      ? Array.from({ length: videoCount }, () => `https://example.com/videos/product-${getRandomInt(1000, 9999)}.mp4`)
-      : undefined;
+    const videoCount =
+      listingType === 'video' ? 1 : listingType === 'mixed' ? getRandomInt(1, 2) : 0;
+    const videos =
+      videoCount > 0
+        ? Array.from(
+            { length: videoCount },
+            () => `https://example.com/videos/product-${getRandomInt(1000, 9999)}.mp4`
+          )
+        : undefined;
 
     listings.push({
       sellerId: `seller-${String(getRandomInt(1, 150)).padStart(3, '0')}`,

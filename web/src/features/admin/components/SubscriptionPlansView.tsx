@@ -40,9 +40,7 @@ export default function SubscriptionPlansView() {
     isActive: true,
   });
 
-  const tiers: TierRow[] = Array.isArray(tiersData?.tiers)
-    ? (tiersData.tiers as TierRow[])
-    : [];
+  const tiers: TierRow[] = Array.isArray(tiersData?.tiers) ? (tiersData.tiers as TierRow[]) : [];
 
   const handleSaveTier = async (): Promise<void> => {
     try {
@@ -131,7 +129,11 @@ export default function SubscriptionPlansView() {
         : Array.isArray(tier.features)
           ? tier.features
           : [];
-    return (features as string[]).map((f: string) => f.charAt(0).toUpperCase() + f.slice(1)).join(', ') || 'None';
+    return (
+      (features as string[])
+        .map((f: string) => f.charAt(0).toUpperCase() + f.slice(1))
+        .join(', ') || 'None'
+    );
   };
 
   return (
@@ -209,7 +211,9 @@ export default function SubscriptionPlansView() {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-sm text-slate-600">
-                            {(tier.maxListings as number) === -1 ? 'Unlimited' : tier.maxListings as number}
+                            {(tier.maxListings as number) === -1
+                              ? 'Unlimited'
+                              : (tier.maxListings as number)}
                           </td>
                           <td className="px-6 py-4 text-sm">
                             <span
@@ -336,7 +340,10 @@ export default function SubscriptionPlansView() {
                       type="number"
                       value={formData.featuredListingsPerMonth}
                       onChange={(e) =>
-                        setFormData({ ...formData, featuredListingsPerMonth: Number(e.target.value) })
+                        setFormData({
+                          ...formData,
+                          featuredListingsPerMonth: Number(e.target.value),
+                        })
                       }
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
                       min="0"

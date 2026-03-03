@@ -117,9 +117,9 @@ async function loadLocationData(): Promise<void> {
     try {
       console.log('[Location] Loading GeoJSON data (async)...');
       const startTime = Date.now();
-      
+
       const geoJsonPath = path.resolve(__dirname, '../../../data/pincode_geo.geojson');
-      
+
       // Check if file exists (using fs.access for async)
       try {
         await fs.access(geoJsonPath);
@@ -212,7 +212,9 @@ async function loadLocationData(): Promise<void> {
 
       isDataLoaded = true;
       const loadTime = Date.now() - startTime;
-      console.log(`[Location] ✅ Loaded ${SCRUBBED_LOCATIONS.length} locations in ${loadTime}ms (async)`);
+      console.log(
+        `[Location] ✅ Loaded ${SCRUBBED_LOCATIONS.length} locations in ${loadTime}ms (async)`
+      );
     } catch (error) {
       console.error('[Location] Failed to load GeoJSON data:', error);
       isDataLoaded = true; // Mark as loaded to prevent infinite retries
@@ -302,7 +304,7 @@ export async function registerLocationRoutes(app: Express) {
   // Load location data asynchronously
   console.log('[Location] Initializing location data...');
   await loadLocationData();
-  
+
   // Initialize demo data
   initializeLocationData();
 
@@ -401,7 +403,7 @@ export async function registerLocationRoutes(app: Express) {
   app.get('/api/location/pincode/:pincode', async (req, res) => {
     try {
       await loadLocationData(); // Ensure data is loaded
-      
+
       const { pincode } = req.params;
 
       if (!pincode || pincode.length !== 6 || !/^\d{6}$/.test(pincode)) {
@@ -449,7 +451,7 @@ export async function registerLocationRoutes(app: Express) {
   app.get('/api/location/cities/search', async (req: Request, res: Response) => {
     try {
       await loadLocationData(); // Ensure data is loaded
-      
+
       const rawQuery = (req.query.q as string | undefined)?.trim() ?? '';
       const query = rawQuery.toLowerCase();
 

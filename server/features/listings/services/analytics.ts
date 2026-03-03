@@ -94,12 +94,7 @@ export async function getListingAnalytics(listingId: string) {
         count: sql<number>`COUNT(*)::int`,
       })
       .from(listingViews)
-      .where(
-        and(
-          eq(listingViews.listingId, listingId),
-          gte(listingViews.viewedAt, sevenDaysAgo)
-        )
-      )
+      .where(and(eq(listingViews.listingId, listingId), gte(listingViews.viewedAt, sevenDaysAgo)))
       .groupBy(sql`DATE(${listingViews.viewedAt})`)
       .orderBy(sql`DATE(${listingViews.viewedAt}) DESC`);
 
@@ -152,12 +147,7 @@ export async function getSellerAnalytics(sellerId: string) {
       })
       .from(listingViews)
       .innerJoin(listings, eq(listingViews.listingId, listings.id))
-      .where(
-        and(
-          eq(listings.sellerId, sellerId),
-          gte(listingViews.viewedAt, thirtyDaysAgo)
-        )
-      )
+      .where(and(eq(listings.sellerId, sellerId), gte(listingViews.viewedAt, thirtyDaysAgo)))
       .groupBy(sql`DATE(${listingViews.viewedAt})`)
       .orderBy(sql`DATE(${listingViews.viewedAt}) DESC`);
 
@@ -166,7 +156,8 @@ export async function getSellerAnalytics(sellerId: string) {
       totalListings: sellerListings.length,
       activeListings: sellerListings.filter((l) => l.status === 'active').length,
       totalViews,
-      averageViewsPerListing: sellerListings.length > 0 ? Math.round(totalViews / sellerListings.length) : 0,
+      averageViewsPerListing:
+        sellerListings.length > 0 ? Math.round(totalViews / sellerListings.length) : 0,
       topListings,
       allListings: sellerListings,
       last30DaysViews: viewTrends,

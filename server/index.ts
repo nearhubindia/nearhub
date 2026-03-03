@@ -285,11 +285,11 @@ function setupErrorHandler(app: express.Application) {
 
   setupCors(app);
   setupBodyParsing(app);
-  
+
   // Apply general rate limiting to all API routes
   app.use('/api', generalLimiter);
   log('✓ Rate limiting enabled (100 req/15min per IP)');
-  
+
   setupRequestLogging(app);
 
   // Initialize Razorpay payment service
@@ -315,7 +315,7 @@ function setupErrorHandler(app: express.Application) {
     },
     () => {
       log(`express server serving on port ${port}`);
-      
+
       // Initialize background workers after server starts
       initializeBackgroundWorkers();
     }
@@ -331,7 +331,9 @@ function initializeBackgroundWorkers(): void {
   // Subscription expiration worker - runs every 1 hour
   taskScheduler.register(
     'subscription-expiration',
-    checkAndExpireSubscriptions,
+    async () => {
+      await checkAndExpireSubscriptions();
+    },
     60 * 60 * 1000, // 1 hour
     { enabled: true, maxRetries: 3 }
   );
@@ -339,7 +341,9 @@ function initializeBackgroundWorkers(): void {
   // Listing expiration worker - runs every 30 minutes
   taskScheduler.register(
     'listing-expiration',
-    checkAndDeactivateListings,
+    async () => {
+      await checkAndDeactivateListings();
+    },
     30 * 60 * 1000, // 30 minutes
     { enabled: true, maxRetries: 3 }
   );

@@ -1,12 +1,4 @@
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { chartData } from '@/features/admin/constants/admin-constants';
 import { useRevenueStats } from '@/features/admin/hooks';
 
@@ -46,13 +38,21 @@ export default function RevenueView() {
           </div>
           <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-6">
             <p className="text-slate-600 text-sm mb-2">Subscription Revenue</p>
-            <p className="text-4xl font-black text-blue-600">₹{stats.subscription.toLocaleString()}</p>
-            <p className="text-sm text-blue-600 mt-2">{stats.subscriptionPercent.toFixed(1)}% of total</p>
+            <p className="text-4xl font-black text-blue-600">
+              ₹{stats.subscription.toLocaleString()}
+            </p>
+            <p className="text-sm text-blue-600 mt-2">
+              {stats.subscriptionPercent.toFixed(1)}% of total
+            </p>
           </div>
           <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-6">
             <p className="text-slate-600 text-sm mb-2">Transaction Fees</p>
-            <p className="text-4xl font-black text-purple-600">₹{stats.transaction.toLocaleString()}</p>
-            <p className="text-sm text-purple-600 mt-2">{stats.transactionPercent.toFixed(1)}% of total</p>
+            <p className="text-4xl font-black text-purple-600">
+              ₹{stats.transaction.toLocaleString()}
+            </p>
+            <p className="text-sm text-purple-600 mt-2">
+              {stats.transactionPercent.toFixed(1)}% of total
+            </p>
           </div>
         </div>
 

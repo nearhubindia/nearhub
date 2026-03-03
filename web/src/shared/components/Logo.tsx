@@ -7,10 +7,7 @@ interface LogoProps {
   className?: string;
 }
 
-export function Logo({
-  size = 'md',
-  className = '',
-}: LogoProps): ReactElement {
+export function Logo({ size = 'md', className = '' }: LogoProps): ReactElement {
   const sizes = {
     sm: { height: 40 },
     md: { height: 56 },

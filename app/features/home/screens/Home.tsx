@@ -88,14 +88,14 @@ export default function HomeScreen() {
   const userLat = selectedLocationLat ?? user?.location?.latitude;
   const userLon = selectedLocationLon ?? user?.location?.longitude;
   const effectiveGeoRadiusKm = user?.preferences?.searchRadiusKm ?? geoRadiusKm;
-  
+
   // Helper function to batch location state updates
   const updateLocation = useCallback((lat: number, lon: number, city: string) => {
     // Clear any pending update
     if (locationUpdateTimeoutRef.current) {
       clearTimeout(locationUpdateTimeoutRef.current);
     }
-    
+
     // Use startTransition to batch updates and mark as low priority
     locationUpdateTimeoutRef.current = setTimeout(() => {
       setSelectedLocationCity(city);
@@ -118,7 +118,7 @@ export default function HomeScreen() {
     const timeout = setTimeout(async () => {
       setIsSearchingCities(true);
       abortController = new AbortController();
-      
+
       try {
         const apiUrl = await getApiUrl();
         const response = await fetch(
@@ -205,10 +205,10 @@ export default function HomeScreen() {
             });
             const cityName =
               reverseGeocode[0]?.city || reverseGeocode[0]?.region || 'Current Location';
-            
+
             // Use helper to batch state updates
             updateLocation(lastPosition.coords.latitude, lastPosition.coords.longitude, cityName);
-            
+
             setLoadingState(false);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             if (onSuccess) onSuccess();
@@ -229,10 +229,10 @@ export default function HomeScreen() {
           longitude: location.coords.longitude,
         });
         const cityName = reverseGeocode[0]?.city || reverseGeocode[0]?.region || 'Current Location';
-        
+
         // Use helper to batch state updates
         updateLocation(location.coords.latitude, location.coords.longitude, cityName);
-        
+
         setLoadingState(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         if (onSuccess) onSuccess();
@@ -290,7 +290,7 @@ export default function HomeScreen() {
     (location: CitySuggestion) => {
       // Use helper to batch state updates
       updateLocation(location.latitude, location.longitude, location.locationName || location.city);
-      
+
       // Close modal immediately for better UX
       setShowLocationModal(false);
       setCitySearchInput('');
@@ -349,7 +349,13 @@ export default function HomeScreen() {
   }, [refreshListings, refreshBanners]);
 
   const handleLoadMore = useCallback(async () => {
-    if (!hasMore || isLoading || isLoadingMore || refreshing || filteredListingsByLocation.length === 0) {
+    if (
+      !hasMore ||
+      isLoading ||
+      isLoadingMore ||
+      refreshing ||
+      filteredListingsByLocation.length === 0
+    ) {
       return;
     }
 
@@ -421,7 +427,7 @@ export default function HomeScreen() {
         }
         ListHeaderComponent={
           <>
-            <View style={[styles.homeHeader, { paddingTop: insets.top || webTopInset }]}> 
+            <View style={[styles.homeHeader, { paddingTop: insets.top || webTopInset }]}>
               <View style={styles.homeHeaderTopRow}>
                 <Pressable style={styles.logoWrap} onPress={() => router.replace('/(tabs)')}>
                   <Logo size="md" showText={true} />
@@ -431,7 +437,11 @@ export default function HomeScreen() {
                   <Feather name="map-pin" size={14} color={Colors.primary} />
                   {isAutoLocatingUser ? (
                     <>
-                      <ActivityIndicator size="small" color={Colors.primary} style={{ marginRight: 4 }} />
+                      <ActivityIndicator
+                        size="small"
+                        color={Colors.primary}
+                        style={{ marginRight: 4 }}
+                      />
                       <Text style={styles.locationPillText}>Detecting...</Text>
                     </>
                   ) : (
@@ -578,7 +588,7 @@ export default function HomeScreen() {
               </View>
               <Text style={styles.allListingsSectionSubtitle}>
                 Showing listings within {selectedSearchRadiusKm} km of {userCity}
-                </Text>
+              </Text>
             </View>
           </>
         }
@@ -683,7 +693,9 @@ export default function HomeScreen() {
                     >
                       <View style={styles.citySuggestionTextWrap}>
                         <Text style={styles.citySuggestionName}>{city.locationName}</Text>
-                        <Text style={styles.citySuggestionMeta}>{city.district ? `${city.district}, ${city.state}` : city.state}</Text>
+                        <Text style={styles.citySuggestionMeta}>
+                          {city.district ? `${city.district}, ${city.state}` : city.state}
+                        </Text>
                       </View>
                       <Feather name="chevron-right" size={16} color={Colors.textTertiary} />
                     </Pressable>
@@ -738,9 +750,7 @@ export default function HomeScreen() {
 
               <View style={styles.radiusControlsSection}>
                 <Text style={styles.radiusSectionTitle}>Search Coverage Radius</Text>
-                <Text style={styles.radiusSectionSubtitle}>
-                  Admin default: {geoRadiusKm} km
-                </Text>
+                <Text style={styles.radiusSectionSubtitle}>Admin default: {geoRadiusKm} km</Text>
 
                 <View style={styles.radiusActionsRow}>
                   <Pressable
@@ -799,7 +809,6 @@ export default function HomeScreen() {
                   </Text>
                 </View>
               </View>
-
             </ScrollView>
           </View>
         </View>
@@ -1142,7 +1151,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   row: {
-      gap: 3,
+    gap: 3,
   },
   leftColumn: {
     flex: 1,

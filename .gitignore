@@ -9,6 +9,12 @@ web/node_modules/
 web/dist/
 
 # Environment
+.env
+.env.*
+!.env.example
+!app/.env.example
+!server/.env.example
+!web/.env.example
 .env.local
 .env.*.local
 
@@ -49,8 +55,3 @@ app/build-*.aab
 # Server build/test artifacts
 server/coverage/
 server/uploads/
-
-# Accidental shell-command artifact filenames (safety net)
-server/ql -*
-server/ole.log(*
-server/t" && pwd

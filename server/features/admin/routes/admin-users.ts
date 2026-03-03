@@ -73,10 +73,7 @@ export function registerAdminUsersRoutes(app: Express) {
     try {
       const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
 
-      const result = await db
-        .delete(users)
-        .where(eq(users.id, id))
-        .returning();
+      const result = await db.delete(users).where(eq(users.id, id)).returning();
 
       if (result.length === 0) {
         return notFound(res, 'User');

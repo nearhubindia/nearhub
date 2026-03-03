@@ -17,7 +17,6 @@ import { msg91 } from '../../../shared/notifications/msg91';
 import {
   notifyAccountSuspended,
   notifyAccountUnsuspended,
-  notifySpamReportFiled,
   notifyReportReviewed,
 } from '../../../shared/services/auto-notifications';
 
@@ -82,7 +81,7 @@ export function registerAdminRoutes(app: Express) {
       if (!reportId || !status) return res.status(400).json({ error: 'Missing required fields' });
       const report = reviewReport(reportId, status, adminNotes || '');
       if (!report) return res.status(404).json({ error: 'Report not found' });
-      
+
       // Send notification to reporter and reported user
       notifyReportReviewed(
         report.reporterUserId,
@@ -90,7 +89,7 @@ export function registerAdminRoutes(app: Express) {
         status === 'reviewed' ? 'approved' : 'dismissed',
         report.reason
       ).catch((err) => console.error('[Admin] Failed to send report reviewed notification:', err));
-      
+
       res.json({ success: true, report });
     } catch (error: any) {
       res.status(500).json({ error: 'Failed to review report' });
@@ -102,12 +101,12 @@ export function registerAdminRoutes(app: Express) {
       const { userId, reason } = req.body;
       if (!userId || !reason) return res.status(400).json({ error: 'Missing required fields' });
       const profile = blockUser(userId, reason);
-      
+
       // Send suspension notification
       notifyAccountSuspended(userId, reason).catch((err) =>
         console.error('[Admin] Failed to send account suspended notification:', err)
       );
-      
+
       res.json({ success: true, profile });
     } catch (error: any) {
       res.status(500).json({ error: 'Failed to block user' });
@@ -119,12 +118,12 @@ export function registerAdminRoutes(app: Express) {
       const { userId } = req.body;
       if (!userId) return res.status(400).json({ error: 'Missing user ID' });
       const profile = unblockUser(userId);
-      
+
       // Send account restored notification
       notifyAccountUnsuspended(userId).catch((err) =>
         console.error('[Admin] Failed to send account unsuspended notification:', err)
       );
-      
+
       res.json({ success: true, profile });
     } catch (error: any) {
       res.status(500).json({ error: 'Failed to unblock user' });
@@ -153,7 +152,7 @@ export function registerAdminRoutes(app: Express) {
 
   app.get('/api/admin/dashboard/stats', async (_req: Request, res: Response) => {
     try {
-      const { listings } = await import('../models/subscription');
+      const { listings } = await import('../../admin/models/admin-settings');
 
       const [activeListingsResult, videoUploadsResult, allListings] = await Promise.all([
         db.select({ value: count() }).from(listings).where(eq(listings.isActive, true)),
@@ -185,22 +184,30 @@ export function registerAdminRoutes(app: Express) {
   app.post('/api/test/msg91/send-sms', async (req: Request, res: Response) => {
     try {
       const { phone, message } = req.body;
-      if (!phone || !message) return res.status(400).json({ success: false, error: 'Phone and message are required' });
+      if (!phone || !message)
+        return res.status(400).json({ success: false, error: 'Phone and message are required' });
       const response = await msg91.sendSMS({ phone, message });
       res.json({ success: response.success, messageId: response.messageId, error: response.error });
     } catch (error) {
-      res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Failed to send SMS' });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to send SMS',
+      });
     }
   });
 
   app.post('/api/test/msg91/send-otp', async (req: Request, res: Response) => {
     try {
       const { phone } = req.body;
-      if (!phone) return res.status(400).json({ success: false, error: 'Phone number is required' });
+      if (!phone)
+        return res.status(400).json({ success: false, error: 'Phone number is required' });
       const response = await msg91.sendOTP({ phone, otp: '123456' });
       res.json({ success: response.success, messageId: response.messageId, error: response.error });
     } catch (error) {
-      res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Failed to send OTP' });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to send OTP',
+      });
     }
   });
 
@@ -209,7 +216,10 @@ export function registerAdminRoutes(app: Express) {
       const status = msg91.getStatus();
       res.json({ success: true, service: 'MSG91', status, apiConfigured: status.configured });
     } catch (error) {
-      res.status(500).json({ success: false, error: error instanceof Error ? error.message : 'Failed to get status' });
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get status',
+      });
     }
   });
 }

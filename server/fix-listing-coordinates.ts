@@ -4,21 +4,21 @@ import { eq } from 'drizzle-orm';
 
 // City coordinates for Indian cities
 const cityCoordinates: Record<string, { lat: number; lon: number }> = {
-  'Hyderabad': { lat: 17.385044, lon: 78.486671 },
+  Hyderabad: { lat: 17.385044, lon: 78.486671 },
   'Hyderabad, Telangana': { lat: 17.385044, lon: 78.486671 },
   'Hyderabad, India': { lat: 17.385044, lon: 78.486671 },
-  'Bangalore': { lat: 12.971599, lon: 77.594566 },
+  Bangalore: { lat: 12.971599, lon: 77.594566 },
   'Bangalore, India': { lat: 12.971599, lon: 77.594566 },
-  'Delhi': { lat: 28.704059, lon: 77.102490 },
-  'Delhi, India': { lat: 28.704059, lon: 77.102490 },
-  'Chennai': { lat: 13.082680, lon: 80.270718 },
-  'Chennai, India': { lat: 13.082680, lon: 80.270718 },
-  'Mumbai': { lat: 19.076090, lon: 72.877426 },
-  'Mumbai, India': { lat: 19.076090, lon: 72.877426 },
-  'Kolkata': { lat: 22.572646, lon: 88.363895 },
+  Delhi: { lat: 28.704059, lon: 77.10249 },
+  'Delhi, India': { lat: 28.704059, lon: 77.10249 },
+  Chennai: { lat: 13.08268, lon: 80.270718 },
+  'Chennai, India': { lat: 13.08268, lon: 80.270718 },
+  Mumbai: { lat: 19.07609, lon: 72.877426 },
+  'Mumbai, India': { lat: 19.07609, lon: 72.877426 },
+  Kolkata: { lat: 22.572646, lon: 88.363895 },
   'Kolkata, India': { lat: 22.572646, lon: 88.363895 },
-  'Pune': { lat: 18.520430, lon: 73.856743 },
-  'Pune, India': { lat: 18.520430, lon: 73.856743 },
+  Pune: { lat: 18.52043, lon: 73.856743 },
+  'Pune, India': { lat: 18.52043, lon: 73.856743 },
 };
 
 async function updateListingCoordinates() {
@@ -47,7 +47,7 @@ async function updateListingCoordinates() {
     }
 
     console.log(`\n✨ Successfully updated ${updatedCount} listings with coordinates!`);
-    
+
     // Verify the updates
     const updated = await db.select().from(listings).limit(5);
     console.log('\n📍 Sample updated listings:');

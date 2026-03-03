@@ -6,7 +6,10 @@
 import express, { type Express } from 'express';
 import { registerAuthRoutes } from '../../features/auth/routes/auth';
 import { registerCouponRoutes } from '../../features/coupons/routes/coupons';
-import { registerAdminAuthRoutes, adminAuthMiddleware } from '../../features/admin/routes/admin-auth';
+import {
+  registerAdminAuthRoutes,
+  adminAuthMiddleware,
+} from '../../features/admin/routes/admin-auth';
 import { registerAdminSettingsRoutes } from '../../features/admin/routes/admin-settings';
 import { registerWorkerRoutes } from '../../features/workers/routes/workers';
 import { registerSubscriptionRoutes } from '../../features/subscriptions/routes/subscriptions';
@@ -33,17 +36,17 @@ export function createTestApp(): Express {
 
   // Register routes
   registerAuthRoutes(app);
-  
+
   // Admin auth + protected settings middleware
   registerAdminAuthRoutes(app);
   app.use('/api/admin/settings', adminAuthMiddleware);
   registerAdminSettingsRoutes(app);
   registerCouponRoutes(app);
-  
+
   // Subscription and listing routes
   registerSubscriptionRoutes(app);
   registerListingRoutes(app);
-  
+
   // Worker management routes
   registerWorkerRoutes(app);
 
@@ -62,4 +65,3 @@ export function setupTestApp(): Express & { cleanup: () => void } {
 
   return app;
 }
-

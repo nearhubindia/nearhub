@@ -19,13 +19,14 @@ export default function SpamDetectionView() {
 
   const isLoading = filter === 'pending' ? reportsLoading : trendsLoading;
   const error = filter === 'pending' ? reportsError : trendsError;
-  const reports: SpamRow[] = filter === 'pending'
-    ? Array.isArray(reportsData?.reports)
-      ? (reportsData.reports as SpamRow[])
-      : []
-    : Array.isArray(trendsData?.trends)
-      ? (trendsData.trends as SpamRow[])
-      : [];
+  const reports: SpamRow[] =
+    filter === 'pending'
+      ? Array.isArray(reportsData?.reports)
+        ? (reportsData.reports as SpamRow[])
+        : []
+      : Array.isArray(trendsData?.trends)
+        ? (trendsData.trends as SpamRow[])
+        : [];
 
   const handleReview = async (reportId: string, action: 'approve' | 'reject'): Promise<void> => {
     try {
@@ -70,88 +71,88 @@ export default function SpamDetectionView() {
 
       {/* Content */}
       <div className="p-6 space-y-6">
-      <div className="flex gap-4 mb-6">
-        {['pending', 'trending'].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setFilter(tab as 'pending' | 'trending')}
-            className={`px-6 py-2 rounded-lg font-bold transition ${
-              filter === tab
-                ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white'
-                : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
-            }`}
-          >
-            {tab === 'pending' ? 'Pending Reports' : 'Trending Reasons'}
-          </button>
-        ))}
-      </div>
+        <div className="flex gap-4 mb-6">
+          {['pending', 'trending'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setFilter(tab as 'pending' | 'trending')}
+              className={`px-6 py-2 rounded-lg font-bold transition ${
+                filter === tab
+                  ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white'
+                  : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
+              }`}
+            >
+              {tab === 'pending' ? 'Pending Reports' : 'Trending Reasons'}
+            </button>
+          ))}
+        </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gradient-to-r from-slate-100 to-slate-200">
-            <tr>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-                {filter === 'pending' ? 'Report ID' : 'Reason'}
-              </th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-                {filter === 'pending' ? 'User' : 'Count'}
-              </th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Date</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {reports.length === 0 ? (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gradient-to-r from-slate-100 to-slate-200">
               <tr>
-                <td colSpan={4} className="px-6 py-4 text-center text-slate-500">
-                  No {filter} reports found
-                </td>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
+                  {filter === 'pending' ? 'Report ID' : 'Reason'}
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
+                  {filter === 'pending' ? 'User' : 'Count'}
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Date</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Action</th>
               </tr>
-            ) : (
-              reports.map((item, idx: number) => (
-                <tr key={idx} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 text-sm text-slate-900">
-                    {(item.id as string) || (item.reason as string)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {(item.reportedUserId as string) || (item.count as number)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {item.timestamp
-                      ? new Date(item.timestamp as string).toLocaleDateString()
-                      : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    {filter === 'pending' && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleReview(item.id as string, 'approve')}
-                          disabled={reviewSpam.isPending}
-                          className="inline-flex items-center px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleReview(item.id as string, 'reject')}
-                          disabled={reviewSpam.isPending}
-                          className="inline-flex items-center px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                        >
-                          <XCircle className="h-4 w-4 mr-1" />
-                          Reject
-                        </button>
-                      </div>
-                    )}
-                    {filter === 'trending' && (
-                      <span className="text-slate-500 text-xs">View only</span>
-                    )}
+            </thead>
+            <tbody className="divide-y">
+              {reports.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-4 text-center text-slate-500">
+                    No {filter} reports found
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : (
+                reports.map((item, idx: number) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 text-sm text-slate-900">
+                      {(item.id as string) || (item.reason as string)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {(item.reportedUserId as string) || (item.count as number)}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {item.timestamp
+                        ? new Date(item.timestamp as string).toLocaleDateString()
+                        : 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      {filter === 'pending' && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleReview(item.id as string, 'approve')}
+                            disabled={reviewSpam.isPending}
+                            className="inline-flex items-center px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => handleReview(item.id as string, 'reject')}
+                            disabled={reviewSpam.isPending}
+                            className="inline-flex items-center px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />
+                            Reject
+                          </button>
+                        </div>
+                      )}
+                      {filter === 'trending' && (
+                        <span className="text-slate-500 text-xs">View only</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

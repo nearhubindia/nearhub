@@ -129,10 +129,7 @@ function VideoPlayer({
 
   return (
     <View style={StyleSheet.absoluteFill}>
-      <Pressable 
-        style={StyleSheet.absoluteFill}
-        onPress={handleVideoPress}
-      >
+      <Pressable style={StyleSheet.absoluteFill} onPress={handleVideoPress}>
         <VideoView
           player={player}
           style={StyleSheet.absoluteFill}

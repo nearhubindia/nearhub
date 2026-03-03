@@ -21,8 +21,18 @@ import { verifyAdminToken } from '../../admin/services/admin-auth';
 import { isListingFree, getPricingForDuration, type DurationOption } from '../services/pricing';
 import { getRazorpayService } from '../../payments/services/razorpay';
 import { createListing, updateListing } from '../../listings/services/listings';
-import { applyCouponDiscount, recordCouponUsage, validateCouponCode, getRemainingFreeListings, useFreeListingFromCoupon } from '../../coupons/services/coupons';
-import { getActiveListing, getListingById, getListingsBySeller } from '../../listings/services/listings';
+import {
+  applyCouponDiscount,
+  recordCouponUsage,
+  validateCouponCode,
+  getRemainingFreeListings,
+  useFreeListingFromCoupon,
+} from '../../coupons/services/coupons';
+import {
+  getActiveListing,
+  getListingById,
+  getListingsBySeller,
+} from '../../listings/services/listings';
 import {
   notifyPaymentSuccess,
   notifyPaymentFailed,
@@ -38,13 +48,13 @@ import {
   createUserSubscription,
   canUserCreateListing,
   getTotalAllowedListings,
-  type SubscriptionTier,
 } from '../services/subscription-tiers';
-import { analyzeImageContent, analyzeVideoContent, verifyProductImageMatch } from '../../../shared/ai/ai';
 import {
-  getActiveListingCount,
-  getSubscriptionById,
-} from '../services/subscription-tiers';
+  analyzeImageContent,
+  analyzeVideoContent,
+  verifyProductImageMatch,
+} from '../../../shared/ai/ai';
+import { getActiveListingCount, getSubscriptionById } from '../services/subscription-tiers';
 import { listingCreationLimiter } from '../../../lib/rate-limiter';
 
 export function registerSubscriptionRoutes(app: Express) {
@@ -67,9 +77,9 @@ export function registerSubscriptionRoutes(app: Express) {
 
       // Get userId from request context (set by middleware) or x-user-id header
       const userId = (req as any).userId || req.get('x-user-id');
-      
+
       console.log('[GET /api/subscriptions] Fetching subscriptions for user:', userId);
-      
+
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -79,7 +89,8 @@ export function registerSubscriptionRoutes(app: Express) {
 
       // Get user's subscriptions from database
       const { db } = await import('../../../data/db');
-      const { userSubscriptions, subscriptionTiers } = await import('../../admin/models/admin-settings');
+      const { userSubscriptions, subscriptionTiers } =
+        await import('../../admin/models/admin-settings');
       const { eq } = await import('drizzle-orm');
 
       const result = await db
@@ -87,28 +98,29 @@ export function registerSubscriptionRoutes(app: Express) {
         .from(userSubscriptions)
         .where(eq(userSubscriptions.userId, userId));
 
-      console.log(`[GET /api/subscriptions] Found ${result.length} subscriptions for user ${userId}:`,
-        result.map(s => ({ id: s.id, status: s.status, tierId: s.subscriptionTierId }))
+      console.log(
+        `[GET /api/subscriptions] Found ${result.length} subscriptions for user ${userId}:`,
+        result.map((s) => ({ id: s.id, status: s.status, tierId: s.subscriptionTierId }))
       );
 
       // Get user's total listing count for backward compatibility
       let sellerListings = await getListingsBySeller(userId);
-      
+
       // If no listings found by userId, try user's phone number from header
       if (sellerListings.length === 0) {
         const userPhone = req.get('x-user-phone');
         if (userPhone) {
-          const normalizedPhone = userPhone.replace(/[\s\-\+]/g, '');
+          const normalizedPhone = userPhone.replace(/[\s+-]/g, '');
           sellerListings = await getListingsBySeller(normalizedPhone);
         }
       }
-      
+
       const totalListingsCount = sellerListings.length;
 
       // Enrich with tier details + PER-SUBSCRIPTION listing stats
       const { listings } = await import('../../admin/models/admin-settings');
       const { sql, and, isNull } = await import('drizzle-orm');
-      
+
       // DEBUG: Check for listings without userSubscriptionId
       const orphanedListingsResult = await db
         .select({ count: sql<number>`count(*)` })
@@ -123,13 +135,15 @@ export function registerSubscriptionRoutes(app: Express) {
         );
       const orphanedCount = Number(orphanedListingsResult[0]?.count || 0);
       if (orphanedCount > 0) {
-        console.warn(`[GET /api/subscriptions] Found ${orphanedCount} active listings WITHOUT userSubscriptionId for user ${userId}`);
+        console.warn(
+          `[GET /api/subscriptions] Found ${orphanedCount} active listings WITHOUT userSubscriptionId for user ${userId}`
+        );
       }
-      
+
       const enriched = await Promise.all(
         result.map(async (sub) => {
           const tier = await getSubscriptionTierById(sub.subscriptionTierId);
-          
+
           // Count active listings FOR THIS SPECIFIC SUBSCRIPTION
           const listingCountResult = await db
             .select({ count: sql<number>`count(*)` })
@@ -141,17 +155,17 @@ export function registerSubscriptionRoutes(app: Express) {
                 eq(listings.status, 'active')
               )
             );
-          
+
           const listingsUsedForThisSubscription = Number(listingCountResult[0]?.count || 0);
-          
+
           // DEBUG: Get actual listing IDs for this subscription
           const listingRecords = await db
-            .select({ 
-              id: listings.id, 
+            .select({
+              id: listings.id,
               title: listings.title,
               userSubscriptionId: listings.userSubscriptionId,
               isActive: listings.isActive,
-              status: listings.status
+              status: listings.status,
             })
             .from(listings)
             .where(
@@ -161,23 +175,29 @@ export function registerSubscriptionRoutes(app: Express) {
                 eq(listings.status, 'active')
               )
             );
-          
-          console.log(`[GET /api/subscriptions] Subscription ${sub.id} (${tier?.name}) - Listed count: ${listingsUsedForThisSubscription}`, {
-            subscriptionStatus: sub.status,
-            listings: listingRecords.map(l => ({ id: l.id, title: l.title })),
-          });
-          
+
+          console.log(
+            `[GET /api/subscriptions] Subscription ${sub.id} (${tier?.name}) - Listed count: ${listingsUsedForThisSubscription}`,
+            {
+              subscriptionStatus: sub.status,
+              listings: listingRecords.map((l) => ({ id: l.id, title: l.title })),
+            }
+          );
+
           return {
             ...sub,
-            tier: tier ? {
-              id: tier.id,
-              name: tier.name,
-              price: tier.price,
-              durationDays: tier.durationDays,
-              maxListings: tier.maxListings,
-              featuredListingsPerMonth: tier.featuredListingsPerMonth,
-              features: typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features,
-            } : null,
+            tier: tier
+              ? {
+                  id: tier.id,
+                  name: tier.name,
+                  price: tier.price,
+                  durationDays: tier.durationDays,
+                  maxListings: tier.maxListings,
+                  featuredListingsPerMonth: tier.featuredListingsPerMonth,
+                  features:
+                    typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features,
+                }
+              : null,
             listingsUsed: listingsUsedForThisSubscription, // Per-subscription count
             totalListingsCreated: totalListingsCount, // Global count for reference
           };
@@ -186,7 +206,7 @@ export function registerSubscriptionRoutes(app: Express) {
 
       console.log('[GET /api/subscriptions] Returning subscriptions:', {
         count: enriched.length,
-        subscriptions: enriched.map(s => ({
+        subscriptions: enriched.map((s) => ({
           id: s.id,
           status: s.status,
           tierName: s.tier?.name,
@@ -216,7 +236,7 @@ export function registerSubscriptionRoutes(app: Express) {
     try {
       // Get userId from request context (set by middleware) or x-user-id header
       const userId = (req as any).userId || req.get('x-user-id');
-      
+
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -246,11 +266,7 @@ export function registerSubscriptionRoutes(app: Express) {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + duration);
 
-      const subscription = await createUserSubscription(
-        userId,
-        tierId,
-        expiresAt
-      );
+      const subscription = await createUserSubscription(userId, tierId, expiresAt);
 
       return res.status(201).json({
         success: true,
@@ -327,7 +343,7 @@ export function registerSubscriptionRoutes(app: Express) {
   /**
    * POST /api/subscriptions/create-listing
    * Create listing with subscription/coupon validation (RECOMMENDED ENDPOINT)
-   * 
+   *
    * ✅ This is the recommended endpoint for creating listings. It provides:
    * - Subscription limit validation
    * - Per-subscription quota tracking
@@ -335,336 +351,349 @@ export function registerSubscriptionRoutes(app: Express) {
    * - Tier-based feature restrictions (video uploads, featured listings)
    * - Usage tracking and analytics
    * - Payment integration
-   * 
-   * Body: { 
-   *   sellerId, title, description, category, price, condition, location, 
-   *   images?, videos?, userSubscriptionId?, subscriptionTierId?, couponCode?, priceUnit?, 
-   *   listingType?, pincode?, latitude?, longitude?, featured? 
+   *
+   * Body: {
+   *   sellerId, title, description, category, price, condition, location,
+   *   images?, videos?, userSubscriptionId?, subscriptionTierId?, couponCode?, priceUnit?,
+   *   listingType?, pincode?, latitude?, longitude?, featured?
    * }
    */
-  app.post('/api/subscriptions/create-listing', listingCreationLimiter, async (req: Request, res: Response) => {
-    try {
-      const {
-        sellerId,
-        title,
-        description,
-        category,
-        price,
-        condition,
-        location,
-        images,
-        videos,
-        userSubscriptionId, // NEW: specific subscription instance to use
-        subscriptionTierId,
-        couponCode,
-        priceUnit,
-        listingType,
-        pincode,
-        latitude,
-        longitude,
-        featured = false,
-      } = req.body;
+  app.post(
+    '/api/subscriptions/create-listing',
+    listingCreationLimiter,
+    async (req: Request, res: Response) => {
+      try {
+        const {
+          sellerId,
+          title,
+          description,
+          category,
+          price,
+          condition,
+          location,
+          images,
+          videos,
+          userSubscriptionId, // NEW: specific subscription instance to use
+          subscriptionTierId,
+          couponCode,
+          priceUnit,
+          listingType,
+          pincode,
+          latitude,
+          longitude,
+          featured = false,
+        } = req.body;
 
-      // if sellerId appears to be an admin account, ensure request includes a valid admin JWT
-      if (typeof sellerId === 'string' && sellerId.startsWith('admin')) {
-        const authHeader = req.get('Authorization') || '';
-        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-        const admin = verifyAdminToken(token);
-        if (!admin) {
-          return res.status(401).json({ error: 'Unauthorized: valid admin token required' });
+        // if sellerId appears to be an admin account, ensure request includes a valid admin JWT
+        if (typeof sellerId === 'string' && sellerId.startsWith('admin')) {
+          const authHeader = req.get('Authorization') || '';
+          const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+          const admin = verifyAdminToken(token);
+          if (!admin) {
+            return res.status(401).json({ error: 'Unauthorized: valid admin token required' });
+          }
         }
-      }
 
-      // Validate required fields
-      if (!sellerId || !title || !price || !category || !condition || !location) {
-        return res.status(400).json({
-          error: 'Missing required fields: sellerId, title, price, category, condition, location',
-        });
-      }
+        // Validate required fields
+        if (!sellerId || !title || !price || !category || !condition || !location) {
+          return res.status(400).json({
+            error: 'Missing required fields: sellerId, title, price, category, condition, location',
+          });
+        }
 
-      // Check if user can create a listing (subscription limit check)
-      // Skip check for admin accounts and coupon-based listings
-      if (!sellerId.startsWith('admin') && !couponCode) {
-        if (userSubscriptionId) {
-          // NEW: Per-subscription quota check
-          const { canCreateListingWithSubscription } = await import('../services/subscription-tiers');
-          const limitCheck = await canCreateListingWithSubscription(sellerId, userSubscriptionId);
-          if (!limitCheck.allowed) {
-            return res.status(403).json({
-              error: limitCheck.reason,
-              code: 'SUBSCRIPTION_LIMIT_REACHED',
-              current: limitCheck.current,
-              limit: limitCheck.limit,
-              subscriptionName: limitCheck.subscriptionName,
+        // Check if user can create a listing (subscription limit check)
+        // Skip check for admin accounts and coupon-based listings
+        if (!sellerId.startsWith('admin') && !couponCode) {
+          if (userSubscriptionId) {
+            // NEW: Per-subscription quota check
+            const { canCreateListingWithSubscription } =
+              await import('../services/subscription-tiers');
+            const limitCheck = await canCreateListingWithSubscription(sellerId, userSubscriptionId);
+            if (!limitCheck.allowed) {
+              return res.status(403).json({
+                error: limitCheck.reason,
+                code: 'SUBSCRIPTION_LIMIT_REACHED',
+                current: limitCheck.current,
+                limit: limitCheck.limit,
+                subscriptionName: limitCheck.subscriptionName,
+              });
+            }
+          } else {
+            // OLD: Global quota check (fallback for backward compatibility)
+            const limitCheck = await canUserCreateListing(sellerId);
+            if (!limitCheck.allowed) {
+              return res.status(403).json({
+                error: limitCheck.reason,
+                code: 'LISTING_LIMIT_REACHED',
+                current: limitCheck.current,
+                limit: limitCheck.limit,
+              });
+            }
+          }
+        }
+
+        // Validate image and video limits (max 5 each)
+        const imageCount = Array.isArray(images) ? images.length : 0;
+        const videoCount = Array.isArray(videos) ? videos.length : 0;
+
+        if (imageCount > 5) {
+          return res.status(400).json({
+            error: 'Maximum 5 images allowed per listing',
+          });
+        }
+
+        if (videoCount > 5) {
+          return res.status(400).json({
+            error: 'Maximum 5 videos allowed per listing',
+          });
+        }
+
+        // If videos are being uploaded, validate subscription tier allows it
+        if (videoCount > 0 && subscriptionTierId) {
+          const tier = await getSubscriptionTierById(subscriptionTierId);
+          if (!tier) {
+            return res.status(400).json({
+              error: 'Invalid subscription tier selected',
             });
+          }
+
+          // Parse tier features and check if video is allowed
+          const tierFeatures =
+            typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features || [];
+          if (!tierFeatures.includes('video')) {
+            return res.status(400).json({
+              error: `Your subscription tier "${tier.name}" does not support video uploads. Please upgrade to a tier that includes video feature.`,
+              tierName: tier.name,
+              tierFeatures: tierFeatures,
+            });
+          }
+        }
+
+        // If featured is requested, validate subscription tier allows it
+        let isFeatured = featured;
+        if (featured === true || featured === 'true') {
+          if (!subscriptionTierId) {
+            return res.status(403).json({
+              error:
+                'Featured listings require an active subscription. Please select a subscription tier that supports featured listings.',
+              code: 'NO_SUBSCRIPTION_FOR_FEATURED',
+            });
+          }
+
+          const tier = await getSubscriptionTierById(subscriptionTierId);
+          if (!tier) {
+            return res.status(400).json({
+              error: 'Invalid subscription tier selected',
+            });
+          }
+
+          // Check if tier supports featured listings
+          const tierFeatures =
+            typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features || [];
+          if (!tierFeatures.includes('featured')) {
+            return res.status(403).json({
+              error: `Your subscription tier "${tier.name}" does not include featured listings. Please upgrade to a tier that supports Featured listings.`,
+              tierName: tier.name,
+              tierFeatures: tierFeatures,
+              code: 'TIER_NO_FEATURED',
+            });
+          }
+
+          isFeatured = true;
+        } else {
+          isFeatured = false;
+        }
+
+        // Determine listing duration: either from subscription or coupon free listings
+        let durationDays = 30; // default
+        let isPaid = false;
+        let isFreeFromCoupon = false;
+        let couponFreeRemaining = 0;
+
+        if (couponCode) {
+          // User is using a coupon code for free listing
+          const freeCheck = await getRemainingFreeListings(couponCode, sellerId);
+          if (freeCheck.error || freeCheck.remaining <= 0) {
+            return res.status(400).json({
+              error: freeCheck.error || 'No free listings remaining on this coupon',
+              code: 'NO_FREE_LISTINGS',
+            });
+          }
+          durationDays = freeCheck.durationDays;
+          isFreeFromCoupon = true;
+          couponFreeRemaining = freeCheck.remaining;
+        } else if (subscriptionTierId) {
+          // User has an active subscription tier
+          const tier = await getSubscriptionTierById(subscriptionTierId);
+          if (tier) {
+            durationDays = tier.durationDays || 30;
+            isPaid = true;
           }
         } else {
-          // OLD: Global quota check (fallback for backward compatibility)
-          const limitCheck = await canUserCreateListing(sellerId);
-          if (!limitCheck.allowed) {
-            return res.status(403).json({
-              error: limitCheck.reason,
-              code: 'LISTING_LIMIT_REACHED',
-              current: limitCheck.current,
-              limit: limitCheck.limit,
-            });
-          }
-        }
-      }
-
-      // Validate image and video limits (max 5 each)
-      const imageCount = Array.isArray(images) ? images.length : 0;
-      const videoCount = Array.isArray(videos) ? videos.length : 0;
-
-      if (imageCount > 5) {
-        return res.status(400).json({
-          error: 'Maximum 5 images allowed per listing',
-        });
-      }
-
-      if (videoCount > 5) {
-        return res.status(400).json({
-          error: 'Maximum 5 videos allowed per listing',
-        });
-      }
-
-      // If videos are being uploaded, validate subscription tier allows it
-      if (videoCount > 0 && subscriptionTierId) {
-        const tier = await getSubscriptionTierById(subscriptionTierId);
-        if (!tier) {
-          return res.status(400).json({
-            error: 'Invalid subscription tier selected',
-          });
-        }
-
-        // Parse tier features and check if video is allowed
-        const tierFeatures =
-          typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features || [];
-        if (!tierFeatures.includes('video')) {
-          return res.status(400).json({
-            error: `Your subscription tier "${tier.name}" does not support video uploads. Please upgrade to a tier that includes video feature.`,
-            tierName: tier.name,
-            tierFeatures: tierFeatures,
-          });
-        }
-      }
-
-      // If featured is requested, validate subscription tier allows it
-      let isFeatured = featured;
-      if (featured === true || featured === 'true') {
-        if (!subscriptionTierId) {
+          // No coupon and no subscription - reject
           return res.status(403).json({
             error:
-              'Featured listings require an active subscription. Please select a subscription tier that supports featured listings.',
-            code: 'NO_SUBSCRIPTION_FOR_FEATURED',
+              'A subscription or valid coupon code with free listings is required to create a listing.',
+            code: 'SUBSCRIPTION_OR_COUPON_REQUIRED',
           });
         }
 
-        const tier = await getSubscriptionTierById(subscriptionTierId);
-        if (!tier) {
-          return res.status(400).json({
-            error: 'Invalid subscription tier selected',
-          });
-        }
+        const listingData: CreateListingRequest = {
+          sellerId,
+          title,
+          description,
+          category,
+          price: parseFloat(price as string),
+          condition,
+          location,
+          priceUnit,
+          listingType: listingType || 'image',
+          pincode,
+          latitude: latitude ? parseFloat(latitude as string) : undefined,
+          longitude: longitude ? parseFloat(longitude as string) : undefined,
+        };
 
-        // Check if tier supports featured listings
-        const tierFeatures =
-          typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features || [];
-        if (!tierFeatures.includes('featured')) {
-          return res.status(403).json({
-            error: `Your subscription tier "${tier.name}" does not include featured listings. Please upgrade to a tier that supports Featured listings.`,
-            tierName: tier.name,
-            tierFeatures: tierFeatures,
-            code: 'TIER_NO_FEATURED',
-          });
-        }
+        // 🛡️ AI CONTENT MODERATION: Validate images and videos before creating listing
+        console.log('[AI Moderation] Starting content validation...');
+        const hasImages = images && Array.isArray(images) && images.length > 0;
+        const hasVideos = videos && Array.isArray(videos) && videos.length > 0;
 
-        isFeatured = true;
-      } else {
-        isFeatured = false;
-      }
+        if (hasImages) {
+          console.log(`[AI Moderation] Analyzing ${images.length} image(s)...`);
+          // Analyze first image (could extend to all images if needed)
+          const firstImage = images[0];
+          if (firstImage && typeof firstImage === 'string') {
+            try {
+              // Step 1: Check for inappropriate content (safety)
+              const imageAnalysis = await analyzeImageContent(firstImage);
+              console.log('[AI Moderation] Safety check result:', imageAnalysis);
 
-      // Determine listing duration: either from subscription or coupon free listings
-      let durationDays = 30; // default
-      let isPaid = false;
-      let isFreeFromCoupon = false;
-      let couponFreeRemaining = 0;
+              if (!imageAnalysis.isAppropriate) {
+                const reasons = [];
+                if (imageAnalysis.hasNudity) reasons.push('nudity');
+                if (imageAnalysis.hasViolence) reasons.push('violence');
+                if (imageAnalysis.hasWeapons) reasons.push('weapons');
+                if (imageAnalysis.hasDrugs) reasons.push('drugs');
 
-      if (couponCode) {
-        // User is using a coupon code for free listing
-        const freeCheck = await getRemainingFreeListings(couponCode, sellerId);
-        if (freeCheck.error || freeCheck.remaining <= 0) {
-          return res.status(400).json({
-            error: freeCheck.error || 'No free listings remaining on this coupon',
-            code: 'NO_FREE_LISTINGS',
-          });
-        }
-        durationDays = freeCheck.durationDays;
-        isFreeFromCoupon = true;
-        couponFreeRemaining = freeCheck.remaining;
-      } else if (subscriptionTierId) {
-        // User has an active subscription tier
-        const tier = await getSubscriptionTierById(subscriptionTierId);
-        if (tier) {
-          durationDays = tier.durationDays || 30;
-          isPaid = true;
-        }
-      } else {
-        // No coupon and no subscription - reject
-        return res.status(403).json({
-          error: 'A subscription or valid coupon code with free listings is required to create a listing.',
-          code: 'SUBSCRIPTION_OR_COUPON_REQUIRED',
-        });
-      }
+                return res.status(400).json({
+                  success: false,
+                  error: 'Image content violates community guidelines',
+                  code: 'INAPPROPRIATE_CONTENT',
+                  details: {
+                    contentType: 'image',
+                    violations: reasons,
+                    reason: imageAnalysis.reason,
+                    confidence: imageAnalysis.confidence,
+                  },
+                  message: `Your image was flagged for containing inappropriate content: ${reasons.join(', ')}. Please use different images.`,
+                });
+              }
+              console.log('[AI Moderation] ✓ Images passed safety check');
 
-      const listingData: CreateListingRequest = {
-        sellerId,
-        title,
-        description,
-        category,
-        price: parseFloat(price as string),
-        condition,
-        location,
-        priceUnit,
-        listingType: listingType || 'image',
-        pincode,
-        latitude: latitude ? parseFloat(latitude as string) : undefined,
-        longitude: longitude ? parseFloat(longitude as string) : undefined,
-      };
+              // Step 2: Verify product-image matching
+              const productMatch = await verifyProductImageMatch(firstImage, title, category);
+              console.log('[AI Moderation] Product match result:', productMatch);
 
-      // 🛡️ AI CONTENT MODERATION: Validate images and videos before creating listing
-      console.log('[AI Moderation] Starting content validation...');
-      const hasImages = images && Array.isArray(images) && images.length > 0;
-      const hasVideos = videos && Array.isArray(videos) && videos.length > 0;
-
-      if (hasImages) {
-        console.log(`[AI Moderation] Analyzing ${images.length} image(s)...`);
-        // Analyze first image (could extend to all images if needed)
-        const firstImage = images[0];
-        if (firstImage && typeof firstImage === 'string') {
-          try {
-            // Step 1: Check for inappropriate content (safety)
-            const imageAnalysis = await analyzeImageContent(firstImage);
-            console.log('[AI Moderation] Safety check result:', imageAnalysis);
-
-            if (!imageAnalysis.isAppropriate) {
-              const reasons = [];
-              if (imageAnalysis.hasNudity) reasons.push('nudity');
-              if (imageAnalysis.hasViolence) reasons.push('violence');
-              if (imageAnalysis.hasWeapons) reasons.push('weapons');
-              if (imageAnalysis.hasDrugs) reasons.push('drugs');
-
-              return res.status(400).json({
-                success: false,
-                error: 'Image content violates community guidelines',
-                code: 'INAPPROPRIATE_CONTENT',
-                details: {
-                  contentType: 'image',
-                  violations: reasons,
-                  reason: imageAnalysis.reason,
-                  confidence: imageAnalysis.confidence,
-                },
-                message: `Your image was flagged for containing inappropriate content: ${reasons.join(', ')}. Please use different images.`,
-              });
+              if (!productMatch.matches && productMatch.confidence > 0.6) {
+                return res.status(400).json({
+                  success: false,
+                  error: 'Image does not match the product title and category',
+                  code: 'PRODUCT_IMAGE_MISMATCH',
+                  details: {
+                    contentType: 'image',
+                    expectedProduct: title,
+                    expectedCategory: category,
+                    detectedItems: productMatch.detectedItems,
+                    reason: productMatch.reason,
+                    confidence: productMatch.confidence,
+                  },
+                  message: `Your image doesn't match what you're selling. ${productMatch.reason}. Please upload correct product images.`,
+                });
+              }
+              console.log('[AI Moderation] ✓ Product-image match verified');
+            } catch (error) {
+              console.error('[AI Moderation] Image analysis failed:', error);
+              // Continue with listing creation if AI service is down (graceful degradation)
+              // TODO: Flag for manual review
             }
-            console.log('[AI Moderation] ✓ Images passed safety check');
-
-            // Step 2: Verify product-image matching
-            const productMatch = await verifyProductImageMatch(firstImage, title, category);
-            console.log('[AI Moderation] Product match result:', productMatch);
-
-            if (!productMatch.matches && productMatch.confidence > 0.6) {
-              return res.status(400).json({
-                success: false,
-                error: 'Image does not match the product title and category',
-                code: 'PRODUCT_IMAGE_MISMATCH',
-                details: {
-                  contentType: 'image',
-                  expectedProduct: title,
-                  expectedCategory: category,
-                  detectedItems: productMatch.detectedItems,
-                  reason: productMatch.reason,
-                  confidence: productMatch.confidence,
-                },
-                message: `Your image doesn't match what you're selling. ${productMatch.reason}. Please upload correct product images.`,
-              });
-            }
-            console.log('[AI Moderation] ✓ Product-image match verified');
-          } catch (error) {
-            console.error('[AI Moderation] Image analysis failed:', error);
-            // Continue with listing creation if AI service is down (graceful degradation)
-            // TODO: Flag for manual review
           }
         }
-      }
 
-      if (hasVideos) {
-        console.log(`[AI Moderation] Video upload detected - requires frame analysis`);
-        // Note: Video frame extraction should happen client-side or via FFmpeg
-        // For now, we'll skip direct video validation but log it
-        // TODO: Implement video frame extraction and analysis
-        console.log('[AI Moderation] ⚠️ Video content moderation not yet implemented - manual review recommended');
-      }
-
-      // Create the listing
-      const createdListing = await createListing({
-        sellerId: listingData.sellerId,
-        title: listingData.title,
-        description: listingData.description || '',
-        category: listingData.category,
-        price: listingData.price.toString(),
-        priceUnit: listingData.priceUnit,
-        condition: listingData.condition,
-        location: listingData.location,
-        pincode: listingData.pincode,
-        latitude: listingData.latitude?.toString(),
-        longitude: listingData.longitude?.toString(),
-        images: images || [],
-        videos: videos || [],
-        subscriptionTierId: subscriptionTierId || null,
-        userSubscriptionId: userSubscriptionId || null, // NEW: Track which subscription instance
-        featured: isFeatured,
-        isPaid,
-        durationDays,
-        status: 'active',
-        isActive: true,
-      });
-
-      // If coupon was used, record the free listing usage
-      if (isFreeFromCoupon && couponCode) {
-        const useResult = await useFreeListingFromCoupon(couponCode, sellerId, createdListing.id);
-        if (!useResult.success) {
-          console.error('[Subscriptions] Failed to record coupon free listing usage:', useResult.error);
+        if (hasVideos) {
+          console.log(`[AI Moderation] Video upload detected - requires frame analysis`);
+          // Note: Video frame extraction should happen client-side or via FFmpeg
+          // For now, we'll skip direct video validation but log it
+          // TODO: Implement video frame extraction and analysis
+          console.log(
+            '[AI Moderation] ⚠️ Video content moderation not yet implemented - manual review recommended'
+          );
         }
-        couponFreeRemaining = useResult.remaining;
-      }
 
-      return res.json({
-        success: true,
-        isFree: isFreeFromCoupon,
-        message: isFreeFromCoupon
-          ? `✓ Listing created with coupon! ${couponFreeRemaining} free listing${couponFreeRemaining !== 1 ? 's' : ''} remaining.`
-          : '✓ Listing created successfully with your subscription.',
-        listing: {
-          id: createdListing.id,
-          title: createdListing.title,
-          price: createdListing.price,
+        // Create the listing
+        const createdListing = await createListing({
+          sellerId: listingData.sellerId,
+          title: listingData.title,
+          description: listingData.description || '',
+          category: listingData.category,
+          price: listingData.price.toString(),
+          priceUnit: listingData.priceUnit,
+          condition: listingData.condition,
+          location: listingData.location,
+          pincode: listingData.pincode,
+          latitude: listingData.latitude?.toString(),
+          longitude: listingData.longitude?.toString(),
+          images: images || [],
+          videos: videos || [],
+          subscriptionTierId: subscriptionTierId || null,
+          userSubscriptionId: userSubscriptionId || null, // NEW: Track which subscription instance
+          featured: isFeatured,
           isPaid,
           durationDays,
-          status: createdListing.status,
-          createdAt: createdListing.createdAt?.toISOString() || new Date().toISOString(),
-          expiresAt: createdListing.expiresAt?.toISOString() || null,
-        },
-        coupon: isFreeFromCoupon ? {
-          code: couponCode,
-          freeListingsRemaining: couponFreeRemaining,
-        } : undefined,
-      });
-    } catch (error) {
-      console.error('[Subscriptions] Error creating listing:', error);
-      res.status(500).json({ error: 'Failed to create listing' });
+          status: 'active',
+          isActive: true,
+        });
+
+        // If coupon was used, record the free listing usage
+        if (isFreeFromCoupon && couponCode) {
+          const useResult = await useFreeListingFromCoupon(couponCode, sellerId, createdListing.id);
+          if (!useResult.success) {
+            console.error(
+              '[Subscriptions] Failed to record coupon free listing usage:',
+              useResult.error
+            );
+          }
+          couponFreeRemaining = useResult.remaining;
+        }
+
+        return res.json({
+          success: true,
+          isFree: isFreeFromCoupon,
+          message: isFreeFromCoupon
+            ? `✓ Listing created with coupon! ${couponFreeRemaining} free listing${couponFreeRemaining !== 1 ? 's' : ''} remaining.`
+            : '✓ Listing created successfully with your subscription.',
+          listing: {
+            id: createdListing.id,
+            title: createdListing.title,
+            price: createdListing.price,
+            isPaid,
+            durationDays,
+            status: createdListing.status,
+            createdAt: createdListing.createdAt?.toISOString() || new Date().toISOString(),
+            expiresAt: createdListing.expiresAt?.toISOString() || null,
+          },
+          coupon: isFreeFromCoupon
+            ? {
+                code: couponCode,
+                freeListingsRemaining: couponFreeRemaining,
+              }
+            : undefined,
+        });
+      } catch (error) {
+        console.error('[Subscriptions] Error creating listing:', error);
+        res.status(500).json({ error: 'Failed to create listing' });
+      }
     }
-  });
+  );
 
   /**
    * POST /api/subscriptions/checkout
@@ -673,8 +702,16 @@ export function registerSubscriptionRoutes(app: Express) {
    */
   app.post('/api/subscriptions/checkout', async (req: Request, res: Response) => {
     try {
-      const { subscriptionId, sellerId, listingId, listingTitle, totalFee, duration, tierId, couponCode } =
-        req.body;
+      const {
+        subscriptionId,
+        sellerId,
+        listingId,
+        listingTitle,
+        totalFee,
+        duration,
+        tierId,
+        couponCode,
+      } = req.body;
 
       if (!subscriptionId || !sellerId || !listingId || !totalFee || !duration) {
         return res.status(400).json({
@@ -714,8 +751,10 @@ export function registerSubscriptionRoutes(app: Express) {
 
       // Handle 100% discount (free subscription)
       if (finalFee <= 0 && discountApplied) {
-        console.log(`[Checkout] 100% discount applied with coupon ${couponCode} - bypassing payment`);
-        
+        console.log(
+          `[Checkout] 100% discount applied with coupon ${couponCode} - bypassing payment`
+        );
+
         // Activate subscription immediately for free subscriptions
         try {
           const { db } = await import('../../../data/db');
@@ -724,7 +763,7 @@ export function registerSubscriptionRoutes(app: Express) {
 
           await db
             .update(userSubscriptions)
-            .set({ 
+            .set({
               status: 'active',
               orderId: 'FREE_SUBSCRIPTION',
               updatedAt: new Date(),
@@ -873,9 +912,15 @@ export function registerSubscriptionRoutes(app: Express) {
           // Just log it and continue
         } else if (customerId) {
           // Send coupon applied notification
-          const listingTitle = invoiceItems && invoiceItems[0] ? invoiceItems[0].description : 'listing';
-          notifyCouponApplied(customerId, couponCode, parseFloat(discountAmount), listingTitle).catch(
-            (err) => console.error('[Subscriptions] Failed to send coupon notification:', err)
+          const listingTitle =
+            invoiceItems && invoiceItems[0] ? invoiceItems[0].description : 'listing';
+          notifyCouponApplied(
+            customerId,
+            couponCode,
+            parseFloat(discountAmount),
+            listingTitle
+          ).catch((err) =>
+            console.error('[Subscriptions] Failed to send coupon notification:', err)
           );
         }
       }
@@ -923,10 +968,15 @@ export function registerSubscriptionRoutes(app: Express) {
               invoiceData.invoiceNumber,
               invoiceData.total,
               invoiceUrl
-            ).catch((err) => console.error('[Subscriptions] Failed to send invoice notification:', err));
+            ).catch((err) =>
+              console.error('[Subscriptions] Failed to send invoice notification:', err)
+            );
           }
         } catch (invoiceError) {
-          console.error('[Subscriptions] Failed to generate invoice - Error details:', invoiceError);
+          console.error(
+            '[Subscriptions] Failed to generate invoice - Error details:',
+            invoiceError
+          );
           if (invoiceError instanceof Error) {
             console.error('[Subscriptions] Invoice error stack:', invoiceError.stack);
           }
@@ -952,7 +1002,7 @@ export function registerSubscriptionRoutes(app: Express) {
 
           const updateResult = await db
             .update(userSubscriptions)
-            .set({ 
+            .set({
               status: 'active',
               paymentId: razorpay_payment_id,
               orderId: razorpay_order_id,
@@ -961,7 +1011,10 @@ export function registerSubscriptionRoutes(app: Express) {
             .where(eq(userSubscriptions.id, subscriptionId))
             .returning();
 
-          console.log('[Subscriptions] Subscription activation result:', updateResult.length > 0 ? 'SUCCESS' : 'FAILED');
+          console.log(
+            '[Subscriptions] Subscription activation result:',
+            updateResult.length > 0 ? 'SUCCESS' : 'FAILED'
+          );
           if (updateResult.length > 0) {
             console.log('[Subscriptions] Updated subscription:', {
               id: updateResult[0].id,
@@ -985,9 +1038,11 @@ export function registerSubscriptionRoutes(app: Express) {
       // Send payment success notification
       if (customerId) {
         const amount = invoiceItems && invoiceItems[0] ? invoiceItems[0].amount : 0;
-        const listingTitle = invoiceItems && invoiceItems[0] ? invoiceItems[0].description : undefined;
-        notifyPaymentSuccess(customerId, amount / 100, razorpay_payment_id, listingTitle).catch((err) =>
-          console.error('[Subscriptions] Failed to send payment success notification:', err)
+        const listingTitle =
+          invoiceItems && invoiceItems[0] ? invoiceItems[0].description : undefined;
+        notifyPaymentSuccess(customerId, amount / 100, razorpay_payment_id, listingTitle).catch(
+          (err) =>
+            console.error('[Subscriptions] Failed to send payment success notification:', err)
         );
       }
 
@@ -1101,7 +1156,9 @@ export function registerSubscriptionRoutes(app: Express) {
               data.payment.notes.sellerId,
               data.payment.amount / 100,
               data.payment.error_description || 'Payment failed'
-            ).catch((err) => console.error('[Webhook] Failed to send payment failed notification:', err));
+            ).catch((err) =>
+              console.error('[Webhook] Failed to send payment failed notification:', err)
+            );
           }
           break;
 
@@ -1142,7 +1199,7 @@ export function registerSubscriptionRoutes(app: Express) {
       if (listings.length === 0) {
         const userPhone = req.get('x-user-phone');
         if (userPhone) {
-          const normalizedPhone = userPhone.replace(/[\s\-\+]/g, '');
+          const normalizedPhone = userPhone.replace(/[\s+-]/g, '');
           listings = await getListingsBySeller(normalizedPhone);
         }
       }
@@ -1236,25 +1293,28 @@ export function registerSubscriptionRoutes(app: Express) {
   app.post('/api/admin/subscription-tiers', async (req: Request, res: Response) => {
     try {
       // Accept both snake_case (from old clients) and camelCase (from frontend)
-      const { 
-        name, 
-        duration_days, 
-        durationDays, 
-        price, 
-        features, 
-        max_listings, 
-        maxListings, 
+      const {
+        name,
+        duration_days,
+        durationDays,
+        price,
+        features,
+        max_listings,
+        maxListings,
         featured_listings_per_month,
         featuredListingsPerMonth,
-        highlight, 
-        is_active, 
-        isActive 
+        highlight,
+        is_active,
+        isActive,
       } = req.body;
 
       // Use camelCase values as fallback
       const finalDurationDays = duration_days !== undefined ? duration_days : durationDays;
       const finalMaxListings = max_listings !== undefined ? max_listings : maxListings;
-      const finalFeaturedListings = featured_listings_per_month !== undefined ? featured_listings_per_month : (featuredListingsPerMonth ?? 0);
+      const finalFeaturedListings =
+        featured_listings_per_month !== undefined
+          ? featured_listings_per_month
+          : (featuredListingsPerMonth ?? 0);
       const finalIsActive = is_active !== undefined ? is_active : isActive;
 
       if (!name || !finalDurationDays || price === undefined) {
@@ -1309,19 +1369,19 @@ export function registerSubscriptionRoutes(app: Express) {
       const { id } = req.params;
       const tierId = typeof id === 'string' ? id : id[0];
       // Accept both snake_case (from old clients) and camelCase (from frontend)
-      const { 
-        name, 
-        duration_days, 
-        durationDays, 
-        price, 
-        features, 
-        max_listings, 
-        maxListings, 
+      const {
+        name,
+        duration_days,
+        durationDays,
+        price,
+        features,
+        max_listings,
+        maxListings,
         featured_listings_per_month,
         featuredListingsPerMonth,
-        highlight, 
-        is_active, 
-        isActive 
+        highlight,
+        is_active,
+        isActive,
       } = req.body;
 
       const updateData: any = {};
@@ -1338,7 +1398,9 @@ export function registerSubscriptionRoutes(app: Express) {
         updateData.maxListings = parseInt((max_listings || maxListings) as any);
       }
       if (featured_listings_per_month !== undefined || featuredListingsPerMonth !== undefined) {
-        updateData.featuredListingsPerMonth = parseInt((featured_listings_per_month ?? featuredListingsPerMonth ?? 0).toString());
+        updateData.featuredListingsPerMonth = parseInt(
+          (featured_listings_per_month ?? featuredListingsPerMonth ?? 0).toString()
+        );
       }
       if (features !== undefined) {
         updateData.features = typeof features === 'string' ? features : JSON.stringify(features);
@@ -1471,7 +1533,7 @@ export function registerSubscriptionRoutes(app: Express) {
       // Update the listing with paid status and new expiry
       const updatedListing = await updateListing(listingId, {
         isPaid: true,
-        expiresAt: expiresAt,  // Pass Date object, not string
+        expiresAt: expiresAt, // Pass Date object, not string
         isActive: true,
         status: 'active',
       });

@@ -286,9 +286,7 @@ function createPushMessages(
   const validTokens = tokens.filter((token) => Expo.isExpoPushToken(token));
 
   if (validTokens.length !== tokens.length) {
-    console.warn(
-      `[Push] ${tokens.length - validTokens.length} invalid tokens filtered out`
-    );
+    console.warn(`[Push] ${tokens.length - validTokens.length} invalid tokens filtered out`);
   }
 
   return validTokens.map((token) => ({
@@ -328,10 +326,7 @@ async function sendPushMessages(
       ticketChunk.forEach((ticket, index) => {
         if (ticket.status === 'error') {
           const errorTicket = ticket as ExpoPushErrorReceipt;
-          console.error(
-            `[Push] Error sending to ${chunk[index].to}:`,
-            errorTicket.message
-          );
+          console.error(`[Push] Error sending to ${chunk[index].to}:`, errorTicket.message);
           errors.push(`${errorTicket.message} (${errorTicket.details?.error || 'unknown'})`);
         }
       });
@@ -385,10 +380,12 @@ export async function getNotificationStats(): Promise<{
   const allTokens = await db.query.pushTokens.findMany();
   const activeTokensData = allTokens.filter((t: any) => t.isActive);
 
-  const buyers = activeTokensData.filter((t: any) => t.userType === 'buyer' || t.userType === 'both')
-    .length;
-  const sellers = activeTokensData.filter((t: any) => t.userType === 'seller' || t.userType === 'both')
-    .length;
+  const buyers = activeTokensData.filter(
+    (t: any) => t.userType === 'buyer' || t.userType === 'both'
+  ).length;
+  const sellers = activeTokensData.filter(
+    (t: any) => t.userType === 'seller' || t.userType === 'both'
+  ).length;
 
   const logs = await db.query.notificationLogs.findMany();
   const totalSent = logs.reduce((sum: number, log: any) => sum + log.sentCount, 0);

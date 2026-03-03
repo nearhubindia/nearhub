@@ -138,7 +138,9 @@ export default function BannersView() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save banner';
       if (message.toLowerCase().includes('failed to fetch')) {
-        setSubmitError('Cannot connect to API server. Please ensure backend is running on port 5000.');
+        setSubmitError(
+          'Cannot connect to API server. Please ensure backend is running on port 5000.'
+        );
       } else {
         setSubmitError(message);
       }
@@ -177,7 +179,9 @@ export default function BannersView() {
         {isLoading ? (
           <div className="text-center py-12">Loading banners...</div>
         ) : banners.length === 0 ? (
-          <div className="text-center py-12 text-slate-500">No banners yet. Create your first banner.</div>
+          <div className="text-center py-12 text-slate-500">
+            No banners yet. Create your first banner.
+          </div>
         ) : (
           <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
             <table className="w-full">
@@ -201,13 +205,17 @@ export default function BannersView() {
                         className="h-16 w-28 rounded object-cover border border-slate-200"
                       />
                     </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">{banner.title}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">
+                      {banner.title}
+                    </td>
                     <td className="px-6 py-4 text-sm text-slate-700 uppercase">{banner.screen}</td>
                     <td className="px-6 py-4 text-sm text-slate-700">{banner.sortOrder}</td>
                     <td className="px-6 py-4 text-sm">
                       <span
                         className={`px-3 py-1 rounded text-xs font-bold ${
-                          banner.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          banner.isActive
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
                         }`}
                       >
                         {banner.isActive ? 'Active' : 'Inactive'}

@@ -1,9 +1,6 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { LandingFooter, Logo } from '@/shared/components';
 
 interface BannerStat {
@@ -208,19 +205,26 @@ export default function Landing(): ReactElement {
                   className={`absolute inset-0 bg-gradient-to-br ${banner.accent} transition-all duration-1000 ${
                     index === currentBanner ? 'opacity-100' : 'opacity-0'
                   }`}
-                  style={banner.imageUrl ? {
-                    backgroundImage: `url(${banner.imageUrl})`,
-                    backgroundSize: 'contain',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat',
-                  } : undefined}
+                  style={
+                    banner.imageUrl
+                      ? {
+                          backgroundImage: `url(${banner.imageUrl})`,
+                          backgroundSize: 'contain',
+                          backgroundPosition: 'center',
+                          backgroundRepeat: 'no-repeat',
+                        }
+                      : undefined
+                  }
                 >
                   {!banner.imageUrl && (
                     <>
                       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(30,93,168,0.3),rgba(255,255,255,0)_50%)]"></div>
                       <div className="absolute inset-0 bg-slate-950/30"></div>
                       <div className="absolute top-0 right-1/4 h-96 w-96 rounded-full bg-white/20 blur-3xl animate-pulse"></div>
-                      <div className="absolute bottom-0 left-1/3 h-80 w-80 rounded-full bg-[#ff9933]/25 blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+                      <div
+                        className="absolute bottom-0 left-1/3 h-80 w-80 rounded-full bg-[#ff9933]/25 blur-3xl animate-pulse"
+                        style={{ animationDelay: '1s' }}
+                      ></div>
                       <div className="absolute top-1/2 left-0 h-72 w-72 rounded-full bg-[#1e5da8]/15 blur-3xl"></div>
                     </>
                   )}
@@ -229,12 +233,18 @@ export default function Landing(): ReactElement {
                     <div className="relative h-full flex flex-col items-center justify-center px-6 sm:px-10 lg:px-16 py-12 text-center">
                       <div className="w-full max-w-5xl rounded-[2rem] border-2 border-white/30 bg-gradient-to-b from-white/15 to-white/5 backdrop-blur-xl px-6 sm:px-12 lg:px-16 py-10 sm:py-14 shadow-[0_20px_70px_-15px_rgba(0,0,0,0.4)]">
                         <div className="inline-block px-4 py-1.5 rounded-full bg-white/20 border border-white/40 backdrop-blur-sm mb-6">
-                          <span className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">✨ Welcome to NearHub</span>
+                          <span className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                            ✨ Welcome to NearHub
+                          </span>
                         </div>
-                        <h1 className={`text-5xl sm:text-6xl lg:text-8xl font-black mb-6 tracking-tight ${banner.text} leading-[1.1]`}>
+                        <h1
+                          className={`text-5xl sm:text-6xl lg:text-8xl font-black mb-6 tracking-tight ${banner.text} leading-[1.1]`}
+                        >
                           {banner.title}
                           <br />
-                          <span className="text-white/95 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">{banner.subtitle}</span>
+                          <span className="text-white/95 bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent">
+                            {banner.subtitle}
+                          </span>
                         </h1>
                         <p
                           className={`text-lg sm:text-xl lg:text-2xl mb-10 max-w-3xl mx-auto leading-relaxed ${banner.text} opacity-95 font-medium`}
@@ -243,7 +253,12 @@ export default function Landing(): ReactElement {
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 mb-12 justify-center">
                           <button className="group px-10 py-4 rounded-2xl font-bold text-base sm:text-lg transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] bg-white text-slate-900 hover:bg-gradient-to-r hover:from-white hover:to-gray-50 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.4)] hover:shadow-[0_20px_60px_-10px_rgba(0,0,0,0.5)]">
-                            <span className="flex items-center gap-2">{banner.cta} <span className="group-hover:translate-x-1 transition-transform">→</span></span>
+                            <span className="flex items-center gap-2">
+                              {banner.cta}{' '}
+                              <span className="group-hover:translate-x-1 transition-transform">
+                                →
+                              </span>
+                            </span>
                           </button>
                           <button className="px-10 py-4 rounded-2xl font-bold text-base sm:text-lg border-2 transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] border-white/90 text-white hover:bg-white/20 hover:border-white backdrop-blur-sm shadow-lg">
                             {banner.ctaSecondary}
@@ -256,8 +271,12 @@ export default function Landing(): ReactElement {
                                 key={stat.label}
                                 className="group text-white text-center rounded-2xl border-2 border-white/40 bg-gradient-to-b from-white/20 to-white/5 backdrop-blur-lg px-4 py-5 sm:py-6 hover:border-white/60 hover:from-white/25 hover:to-white/10 transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-1"
                               >
-                                <p className="text-4xl sm:text-5xl font-black leading-none mb-2 bg-gradient-to-b from-white to-white/90 bg-clip-text text-transparent">{stat.value}</p>
-                                <p className="text-xs sm:text-sm font-semibold opacity-90 uppercase tracking-wide">{stat.label}</p>
+                                <p className="text-4xl sm:text-5xl font-black leading-none mb-2 bg-gradient-to-b from-white to-white/90 bg-clip-text text-transparent">
+                                  {stat.value}
+                                </p>
+                                <p className="text-xs sm:text-sm font-semibold opacity-90 uppercase tracking-wide">
+                                  {stat.label}
+                                </p>
                               </div>
                             ))}
                           </div>
@@ -268,7 +287,9 @@ export default function Landing(): ReactElement {
                     <div className="relative h-full flex items-center px-6 sm:px-10 lg:px-20 py-12">
                       <div className="max-w-4xl rounded-[2rem] border-2 border-white/30 bg-gradient-to-br from-white/15 to-white/5 backdrop-blur-xl px-8 sm:px-12 py-10 shadow-[0_20px_70px_-15px_rgba(0,0,0,0.4)]">
                         <div className="inline-block px-4 py-1.5 rounded-full bg-white/20 border border-white/40 backdrop-blur-sm mb-5">
-                          <span className="text-xs font-bold text-white uppercase tracking-wider">✨ Featured</span>
+                          <span className="text-xs font-bold text-white uppercase tracking-wider">
+                            ✨ Featured
+                          </span>
                         </div>
                         <h2
                           className={`text-4xl sm:text-6xl lg:text-7xl font-black mb-5 tracking-tight ${banner.text} leading-[1.1]`}
@@ -281,7 +302,12 @@ export default function Landing(): ReactElement {
                           {banner.subtitle}
                         </p>
                         <button className="group px-10 py-4 rounded-2xl font-bold text-base sm:text-lg transition-all duration-300 transform hover:-translate-y-1 hover:scale-[1.03] bg-white text-slate-900 hover:bg-gradient-to-r hover:from-white hover:to-gray-50 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.4)] hover:shadow-[0_20px_60px_-10px_rgba(0,0,0,0.5)]">
-                          <span className="flex items-center gap-2">{banner.cta} <span className="group-hover:translate-x-1 transition-transform">→</span></span>
+                          <span className="flex items-center gap-2">
+                            {banner.cta}{' '}
+                            <span className="group-hover:translate-x-1 transition-transform">
+                              →
+                            </span>
+                          </span>
                         </button>
                       </div>
                     </div>
@@ -311,8 +337,8 @@ export default function Landing(): ReactElement {
                   key={index}
                   onClick={() => setCurrentBanner(index)}
                   className={`h-2.5 sm:h-3 rounded-full transition-all duration-500 shadow-sm ${
-                    index === currentBanner 
-                      ? 'w-8 sm:w-10 bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]' 
+                    index === currentBanner
+                      ? 'w-8 sm:w-10 bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]'
                       : 'w-2.5 sm:w-3 bg-white/60 hover:bg-white/90 hover:w-4 sm:hover:w-5'
                   }`}
                   aria-label={`Go to banner ${index + 1}`}
@@ -332,7 +358,9 @@ export default function Landing(): ReactElement {
                   <p className="text-sm font-semibold uppercase tracking-wide text-cyan-700">
                     {section.eyebrow}
                   </p>
-                  <h2 className="text-4xl sm:text-5xl font-black text-slate-900">{section.heading}</h2>
+                  <h2 className="text-4xl sm:text-5xl font-black text-slate-900">
+                    {section.heading}
+                  </h2>
                 </div>
                 <p className="text-slate-600 max-w-xl">{section.subheading}</p>
               </div>

@@ -29,26 +29,43 @@ export function registerListingRoutes(app: Express) {
   /**
    * POST /api/listings
    * Create a new listing (DEPRECATED - Use POST /api/subscriptions/create-listing instead)
-   * 
+   *
    * ⚠️ WARNING: This endpoint bypasses subscription limits and coupon validation.
    * It should only be used for:
    * - Admin testing
    * - System-generated listings
    * - Migration scripts
-   * 
+   *
    * For production listing creation, use /api/subscriptions/create-listing which:
    * - Validates subscription limits
    * - Supports coupon codes
    * - Enforces tier restrictions (video uploads, featured listings, etc.)
    * - Tracks subscription usage
    */
-    app.post('/api/listings', listingCreationLimiter, async (req: Request, res: Response) => {
+  app.post('/api/listings', listingCreationLimiter, async (req: Request, res: Response) => {
     try {
-      const { title, description, category, price, condition, location, images, videos, durationDays, priceUnit, listingType, pincode, latitude, longitude } = req.body;
+      const {
+        title,
+        description,
+        category,
+        price,
+        condition,
+        location,
+        images,
+        videos,
+        durationDays,
+        priceUnit,
+        listingType,
+        pincode,
+        latitude,
+        longitude,
+      } = req.body;
       const sellerId = (req as any).userId || 'unknown';
 
       // Log deprecation warning
-      console.warn('[Listings] ⚠️ DEPRECATED: POST /api/listings was called. Use /api/subscriptions/create-listing instead.');
+      console.warn(
+        '[Listings] ⚠️ DEPRECATED: POST /api/listings was called. Use /api/subscriptions/create-listing instead.'
+      );
       console.warn('[Listings] Caller:', sellerId, 'IP:', req.ip);
 
       // Validate required fields
@@ -107,18 +124,23 @@ export function registerListingRoutes(app: Express) {
             condition: listing.condition,
             location: listing.location,
             status: listing.status,
-            images: Array.isArray(listing.images) ? listing.images : JSON.parse(listing.images || '[]'),
-            videos: Array.isArray(listing.videos) ? listing.videos : JSON.parse(listing.videos || '[]'),
+            images: Array.isArray(listing.images)
+              ? listing.images
+              : JSON.parse(listing.images || '[]'),
+            videos: Array.isArray(listing.videos)
+              ? listing.videos
+              : JSON.parse(listing.videos || '[]'),
             createdAt: listing.createdAt?.toISOString() || new Date().toISOString(),
             expiresAt: listing.expiresAt?.toISOString() || null,
           },
         });
       } catch (validationError) {
         console.error('[Listings] Validation error:', validationError);
-        const errorMessage = validationError instanceof Error ? validationError.message : 'Validation failed';
-        return res.status(400).json({ 
-          success: false, 
-          error: errorMessage.includes('validation') ? errorMessage : 'Invalid listing data' 
+        const errorMessage =
+          validationError instanceof Error ? validationError.message : 'Validation failed';
+        return res.status(400).json({
+          success: false,
+          error: errorMessage.includes('validation') ? errorMessage : 'Invalid listing data',
         });
       }
     } catch (error) {
@@ -138,15 +160,27 @@ export function registerListingRoutes(app: Express) {
     try {
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 500);
       const offset = parseInt(req.query.offset as string) || 0;
-      const category = Array.isArray(req.query.category) ? req.query.category[0] as string : req.query.category as string | undefined;
-      const sellerId = Array.isArray(req.query.sellerId) ? req.query.sellerId[0] as string : req.query.sellerId as string | undefined;
-      
+      const category = Array.isArray(req.query.category)
+        ? (req.query.category[0] as string)
+        : (req.query.category as string | undefined);
+      const sellerId = Array.isArray(req.query.sellerId)
+        ? (req.query.sellerId[0] as string)
+        : (req.query.sellerId as string | undefined);
+
       // Geo-filtering parameters
       const latitude = req.query.latitude ? parseFloat(req.query.latitude as string) : undefined;
       const longitude = req.query.longitude ? parseFloat(req.query.longitude as string) : undefined;
       const radiusKm = req.query.radius ? parseFloat(req.query.radius as string) : undefined;
 
-      const listings = await getActiveListing({ limit, offset, category, sellerId, latitude, longitude, radiusKm });
+      const listings = await getActiveListing({
+        limit,
+        offset,
+        category,
+        sellerId,
+        latitude,
+        longitude,
+        radiusKm,
+      });
 
       return res.json({
         success: true,
@@ -164,10 +198,10 @@ export function registerListingRoutes(app: Express) {
       if (error instanceof Error) {
         console.error('[Listings] Error details:', error.message, error.stack);
       }
-      return res.status(500).json({ 
-        success: false, 
+      return res.status(500).json({
+        success: false,
         error: 'Failed to fetch listings',
-        details: process.env.NODE_ENV === 'development' ? String(error) : undefined
+        details: process.env.NODE_ENV === 'development' ? String(error) : undefined,
       });
     }
   });
@@ -259,13 +293,12 @@ export function registerListingRoutes(app: Express) {
       }
 
       // Verify seller ownership (unless admin)
-      const isOwner =
-        normalizeOwnerId(existingListing.sellerId) === normalizeOwnerId(userId);
+      const isOwner = normalizeOwnerId(existingListing.sellerId) === normalizeOwnerId(userId);
 
       if (!isOwner && !(req as any).isAdmin) {
-        return res.status(403).json({ 
-          success: false, 
-          error: 'Unauthorized: You can only edit your own listings' 
+        return res.status(403).json({
+          success: false,
+          error: 'Unauthorized: You can only edit your own listings',
         });
       }
 
@@ -287,10 +320,10 @@ export function registerListingRoutes(app: Express) {
         return res.status(404).json({ success: false, error: 'Failed to update listing' });
       }
 
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         listing: updated,
-        message: 'Listing updated successfully'
+        message: 'Listing updated successfully',
       });
     } catch (error) {
       console.error('[Listings] Error updating listing:', error);
@@ -314,13 +347,12 @@ export function registerListingRoutes(app: Express) {
       }
 
       // Verify seller ownership (unless admin)
-      const isOwner =
-        normalizeOwnerId(existingListing.sellerId) === normalizeOwnerId(userId);
+      const isOwner = normalizeOwnerId(existingListing.sellerId) === normalizeOwnerId(userId);
 
       if (!isOwner && !(req as any).isAdmin) {
-        return res.status(403).json({ 
-          success: false, 
-          error: 'Unauthorized: You can only delete your own listings' 
+        return res.status(403).json({
+          success: false,
+          error: 'Unauthorized: You can only delete your own listings',
         });
       }
 
@@ -329,9 +361,9 @@ export function registerListingRoutes(app: Express) {
         return res.status(404).json({ success: false, error: 'Failed to delete listing' });
       }
 
-      return res.json({ 
-        success: true, 
-        message: 'Listing deleted successfully' 
+      return res.json({
+        success: true,
+        message: 'Listing deleted successfully',
       });
     } catch (error) {
       console.error('[Listings] Error deleting listing:', error);
@@ -381,9 +413,7 @@ export function registerListingRoutes(app: Express) {
       return res.json({
         success: true,
         viewTracked: !result.isDuplicate,
-        message: result.isDuplicate
-          ? 'View already counted recently'
-          : 'View tracked successfully',
+        message: result.isDuplicate ? 'View already counted recently' : 'View tracked successfully',
       });
     } catch (error) {
       console.error('[Listings] Error tracking view:', error);

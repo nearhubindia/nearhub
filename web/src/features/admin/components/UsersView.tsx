@@ -21,15 +21,14 @@ export default function UsersView() {
   const [saveError, setSaveError] = useState('');
 
   // Handle the API response structure: { success, data, total }
-  const allUsers: UserRow[] = Array.isArray(usersData?.data)
-    ? (usersData.data as UserRow[])
-    : [];
+  const allUsers: UserRow[] = Array.isArray(usersData?.data) ? (usersData.data as UserRow[]) : [];
 
   // Filter users based on search term
-  const filteredUsers = allUsers.filter((user) =>
-    user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.mobile?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.location?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = allUsers.filter(
+    (user) =>
+      user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.mobile?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.location?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleEditClick = (user: UserRow): void => {
@@ -146,10 +145,16 @@ export default function UsersView() {
               <table className="w-full">
                 <thead className="bg-slate-100 border-b border-slate-200 sticky top-0">
                   <tr>
-                    <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">Username</th>
+                    <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">
+                      Username
+                    </th>
                     <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">Mobile</th>
-                    <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">Location</th>
-                    <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">Actions</th>
+                    <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">
+                      Location
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -158,7 +163,9 @@ export default function UsersView() {
                       key={user.id}
                       className="border-b border-slate-200 hover:bg-slate-50 transition"
                     >
-                      <td className="px-6 py-4 text-sm font-medium text-slate-900">{user.username}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-slate-900">
+                        {user.username}
+                      </td>
                       <td className="px-6 py-4 text-sm text-slate-600">{user.mobile || '-'}</td>
                       <td className="px-6 py-4 text-sm text-slate-600">{user.location || '-'}</td>
                       <td className="px-6 py-4 text-sm flex gap-2">
@@ -175,7 +182,10 @@ export default function UsersView() {
                           title="Delete User"
                           disabled={deleteUser.isPending}
                         >
-                          <Trash2 size={16} className={deleteUser.isPending ? 'text-slate-400' : 'text-red-600'} />
+                          <Trash2
+                            size={16}
+                            className={deleteUser.isPending ? 'text-slate-400' : 'text-red-600'}
+                          />
                         </button>
                       </td>
                     </tr>
@@ -273,7 +283,9 @@ export default function UsersView() {
           <div className="bg-white rounded-lg max-w-md w-full mx-4 p-6">
             <h2 className="text-xl font-bold text-slate-900 mb-2">Delete User</h2>
             <p className="text-slate-600 mb-6">
-              Are you sure you want to delete user <span className="font-bold">{selectedUser.username}</span>? This action cannot be undone.
+              Are you sure you want to delete user{' '}
+              <span className="font-bold">{selectedUser.username}</span>? This action cannot be
+              undone.
             </p>
 
             <div className="flex justify-end gap-2">
@@ -298,4 +310,3 @@ export default function UsersView() {
     </div>
   );
 }
-

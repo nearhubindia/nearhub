@@ -17,8 +17,8 @@ async function applyIndexes() {
   // Split by semicolon and filter out comments and empty lines
   const statements = sqlContent
     .split(';')
-    .map(s => s.trim())
-    .filter(s => s.length > 0 && !s.startsWith('--') && !s.startsWith('/*'));
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && !s.startsWith('--') && !s.startsWith('/*'));
 
   let successCount = 0;
   let skipCount = 0;
@@ -55,7 +55,7 @@ async function applyIndexes() {
   process.exit(0);
 }
 
-applyIndexes().catch(error => {
+applyIndexes().catch((error) => {
   console.error('Fatal error:', error);
   process.exit(1);
 });

@@ -5,7 +5,7 @@ async function checkListings() {
   try {
     const result = await db.select().from(listings).limit(10);
     console.log(`\n✅ Total listings in database: ${result.length}`);
-    
+
     if (result.length > 0) {
       console.log('\n📍 Sample listings:');
       result.forEach((listing, index) => {
@@ -19,7 +19,7 @@ async function checkListings() {
       console.log('\n⚠️  No listings found in database!');
       console.log('You may need to seed the database with sample data.');
     }
-    
+
     process.exit(0);
   } catch (error) {
     console.error('❌ Error checking listings:', error);

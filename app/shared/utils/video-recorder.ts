@@ -41,13 +41,13 @@ export async function getVideoFileSize(uri: string): Promise<number> {
     console.log('[VideoRecorder] Getting file size for:', uri);
     const fileInfo = await FileSystem.getInfoAsync(uri);
     console.log('[VideoRecorder] File info:', JSON.stringify(fileInfo));
-    
+
     // Check if file exists
     if (!(fileInfo as any).exists) {
       console.error('[VideoRecorder] File does not exist at URI');
       return 0;
     }
-    
+
     const size = (fileInfo as any).size || 0;
     console.log('[VideoRecorder] File size:', size, 'bytes');
     return size;

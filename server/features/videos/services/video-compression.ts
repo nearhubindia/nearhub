@@ -86,22 +86,32 @@ export function compressVideoSync(
     // FFmpeg command for compression
     // Using VP9/H.264 codec for better compression
     const command = [
-      '-i', inputPath,
-      '-c:v', 'libx264',  // H.264 codec (better compatibility than VP9)
-      '-preset', 'medium', // medium speed/quality tradeoff
-      '-b:v', profile.videoBitrate,
-      '-maxrate', profile.videoBitrate,
-      '-bufsize', `${parseInt(profile.videoBitrate) * 2}k`,
-      '-vf', `scale=${profile.resolution}:force_original_aspect_ratio=decrease,pad=${profile.resolution}:0:0:color=black`,
-      '-c:a', 'aac',
-      '-b:a', profile.audioBitrate,
-      '-movflags', '+faststart', // Allow streaming from the start
+      '-i',
+      inputPath,
+      '-c:v',
+      'libx264', // H.264 codec (better compatibility than VP9)
+      '-preset',
+      'medium', // medium speed/quality tradeoff
+      '-b:v',
+      profile.videoBitrate,
+      '-maxrate',
+      profile.videoBitrate,
+      '-bufsize',
+      `${parseInt(profile.videoBitrate) * 2}k`,
+      '-vf',
+      `scale=${profile.resolution}:force_original_aspect_ratio=decrease,pad=${profile.resolution}:0:0:color=black`,
+      '-c:a',
+      'aac',
+      '-b:a',
+      profile.audioBitrate,
+      '-movflags',
+      '+faststart', // Allow streaming from the start
       '-y', // Overwrite output file
       outputPath,
     ].join(' ');
 
     console.log(`[VideoCompression] Running: ffmpeg ${command.substring(0, 100)}...`);
-    
+
     execSync(`ffmpeg ${command}`, {
       stdio: ['pipe', 'pipe', 'pipe'], // Suppress FFmpeg output
       encoding: 'utf-8',
@@ -126,7 +136,7 @@ export function compressVideoSync(
     };
   } catch (error) {
     console.error(`[VideoCompression] Error compressing video:`, error);
-    
+
     // If compression fails, return original
     if (!fs.existsSync(outputPath)) {
       fs.copyFileSync(inputPath, outputPath);
@@ -187,7 +197,7 @@ export function getCompressionStats(inputPath: string): Record<string, any> {
       },
       medium: {
         ...COMPRESSION_PROFILES.medium,
-        estimatedSize: `${((originalSize * 0.50) / 1024 / 1024).toFixed(2)} MB`,
+        estimatedSize: `${((originalSize * 0.5) / 1024 / 1024).toFixed(2)} MB`,
         estimatedSavings: '50%',
       },
       high: {

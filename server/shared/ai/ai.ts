@@ -51,12 +51,12 @@ Description:`;
 
     let text = response.data.response || '';
     text = text.trim();
-    
+
     // Enforce 800 character limit
     if (text.length > 800) {
       text = text.substring(0, 797) + '...';
     }
-    
+
     return {
       text,
       generated: true,
@@ -152,12 +152,12 @@ Respond with ONLY the title, nothing else. Keep it SHORT.`;
     );
 
     let title = response.data.response?.trim() || '';
-    
+
     // Enforce 60 character limit
     if (title.length > 60) {
       title = title.substring(0, 57) + '...';
     }
-    
+
     return {
       text: title,
       generated: true,
@@ -575,9 +575,7 @@ Be strict: The image must clearly show the advertised product type.`;
  * @param imageBase64 - Base64 encoded image (with or without data URI prefix)
  * @returns Moderation result with flags and confidence
  */
-export async function analyzeImageContent(
-  imageBase64: string
-): Promise<{
+export async function analyzeImageContent(imageBase64: string): Promise<{
   isAppropriate: boolean;
   hasNudity: boolean;
   hasViolence: boolean;
@@ -679,9 +677,7 @@ Be strict: Flag anything questionable as inappropriate.`;
  * @param videoFramesBase64 - Array of base64 encoded video frames (3-5 frames recommended)
  * @returns Aggregated moderation result
  */
-export async function analyzeVideoContent(
-  videoFramesBase64: string[]
-): Promise<{
+export async function analyzeVideoContent(videoFramesBase64: string[]): Promise<{
   isAppropriate: boolean;
   hasNudity: boolean;
   hasViolence: boolean;
@@ -815,13 +811,19 @@ export async function validateListingWithVision(
       if (visualValidation.hasWeapons) detectedIssues.push('Weapons detected');
       if (visualValidation.hasDrugs) detectedIssues.push('Drugs detected');
     }
-    if (productMatchValidation && !productMatchValidation.matches && productMatchValidation.confidence > 0.6) {
+    if (
+      productMatchValidation &&
+      !productMatchValidation.matches &&
+      productMatchValidation.confidence > 0.6
+    ) {
       detectedIssues.push('Product-image mismatch');
       detectedIssues.push(productMatchValidation.reason);
     }
 
     const visualContentSafe = visualValidation ? visualValidation.isAppropriate : true;
-    const productMatches = productMatchValidation ? (productMatchValidation.matches || productMatchValidation.confidence <= 0.6) : true;
+    const productMatches = productMatchValidation
+      ? productMatchValidation.matches || productMatchValidation.confidence <= 0.6
+      : true;
     const isAppropriate = textValidation.isAppropriate && visualContentSafe && productMatches;
     const isValid = textValidation.isValid && isAppropriate;
 
@@ -831,10 +833,13 @@ export async function validateListingWithVision(
       matchesCategory: textValidation.matchesCategory && productMatches,
       visualContentSafe,
       confidence: productMatchValidation
-        ? (textValidation.confidence + visualValidation!.confidence + productMatchValidation.confidence) / 3
+        ? (textValidation.confidence +
+            visualValidation!.confidence +
+            productMatchValidation.confidence) /
+          3
         : visualValidation
-        ? (textValidation.confidence + visualValidation.confidence) / 2
-        : textValidation.confidence,
+          ? (textValidation.confidence + visualValidation.confidence) / 2
+          : textValidation.confidence,
       reason:
         detectedIssues.length > 0
           ? detectedIssues.join('; ')

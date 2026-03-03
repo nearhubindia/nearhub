@@ -1,7 +1,7 @@
 /**
  * Admin Feature - Barrel Exports
  * Central entry point for all admin feature exports
- * 
+ *
  * Usage:
  * import { useListings, adminKeys } from '@/features/admin'
  * import { formatters, validators } from '@/features/admin'

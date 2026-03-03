@@ -19,20 +19,14 @@ import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
-import {
-  Category,
-  CATEGORIES,
-  CONDITIONS,
-  PriceUnit,
-  PRICE_UNITS,
-} from '@/lib/types';
+import { Category, CATEGORIES, CONDITIONS, PriceUnit, PRICE_UNITS } from '@/lib/types';
 import RichTextEditor from '@/shared/components/RichTextEditor';
 
 export default function EditListingScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getListingById, updateListing } = useListings();
-  
+
   const listing = getListingById(id);
 
   const [title, setTitle] = useState(listing?.title || '');
@@ -170,14 +164,15 @@ export default function EditListingScreen() {
           {/* Images Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Photos ({images.length}/5)</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.imageScroll}
+            >
               {images.map((uri, index) => (
                 <View key={index} style={styles.imageContainer}>
                   <Image source={{ uri }} style={styles.image} contentFit="cover" />
-                  <Pressable
-                    style={styles.removeImageButton}
-                    onPress={() => removeImage(index)}
-                  >
+                  <Pressable style={styles.removeImageButton} onPress={() => removeImage(index)}>
                     <Feather name="x" size={16} color="#fff" />
                   </Pressable>
                 </View>
@@ -233,10 +228,7 @@ export default function EditListingScreen() {
                 {CATEGORIES.map((cat) => (
                   <Pressable
                     key={cat}
-                    style={[
-                      styles.pickerOption,
-                      cat === category && styles.pickerOptionActive,
-                    ]}
+                    style={[styles.pickerOption, cat === category && styles.pickerOptionActive]}
                     onPress={() => {
                       setCategory(cat);
                       setShowCategoryPicker(false);
@@ -296,9 +288,7 @@ export default function EditListingScreen() {
                     >
                       {cond.label}
                     </Text>
-                    {cond.value === condition && (
-                      <Feather name="check" size={20} color="#FFFFFF" />
-                    )}
+                    {cond.value === condition && <Feather name="check" size={20} color="#FFFFFF" />}
                   </Pressable>
                 ))}
               </View>
@@ -330,30 +320,30 @@ export default function EditListingScreen() {
             </View>
             {showPriceUnitPicker && (
               <View style={styles.pickerOptions}>
-                {Object.values(PRICE_UNITS).flat().filter((v, i, a) => a.indexOf(v) === i).map((unit: PriceUnit) => (
-                  <Pressable
-                    key={unit}
-                    style={[
-                      styles.pickerOption,
-                      unit === priceUnit && styles.pickerOptionActive,
-                    ]}
-                    onPress={() => {
-                      setPriceUnit(unit);
-                      setShowPriceUnitPicker(false);
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.pickerOptionText,
-                        unit === priceUnit && styles.pickerOptionTextActive,
-                      ]}
+                {Object.values(PRICE_UNITS)
+                  .flat()
+                  .filter((v, i, a) => a.indexOf(v) === i)
+                  .map((unit: PriceUnit) => (
+                    <Pressable
+                      key={unit}
+                      style={[styles.pickerOption, unit === priceUnit && styles.pickerOptionActive]}
+                      onPress={() => {
+                        setPriceUnit(unit);
+                        setShowPriceUnitPicker(false);
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }}
                     >
-                      {unit}
-                    </Text>
-                    {unit === priceUnit && <Feather name="check" size={20} color="#FFFFFF" />}
-                  </Pressable>
-                ))}
+                      <Text
+                        style={[
+                          styles.pickerOptionText,
+                          unit === priceUnit && styles.pickerOptionTextActive,
+                        ]}
+                      >
+                        {unit}
+                      </Text>
+                      {unit === priceUnit && <Feather name="check" size={20} color="#FFFFFF" />}
+                    </Pressable>
+                  ))}
               </View>
             )}
           </View>

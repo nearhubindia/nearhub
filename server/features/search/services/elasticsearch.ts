@@ -41,7 +41,9 @@ export async function initializeElasticsearch(): Promise<void> {
   } catch (error) {
     console.warn(
       '[Elasticsearch] Connection failed - Search will be disabled.',
-      process.env.ELASTICSEARCH_URL ? `Check that ${process.env.ELASTICSEARCH_URL} is running.` : 'Configure ELASTICSEARCH_URL environment variable.'
+      process.env.ELASTICSEARCH_URL
+        ? `Check that ${process.env.ELASTICSEARCH_URL} is running.`
+        : 'Configure ELASTICSEARCH_URL environment variable.'
     );
     isHealthy = false;
   }
@@ -378,23 +380,25 @@ export async function searchListings(
       const latitude = filters.latitude;
       const longitude = filters.longitude;
       const radiusKm = filters.radiusKm;
-      
+
       searchListings = searchListings.filter((listing: any) => {
         if (!listing.latitude || !listing.longitude) return false;
         const lat1 = parseFloat(listing.latitude);
         const lon1 = parseFloat(listing.longitude);
-        
+
         // Haversine formula in JavaScript
         const R = 6371; // Earth's radius in km
-        const dLat = (latitude - lat1) * Math.PI / 180;
-        const dLon = (longitude - lon1) * Math.PI / 180;
-        const a = 
+        const dLat = ((latitude - lat1) * Math.PI) / 180;
+        const dLon = ((longitude - lon1) * Math.PI) / 180;
+        const a =
           Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos(lat1 * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) *
-          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          Math.cos((lat1 * Math.PI) / 180) *
+            Math.cos((latitude * Math.PI) / 180) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distance = R * c;
-        
+
         return distance <= radiusKm;
       });
     }

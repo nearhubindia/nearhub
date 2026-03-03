@@ -333,7 +333,7 @@ describe('Users API - GWT Tests', () => {
   // ============================================================================
 
   describe('GET /api/users/:id/listings', () => {
-    it('should retrieve user\'s listings', async () => {
+    it("should retrieve user's listings", async () => {
       // Given: Valid user ID
       const otherUserId = 'user-456';
 

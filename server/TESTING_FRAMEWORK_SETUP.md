@@ -7,6 +7,7 @@ A comprehensive, production-ready GWT (Given-When-Then) testing framework for al
 ### 1. **Core Infrastructure** ✅
 
 #### Jest Configuration (`jest.config.js`)
+
 - TypeScript support via ts-jest
 - Node.js test environment
 - Configured timeout (30 seconds)
@@ -14,6 +15,7 @@ A comprehensive, production-ready GWT (Given-When-Then) testing framework for al
 - Test file pattern matching
 
 #### Test Utilities (`__tests__/utils/gwt-helpers.ts`)
+
 - **Given helpers**: Setup test context and preconditions
 - **When helpers**: Execute HTTP requests (POST, GET, PATCH, DELETE, PUT)
 - **Then helpers**: Comprehensive assertions for responses
@@ -21,6 +23,7 @@ A comprehensive, production-ready GWT (Given-When-Then) testing framework for al
 - **TestContext interface**: Type-safe test state management
 
 #### Test App Setup (`__tests__/setup/test-app.ts`)
+
 - Creates Express app with all routes
 - Configurable middleware
 - Clean test app factory
@@ -28,6 +31,7 @@ A comprehensive, production-ready GWT (Given-When-Then) testing framework for al
 ### 2. **Comprehensive Test Suites** ✅
 
 #### Auth API Tests (`auth.test.ts`) - 25+ tests
+
 ✅ Send OTP (valid phone, dev mode OTP, invalid formats, sentVia field)
 ✅ Verify OTP (valid OTP, invalid OTP, optional fields, unique IDs, timestamps)
 ✅ Validate Listings (image/video validation, missing fields, AI integration, graceful degradation)
@@ -36,6 +40,7 @@ A comprehensive, production-ready GWT (Given-When-Then) testing framework for al
 **Coverage**: All authentication flows including OTP sending, verification, and listing validation
 
 #### Listings API Tests (`listings.test.ts`) - 30+ tests
+
 ✅ Create Listings (valid data, all optional fields, required fields validation, category validation)
 ✅ Get Listings (retrieve all, pagination, filters by category/price/location/search)
 ✅ Get by ID (retrieve details, seller info, images, 404 handling)
@@ -46,6 +51,7 @@ A comprehensive, production-ready GWT (Given-When-Then) testing framework for al
 **Coverage**: CRUD operations, filtering, pagination, status management, authorization
 
 #### Coupons API Tests (`coupons.test.ts`) - 35+ tests
+
 ✅ Create Coupons (valid data, unique codes, discount validation, admin access)
 ✅ Get Coupons (retrieve all, pagination, status filtering, usage stats)
 ✅ Get by ID (coupon details, usage history, remaining usage, 404 handling)
@@ -56,6 +62,7 @@ A comprehensive, production-ready GWT (Given-When-Then) testing framework for al
 **Coverage**: Admin coupon management, user coupon application, discount calculations
 
 #### Subscriptions API Tests (`subscriptions.test.ts`) - 30+ tests
+
 ✅ Create Subscriptions (valid data, auth requirement, tier validation, default dates)
 ✅ Get Subscriptions (retrieve user subscriptions, filter by status, auth requirement, billing dates)
 ✅ Get by ID (subscription details, tier info, 404 handling)
@@ -66,6 +73,7 @@ A comprehensive, production-ready GWT (Given-When-Then) testing framework for al
 **Coverage**: Subscription lifecycle, renewals, trials, cancellation, billing management
 
 #### Users API Tests (`users.test.ts`) - 40+ tests
+
 ✅ Get Profile (authenticated user profile, auth requirement, email, verification status)
 ✅ Update Profile (update details, prevent phone changes, email validation, partial updates)
 ✅ Get User by ID (public profile, sensitive data redaction, ratings, transaction count)
@@ -80,6 +88,7 @@ A comprehensive, production-ready GWT (Given-When-Then) testing framework for al
 ### 3. **Documentation** ✅
 
 #### Testing Guide (`TESTING_GUIDE.md`)
+
 - Comprehensive framework overview
 - Architecture explanation
 - GWT pattern explanation with examples
@@ -94,6 +103,7 @@ A comprehensive, production-ready GWT (Given-When-Then) testing framework for al
 - CI/CD integration
 
 #### Quick Reference (`TESTING_QUICK_REFERENCE.md`)
+
 - Quick start commands
 - Test template
 - Common patterns (auth, CRUD, validation, filtering)
@@ -125,11 +135,13 @@ A comprehensive, production-ready GWT (Given-When-Then) testing framework for al
 ## 🚀 How to Use
 
 ### Run All Tests
+
 ```bash
 npm test
 ```
 
 ### Run Specific Feature Tests
+
 ```bash
 npm run test:auth
 npm run test:listings
@@ -139,30 +151,33 @@ npm run test:users
 ```
 
 ### Watch Mode (Auto-rerun on changes)
+
 ```bash
 npm run test:watch
 ```
 
 ### Generate Coverage Report
+
 ```bash
 npm run test:coverage
 ```
 
 ### Run All Tests with Coverage and Verbose Output
+
 ```bash
 npm run test:all
 ```
 
 ## 📊 Test Coverage Summary
 
-| Feature | Tests | Coverage |
-|---------|-------|----------|
-| Authentication | 25+ | Send OTP, Verify OTP, Validate Listings, Health Check |
-| Listings | 30+ | CRUD, Filtering, Pagination, Status Management |
-| Coupons | 35+ | Admin CRUD, User Application, Discount Calculation |
-| Subscriptions | 30+ | Creation, Management, Renewal, Cancellation |
-| Users | 40+ | Profile, Verification, Invoices, Reviews, Deletion |
-| **Total** | **160+** | **Comprehensive API Coverage** |
+| Feature        | Tests    | Coverage                                              |
+| -------------- | -------- | ----------------------------------------------------- |
+| Authentication | 25+      | Send OTP, Verify OTP, Validate Listings, Health Check |
+| Listings       | 30+      | CRUD, Filtering, Pagination, Status Management        |
+| Coupons        | 35+      | Admin CRUD, User Application, Discount Calculation    |
+| Subscriptions  | 30+      | Creation, Management, Renewal, Cancellation           |
+| Users          | 40+      | Profile, Verification, Invoices, Reviews, Deletion    |
+| **Total**      | **160+** | **Comprehensive API Coverage**                        |
 
 ## 🏗️ Framework Architecture
 
@@ -187,15 +202,17 @@ GWT Testing Framework
 ## 🎯 Key Features
 
 ### 1. **Clear, Readable Tests**
+
 Each test follows the GWT pattern, making tests self-documenting:
+
 ```typescript
 it('should create listing successfully', async () => {
   // Given: Setup
   const data = testData.validListing();
-  
+
   // When: Action
   context = await when.post(context, '/api/listings', data);
-  
+
   // Then: Assert
   then.statusCodeIs(context, 201);
   then.responseIsSuccessful(context);
@@ -203,7 +220,9 @@ it('should create listing successfully', async () => {
 ```
 
 ### 2. **Type-Safe Testing**
+
 Full TypeScript support with `TestContext` interface:
+
 ```typescript
 interface TestContext {
   app: Express;
@@ -217,27 +236,33 @@ interface TestContext {
 ```
 
 ### 3. **Test Data Factory**
+
 Generate valid, consistent test data:
+
 ```typescript
-testData.validPhone()        // '+919876543210'
-testData.validEmail()        // 'test@example.com'
-testData.validListing()      // Complete object
-testData.validCoupon()       // Complete object
-testData.validSubscription() // Complete object
+testData.validPhone(); // '+919876543210'
+testData.validEmail(); // 'test@example.com'
+testData.validListing(); // Complete object
+testData.validCoupon(); // Complete object
+testData.validSubscription(); // Complete object
 ```
 
 ### 4. **Comprehensive Assertions**
+
 Rich set of assertion helpers:
+
 ```typescript
-then.statusCodeIs(context, 201)
-then.responseIsSuccessful(context)
-then.responseHasField(context, 'id')
-then.responseHasError(context, 'message')
-then.responseArrayLength(context, 10)
+then.statusCodeIs(context, 201);
+then.responseIsSuccessful(context);
+then.responseHasField(context, 'id');
+then.responseHasError(context, 'message');
+then.responseArrayLength(context, 10);
 ```
 
 ### 5. **Easy Test Authoring**
+
 Simple, chainable API for writing tests:
+
 ```typescript
 // All in the same test file, no setup complexity
 context = given.appIsRunning(app);
@@ -265,30 +290,35 @@ __tests__/
 ## 🔍 Test Categories
 
 ### Authentication Tests
+
 - ✅ OTP sending and verification
 - ✅ User creation and defaults
 - ✅ Listing validation (AI-powered)
 - ✅ Health checks
 
 ### CRUD Tests
+
 - ✅ Create operations with validation
 - ✅ Read operations with filtering/pagination
 - ✅ Update operations with auth checks
 - ✅ Delete operations with ownership validation
 
 ### Authorization Tests
+
 - ✅ Authentication requirement checks
 - ✅ Ownership validation (user can only modify own resources)
 - ✅ Admin-only operations
 - ✅ Permission enforcement
 
 ### Validation Tests
+
 - ✅ Required field validation
 - ✅ Format validation (email, phone, etc.)
 - ✅ Range validation (prices, percentages)
 - ✅ Unique constraint validation (coupon codes)
 
 ### Edge Cases
+
 - ✅ Non-existent resource handling (404)
 - ✅ Duplicate operations (double cancellation)
 - ✅ Boundary conditions (max usage, expiration)
@@ -297,13 +327,16 @@ __tests__/
 ## 🛠️ Extending the Framework
 
 ### Add Tests for New Feature
+
 1. Create `__tests__/features/feature-name.test.ts`
 2. Import helpers: `given`, `when`, `then`, `testData`
 3. Follow GWT pattern
 4. Add npm script to package.json
 
 ### Add New Assertions
+
 Edit `__tests__/utils/gwt-helpers.ts`:
+
 ```typescript
 export const then = {
   // Add custom assertion
@@ -315,7 +348,9 @@ export const then = {
 ```
 
 ### Add Test Data
+
 Edit `testData` factory in `gwt-helpers.ts`:
+
 ```typescript
 export const testData = {
   // Add custom data generator
@@ -374,6 +409,7 @@ export const testData = {
 ## 🔧 Troubleshooting
 
 ### Tests Not Running
+
 ```bash
 # Check Jest installation
 npm ls jest
@@ -383,6 +419,7 @@ npx jest --showConfig
 ```
 
 ### Import Errors
+
 ```bash
 # Ensure ts-jest is configured
 npm ls ts-jest
@@ -391,9 +428,11 @@ npm ls ts-jest
 ```
 
 ### Timeout Issues
+
 Edit jest.config.js:
+
 ```javascript
-testTimeout: 60000  // Increase timeout
+testTimeout: 60000; // Increase timeout
 ```
 
 ## 🚀 Next Steps

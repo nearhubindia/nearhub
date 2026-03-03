@@ -26,7 +26,8 @@ import { getApiUrl } from '@/lib/query-client';
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, updateUser, setUserLocation } = useAuth();
-  const { banners: profileBanners, isLoading: isProfileBannersLoading } = useAppScreenBanners('profile');
+  const { banners: profileBanners, isLoading: isProfileBannersLoading } =
+    useAppScreenBanners('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');

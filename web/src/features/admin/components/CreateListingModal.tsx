@@ -9,7 +9,7 @@ interface CreateListingModalProps {
 
 export default function CreateListingModal({ onClose }: CreateListingModalProps) {
   const createListing = useCreateListing();
-  
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -74,10 +74,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     });
 
     if (errors.length > 0) {
-      const errorMap = errors.reduce(
-        (acc, err) => ({ ...acc, [err.field]: err.message }),
-        {}
-      );
+      const errorMap = errors.reduce((acc, err) => ({ ...acc, [err.field]: err.message }), {});
       setFormErrors(errorMap);
       return;
     }
@@ -299,29 +296,32 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-900">
-                <strong>💡 Info:</strong> Users need an active subscription or coupon code with free listings to create listings.
+                <strong>💡 Info:</strong> Users need an active subscription or coupon code with free
+                listings to create listings.
               </p>
             </div>
           </div>
 
-        {/* Footer */}
-        <div className="sticky bottom-0 flex gap-3 bg-slate-100 border-t border-slate-200 p-6">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={createListing.isPending}
-            className="flex-1 px-6 py-3 rounded-lg font-bold border border-slate-300 text-slate-900 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={createListing.isPending || !formData.title || !formData.price || !formData.location}
-            className="flex-1 bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {createListing.isPending ? 'Creating...' : 'Create Listing'}
-          </button>
-        </div>
+          {/* Footer */}
+          <div className="sticky bottom-0 flex gap-3 bg-slate-100 border-t border-slate-200 p-6">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={createListing.isPending}
+              className="flex-1 px-6 py-3 rounded-lg font-bold border border-slate-300 text-slate-900 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={
+                createListing.isPending || !formData.title || !formData.price || !formData.location
+              }
+              className="flex-1 bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {createListing.isPending ? 'Creating...' : 'Create Listing'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

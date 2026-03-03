@@ -1,13 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  StyleSheet,
-  Text,
-  View,
-  Pressable,
-  TextInput,
-  ScrollView,
-  Platform,
-} from 'react-native';
+import { StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -21,11 +13,18 @@ import { Category, CATEGORIES, CATEGORY_PICTURE_IMAGES, CATEGORY_PICTURES } from
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
-  const { lat = '', lon = '', pincode = '', category = 'All', query = '', radius = '' } =
-    useLocalSearchParams();
+  const {
+    lat = '',
+    lon = '',
+    pincode = '',
+    category = 'All',
+    query = '',
+    radius = '',
+  } = useLocalSearchParams();
   const { searchHistory, recentSearches, trendingSearches, addSearch } = useSearchHistory();
   const { listings } = useListings();
-  const { banners: searchBanners, isLoading: isSearchBannersLoading } = useAppScreenBanners('search');
+  const { banners: searchBanners, isLoading: isSearchBannersLoading } =
+    useAppScreenBanners('search');
   const queryValue = Array.isArray(query) ? query[0] : query;
   const [searchQuery, setSearchQuery] = useState(queryValue || '');
 

@@ -68,7 +68,7 @@ $ npm run test:auth
       GET /api/health
         ✓ should return health status (12ms)
         ✓ should include timestamp in response (8ms)
-    
+
     Send OTP Tests
       POST /api/auth/send-otp
         ✓ should send OTP successfully with valid phone number (15ms)
@@ -76,7 +76,7 @@ $ npm run test:auth
         ✓ should fail with missing phone number (9ms)
         ✓ should handle invalid phone format gracefully (11ms)
         ✓ should include sentVia in response (8ms)
-    
+
     Verify OTP Tests
       POST /api/auth/verify-otp
         ✓ should verify valid OTP and create user (18ms)
@@ -85,7 +85,7 @@ $ npm run test:auth
         ✓ should generate unique user ID (16ms)
         ✓ should set user creation timestamp (10ms)
         ✓ should use default values for optional fields (12ms)
-    
+
     Validate Listing Tests
       POST /api/validate-listing
         ✓ should validate image listing with all fields (20ms)
@@ -172,7 +172,7 @@ it('should create listing successfully', async () => {
     location: { latitude: 28.6139, longitude: 77.209 },
     images: ['https://example.com/image.jpg'],
   };
-  
+
   context = given.userIsAuthenticated(context, authToken, userId);
 
   // When: POST request to create listing
@@ -235,18 +235,12 @@ it('should require authentication', async () => {
 // Test: Prevent user from modifying others' resources
 it('should prevent user from updating others listing', async () => {
   // Given: Other user's listing and different auth token
-  const otherUserContext = given.userIsAuthenticated(
-    context,
-    'other-user-token',
-    'other-user-id'
-  );
+  const otherUserContext = given.userIsAuthenticated(context, 'other-user-token', 'other-user-id');
 
   // When: Try to update another user's listing
-  const result = await when.patch(
-    otherUserContext,
-    '/api/listings/other-users-listing-id',
-    { title: 'Hacked!' }
-  );
+  const result = await when.patch(otherUserContext, '/api/listings/other-users-listing-id', {
+    title: 'Hacked!',
+  });
 
   // Then: Should return 403 Forbidden
   then.statusCodeIs(result, 403);
@@ -261,14 +255,14 @@ it('should prevent user from updating others listing', async () => {
 // Test: Filter listings by category
 it('should filter by category', async () => {
   // Given: Multiple listings in database with different categories
-  
+
   // When: GET request with category filter
   context = await when.get(context, '/api/listings?category=Electronics');
 
   // Then: Should return only electronics
   then.statusCodeIs(context, 200);
   then.responseIsNonEmptyArray(context);
-  
+
   context.response.forEach((listing: any) => {
     expect(listing.category).toBe('Electronics');
   });
@@ -283,7 +277,7 @@ it('should filter by category', async () => {
 // Test: Support pagination
 it('should support pagination', async () => {
   // Given: Many listings in database
-  
+
   // When: GET request with pagination params
   context = await when.get(context, '/api/listings?page=1&limit=10');
 
@@ -299,6 +293,7 @@ it('should support pagination', async () => {
 ## Test Data Examples
 
 ### Listing Test Data
+
 ```typescript
 const listing = testData.validListing();
 // Returns:
@@ -316,6 +311,7 @@ const listing = testData.validListing();
 ```
 
 ### Coupon Test Data
+
 ```typescript
 const coupon = testData.validCoupon();
 // Returns:
@@ -328,6 +324,7 @@ const coupon = testData.validCoupon();
 ```
 
 ### Subscription Test Data
+
 ```typescript
 const subscription = testData.validSubscription();
 // Returns:
@@ -342,26 +339,31 @@ const subscription = testData.validSubscription();
 ## Running Specific Tests
 
 ### Run Single Test File
+
 ```bash
 $ npm test -- auth.test.ts
 ```
 
 ### Run Tests Matching Pattern
+
 ```bash
 $ npm test -- --testNamePattern="should create"
 ```
 
 ### Run Failed Tests Only
+
 ```bash
 $ npm test -- --onlyChanged
 ```
 
 ### Run with Specific Timeout
+
 ```bash
 $ npm test -- --testTimeout=60000
 ```
 
 ### Debug Single Test
+
 ```typescript
 // Add .only to run only this test
 it.only('should debug this specific test', async () => {
@@ -372,6 +374,7 @@ it.only('should debug this specific test', async () => {
 ## Output Examples
 
 ### Successful Test Run
+
 ```
  PASS  __tests__/features/listings.test.ts
 
@@ -387,6 +390,7 @@ Tests:  4 passed, 4 total
 ```
 
 ### Failed Test Run
+
 ```
  FAIL  __tests__/features/listings.test.ts
 
@@ -442,6 +446,7 @@ npm test -- --listTests
 ## Debugging Tips
 
 ### Print Response in Test
+
 ```typescript
 it('should debug response', async () => {
   context = await when.post(context, '/api/endpoint', data);
@@ -452,6 +457,7 @@ it('should debug response', async () => {
 ```
 
 ### Use console.log to Trace Execution
+
 ```typescript
 it('should trace execution', async () => {
   console.log('Starting test...');
@@ -463,6 +469,7 @@ it('should trace execution', async () => {
 ```
 
 ### Run Single Test
+
 ```bash
 $ npm test -- --testNamePattern="should create listing"
 ```
@@ -477,18 +484,21 @@ $ npm test -- --testNamePattern="should create listing"
 ## Integration Examples
 
 ### GitHub Actions
+
 ```yaml
 - name: Run tests
   run: npm test -- --coverage --verbose
 ```
 
 ### Pre-commit Hook
+
 ```bash
 #!/bin/sh
 npm test -- --bail
 ```
 
 ### Pre-push Hook
+
 ```bash
 #!/bin/sh
 npm run test:all
@@ -497,6 +507,7 @@ npm run test:all
 ---
 
 For more information, see:
+
 - **TESTING_GUIDE.md** - Comprehensive guide
 - **TESTING_QUICK_REFERENCE.md** - Quick reference
 - **TESTING_FRAMEWORK_SETUP.md** - Framework overview

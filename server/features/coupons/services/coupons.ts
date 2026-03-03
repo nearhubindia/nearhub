@@ -185,10 +185,7 @@ export async function applyCouponDiscount(
  * @param userId - User ID
  * @returns true if user has already used this coupon
  */
-export async function hasUserUsedCoupon(
-  couponCode: string,
-  userId: string
-): Promise<boolean> {
+export async function hasUserUsedCoupon(couponCode: string, userId: string): Promise<boolean> {
   try {
     const couponCode_ = couponCode.toUpperCase().trim();
 
@@ -203,10 +200,7 @@ export async function hasUserUsedCoupon(
 
     // Check if user has used this coupon
     const usage = await db.query.couponUsage.findFirst({
-      where: and(
-        eq(couponUsage.couponId, coupon.id),
-        eq(couponUsage.userId, userId)
-      ),
+      where: and(eq(couponUsage.couponId, coupon.id), eq(couponUsage.userId, userId)),
     });
 
     return !!usage;
@@ -343,7 +337,8 @@ export async function createCoupon(
       .values({
         code: code.toUpperCase(),
         discountPercentage,
-        applicableTiers: applicableTiers && applicableTiers.length > 0 ? JSON.stringify(applicableTiers) : null,
+        applicableTiers:
+          applicableTiers && applicableTiers.length > 0 ? JSON.stringify(applicableTiers) : null,
         maxUsageCount,
         usageCount: 0,
         freeListings,
@@ -555,28 +550,53 @@ export async function getRemainingFreeListings(
     });
 
     if (!coupon) {
-      return { remaining: 0, total: 0, used: 0, durationDays: 0, couponId: null, error: 'Coupon not found' };
+      return {
+        remaining: 0,
+        total: 0,
+        used: 0,
+        durationDays: 0,
+        couponId: null,
+        error: 'Coupon not found',
+      };
     }
 
     if (!coupon.isActive) {
-      return { remaining: 0, total: 0, used: 0, durationDays: 0, couponId: null, error: 'Coupon is no longer active' };
+      return {
+        remaining: 0,
+        total: 0,
+        used: 0,
+        durationDays: 0,
+        couponId: null,
+        error: 'Coupon is no longer active',
+      };
     }
 
     if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
-      return { remaining: 0, total: 0, used: 0, durationDays: 0, couponId: null, error: 'Coupon has expired' };
+      return {
+        remaining: 0,
+        total: 0,
+        used: 0,
+        durationDays: 0,
+        couponId: null,
+        error: 'Coupon has expired',
+      };
     }
 
     const totalFreeListings = coupon.freeListings ?? 0;
     if (totalFreeListings <= 0) {
-      return { remaining: 0, total: 0, used: 0, durationDays: 0, couponId: coupon.id, error: 'This coupon does not grant free listings' };
+      return {
+        remaining: 0,
+        total: 0,
+        used: 0,
+        durationDays: 0,
+        couponId: coupon.id,
+        error: 'This coupon does not grant free listings',
+      };
     }
 
     // Count how many free listings this user has used from this coupon
     const usageRecords = await db.query.couponUsage.findMany({
-      where: and(
-        eq(couponUsage.couponId, coupon.id),
-        eq(couponUsage.userId, userId)
-      ),
+      where: and(eq(couponUsage.couponId, coupon.id), eq(couponUsage.userId, userId)),
     });
 
     const used = usageRecords.length;
@@ -591,7 +611,14 @@ export async function getRemainingFreeListings(
     };
   } catch (error) {
     console.error('[Coupons] Error getting remaining free listings:', error);
-    return { remaining: 0, total: 0, used: 0, durationDays: 0, couponId: null, error: 'Failed to check free listings' };
+    return {
+      remaining: 0,
+      total: 0,
+      used: 0,
+      durationDays: 0,
+      couponId: null,
+      error: 'Failed to check free listings',
+    };
   }
 }
 

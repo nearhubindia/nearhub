@@ -41,7 +41,10 @@ export const validators = {
       return { field: 'code', message: 'Code must be at least 3 characters' };
     }
     if (!/^[A-Z0-9_-]+$/.test(code.toUpperCase())) {
-      return { field: 'code', message: 'Code can only contain letters, numbers, dashes and underscores' };
+      return {
+        field: 'code',
+        message: 'Code can only contain letters, numbers, dashes and underscores',
+      };
     }
     return null;
   },

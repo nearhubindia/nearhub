@@ -277,12 +277,14 @@ export function registerListingExpirationRoutes(app: Express) {
       });
 
       // Filter for listings with videos only
-      const shortsListings = videoListings.filter((listing) => {
-        const videos = Array.isArray(listing.videos) 
-          ? listing.videos 
-          : JSON.parse(listing.videos || '[]');
-        return videos.length > 0;
-      }).slice(0, limit); // Limit to requested count
+      const shortsListings = videoListings
+        .filter((listing) => {
+          const videos = Array.isArray(listing.videos)
+            ? listing.videos
+            : JSON.parse(listing.videos || '[]');
+          return videos.length > 0;
+        })
+        .slice(0, limit); // Limit to requested count
 
       return res.json({
         success: true,
@@ -293,8 +295,12 @@ export function registerListingExpirationRoutes(app: Express) {
           category: listing.category,
           price: listing.price,
           location: listing.location,
-          videos: Array.isArray(listing.videos) ? listing.videos : JSON.parse(listing.videos || '[]'),
-          images: Array.isArray(listing.images) ? listing.images : JSON.parse(listing.images || '[]'),
+          videos: Array.isArray(listing.videos)
+            ? listing.videos
+            : JSON.parse(listing.videos || '[]'),
+          images: Array.isArray(listing.images)
+            ? listing.images
+            : JSON.parse(listing.images || '[]'),
           sellerId: listing.sellerId,
           createdAt: listing.createdAt,
           latitude: listing.latitude,
@@ -302,11 +308,14 @@ export function registerListingExpirationRoutes(app: Express) {
         })),
         config: {
           hideExpiredFromShorts: settings.hideFromShortsOnExpiry,
-          geoFiltering: latitude !== undefined && longitude !== undefined ? {
-            latitude,
-            longitude,
-            radius: radiusKm,
-          } : null,
+          geoFiltering:
+            latitude !== undefined && longitude !== undefined
+              ? {
+                  latitude,
+                  longitude,
+                  radius: radiusKm,
+                }
+              : null,
         },
         pagination: {
           limit,

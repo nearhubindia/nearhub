@@ -24,7 +24,8 @@ export default function ReportsView() {
   const { isLoading: transactionLoading } = useTransactionReport();
   const { isLoading: moderationLoading } = useModerationReport();
 
-  const isAnyLoading = growthLoading || performanceLoading || transactionLoading || moderationLoading;
+  const isAnyLoading =
+    growthLoading || performanceLoading || transactionLoading || moderationLoading;
 
   const reports = [
     {

@@ -148,8 +148,14 @@ export const insertListingSchema = createInsertSchema(listings)
   })
   .extend({
     // Accept both string (JSON) and array formats for images/videos
-    images: z.union([z.string(), z.array(z.string())]).optional().nullable(),
-    videos: z.union([z.string(), z.array(z.string())]).optional().nullable(),
+    images: z
+      .union([z.string(), z.array(z.string())])
+      .optional()
+      .nullable(),
+    videos: z
+      .union([z.string(), z.array(z.string())])
+      .optional()
+      .nullable(),
   });
 
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({

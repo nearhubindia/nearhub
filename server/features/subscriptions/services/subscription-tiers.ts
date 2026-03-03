@@ -8,12 +8,13 @@ import {
   subscriptionTiers,
   userSubscriptions,
   coupons,
+  listings,
   insertSubscriptionTierSchema,
   type SubscriptionTier,
   type InsertSubscriptionTier,
   type UserSubscription,
 } from '../../admin/models/admin-settings';
-import { eq, and, gt, lt } from 'drizzle-orm';
+import { eq, and, gt, lt, sql } from 'drizzle-orm';
 
 /**
  * Get all active subscription tiers
@@ -147,9 +148,9 @@ export async function getUserActiveSubscriptions(
  */
 export async function getTotalAllowedListings(userId: string): Promise<number> {
   const subscriptions = await getUserActiveSubscriptions(userId);
-  
+
   if (subscriptions.length === 0) return 0;
-  
+
   // Sum up maxListings from all active subscriptions
   // -1 means unlimited, so if any subscription has unlimited, return -1
   let total = 0;
@@ -157,7 +158,7 @@ export async function getTotalAllowedListings(userId: string): Promise<number> {
     if (sub.tier.maxListings === -1) return -1; // Unlimited
     total += sub.tier.maxListings;
   }
-  
+
   return total;
 }
 
@@ -199,7 +200,7 @@ export async function createUserSubscription(
   couponId?: string
 ): Promise<UserSubscription> {
   // NO LONGER deleting existing subscriptions - users can have multiple!
-  
+
   const result = await db
     .insert(userSubscriptions)
     .values({
@@ -345,18 +346,14 @@ export async function deleteSubscriptionTier(tierId: string): Promise<boolean> {
 export async function getActiveListingCount(userId: string): Promise<number> {
   const { listings } = await import('../../admin/models/admin-settings');
   const { sql } = await import('drizzle-orm');
-  
+
   const result = await db
     .select({ count: sql<number>`count(*)` })
     .from(listings)
     .where(
-      and(
-        eq(listings.sellerId, userId),
-        eq(listings.isActive, true),
-        eq(listings.status, 'active')
-      )
+      and(eq(listings.sellerId, userId), eq(listings.isActive, true), eq(listings.status, 'active'))
     );
-  
+
   return Number(result[0]?.count || 0);
 }
 
@@ -371,7 +368,7 @@ export async function canUserCreateListing(userId: string): Promise<{
 }> {
   const totalAllowed = await getTotalAllowedListings(userId);
   const currentCount = await getActiveListingCount(userId);
-  
+
   // -1 means unlimited
   if (totalAllowed === -1) {
     return {
@@ -380,7 +377,7 @@ export async function canUserCreateListing(userId: string): Promise<{
       limit: -1,
     };
   }
-  
+
   // No active subscriptions
   if (totalAllowed === 0) {
     return {
@@ -390,7 +387,7 @@ export async function canUserCreateListing(userId: string): Promise<{
       limit: 0,
     };
   }
-  
+
   // Check if user has reached limit
   if (currentCount >= totalAllowed) {
     return {
@@ -400,7 +397,7 @@ export async function canUserCreateListing(userId: string): Promise<{
       limit: totalAllowed,
     };
   }
-  
+
   return {
     allowed: true,
     current: currentCount,

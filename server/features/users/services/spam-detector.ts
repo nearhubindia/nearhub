@@ -78,7 +78,7 @@ export function reportUser(
 
   // Update spam profile
   const profile = updateUserSpamScore(reportedUserId);
-  
+
   // Send notification to reported user if they have multiple reports
   if (profile.totalReports >= 3) {
     notifySpamReportFiled(reportedUserId, reason, profile.totalReports).catch((err) =>

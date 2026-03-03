@@ -3,6 +3,7 @@
 ## LLaVA-Phi3 Installation
 
 ### 1. Pull the Model
+
 ```bash
 cd /home/pavanprasad/Downloads/nearhub/server
 ollama pull llava-phi3
@@ -11,11 +12,13 @@ ollama pull llava-phi3
 This will download the **llava-phi3** model (~2.2GB). It may take a few minutes depending on your internet connection.
 
 ### 2. Verify Installation
+
 ```bash
 ollama list
 ```
 
 You should see:
+
 ```
 NAME            ID              SIZE      MODIFIED
 llava-phi3      abc123def456    2.2 GB    2 minutes ago
@@ -23,6 +26,7 @@ phi             xyz789abc012    1.4 GB    1 week ago
 ```
 
 ### 3. Test the Model
+
 ```bash
 # Test text-only capability
 ollama run llava-phi3 "What is content moderation?"
@@ -32,6 +36,7 @@ echo "Does this image contain inappropriate content?" | ollama run llava-phi3 --
 ```
 
 ### 4. Start the Server
+
 ```bash
 cd /home/pavanprasad/Downloads/nearhub/server
 npm run dev
@@ -44,12 +49,14 @@ The server will now use LLaVA-Phi3 for content moderation.
 ## Features Implemented
 
 ### ✅ Text Moderation
+
 - Spam detection
 - Scam detection
 - Category matching
 - Inappropriate language filtering
 
 ### ✅ Image Moderation
+
 - **Nudity detection**
 - **Violence detection**
 - **Weapons detection**
@@ -58,6 +65,7 @@ The server will now use LLaVA-Phi3 for content moderation.
 - Offensive gestures
 
 ### ✅ Video Moderation
+
 - Frame-by-frame analysis
 - Aggregated results across multiple frames
 - Flagged frame identification
@@ -67,6 +75,7 @@ The server will now use LLaVA-Phi3 for content moderation.
 ## API Endpoints
 
 ### 1. Validate Listing (Existing - Enhanced)
+
 ```
 POST /api/validate-listing
 Content-Type: application/json
@@ -80,6 +89,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "isValid": true,
@@ -91,6 +101,7 @@ Content-Type: application/json
 ```
 
 ### 2. Create Listing (Enhanced with AI Moderation)
+
 ```
 POST /api/subscriptions/create-listing
 Content-Type: application/json
@@ -109,6 +120,7 @@ Content-Type: application/json
 ```
 
 **If inappropriate content detected:**
+
 ```json
 {
   "success": false,
@@ -129,9 +141,11 @@ Content-Type: application/json
 ## New AI Functions Available
 
 ### 1. `analyzeImageContent(imageBase64)`
+
 Analyzes a single image for inappropriate content.
 
 **Usage:**
+
 ```typescript
 import { analyzeImageContent } from '@/shared/ai/ai';
 
@@ -150,9 +164,11 @@ console.log(result);
 ```
 
 ### 2. `analyzeVideoContent(videoFrames)`
+
 Analyzes video by checking multiple frames.
 
 **Usage:**
+
 ```typescript
 import { analyzeVideoContent } from '@/shared/ai/ai';
 
@@ -172,16 +188,18 @@ console.log(result);
 ```
 
 ### 3. `validateListingWithVision(title, description, category, mediaBase64, isVideo)`
+
 Comprehensive validation with both text and visual analysis.
 
 **Usage:**
+
 ```typescript
 import { validateListingWithVision } from '@/shared/ai/ai';
 
 const result = await validateListingWithVision(
-  "iPhone 15 Pro",
-  "Brand new sealed",
-  "Electronics",
+  'iPhone 15 Pro',
+  'Brand new sealed',
+  'Electronics',
   [imageBase64],
   false
 );
@@ -202,7 +220,9 @@ console.log(result);
 ## Configuration
 
 ### Environment Variables
+
 Add to `.env`:
+
 ```bash
 # Ollama Configuration
 OLLAMA_URL=http://localhost:11434
@@ -215,7 +235,9 @@ AI_MODERATION_THRESHOLD=0.7
 ```
 
 ### Model Selection
+
 The server automatically uses LLaVA-Phi3. To check current model:
+
 ```typescript
 import { getModelInfo } from '@/shared/ai/ai';
 
@@ -234,12 +256,14 @@ console.log(info);
 ## Testing
 
 ### Test Image Moderation
+
 ```bash
 cd /home/pavanprasad/Downloads/nearhub/server
 npm test -- ai.test.ts
 ```
 
 ### Manual Test via API
+
 ```bash
 # Test with curl
 curl -X POST http://localhost:3001/api/subscriptions/create-listing \
@@ -262,11 +286,13 @@ curl -X POST http://localhost:3001/api/subscriptions/create-listing \
 ## Performance
 
 ### Expected Response Times
+
 - **Text-only validation**: 200-500ms
 - **Single image analysis**: 100-250ms (CPU), 50-100ms (GPU)
 - **Video analysis (5 frames)**: 500-1250ms (CPU), 250-500ms (GPU)
 
 ### Resource Usage
+
 - **RAM**: ~3GB (model loaded in memory)
 - **CPU**: 15-30% during analysis
 - **GPU**: Optional, improves speed 2-3x
@@ -276,6 +302,7 @@ curl -X POST http://localhost:3001/api/subscriptions/create-listing \
 ## Troubleshooting
 
 ### Model Not Found
+
 ```bash
 # Check if model is installed
 ollama list
@@ -285,11 +312,13 @@ ollama pull llava-phi3
 ```
 
 ### Slow Performance
+
 1. **Enable GPU** (if available):
+
    ```bash
    # Check GPU support
    nvidia-smi
-   
+
    # Ollama automatically uses GPU if available
    ```
 
@@ -300,6 +329,7 @@ ollama pull llava-phi3
    ```
 
 ### Ollama Not Running
+
 ```bash
 # Check Ollama service
 curl http://localhost:11434/api/tags
@@ -322,25 +352,33 @@ ollama serve
 ## Next Steps
 
 ### 1. Remove Old Phi Model (Optional)
+
 If you want to save space and only use LLaVA-Phi3:
+
 ```bash
 ollama rm phi
 ```
 
 ### 2. Tune Moderation Settings
+
 Adjust strictness in `server/shared/ai/ai.ts`:
+
 ```typescript
 temperature: 0.2, // Lower = stricter (range: 0.0 - 1.0)
 ```
 
 ### 3. Add Admin Review Queue
+
 For flagged content:
+
 - Log to database
 - Create admin dashboard
 - Manual approval workflow
 
 ### 4. Implement Video Frame Extraction
+
 Currently video moderation requires pre-extracted frames. Future enhancement:
+
 - Server-side FFmpeg integration
 - Automatic frame extraction at 1fps
 - Sample 5-10 representative frames
@@ -350,6 +388,7 @@ Currently video moderation requires pre-extracted frames. Future enhancement:
 ## Support
 
 For issues or questions:
+
 1. Check Ollama logs: `ollama ps`
 2. Check server logs: `server/index.ts` console output
 3. Test model directly: `ollama run llava-phi3`
@@ -357,6 +396,7 @@ For issues or questions:
 ---
 
 **Model Details:**
+
 - **Name**: LLaVA-Phi3
 - **Size**: 2.2 GB
 - **Type**: Multimodal (Vision + Language)

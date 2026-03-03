@@ -60,11 +60,6 @@ web/src/
 │   │   │   └── Landing.tsx
 │   │   └── services/
 │   │
-│   └── shared/                        # Shared between features
-│       ├── components/
-│       ├── hooks/
-│       └── services/
-│
 ├── shared/                            # Global shared code
 │   ├── components/                    # Global components (ProtectedRoute, etc)
 │   ├── hooks/                         # Global hooks

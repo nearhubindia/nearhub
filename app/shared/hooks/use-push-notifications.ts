@@ -54,27 +54,23 @@ export function usePushNotifications() {
       });
 
     // Listen for incoming notifications
-    notificationListener.current = Notifications.addNotificationReceivedListener(
-      (notification) => {
-        const { title, body, data } = notification.request.content;
-        setNotification({
-          title: title || 'Notification',
-          body: body || '',
-          data: data as PushNotificationData,
-        });
-      }
-    );
+    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
+      const { title, body, data } = notification.request.content;
+      setNotification({
+        title: title || 'Notification',
+        body: body || '',
+        data: data as PushNotificationData,
+      });
+    });
 
     // Listen for user interactions with notifications
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const { data } = response.notification.request.content;
-        console.log('[Push] Notification tapped:', data);
-        
-        // Handle navigation based on notification type
-        handleNotificationNavigation(data as PushNotificationData);
-      }
-    );
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      const { data } = response.notification.request.content;
+      console.log('[Push] Notification tapped:', data);
+
+      // Handle navigation based on notification type
+      handleNotificationNavigation(data as PushNotificationData);
+    });
 
     return () => {
       if (notificationListener.current) {
@@ -139,12 +135,12 @@ async function registerForPushNotificationsAsync(): Promise<string | undefined> 
 
     try {
       const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-      
+
       if (!projectId) {
         console.warn('[Push] No EAS project ID found, skipping push notifications');
         return;
       }
-      
+
       token = (
         await Notifications.getExpoPushTokenAsync({
           projectId,
@@ -155,7 +151,9 @@ async function registerForPushNotificationsAsync(): Promise<string | undefined> 
       // Firebase not configured - this is expected if FCM credentials aren't set up
       if (error instanceof Error && error.message.includes('FirebaseApp')) {
         console.log('[Push] Firebase not configured. Push notifications disabled.');
-        console.log('[Push] To enable push notifications, follow: https://docs.expo.dev/push-notifications/fcm-credentials/');
+        console.log(
+          '[Push] To enable push notifications, follow: https://docs.expo.dev/push-notifications/fcm-credentials/'
+        );
       } else {
         console.error('[Push] Error getting push token:', error);
       }

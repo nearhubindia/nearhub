@@ -85,119 +85,123 @@ export default function VideoManagementView() {
 
       {/* Content */}
       <div className="p-6 space-y-6">
+        <div className="flex gap-4 mb-6">
+          {filterTabs.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setFilter(tab)}
+              className={`px-6 py-2 rounded-lg font-bold transition ${
+                filter === tab
+                  ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white'
+                  : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
+              }`}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)} ({filteredVideos.length})
+            </button>
+          ))}
+        </div>
 
-      <div className="flex gap-4 mb-6">
-        {filterTabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setFilter(tab)}
-            className={`px-6 py-2 rounded-lg font-bold transition ${
-              filter === tab
-                ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white'
-                : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
-            }`}
-          >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)} ({filteredVideos.length})
-          </button>
-        ))}
-      </div>
-
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gradient-to-r from-slate-100 to-slate-200">
-            <tr>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Title</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Seller</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Duration</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Status</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Created</th>
-              <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {filteredVideos.length === 0 ? (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gradient-to-r from-slate-100 to-slate-200">
               <tr>
-                <td colSpan={6} className="px-6 py-4 text-center text-slate-500">
-                  No videos found
-                </td>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Title</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Seller</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
+                  Duration
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Status</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
+                  Created
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
+                  Actions
+                </th>
               </tr>
-            ) : (
-              filteredVideos.map((video, idx: number) => (
-                <tr key={idx} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 text-sm font-medium text-slate-900">
-                    {video.title as string}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {((video.sellerId as string) || 'N/A').slice(0, 8)}...
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {(video.durationDays as number) || 'N/A'} days
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        video.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {video.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {video.createdAt
-                      ? new Date(video.createdAt as string).toLocaleDateString()
-                      : 'N/A'}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleToggleStatus(video.id)}
-                        disabled={toggleVideoStatus.isPending}
-                        className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium transition ${
-                          video.isActive
-                            ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                            : 'bg-green-100 text-green-700 hover:bg-green-200'
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                      >
-                        {video.isActive ? (
-                          <>
-                            <XCircle className="h-3 w-3 mr-1" />
-                            Deactivate
-                          </>
-                        ) : (
-                          <>
-                            <Play className="h-3 w-3 mr-1" />
-                            Activate
-                          </>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setVideoToDelete(video);
-                          setShowDeleteModal(true);
-                        }}
-                        className="inline-flex items-center px-3 py-1 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition text-xs"
-                      >
-                        <MoreHorizontal className="h-3 w-3" />
-                      </button>
-                    </div>
+            </thead>
+            <tbody className="divide-y">
+              {filteredVideos.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-4 text-center text-slate-500">
+                    No videos found
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : (
+                filteredVideos.map((video, idx: number) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 text-sm font-medium text-slate-900">
+                      {video.title as string}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {((video.sellerId as string) || 'N/A').slice(0, 8)}...
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {(video.durationDays as number) || 'N/A'} days
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          video.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {video.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {video.createdAt
+                        ? new Date(video.createdAt as string).toLocaleDateString()
+                        : 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleToggleStatus(video.id)}
+                          disabled={toggleVideoStatus.isPending}
+                          className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium transition ${
+                            video.isActive
+                              ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          {video.isActive ? (
+                            <>
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Deactivate
+                            </>
+                          ) : (
+                            <>
+                              <Play className="h-3 w-3 mr-1" />
+                              Activate
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setVideoToDelete(video);
+                            setShowDeleteModal(true);
+                          }}
+                          className="inline-flex items-center px-3 py-1 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition text-xs"
+                        >
+                          <MoreHorizontal className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-mx">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">
-              Delete Video
-            </h3>
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">Delete Video</h3>
             <p className="text-slate-600 mb-6">
-              Are you sure you want to delete "{videoToDelete?.title}"? This action cannot be undone.
+              Are you sure you want to delete "{videoToDelete?.title}"? This action cannot be
+              undone.
             </p>
             <div className="flex justify-end gap-3">
               <button

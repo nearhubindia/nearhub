@@ -119,7 +119,11 @@ async function initiateUpload(
       const errorBody = await response.text();
       let parsedError: { error?: string; retryAfter?: string; code?: string } | null = null;
       try {
-        parsedError = JSON.parse(errorBody) as { error?: string; retryAfter?: string; code?: string };
+        parsedError = JSON.parse(errorBody) as {
+          error?: string;
+          retryAfter?: string;
+          code?: string;
+        };
       } catch {
         parsedError = null;
       }

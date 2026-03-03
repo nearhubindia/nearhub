@@ -53,7 +53,9 @@ async function seedFree30Coupon(): Promise<void> {
       console.log(`       Max Usage: ${inserted.maxUsageCount} (Unlimited)`);
       console.log(`       Expires: ${inserted.expiresAt ? inserted.expiresAt : 'Never'}`);
       console.log(`       Active: ${inserted.isActive}`);
-      console.log('\n[Seed] 🎉 Sellers can now use code "FREE30" to get 30 days free subscription!');
+      console.log(
+        '\n[Seed] 🎉 Sellers can now use code "FREE30" to get 30 days free subscription!'
+      );
     }
 
     console.log(`\n[Seed] Complete!`);

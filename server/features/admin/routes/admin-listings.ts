@@ -42,7 +42,8 @@ export function registerAdminListingsRoutes(app: Express) {
 
       // Get total count
       const totalResult = await db.select({ count: listings.id }).from(listings);
-      const total = typeof totalResult[0]?.count === 'number' ? totalResult[0].count : allListings.length;
+      const total =
+        typeof totalResult[0]?.count === 'number' ? totalResult[0].count : allListings.length;
 
       res.json({
         success: true,
@@ -59,8 +60,14 @@ export function registerAdminListingsRoutes(app: Express) {
           isActive: listing.isActive,
           createdAt: listing.createdAt?.toISOString(),
           expiresAt: listing.expiresAt?.toISOString(),
-          images: typeof listing.images === 'string' ? JSON.parse(listing.images || '[]') : listing.images || [],
-          videos: typeof listing.videos === 'string' ? JSON.parse(listing.videos || '[]') : listing.videos || [],
+          images:
+            typeof listing.images === 'string'
+              ? JSON.parse(listing.images || '[]')
+              : listing.images || [],
+          videos:
+            typeof listing.videos === 'string'
+              ? JSON.parse(listing.videos || '[]')
+              : listing.videos || [],
         })),
         total,
       });
@@ -99,8 +106,14 @@ export function registerAdminListingsRoutes(app: Express) {
           isActive: listing.isActive,
           createdAt: listing.createdAt?.toISOString(),
           expiresAt: listing.expiresAt?.toISOString(),
-          images: typeof listing.images === 'string' ? JSON.parse(listing.images || '[]') : listing.images || [],
-          videos: typeof listing.videos === 'string' ? JSON.parse(listing.videos || '[]') : listing.videos || [],
+          images:
+            typeof listing.images === 'string'
+              ? JSON.parse(listing.images || '[]')
+              : listing.images || [],
+          videos:
+            typeof listing.videos === 'string'
+              ? JSON.parse(listing.videos || '[]')
+              : listing.videos || [],
         },
       });
     } catch (error) {
@@ -116,7 +129,8 @@ export function registerAdminListingsRoutes(app: Express) {
   app.patch('/api/admin/listings/:id', async (req: AuthRequest, res: Response) => {
     try {
       const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
-      const { title, description, category, price, condition, location, status, isActive } = req.body;
+      const { title, description, category, price, condition, location, status, isActive } =
+        req.body;
 
       const updateData: any = {};
       if (title !== undefined) updateData.title = title;

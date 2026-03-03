@@ -95,7 +95,7 @@ export async function compressVideo(
 
       // Settings by quality
       const settings = {
-        low: { bitrate: '500k', scale: '480:854' },    // 9:16 aspect
+        low: { bitrate: '500k', scale: '480:854' }, // 9:16 aspect
         medium: { bitrate: '1300k', scale: '720:1280' },
         high: { bitrate: '2500k', scale: '1080:1920' },
       };
@@ -108,12 +108,18 @@ export async function compressVideo(
       // Run compression
       console.log('[VideoCompressor] Running FFmpeg compression...');
       await FFmpeg.run(
-        '-i', 'input.mp4',
-        '-b:v', config.bitrate,
-        '-vf', `scale=${config.scale}`,
-        '-c:a', 'aac',
-        '-b:a', '128k',
-        '-y', 'output.mp4'
+        '-i',
+        'input.mp4',
+        '-b:v',
+        config.bitrate,
+        '-vf',
+        `scale=${config.scale}`,
+        '-c:a',
+        'aac',
+        '-b:a',
+        '128k',
+        '-y',
+        'output.mp4'
       );
 
       // Read result

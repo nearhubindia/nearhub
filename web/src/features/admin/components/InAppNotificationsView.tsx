@@ -58,7 +58,9 @@ export default function InAppNotificationsView() {
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [userType, setUserType] = useState<'all' | 'buyer' | 'seller'>('all');
-  const [notificationType, setNotificationType] = useState<'info' | 'success' | 'warning' | 'error'>('info');
+  const [notificationType, setNotificationType] = useState<
+    'info' | 'success' | 'warning' | 'error'
+  >('info');
   const [priority, setPriority] = useState<'urgent' | 'high' | 'normal' | 'low'>('normal');
   const [category, setCategory] = useState('');
   const [actionLabel, setActionLabel] = useState('');
@@ -277,7 +279,8 @@ export default function InAppNotificationsView() {
       },
       subscriptionRenewal: {
         title: 'Subscription Renewal Reminder 📅',
-        message: 'Your premium subscription expires in 5 days. Renew now to continue enjoying benefits!',
+        message:
+          'Your premium subscription expires in 5 days. Renew now to continue enjoying benefits!',
         type: 'warning',
         priority: 'high',
         category: 'payment',
@@ -307,7 +310,7 @@ export default function InAppNotificationsView() {
       },
       featureUpdate: {
         title: 'New Feature Available! 🚀',
-        message: 'We\'ve added video listings! Upload videos to showcase your items better.',
+        message: "We've added video listings! Upload videos to showcase your items better.",
         type: 'info',
         priority: 'normal',
         category: 'system',
@@ -364,15 +367,11 @@ export default function InAppNotificationsView() {
               <div className="text-sm text-slate-600">Unread</div>
             </div>
             <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-2xl font-bold text-green-600">
-                {stats.byType.success || 0}
-              </div>
+              <div className="text-2xl font-bold text-green-600">{stats.byType.success || 0}</div>
               <div className="text-sm text-slate-600">Success</div>
             </div>
             <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-2xl font-bold text-yellow-600">
-                {stats.byType.warning || 0}
-              </div>
+              <div className="text-2xl font-bold text-yellow-600">{stats.byType.warning || 0}</div>
               <div className="text-sm text-slate-600">Warnings</div>
             </div>
           </div>
@@ -396,18 +395,46 @@ export default function InAppNotificationsView() {
                 {[
                   // Account
                   { id: 'welcome', label: '👋 Welcome', color: 'bg-green-100 text-green-800' },
-                  { id: 'accountVerified', label: '✅ Verified', color: 'bg-green-100 text-green-800' },
+                  {
+                    id: 'accountVerified',
+                    label: '✅ Verified',
+                    color: 'bg-green-100 text-green-800',
+                  },
                   // Listings
                   { id: 'newListing', label: '🏷️ New Listing', color: 'bg-blue-100 text-blue-800' },
-                  { id: 'priceUpdate', label: '💰 Price Drop', color: 'bg-yellow-100 text-yellow-800' },
-                  { id: 'listingApproved', label: '✅ Approved', color: 'bg-green-100 text-green-800' },
-                  { id: 'listingExpiring', label: '⏰ Expiring', color: 'bg-orange-100 text-orange-800' },
+                  {
+                    id: 'priceUpdate',
+                    label: '💰 Price Drop',
+                    color: 'bg-yellow-100 text-yellow-800',
+                  },
+                  {
+                    id: 'listingApproved',
+                    label: '✅ Approved',
+                    color: 'bg-green-100 text-green-800',
+                  },
+                  {
+                    id: 'listingExpiring',
+                    label: '⏰ Expiring',
+                    color: 'bg-orange-100 text-orange-800',
+                  },
                   // Payment
-                  { id: 'paymentSuccess', label: '💳 Payment', color: 'bg-green-100 text-green-800' },
+                  {
+                    id: 'paymentSuccess',
+                    label: '💳 Payment',
+                    color: 'bg-green-100 text-green-800',
+                  },
                   { id: 'invoiceReady', label: '📄 Invoice', color: 'bg-blue-100 text-blue-800' },
-                  { id: 'subscriptionRenewal', label: '📅 Renewal', color: 'bg-orange-100 text-orange-800' },
+                  {
+                    id: 'subscriptionRenewal',
+                    label: '📅 Renewal',
+                    color: 'bg-orange-100 text-orange-800',
+                  },
                   // Offers
-                  { id: 'couponAvailable', label: '🎟️ Coupon', color: 'bg-purple-100 text-purple-800' },
+                  {
+                    id: 'couponAvailable',
+                    label: '🎟️ Coupon',
+                    color: 'bg-purple-100 text-purple-800',
+                  },
                   { id: 'limitedOffer', label: '⭐ Offer', color: 'bg-purple-100 text-purple-800' },
                   // System
                   { id: 'maintenance', label: '🔧 Maintenance', color: 'bg-red-100 text-red-800' },
@@ -597,10 +624,14 @@ export default function InAppNotificationsView() {
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${getTypeColor(notification.type)}`}>
+                          <span
+                            className={`px-2 py-0.5 rounded text-xs font-medium ${getTypeColor(notification.type)}`}
+                          >
                             {notification.type}
                           </span>
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${getPriorityColor(notification.priority)}`}>
+                          <span
+                            className={`px-2 py-0.5 rounded text-xs font-medium ${getPriorityColor(notification.priority)}`}
+                          >
                             {notification.priority}
                           </span>
                           {notification.category && (

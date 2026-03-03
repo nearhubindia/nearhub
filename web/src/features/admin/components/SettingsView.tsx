@@ -47,7 +47,7 @@ export default function SettingsView() {
 
       const apiUrl = getApiUrl();
       const token = getAdminToken();
-      
+
       if (!token) {
         throw new Error('Not logged in. Please login first.');
       }
@@ -103,172 +103,180 @@ export default function SettingsView() {
 
         {!isLoading && (
           <>
-        {/* Listing Features Settings */}
-        <div className="bg-white border border-slate-200 rounded-lg p-8">
-          <h3 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-            <span className="text-2xl">📋</span> Listing Enhancement Features
-          </h3>
-          <p className="text-slate-600 mb-6">
-            Enable/disable special listing features available to users
-          </p>
+            {/* Listing Features Settings */}
+            <div className="bg-white border border-slate-200 rounded-lg p-8">
+              <h3 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                <span className="text-2xl">📋</span> Listing Enhancement Features
+              </h3>
+              <p className="text-slate-600 mb-6">
+                Enable/disable special listing features available to users
+              </p>
 
-          <div className="space-y-4">
-            {/* Verified Badge */}
-            <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
-              <div>
-                <h4 className="font-bold text-slate-900 flex items-center gap-2">
-                  <span>✓</span> Verified Listing Badge
-                </h4>
-                <p className="text-sm text-slate-600 mt-1">
-                  Allow sellers to mark their listings as verified
-                </p>
+              <div className="space-y-4">
+                {/* Verified Badge */}
+                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
+                  <div>
+                    <h4 className="font-bold text-slate-900 flex items-center gap-2">
+                      <span>✓</span> Verified Listing Badge
+                    </h4>
+                    <p className="text-sm text-slate-600 mt-1">
+                      Allow sellers to mark their listings as verified
+                    </p>
+                  </div>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={verifiedBadgeEnabled}
+                      onChange={(e) => setVerifiedBadgeEnabled(e.target.checked)}
+                      className="w-6 h-6 accent-teal-500"
+                    />
+                  </label>
+                </div>
+
+                {/* Priority Listing */}
+                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
+                  <div>
+                    <h4 className="font-bold text-slate-900 flex items-center gap-2">
+                      <span>⬆️</span> Priority Listing Boost
+                    </h4>
+                    <p className="text-sm text-slate-600 mt-1">
+                      Allow listings to be boosted higher in search results
+                    </p>
+                  </div>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={priorityListingEnabled}
+                      onChange={(e) => setPriorityListingEnabled(e.target.checked)}
+                      className="w-6 h-6 accent-teal-500"
+                    />
+                  </label>
+                </div>
+
+                {/* Featured Listing */}
+                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
+                  <div>
+                    <h4 className="font-bold text-slate-900 flex items-center gap-2">
+                      <span>⭐</span> Featured Listing
+                    </h4>
+                    <p className="text-sm text-slate-600 mt-1">
+                      Allow listings to appear as featured on homepage
+                    </p>
+                  </div>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={featuredListingEnabled}
+                      onChange={(e) => setFeaturedListingEnabled(e.target.checked)}
+                      className="w-6 h-6 accent-teal-500"
+                    />
+                  </label>
+                </div>
+
+                {/* Top Search Placement */}
+                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
+                  <div>
+                    <h4 className="font-bold text-slate-900 flex items-center gap-2">
+                      <span>🎯</span> Top Search Placement
+                    </h4>
+                    <p className="text-sm text-slate-600 mt-1">
+                      Allow listings to appear at top of category search
+                    </p>
+                  </div>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={topSearchEnabled}
+                      onChange={(e) => setTopSearchEnabled(e.target.checked)}
+                      className="w-6 h-6 accent-teal-500"
+                    />
+                  </label>
+                </div>
               </div>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={verifiedBadgeEnabled}
-                  onChange={(e) => setVerifiedBadgeEnabled(e.target.checked)}
-                  className="w-6 h-6 accent-teal-500"
-                />
-              </label>
             </div>
 
-            {/* Priority Listing */}
-            <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
-              <div>
-                <h4 className="font-bold text-slate-900 flex items-center gap-2">
-                  <span>⬆️</span> Priority Listing Boost
-                </h4>
-                <p className="text-sm text-slate-600 mt-1">
-                  Allow listings to be boosted higher in search results
-                </p>
+            {/* General Platform Settings */}
+            <div className="bg-white border border-slate-200 rounded-lg p-8">
+              <h3 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                <span className="text-2xl">⚙️</span> General Settings
+              </h3>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-900 mb-2">
+                    Platform Name
+                  </label>
+                  <input
+                    type="text"
+                    defaultValue="nearhub"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-900 mb-2">
+                    Support Email
+                  </label>
+                  <input
+                    type="email"
+                    defaultValue="support@nearhub.com"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-900 mb-2">
+                    Support Phone
+                  </label>
+                  <input
+                    type="tel"
+                    defaultValue="+91 98765 43210"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-900 mb-2">
+                    Default Search Radius (km)
+                  </label>
+                  <input
+                    type="text"
+                    value={geoRadiusKm || ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '') {
+                        setGeoRadiusKm(0); // Allow empty temporarily
+                      } else {
+                        const num = parseInt(value);
+                        if (!isNaN(num)) {
+                          setGeoRadiusKm(Math.max(1, Math.min(500, num)));
+                        }
+                      }
+                    }}
+                    placeholder="Enter radius (1-500 km)"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                  />
+                  <p className="text-sm text-slate-600 mt-1">
+                    Set the default search radius for location-based listing searches (1-500 km)
+                  </p>
+                </div>
               </div>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={priorityListingEnabled}
-                  onChange={(e) => setPriorityListingEnabled(e.target.checked)}
-                  className="w-6 h-6 accent-teal-500"
-                />
-              </label>
             </div>
 
-            {/* Featured Listing */}
-            <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
-              <div>
-                <h4 className="font-bold text-slate-900 flex items-center gap-2">
-                  <span>⭐</span> Featured Listing
-                </h4>
-                <p className="text-sm text-slate-600 mt-1">
-                  Allow listings to appear as featured on homepage
-                </p>
+            {/* Save Button */}
+            {message && (
+              <div
+                className={`p-4 rounded-lg text-white text-center font-bold ${
+                  message.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+                }`}
+              >
+                {message.text}
               </div>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={featuredListingEnabled}
-                  onChange={(e) => setFeaturedListingEnabled(e.target.checked)}
-                  className="w-6 h-6 accent-teal-500"
-                />
-              </label>
-            </div>
-
-            {/* Top Search Placement */}
-            <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
-              <div>
-                <h4 className="font-bold text-slate-900 flex items-center gap-2">
-                  <span>🎯</span> Top Search Placement
-                </h4>
-                <p className="text-sm text-slate-600 mt-1">
-                  Allow listings to appear at top of category search
-                </p>
-              </div>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={topSearchEnabled}
-                  onChange={(e) => setTopSearchEnabled(e.target.checked)}
-                  className="w-6 h-6 accent-teal-500"
-                />
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* General Platform Settings */}
-        <div className="bg-white border border-slate-200 rounded-lg p-8">
-          <h3 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-            <span className="text-2xl">⚙️</span> General Settings
-          </h3>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-slate-900 mb-2">Platform Name</label>
-              <input
-                type="text"
-                defaultValue="nearhub"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-slate-900 mb-2">Support Email</label>
-              <input
-                type="email"
-                defaultValue="support@nearhub.com"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-slate-900 mb-2">Support Phone</label>
-              <input
-                type="tel"
-                defaultValue="+91 98765 43210"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-slate-900 mb-2">Default Search Radius (km)</label>
-              <input
-                type="text"
-                value={geoRadiusKm || ''}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === '') {
-                    setGeoRadiusKm(0); // Allow empty temporarily
-                  } else {
-                    const num = parseInt(value);
-                    if (!isNaN(num)) {
-                      setGeoRadiusKm(Math.max(1, Math.min(500, num)));
-                    }
-                  }
-                }}
-                placeholder="Enter radius (1-500 km)"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-              />
-              <p className="text-sm text-slate-600 mt-1">Set the default search radius for location-based listing searches (1-500 km)</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Save Button */}
-        {message && (
-          <div
-            className={`p-4 rounded-lg text-white text-center font-bold ${
-              message.type === 'success'
-                ? 'bg-green-500'
-                : 'bg-red-500'
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
-        <button
-          onClick={handleSaveSettings}
-          disabled={isSaving}
-          className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-8 py-4 rounded-lg font-bold hover:shadow-lg hover:scale-105 transition text-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSaving ? 'Saving...' : 'Save All Settings'}
-        </button>
+            )}
+            <button
+              onClick={handleSaveSettings}
+              disabled={isSaving}
+              className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-8 py-4 rounded-lg font-bold hover:shadow-lg hover:scale-105 transition text-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSaving ? 'Saving...' : 'Save All Settings'}
+            </button>
           </>
         )}
       </div>

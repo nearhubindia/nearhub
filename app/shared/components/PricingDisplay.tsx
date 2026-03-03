@@ -63,103 +63,101 @@ export const PricingDisplay: React.FC<PricingDisplayProps> = ({
 
       {/* Paid Tier Options */}
       <>
-          <View style={styles.paidTierHeader}>
-            <Text style={styles.paidTierTitle}>Choose Listing Duration</Text>
-            <Text style={styles.paidTierSubtitle}>
-              Select the duration for your listing
-            </Text>
-          </View>
+        <View style={styles.paidTierHeader}>
+          <Text style={styles.paidTierTitle}>Choose Listing Duration</Text>
+          <Text style={styles.paidTierSubtitle}>Select the duration for your listing</Text>
+        </View>
 
-          <View style={styles.optionsContainer}>
-            {pricingOptions.map((option) => (
-              <TouchableOpacity
-                key={option.duration}
-                style={[
-                  styles.optionCard,
-                  selectedDuration === option.duration && styles.optionCardSelected,
-                ]}
-                onPress={() => handleSelect(option.duration, option.fee)}
-                disabled={isLoading}
+        <View style={styles.optionsContainer}>
+          {pricingOptions.map((option) => (
+            <TouchableOpacity
+              key={option.duration}
+              style={[
+                styles.optionCard,
+                selectedDuration === option.duration && styles.optionCardSelected,
+              ]}
+              onPress={() => handleSelect(option.duration, option.fee)}
+              disabled={isLoading}
+            >
+              <LinearGradient
+                colors={
+                  selectedDuration === option.duration
+                    ? ['#2D82DC', '#0A66C2']
+                    : ['#1e293b', '#0f172a']
+                }
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.optionGradient}
               >
-                <LinearGradient
-                  colors={
-                    selectedDuration === option.duration
-                      ? ['#2D82DC', '#0A66C2']
-                      : ['#1e293b', '#0f172a']
-                  }
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.optionGradient}
-                >
-                  {/* Duration */}
-                  <View style={styles.optionHeader}>
-                    <Text style={styles.optionLabel}>{option.label}</Text>
-                    {option.savings && (
-                      <View style={styles.savingsBadge}>
-                        <Text style={styles.savingsText}>Save ₹{option.savings * 99}</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Fee */}
-                  <View style={styles.optionFooter}>
-                    <Text style={styles.optionFee}>₹{option.fee}</Text>
-                    <Text style={styles.optionFeeSubtitle}>
-                      ₹{(option.fee / option.duration).toFixed(1)}/day
-                    </Text>
-                  </View>
-
-                  {/* Checkmark */}
-                  {selectedDuration === option.duration && (
-                    <View style={styles.checkmark}>
-                      <Text style={styles.checkmarkIcon}>✓</Text>
+                {/* Duration */}
+                <View style={styles.optionHeader}>
+                  <Text style={styles.optionLabel}>{option.label}</Text>
+                  {option.savings && (
+                    <View style={styles.savingsBadge}>
+                      <Text style={styles.savingsText}>Save ₹{option.savings * 99}</Text>
                     </View>
                   )}
-                </LinearGradient>
-              </TouchableOpacity>
-            ))}
+                </View>
+
+                {/* Fee */}
+                <View style={styles.optionFooter}>
+                  <Text style={styles.optionFee}>₹{option.fee}</Text>
+                  <Text style={styles.optionFeeSubtitle}>
+                    ₹{(option.fee / option.duration).toFixed(1)}/day
+                  </Text>
+                </View>
+
+                {/* Checkmark */}
+                {selectedDuration === option.duration && (
+                  <View style={styles.checkmark}>
+                    <Text style={styles.checkmarkIcon}>✓</Text>
+                  </View>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Summary */}
+        {selectedDuration && (
+          <View style={styles.summaryCard}>
+            {(() => {
+              const selected = pricingOptions.find((o) => o.duration === selectedDuration);
+              const expiryDate = new Date();
+              expiryDate.setDate(expiryDate.getDate() + selectedDuration!);
+
+              return (
+                <>
+                  <Text style={styles.summaryTitle}>Summary</Text>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Duration:</Text>
+                    <Text style={styles.summaryValue}>{selected?.label}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Total Fee:</Text>
+                    <Text style={styles.summaryValue}>₹{selected?.fee}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Expires On:</Text>
+                    <Text style={styles.summaryValue}>
+                      {expiryDate.toLocaleDateString('en-IN')}
+                    </Text>
+                  </View>
+                </>
+              );
+            })()}
           </View>
+        )}
 
-          {/* Summary */}
-          {selectedDuration && (
-            <View style={styles.summaryCard}>
-              {(() => {
-                const selected = pricingOptions.find((o) => o.duration === selectedDuration);
-                const expiryDate = new Date();
-                expiryDate.setDate(expiryDate.getDate() + selectedDuration!);
-
-                return (
-                  <>
-                    <Text style={styles.summaryTitle}>Summary</Text>
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Duration:</Text>
-                      <Text style={styles.summaryValue}>{selected?.label}</Text>
-                    </View>
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Total Fee:</Text>
-                      <Text style={styles.summaryValue}>₹{selected?.fee}</Text>
-                    </View>
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Expires On:</Text>
-                      <Text style={styles.summaryValue}>
-                        {expiryDate.toLocaleDateString('en-IN')}
-                      </Text>
-                    </View>
-                  </>
-                );
-              })()}
-            </View>
-          )}
-
-          {/* Info Box */}
-          <View style={styles.infoBox}>
-            <Text style={styles.infoTitle}>ℹ️ How It Works</Text>
-            <InfoPoint icon="1" text="Choose a duration above" />
-            <InfoPoint icon="2" text="Proceed to secure payment" />
-            <InfoPoint icon="3" text="Your listing goes live immediately" />
-            <InfoPoint icon="4" text="Get buyer inquiries via chat" />
-          </View>
-        </>
+        {/* Info Box */}
+        <View style={styles.infoBox}>
+          <Text style={styles.infoTitle}>ℹ️ How It Works</Text>
+          <InfoPoint icon="1" text="Choose a duration above" />
+          <InfoPoint icon="2" text="Proceed to secure payment" />
+          <InfoPoint icon="3" text="Your listing goes live immediately" />
+          <InfoPoint icon="4" text="Get buyer inquiries via chat" />
+        </View>
+      </>
 
       {/* Loading Indicator */}
       {isLoading && (
@@ -256,17 +254,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
           {/* Action Button */}
           <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={[styles.buttonPrimary, !selectedDuration && styles.buttonDisabled]}
-                onPress={handleCheckout}
-                disabled={!selectedDuration || isProcessing}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.buttonText}>Proceed to Payment</Text>
-                )}
-              </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.buttonPrimary, !selectedDuration && styles.buttonDisabled]}
+              onPress={handleCheckout}
+              disabled={!selectedDuration || isProcessing}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Proceed to Payment</Text>
+              )}
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.buttonSecondary}

@@ -4,7 +4,7 @@ const path = require('path');
 
 /**
  * Config plugin for a single full-screen splash on Android.
- * 
+ *
  * Shows near_hub_splash.png as the entire windowBackground so it fills
  * the screen edge-to-edge. The Android 12+ SplashScreen API icon is made
  * invisible (tiny dark circle matching bg color) so the user only sees
