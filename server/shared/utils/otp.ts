@@ -142,7 +142,9 @@ class OTPService {
             console.log(`[OTP] Sent via MSG91 to +91${phone} (ID: ${msg91Response.messageId})`);
           } else {
             console.warn(`[OTP] MSG91 failed: ${msg91Response.error}`);
-            console.log(`[OTP] OTP not sent by MSG91; available only in server logs for +91${phone}`);
+            console.log(
+              `[OTP] OTP not sent by MSG91; available only in server logs for +91${phone}`
+            );
           }
         } catch (msg91Error) {
           console.error('[OTP] Error with MSG91:', msg91Error);

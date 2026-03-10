@@ -178,10 +178,7 @@ class MSG91Service {
 
       if (isSuccessful) {
         const messageId =
-          responseData?.message ||
-          responseData?.request_id ||
-          responseData?.requestId ||
-          'unknown';
+          responseData?.message || responseData?.request_id || responseData?.requestId || 'unknown';
         return {
           success: true,
           messageId: messageId.toString(),
@@ -380,7 +377,6 @@ class MSG91Service {
   private formatOTPMessage(otp: string): string {
     return `Dear User, your OTP for NearHub authentication is ${otp}. This OTP is valid for 5 minutes. Do not share this OTP with anyone. - NearHub`;
   }
-
 }
 
 // Export singleton instance
