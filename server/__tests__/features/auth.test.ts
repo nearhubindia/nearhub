@@ -25,6 +25,7 @@ jest.mock('../../shared/ai/ai', () => ({
 
 import { createTestApp } from '../setup/test-app';
 import { given, when, then, testData, type TestContext } from '../utils/gwt-helpers';
+import { otpService } from '../../shared/utils/otp';
 
 describe('Authentication API - GWT Tests', () => {
   let context: TestContext;
@@ -55,7 +56,7 @@ describe('Authentication API - GWT Tests', () => {
       expect(context.response?.expiresIn).toBeDefined();
     });
 
-    it('should return OTP in development environment', async () => {
+    it('should not return OTP in API response', async () => {
       // Given: Environment is development and phone is valid
       const validPhone = testData.validPhone();
       process.env.NODE_ENV = 'development';
@@ -65,10 +66,10 @@ describe('Authentication API - GWT Tests', () => {
         phone: validPhone,
       });
 
-      // Then: Response should include OTP
+      // Then: Response should not include OTP
       then.statusCodeIs(context, 200);
       then.responseIsSuccessful(context);
-      then.responseHasField(context, 'otp');
+      expect(context.response?.otp).toBeUndefined();
     });
 
     it('should fail with missing phone number', async () => {
@@ -121,14 +122,15 @@ describe('Authentication API - GWT Tests', () => {
 
       // First send OTP to get valid OTP in dev mode
       const setupContext = given.appIsRunning(context.app);
-      const otpContext = await when.post(setupContext, '/api/auth/send-otp', {
+      await when.post(setupContext, '/api/auth/send-otp', {
         phone: validPhone,
       });
+      const generatedOtp = otpService.getOTPRecord(validPhone)?.otp || validOTP;
 
       // When: OTP is verified
       context = await when.post(context, '/api/auth/verify-otp', {
         phone: validPhone,
-        otp: otpContext.response?.otp || validOTP,
+        otp: generatedOtp,
         name: validName,
       });
 
@@ -163,14 +165,15 @@ describe('Authentication API - GWT Tests', () => {
 
       // Setup: Send OTP first
       const setupContext = given.appIsRunning(context.app);
-      const otpContext = await when.post(setupContext, '/api/auth/send-otp', {
+      await when.post(setupContext, '/api/auth/send-otp', {
         phone: validPhone,
       });
+      const generatedOtp = otpService.getOTPRecord(validPhone)?.otp || testData.validOTP();
 
       // When: OTP is verified with full user details
       context = await when.post(context, '/api/auth/verify-otp', {
         phone: validPhone,
-        otp: otpContext.response?.otp || testData.validOTP(),
+        otp: generatedOtp,
         name: validName,
         email: validEmail,
         gender: 'male',
@@ -190,20 +193,22 @@ describe('Authentication API - GWT Tests', () => {
 
       // Setup: Send OTPs
       const setup1 = given.appIsRunning(context.app);
-      const otp1 = await when.post(setup1, '/api/auth/send-otp', { phone: phone1 });
+      await when.post(setup1, '/api/auth/send-otp', { phone: phone1 });
+      const generatedOtp1 = otpService.getOTPRecord(phone1)?.otp || testData.validOTP();
 
       const setup2 = given.appIsRunning(context.app);
-      const otp2 = await when.post(setup2, '/api/auth/send-otp', { phone: phone2 });
+      await when.post(setup2, '/api/auth/send-otp', { phone: phone2 });
+      const generatedOtp2 = otpService.getOTPRecord(phone2)?.otp || testData.validOTP();
 
       // When: Both OTPs are verified
       const user1Context = await when.post(context, '/api/auth/verify-otp', {
         phone: phone1,
-        otp: otp1.response?.otp || testData.validOTP(),
+        otp: generatedOtp1,
       });
 
       const user2Context = await when.post(context, '/api/auth/verify-otp', {
         phone: phone2,
-        otp: otp2.response?.otp || testData.validOTP(),
+        otp: generatedOtp2,
       });
 
       // Then: User IDs should be unique
@@ -218,14 +223,15 @@ describe('Authentication API - GWT Tests', () => {
 
       // Setup: Send OTP
       const setupContext = given.appIsRunning(context.app);
-      const otpContext = await when.post(setupContext, '/api/auth/send-otp', {
+      await when.post(setupContext, '/api/auth/send-otp', {
         phone: validPhone,
       });
+      const generatedOtp = otpService.getOTPRecord(validPhone)?.otp || testData.validOTP();
 
       // When: OTP is verified
       context = await when.post(context, '/api/auth/verify-otp', {
         phone: validPhone,
-        otp: otpContext.response?.otp || testData.validOTP(),
+        otp: generatedOtp,
       });
 
       // Then: CreatedAt should be set
@@ -241,14 +247,15 @@ describe('Authentication API - GWT Tests', () => {
 
       // Setup: Send OTP
       const setupContext = given.appIsRunning(context.app);
-      const otpContext = await when.post(setupContext, '/api/auth/send-otp', {
+      await when.post(setupContext, '/api/auth/send-otp', {
         phone: validPhone,
       });
+      const generatedOtp = otpService.getOTPRecord(validPhone)?.otp || testData.validOTP();
 
       // When: Verified with minimal data
       context = await when.post(context, '/api/auth/verify-otp', {
         phone: validPhone,
-        otp: otpContext.response?.otp || testData.validOTP(),
+        otp: generatedOtp,
       });
 
       // Then: Should have default values

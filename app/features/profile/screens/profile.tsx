@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -28,7 +28,6 @@ export default function ProfileScreen() {
   const { user, updateUser, setUserLocation } = useAuth();
   const { banners: profileBanners, isLoading: isProfileBannersLoading } =
     useAppScreenBanners('profile');
-  const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [address, setAddress] = useState(user?.address || '');
@@ -39,6 +38,8 @@ export default function ProfileScreen() {
   const [showPincodeModal, setShowPincodeModal] = useState(false);
   const [pincode, setPincode] = useState('');
   const [pincodeLoading, setPincodeLoading] = useState(false);
+  const lastSyncedUserIdRef = useRef<string | null>(null);
+  const lastSavedPayloadRef = useRef<string>('');
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -48,6 +49,67 @@ export default function ProfileScreen() {
       handleAutoDetectLocation();
     }
   }, []);
+
+  // Sync profile form when user changes (initial load / account switch)
+  useEffect(() => {
+    if (!user?.id || lastSyncedUserIdRef.current === user.id) {
+      return;
+    }
+
+    setName(user.name || '');
+    setEmail(user.email || '');
+    setAddress(user.address || '');
+    setBio(user.bio || '');
+    setGstin(user.gstin || '');
+
+    const initialPayload = {
+      name: (user.name || '').trim(),
+      email: (user.email || '').trim(),
+      address: (user.address || '').trim(),
+      bio: (user.bio || '').trim(),
+      gstin: (user.gstin || '').trim(),
+    };
+    lastSavedPayloadRef.current = JSON.stringify(initialPayload);
+    lastSyncedUserIdRef.current = user.id;
+  }, [user]);
+
+  // Auto-save profile changes with debounce
+  useEffect(() => {
+    if (!user?.id || lastSyncedUserIdRef.current !== user.id) {
+      return;
+    }
+
+    const payload = {
+      name: name.trim(),
+      email: email.trim(),
+      address: address.trim(),
+      bio: bio.trim(),
+      gstin: gstin.trim(),
+    };
+
+    if (!payload.name) {
+      return;
+    }
+
+    const serializedPayload = JSON.stringify(payload);
+    if (serializedPayload === lastSavedPayloadRef.current) {
+      return;
+    }
+
+    const saveTimer = setTimeout(async () => {
+      setSaving(true);
+      try {
+        await updateUser(payload);
+        lastSavedPayloadRef.current = serializedPayload;
+      } catch (error) {
+        Alert.alert('Error', 'Failed to auto-save profile');
+      } finally {
+        setSaving(false);
+      }
+    }, 700);
+
+    return () => clearTimeout(saveTimer);
+  }, [user?.id, name, email, address, bio, gstin, updateUser]);
 
   const reverseGeocodeCoordinates = async (latitude: number, longitude: number) => {
     try {
@@ -115,31 +177,6 @@ export default function ProfileScreen() {
       console.error('[Profile] Location auto-detection error:', error);
     } finally {
       setDetectingLocation(false);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!name.trim()) {
-      Alert.alert('Error', 'Name is required');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await updateUser({
-        name: name.trim(),
-        email: email.trim(),
-        address: address.trim(),
-        bio: bio.trim(),
-        gstin: gstin.trim(),
-      });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setIsEditing(false);
-      Alert.alert('Success', 'Profile updated successfully');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update profile');
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -256,21 +293,9 @@ export default function ProfileScreen() {
           <Feather name="arrow-left" size={24} color={Colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>My Profile</Text>
-        <Pressable
-          onPress={() => {
-            if (isEditing) {
-              handleSave();
-            } else {
-              setIsEditing(true);
-            }
-          }}
-          style={styles.editButton}
-          hitSlop={8}
-        >
-          <Text style={styles.editButtonText}>
-            {isEditing ? (saving ? 'Saving...' : 'Save') : 'Edit'}
-          </Text>
-        </Pressable>
+        <View style={styles.saveIndicator}>
+          {saving ? <Text style={styles.saveIndicatorText}>Saving...</Text> : null}
+        </View>
       </View>
 
       <ScrollView
@@ -287,12 +312,10 @@ export default function ProfileScreen() {
               {user?.name?.charAt(0).toUpperCase() || user?.phone?.charAt(0) || 'U'}
             </Text>
           </View>
-          {isEditing && (
-            <Pressable style={styles.changeAvatarButton}>
-              <Feather name="camera" size={16} color={Colors.primary} />
-              <Text style={styles.changeAvatarText}>Change Photo</Text>
-            </Pressable>
-          )}
+          <Pressable style={styles.changeAvatarButton}>
+            <Feather name="camera" size={16} color={Colors.primary} />
+            <Text style={styles.changeAvatarText}>Change Photo</Text>
+          </Pressable>
         </View>
 
         {/* Phone (Read-only) */}
@@ -307,7 +330,7 @@ export default function ProfileScreen() {
         {/* Name */}
         <View style={styles.section}>
           <Text style={styles.label}>Name *</Text>
-          <View style={[styles.input, !isEditing && styles.inputDisabled]}>
+          <View style={styles.input}>
             <Feather name="user" size={18} color={Colors.textSecondary} />
             <TextInput
               style={styles.inputText}
@@ -315,7 +338,7 @@ export default function ProfileScreen() {
               onChangeText={setName}
               placeholder="Enter your name"
               placeholderTextColor={Colors.textTertiary}
-              editable={isEditing}
+              editable
             />
           </View>
         </View>
@@ -323,7 +346,7 @@ export default function ProfileScreen() {
         {/* Email */}
         <View style={styles.section}>
           <Text style={styles.label}>Email</Text>
-          <View style={[styles.input, !isEditing && styles.inputDisabled]}>
+          <View style={styles.input}>
             <Feather name="mail" size={18} color={Colors.textSecondary} />
             <TextInput
               style={styles.inputText}
@@ -333,7 +356,7 @@ export default function ProfileScreen() {
               placeholderTextColor={Colors.textTertiary}
               keyboardType="email-address"
               autoCapitalize="none"
-              editable={isEditing}
+              editable
             />
           </View>
         </View>
@@ -341,7 +364,7 @@ export default function ProfileScreen() {
         {/* Address */}
         <View style={styles.section}>
           <Text style={styles.label}>Address (For Invoices)</Text>
-          <View style={[styles.input, !isEditing && styles.inputDisabled]}>
+          <View style={styles.input}>
             <Feather name="map-pin" size={18} color={Colors.textSecondary} />
             <TextInput
               style={styles.inputText}
@@ -349,7 +372,7 @@ export default function ProfileScreen() {
               onChangeText={setAddress}
               placeholder="Enter your business address"
               placeholderTextColor={Colors.textTertiary}
-              editable={isEditing}
+              editable
             />
           </View>
         </View>
@@ -357,7 +380,7 @@ export default function ProfileScreen() {
         {/* GSTIN */}
         <View style={styles.section}>
           <Text style={styles.label}>GSTIN (For Invoices)</Text>
-          <View style={[styles.input, !isEditing && styles.inputDisabled]}>
+          <View style={styles.input}>
             <Feather name="hash" size={18} color={Colors.textSecondary} />
             <TextInput
               style={styles.inputText}
@@ -365,7 +388,7 @@ export default function ProfileScreen() {
               onChangeText={setGstin}
               placeholder="15-digit GSTIN (optional)"
               placeholderTextColor={Colors.textTertiary}
-              editable={isEditing}
+              editable
               maxLength={15}
             />
           </View>
@@ -374,7 +397,7 @@ export default function ProfileScreen() {
         {/* Bio */}
         <View style={styles.section}>
           <Text style={styles.label}>Bio</Text>
-          <View style={[styles.input, styles.textAreaInput, !isEditing && styles.inputDisabled]}>
+          <View style={[styles.input, styles.textAreaInput]}>
             <TextInput
               style={[styles.inputText, styles.textArea]}
               value={bio}
@@ -384,7 +407,7 @@ export default function ProfileScreen() {
               multiline
               numberOfLines={4}
               textAlignVertical="top"
-              editable={isEditing}
+              editable
             />
           </View>
         </View>
@@ -550,16 +573,14 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     color: Colors.text,
   },
-  editButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: Colors.primary,
+  saveIndicator: {
+    minWidth: 72,
+    alignItems: 'flex-end',
   },
-  editButtonText: {
+  saveIndicatorText: {
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
-    color: '#fff',
+    color: Colors.primary,
   },
   scrollView: {
     flex: 1,

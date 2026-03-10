@@ -25,6 +25,9 @@ export interface StoredInvoice {
   sellerName?: string;
   sellerCity?: string;
   sellerGstin?: string;
+  invoiceHtmlUrl?: string;
+  invoiceDownloadUrl?: string;
+  rawInvoiceData?: Record<string, unknown>;
   storedAt?: string;
 }
 
@@ -149,5 +152,8 @@ export function extractInvoiceFromResponse(verifyResponse: any): StoredInvoice |
       invoice.sellerCity || invoice.city || invoice.vendorCity || DEFAULT_INVOICE_SELLER.city,
     sellerGstin:
       invoice.sellerGstin || invoice.gstin || invoice.vendorGstin || DEFAULT_INVOICE_SELLER.gstin,
+    invoiceHtmlUrl: verifyResponse.invoiceHtmlUrl || verifyResponse.htmlUrl,
+    invoiceDownloadUrl: verifyResponse.invoiceDownloadUrl || verifyResponse.downloadUrl,
+    rawInvoiceData: invoice,
   };
 }

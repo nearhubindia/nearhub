@@ -1,4 +1,9 @@
 import axios from 'axios';
+import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
+import * as os from 'os';
+import * as path from 'path';
+import { spawn } from 'child_process';
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const MODEL = 'llava-phi3'; // Unified Vision + Text moderation (2.2GB)
@@ -481,6 +486,105 @@ export const getModelInfo = () => ({
   model: MODEL,
   url: OLLAMA_URL,
 });
+
+async function runCommand(command: string, args: string[]): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+
+    let stderr = '';
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`${command} exited with code ${code}: ${stderr}`));
+    });
+  });
+}
+
+/**
+ * Extract key frames from a local video file and return as data-URI base64 images.
+ */
+export async function extractVideoFramesAsBase64(
+  videoPath: string,
+  frameCount = 5
+): Promise<string[]> {
+  if (!videoPath || !fs.existsSync(videoPath)) {
+    throw new Error(`Video file not found for moderation: ${videoPath}`);
+  }
+
+  const tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'nearhub-video-frames-'));
+
+  try {
+    const outputPattern = path.join(tempDir, 'frame_%03d.jpg');
+    await runCommand('ffmpeg', [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-i',
+      videoPath,
+      '-vf',
+      'fps=1',
+      '-frames:v',
+      String(frameCount),
+      '-y',
+      outputPattern,
+    ]);
+
+    const frameFiles = (await fsPromises.readdir(tempDir))
+      .filter((name) => name.endsWith('.jpg'))
+      .sort();
+
+    if (frameFiles.length === 0) {
+      throw new Error('No frames extracted from video');
+    }
+
+    const framesBase64 = await Promise.all(
+      frameFiles.map(async (fileName) => {
+        const fullPath = path.join(tempDir, fileName);
+        const data = await fsPromises.readFile(fullPath);
+        return `data:image/jpeg;base64,${data.toString('base64')}`;
+      })
+    );
+
+    return framesBase64;
+  } finally {
+    await fsPromises.rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Moderate a local video file by sampling frames with FFmpeg and running visual moderation.
+ */
+export async function moderateVideoFile(
+  videoPath: string,
+  frameCount = 5
+): Promise<{
+  isAppropriate: boolean;
+  hasNudity: boolean;
+  hasViolence: boolean;
+  hasWeapons: boolean;
+  hasDrugs: boolean;
+  confidence: number;
+  reason: string;
+  flaggedFrames: number[];
+  analyzedFrameCount: number;
+}> {
+  const frames = await extractVideoFramesAsBase64(videoPath, frameCount);
+  const moderation = await analyzeVideoContent(frames);
+
+  return {
+    ...moderation,
+    analyzedFrameCount: frames.length,
+  };
+}
 
 /**
  * Verify if image matches the product title and category

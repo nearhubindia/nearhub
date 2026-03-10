@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development tsx index.ts",
-    "build": "esbuild index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "esbuild index.ts --platform=node --packages=external --bundle --format=esm --sourcemap --outdir=dist && node scripts/ensure-sourcemap-file.mjs dist/index.js.map index.js",
     "prod": "NODE_ENV=production node dist/index.js",
     "test": "jest --detectOpenHandles",
     "test:watch": "jest --watch",
@@ -20,11 +20,12 @@
     "db:migrate": "node --import tsx/esm scripts/migrate.ts create",
     "db:create": "node --import tsx/esm scripts/migrate.ts create",
     "db:status": "node --import tsx/esm scripts/migrate.ts status",
-    "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
-    "db:push": "drizzle-kit push --config=drizzle.config.ts",
+    "db:generate": "drizzle-kit generate --config=drizzle.config.js",
+    "db:push": "drizzle-kit push --config=drizzle.config.js",
     "seed": "tsx scripts/seed-subscription-tiers.ts",
     "seed:users": "tsx scripts/seed.ts",
     "seed:listings": "tsx scripts/seed-db-listings.ts",
+    "seed:expired-listing": "tsx scripts/seed-expired-listing.ts",
     "search:sync": "tsx scripts/sync-elasticsearch.ts",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
@@ -37,6 +38,7 @@
     "@google/genai": "^1.42.0",
     "axios": "^1.13.5",
     "bcryptjs": "^3.0.3",
+    "debug": "^4.4.3",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.39.3",
     "drizzle-zod": "^0.7.1",
@@ -57,6 +59,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@types/bcryptjs": "^2.4.6",
+    "@types/debug": "^4.1.12",
     "@types/dotenv": "^8.2.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
@@ -73,8 +76,8 @@
     "prettier": "^3.8.1",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.6",
-    "typescript-eslint": "^8.48.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "typescript-eslint": "^8.48.0"
   },
   "private": true
 }

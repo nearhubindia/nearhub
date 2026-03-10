@@ -21,13 +21,19 @@ export interface Listing {
   title: string;
   price: string | number;
   offerPrice?: string | number;
-  status: 'active' | 'sold' | 'pending';
+  status: 'active' | 'sold' | 'pending' | 'rejected' | 'inactive' | 'expired';
   date: string;
   description?: string;
   condition?: string;
   category?: string;
   location?: string;
-  sellerId?: string;
+  userId?: string;
+  contactPhone?: string;
+  images?: string[];
+  videos?: string[];
+  createdAt?: string;
+  featured?: boolean;
+  sponsored?: boolean;
   enhancements?: Enhancements;
   folderId?: number;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -26,14 +26,17 @@ import { extractInvoiceFromResponse, storeInvoice } from '@/lib/invoice-storage'
 interface SubscriptionTier {
   id: string;
   name: string;
+  type?: 'bundle' | 'boost' | string;
   description: string;
   monthlyPrice: number;
   annualPrice: number;
   maxListings: number;
   featuredListingsPerMonth: number;
+  boostCredits?: number;
   features: string[];
   highlight: boolean;
   price: number;
+  offerPrice?: number | null;
   durationDays: number;
 }
 
@@ -69,15 +72,37 @@ interface ActiveSubscription {
   subscribedAt: string;
   listingsUsed: number;
   totalListingsCreated: number;
+  boostsRemaining?: number;
   tier: {
     id: string;
     name: string;
+    type?: 'bundle' | 'boost' | string;
     price: string;
     durationDays: number;
     maxListings: number;
     featuredListingsPerMonth: number;
+    boostCredits?: number;
     features: string[];
   } | null;
+}
+
+interface ConsolidatedActiveSubscription {
+  key: string;
+  tierId: string;
+  tierName: string;
+  tierPrice: number;
+  durationDays: number;
+  count: number;
+  totalUsed: number;
+  totalAvailable: number;
+  totalLimit: number;
+  shortestExpiryDays: number;
+  latestExpiryAt: Date;
+  hasUnlimited: boolean;
+  isBoostPack: boolean;
+  boostEntitlement: number;
+  totalBoostsRemaining: number;
+  subscriptions: ActiveSubscription[];
 }
 
 interface PaymentSuccessModalState {
@@ -269,8 +294,8 @@ export default function SubscriptionsScreen(): React.JSX.Element {
 
     try {
       const apiUrl = await getApiUrl();
-      const selectedTier = tiers.find((t) => t.id === selectedTierId);
-      const amount = selectedTier ? getPrice(selectedTier) : 0;
+      const selectedTierForCoupon = tiers.find((tier) => tier.id === selectedTierId) || null;
+      const amount = selectedTierForCoupon ? getPrice(selectedTierForCoupon) : 0;
 
       const url = selectedTierId
         ? `${apiUrl}/api/coupons/calculate-discount?code=${couponCode.trim()}&amount=${amount}&userId=${user.id}&tierId=${selectedTierId}`
@@ -313,9 +338,148 @@ export default function SubscriptionsScreen(): React.JSX.Element {
     setCouponError(null);
   };
 
-  const getPrice = (tier: SubscriptionTier): number => {
+  const getRegularPrice = (tier: SubscriptionTier): number => {
     return Number(tier.price) || tier.monthlyPrice;
   };
+
+  const getPrice = (tier: SubscriptionTier): number => {
+    const regularPrice = getRegularPrice(tier);
+    const discounted = Number(tier.offerPrice);
+    if (Number.isFinite(discounted) && discounted > 0 && discounted < regularPrice) {
+      return discounted;
+    }
+    return regularPrice;
+  };
+
+  const displayTiers = useMemo((): SubscriptionTier[] => {
+    if (!tiers.length) return [];
+
+    return [...tiers].sort((a, b) => {
+      const aPrice = Number(a.price) || a.monthlyPrice;
+      const bPrice = Number(b.price) || b.monthlyPrice;
+      const aIsFree = aPrice <= 0;
+      const bIsFree = bPrice <= 0;
+      if (aIsFree !== bIsFree) return aIsFree ? -1 : 1;
+
+      const aBoost = Number(a.boostCredits || 0) > 0 ? 1 : 0;
+      const bBoost = Number(b.boostCredits || 0) > 0 ? 1 : 0;
+      if (aBoost !== bBoost) return bBoost - aBoost;
+
+      if (aPrice !== bPrice) return aPrice - bPrice;
+
+      return (a.durationDays || 30) - (b.durationDays || 30);
+    });
+  }, [tiers]);
+
+  useEffect(() => {
+    if (!selectedTierId) return;
+    const selectedStillExists = displayTiers.some((tier) => tier.id === selectedTierId);
+    if (!selectedStillExists) {
+      setSelectedTierId(null);
+      setCouponCode('');
+      setCouponDiscount(null);
+      setCouponError(null);
+    }
+  }, [displayTiers, selectedTierId]);
+
+  const selectedTier =
+    (selectedTierId && displayTiers.find((tier) => tier.id === selectedTierId)) ||
+    (selectedTierId && tiers.find((tier) => tier.id === selectedTierId)) ||
+    null;
+
+  const consolidatedActiveSubscriptions = useMemo((): ConsolidatedActiveSubscription[] => {
+    if (!activeSubscriptions.length) return [];
+
+    const groups = new Map<string, ConsolidatedActiveSubscription>();
+    const now = Date.now();
+
+    activeSubscriptions.forEach((sub) => {
+      if (!sub.tier) return;
+
+      const key = `${sub.tier.id}-${sub.tier.durationDays}`;
+      const tierPrice = parseFloat(sub.tier.price) || 0;
+      const maxListings = sub.tier.maxListings;
+      const available = maxListings === -1 ? -1 : Math.max(0, maxListings - sub.listingsUsed);
+      const isBoostPack = String(sub.tier.type || 'bundle') === 'boost';
+      const boostEntitlement = Number(sub.tier.boostCredits || 0);
+      const boostsRemaining = Number(sub.boostsRemaining || 0);
+      const expiry = new Date(sub.expiresAt);
+      const daysLeft = Math.max(0, Math.ceil((expiry.getTime() - now) / (1000 * 60 * 60 * 24)));
+
+      const existing = groups.get(key);
+      if (!existing) {
+        groups.set(key, {
+          key,
+          tierId: sub.tier.id,
+          tierName: sub.tier.name,
+          tierPrice,
+          durationDays: sub.tier.durationDays,
+          count: 1,
+          totalUsed: sub.listingsUsed,
+          totalAvailable: available,
+          totalLimit: maxListings === -1 ? -1 : maxListings,
+          shortestExpiryDays: daysLeft,
+          latestExpiryAt: expiry,
+          hasUnlimited: maxListings === -1,
+          isBoostPack,
+          boostEntitlement,
+          totalBoostsRemaining: boostsRemaining,
+          subscriptions: [sub],
+        });
+        return;
+      }
+
+      existing.count += 1;
+      existing.totalUsed += sub.listingsUsed;
+      existing.shortestExpiryDays = Math.min(existing.shortestExpiryDays, daysLeft);
+      if (expiry > existing.latestExpiryAt) {
+        existing.latestExpiryAt = expiry;
+      }
+      existing.totalBoostsRemaining += boostsRemaining;
+      existing.subscriptions.push(sub);
+
+      if (existing.hasUnlimited || maxListings === -1) {
+        existing.hasUnlimited = true;
+        existing.totalAvailable = -1;
+        existing.totalLimit = -1;
+      } else {
+        existing.totalAvailable += available;
+        existing.totalLimit += maxListings;
+      }
+    });
+
+    return Array.from(groups.values())
+      .filter((group) => group.hasUnlimited || group.totalAvailable > 0)
+      .sort((a, b) => {
+        if (a.tierPrice !== b.tierPrice) return a.tierPrice - b.tierPrice;
+        if (a.durationDays !== b.durationDays) return a.durationDays - b.durationDays;
+        return a.tierName.localeCompare(b.tierName);
+      });
+  }, [activeSubscriptions]);
+
+  useEffect(() => {
+    if (!consolidatedActiveSubscriptions.length) {
+      setSelectedActiveSubscriptionId(null);
+      setDefaultActiveSubscriptionId(null);
+      return;
+    }
+
+    const visibleIds = new Set(
+      consolidatedActiveSubscriptions.flatMap((group) => group.subscriptions.map((sub) => sub.id))
+    );
+    const firstVisibleId = consolidatedActiveSubscriptions[0]?.subscriptions[0]?.id ?? null;
+
+    if (!selectedActiveSubscriptionId || !visibleIds.has(selectedActiveSubscriptionId)) {
+      setSelectedActiveSubscriptionId(firstVisibleId);
+    }
+    if (!defaultActiveSubscriptionId || !visibleIds.has(defaultActiveSubscriptionId)) {
+      setDefaultActiveSubscriptionId(firstVisibleId);
+    }
+  }, [
+    consolidatedActiveSubscriptions,
+    selectedActiveSubscriptionId,
+    defaultActiveSubscriptionId,
+  ]);
 
   const handleSubscribe = useCallback(async (): Promise<void> => {
     if (!selectedTierId) {
@@ -331,7 +495,10 @@ export default function SubscriptionsScreen(): React.JSX.Element {
       return;
     }
 
-    const selectedTier = tiers.find((t) => t.id === selectedTierId);
+    const selectedTier =
+      (selectedTierId && displayTiers.find((tier) => tier.id === selectedTierId)) ||
+      (selectedTierId && tiers.find((tier) => tier.id === selectedTierId)) ||
+      null;
     if (!selectedTier) return;
 
     const price = getPrice(selectedTier);
@@ -370,7 +537,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
         },
         body: JSON.stringify({
           subscriptionId,
-          sellerId: user.id,
+          userId: user.id,
           listingId: 'subscription-' + subscriptionId,
           listingTitle: `${selectedTier.name} Plan`,
           totalFee: price,
@@ -504,21 +671,32 @@ export default function SubscriptionsScreen(): React.JSX.Element {
     } finally {
       setIsSubscribing(false);
     }
-  }, [selectedTierId, user, tiers, couponCode, couponDiscount, fetchActiveSubscription]);
+  }, [
+    selectedTierId,
+    user,
+    displayTiers,
+    tiers,
+    couponCode,
+    couponDiscount,
+    fetchActiveSubscription,
+  ]);
 
   const getFeaturesList = (tier: SubscriptionTier): string[] => {
     const features: string[] = [];
-    features.push(
-      tier.maxListings === -1 ? 'Unlimited listings' : `Up to ${tier.maxListings} listings/month`
-    );
 
-    // Only show featured listings if the tier actually includes them
-    if (tier.featuredListingsPerMonth > 0) {
+    const isBoostPack = String(tier.type || 'bundle') === 'boost';
+    if (isBoostPack) {
+      const credits = Number(tier.boostCredits || 0);
+      features.push(`${credits} boost credit${credits === 1 ? '' : 's'}`);
+      features.push('Use credits from My Listings -> Boost');
+    } else {
       features.push(
-        tier.featuredListingsPerMonth === 999
-          ? 'Unlimited featured listings'
-          : `${tier.featuredListingsPerMonth} featured listing${tier.featuredListingsPerMonth !== 1 ? 's' : ''}`
+        tier.maxListings === -1 ? 'Unlimited listings' : `Up to ${tier.maxListings} listings/month`
       );
+      const credits = Number(tier.boostCredits || 0);
+      if (credits > 0) {
+        features.push(`${credits} boost credit${credits === 1 ? '' : 's'}`);
+      }
     }
 
     if (tier.features?.includes('priority_support')) {
@@ -550,7 +728,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
         >
           <Feather name="arrow-left" size={24} color={Colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Subscription Plans</Text>
+        <Text style={styles.headerTitle}>Subscription & Boost Plans</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -569,37 +747,35 @@ export default function SubscriptionsScreen(): React.JSX.Element {
         }
       >
         {/* Active Subscription Card */}
-        {activeSubscriptions.length > 0 && (
+        {consolidatedActiveSubscriptions.length > 0 && (
           <View style={styles.activeSubsList}>
-            <Text style={styles.activeSubsTitle}>Active Plans ({activeSubscriptions.length})</Text>
-            {activeSubscriptions.map((activeSubscription) => {
-              const tier = activeSubscription.tier;
-              if (!tier) {
-                return null;
-              }
-              const isSelected = selectedActiveSubscriptionId === activeSubscription.id;
-              const isDefault = defaultActiveSubscriptionId === activeSubscription.id;
-              const expiresAt = new Date(activeSubscription.expiresAt);
-              const now = new Date();
-              const daysLeft = Math.max(
-                0,
-                Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-              );
-              const maxListings = tier.maxListings;
-              const listingsUsed = activeSubscription.listingsUsed;
-              const isUnlimited = maxListings === -1;
-              const usagePercent = isUnlimited
-                ? 0
-                : maxListings > 0
-                  ? Math.min(100, (listingsUsed / maxListings) * 100)
-                  : 0;
+            <Text style={styles.activeSubsTitle}>
+              Choose Subscription ({consolidatedActiveSubscriptions.length})
+            </Text>
+            {consolidatedActiveSubscriptions.map((group) => {
+              const representative =
+                group.subscriptions.find((sub) => sub.id === defaultActiveSubscriptionId) ||
+                group.subscriptions.find((sub) => sub.id === selectedActiveSubscriptionId) ||
+                group.subscriptions[0];
+              const representativeId = representative?.id || group.subscriptions[0]?.id;
+              const isSelected =
+                !!representativeId &&
+                group.subscriptions.some((sub) => sub.id === selectedActiveSubscriptionId);
+              const isDefault = group.subscriptions.some((sub) => sub.id === defaultActiveSubscriptionId);
+              const usagePercent =
+                group.hasUnlimited || group.totalLimit <= 0
+                  ? 0
+                  : Math.min(100, (group.totalUsed / group.totalLimit) * 100);
+              const effectiveExpiryDays = group.shortestExpiryDays;
 
               return (
                 <Pressable
-                  key={activeSubscription.id}
+                  key={group.key}
                   style={[styles.activeSubCard, isSelected && styles.activeSubCardSelected]}
                   onPress={() => {
-                    setSelectedActiveSubscriptionId(activeSubscription.id);
+                    if (representativeId) {
+                      setSelectedActiveSubscriptionId(representativeId);
+                    }
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
                 >
@@ -616,13 +792,22 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                         <Text style={styles.activeSubBadgeText}>Active Plan</Text>
                       </View>
                       <Text style={styles.activeSubDays}>
-                        {daysLeft} day{daysLeft !== 1 ? 's' : ''} left
+                        {effectiveExpiryDays} day{effectiveExpiryDays !== 1 ? 's' : ''} left
                       </Text>
                     </View>
 
                     {/* Plan name */}
-                    <Text style={styles.activeSubPlanName}>{tier.name}</Text>
-                    <Text style={styles.activeSubPrice}>₹{parseFloat(tier.price).toFixed(0)}</Text>
+                    <View style={styles.activeSubNameRow}>
+                      <Text style={styles.activeSubPlanName}>{group.tierName}</Text>
+                      {group.count > 1 && (
+                        <View style={styles.activeSubCountBadge}>
+                          <Text style={styles.activeSubCountText}>x{group.count}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.activeSubPrice}>
+                      ₹{group.tierPrice.toFixed(0)} / {getDurationShort(group.durationDays)}
+                    </Text>
                     <View style={styles.activeSubMetaRow}>
                       {isDefault && (
                         <View style={[styles.activeSubMetaBadge, styles.activeSubMetaDefault]}>
@@ -640,27 +825,33 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                     <View style={styles.activeSubStats}>
                       <View style={styles.activeSubStatRow}>
                         <View style={styles.activeSubStatItem}>
-                          <Text style={styles.activeSubStatValue}>{listingsUsed}</Text>
-                          <Text style={styles.activeSubStatLabel}>Active Listings</Text>
+                          <Text style={styles.activeSubStatValue}>{group.totalUsed}</Text>
+                          <Text style={styles.activeSubStatLabel}>
+                            {group.count > 1 ? 'Total Used' : 'Active Listings'}
+                          </Text>
                         </View>
                         <View style={styles.activeSubStatDivider} />
                         <View style={styles.activeSubStatItem}>
                           <Text style={styles.activeSubStatValue}>
-                            {isUnlimited ? '∞' : maxListings - listingsUsed}
+                            {group.hasUnlimited ? '∞' : group.totalAvailable}
                           </Text>
-                          <Text style={styles.activeSubStatLabel}>Available</Text>
+                          <Text style={styles.activeSubStatLabel}>
+                            {group.count > 1 ? 'Total Left' : 'Available'}
+                          </Text>
                         </View>
                         <View style={styles.activeSubStatDivider} />
                         <View style={styles.activeSubStatItem}>
                           <Text style={styles.activeSubStatValue}>
-                            {activeSubscription.totalListingsCreated}
+                            {group.hasUnlimited ? '∞' : group.totalLimit}
                           </Text>
-                          <Text style={styles.activeSubStatLabel}>Total Created</Text>
+                          <Text style={styles.activeSubStatLabel}>
+                            {group.count > 1 ? 'Combined' : 'Plan Limit'}
+                          </Text>
                         </View>
                       </View>
 
                       {/* Progress bar */}
-                      {!isUnlimited && (
+                      {!group.hasUnlimited && (
                         <View style={styles.activeSubProgress}>
                           <View style={styles.activeSubProgressTrack}>
                             <View
@@ -672,7 +863,23 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                             />
                           </View>
                           <Text style={styles.activeSubProgressText}>
-                            {listingsUsed}/{maxListings} listings used
+                            {group.totalUsed}/{group.totalLimit} listings used
+                          </Text>
+                        </View>
+                      )}
+
+                      {(group.boostEntitlement > 0 || group.totalBoostsRemaining > 0) && (
+                        <View style={styles.activeSubBoostRow}>
+                          <View style={styles.activeSubBoostMeta}>
+                            <Feather name="zap" size={12} color="#FDE68A" />
+                            <Text style={styles.activeSubBoostText}>
+                              {group.isBoostPack
+                                ? `${group.boostEntitlement} credits per pack`
+                                : `${group.boostEntitlement} credits in plan`}
+                            </Text>
+                          </View>
+                          <Text style={styles.activeSubBoostRemaining}>
+                            Left: {group.totalBoostsRemaining}
                           </Text>
                         </View>
                       )}
@@ -683,7 +890,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                       <Feather name="calendar" size={13} color="rgba(255,255,255,0.7)" />
                       <Text style={styles.activeSubExpiryText}>
                         Expires{' '}
-                        {expiresAt.toLocaleDateString('en-IN', {
+                        {group.latestExpiryAt.toLocaleDateString('en-IN', {
                           day: 'numeric',
                           month: 'short',
                           year: 'numeric',
@@ -698,14 +905,14 @@ export default function SubscriptionsScreen(): React.JSX.Element {
         )}
 
         {/* Info Banner */}
-        {activeSubscriptions.length === 0 && (
+        {consolidatedActiveSubscriptions.length === 0 && (
           <View style={styles.infoBanner}>
             <Feather name="shopping-bag" size={20} color={Colors.primary} />
             <View style={styles.infoBannerContent}>
               <Text style={styles.infoBannerTitle}>Subscribe to List</Text>
               <Text style={styles.infoBannerText}>
-                Choose a plan to create listings and unlock premium features. Or use a coupon code
-                for free listings.
+                Choose a plan to create listings and get boost visibility. Or use a coupon code for
+                free listings.
               </Text>
             </View>
           </View>
@@ -800,20 +1007,24 @@ export default function SubscriptionsScreen(): React.JSX.Element {
             <ActivityIndicator size="large" color={Colors.primary} />
             <Text style={styles.loadingText}>Loading plans...</Text>
           </View>
-        ) : tiers.length === 0 ? (
+        ) : displayTiers.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather name="package" size={48} color={Colors.textTertiary} />
             <Text style={styles.emptyTitle}>No Plans Available</Text>
             <Text style={styles.emptySubtitle}>
-              Subscription plans will appear here when available.
+              Subscription and boost plans will appear here when available.
             </Text>
           </View>
         ) : (
           <View style={styles.tiersList}>
-            {tiers.map((tier) => {
+            {displayTiers.map((tier) => {
               const isSelected = selectedTierId === tier.id;
               const price = getPrice(tier);
+              const regularPrice = getRegularPrice(tier);
+              const hasOffer = regularPrice > price;
               const features = getFeaturesList(tier);
+              const hasBoost = Number(tier.boostCredits || 0) > 0;
+              const isBoostPack = String(tier.type || 'bundle') === 'boost';
               const days = tier.durationDays || 30;
               const perDay = (price / days).toFixed(1);
 
@@ -859,6 +1070,18 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                             <Text style={styles.popularBadgeText}>Popular</Text>
                           </View>
                         )}
+                        {hasBoost && (
+                          <View style={styles.boostIncludedBadge}>
+                            <Feather name="zap" size={10} color="#fff" />
+                            <Text style={styles.boostIncludedBadgeText}>Boost Included</Text>
+                          </View>
+                        )}
+                        {isBoostPack && (
+                          <View style={styles.boostIncludedBadge}>
+                            <Feather name="zap" size={10} color="#fff" />
+                            <Text style={styles.boostIncludedBadgeText}>Boost Pack</Text>
+                          </View>
+                        )}
                         <Text style={styles.tierPerDay}>₹{perDay}/day</Text>
                       </View>
 
@@ -881,6 +1104,11 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                             {price.toLocaleString('en-IN')}
                           </Text>
                         </View>
+                        {hasOffer && (
+                          <Text style={styles.tierOriginalPrice}>
+                            ₹{regularPrice.toLocaleString('en-IN')}
+                          </Text>
+                        )}
                         <Text style={styles.tierPricePeriod}>
                           /{getDurationShort(tier.durationDays || 30)}
                         </Text>
@@ -997,7 +1225,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
       </Modal>
 
       {/* Sticky Subscribe Button */}
-      {selectedTierId && !keyboardVisible && (
+      {selectedTier && !keyboardVisible && (
         <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           {/* Price summary */}
           <View style={styles.bottomSummary}>
@@ -1006,7 +1234,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
               {couponDiscount ? (
                 <>
                   <Text style={styles.bottomPriceStrike}>
-                    ₹{getPrice(tiers.find((t) => t.id === selectedTierId)!).toLocaleString('en-IN')}
+                    ₹{getPrice(selectedTier).toLocaleString('en-IN')}
                   </Text>
                   <Text style={styles.bottomPrice}>
                     ₹{couponDiscount.finalAmount.toLocaleString('en-IN')}
@@ -1014,11 +1242,11 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                 </>
               ) : (
                 <Text style={styles.bottomPrice}>
-                  ₹{getPrice(tiers.find((t) => t.id === selectedTierId)!).toLocaleString('en-IN')}
+                  ₹{getPrice(selectedTier).toLocaleString('en-IN')}
                 </Text>
               )}
               <Text style={styles.bottomPeriod}>
-                /{getDurationLabel(tiers.find((t) => t.id === selectedTierId)?.durationDays || 30)}
+                /{getDurationLabel(selectedTier.durationDays || 30)}
               </Text>
             </View>
           </View>
@@ -1258,6 +1486,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     color: Colors.textTertiary,
   },
+  tierOriginalPrice: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textTertiary,
+    textDecorationLine: 'line-through',
+  },
   popularBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1271,6 +1505,25 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   popularBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#fff',
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
+  },
+  boostIncludedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    marginBottom: 2,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  boostIncludedBadgeText: {
     fontSize: 10,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
@@ -1484,14 +1737,14 @@ const styles = StyleSheet.create({
 
   // Active Subscription Card
   activeSubCard: {
-    borderRadius: 12,
+    borderRadius: 8,
     overflow: 'hidden',
-    marginBottom: 12,
+    marginBottom: 6,
     shadowColor: '#0A66C2',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    elevation: 3,
   },
   activeSubCardSelected: {
     borderWidth: 1.5,
@@ -1501,65 +1754,84 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   activeSubsTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: 'Inter_600SemiBold',
     color: Colors.textSecondary,
-    marginBottom: 8,
+    marginBottom: 6,
     paddingHorizontal: 2,
   },
   activeSubGradient: {
-    padding: 12,
-    borderRadius: 12,
+    padding: 8,
+    borderRadius: 8,
   },
   activeSubHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    marginBottom: 3,
   },
   activeSubBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 7,
   },
   activeSubBadgeText: {
-    fontSize: 9,
+    fontSize: 8,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   activeSubDays: {
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: 'Inter_600SemiBold',
     color: 'rgba(255,255,255,0.9)',
   },
   activeSubPlanName: {
-    fontSize: 15,
+    fontSize: 13,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
-    marginBottom: 1,
+    marginBottom: 0,
+  },
+  activeSubNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 0,
+  },
+  activeSubCountBadge: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderColor: 'rgba(255,255,255,0.35)',
+    borderWidth: 1,
+    borderRadius: 7,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+  },
+  activeSubCountText: {
+    fontSize: 9,
+    fontFamily: 'Inter_700Bold',
+    color: '#fff',
   },
   activeSubPrice: {
-    fontSize: 11,
+    fontSize: 9,
     fontFamily: 'Inter_500Medium',
     color: 'rgba(255,255,255,0.75)',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   activeSubMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
+    gap: 5,
+    marginBottom: 4,
   },
   activeSubMetaBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 7,
     borderWidth: 1,
   },
   activeSubMetaDefault: {
@@ -1571,16 +1843,16 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(167,243,208,0.55)',
   },
   activeSubMetaText: {
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
   },
   activeSubStats: {
     backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    marginBottom: 6,
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 6,
+    marginBottom: 3,
   },
   activeSubStatRow: {
     flexDirection: 'row',
@@ -1592,31 +1864,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   activeSubStatValue: {
-    fontSize: 15,
+    fontSize: 12,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
     marginBottom: 1,
   },
   activeSubStatLabel: {
-    fontSize: 9,
+    fontSize: 7,
     fontFamily: 'Inter_400Regular',
     color: 'rgba(255,255,255,0.75)',
     textAlign: 'center',
   },
   activeSubStatDivider: {
     width: 1,
-    height: 22,
+    height: 16,
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
   activeSubProgress: {
-    marginTop: 6,
+    marginTop: 3,
   },
   activeSubProgressTrack: {
-    height: 4,
+    height: 3,
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 3,
     overflow: 'hidden',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   activeSubProgressFill: {
     height: '100%',
@@ -1624,10 +1896,36 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   activeSubProgressText: {
-    fontSize: 9,
+    fontSize: 7,
     fontFamily: 'Inter_400Regular',
     color: 'rgba(255,255,255,0.7)',
     textAlign: 'right',
+  },
+  activeSubBoostRow: {
+    marginTop: 4,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.2)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  activeSubBoostMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flex: 1,
+  },
+  activeSubBoostText: {
+    fontSize: 8,
+    fontFamily: 'Inter_500Medium',
+    color: 'rgba(255,255,255,0.88)',
+  },
+  activeSubBoostRemaining: {
+    fontSize: 9,
+    fontFamily: 'Inter_700Bold',
+    color: '#FDE68A',
   },
   activeSubExpiry: {
     flexDirection: 'row',
@@ -1635,7 +1933,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   activeSubExpiryText: {
-    fontSize: 10,
+    fontSize: 8,
     fontFamily: 'Inter_400Regular',
     color: 'rgba(255,255,255,0.7)',
   },

@@ -13,7 +13,7 @@ interface RazorpayConfig {
 interface CreateOrderParams {
   amount: number; // in paise (₹1 = 100 paise)
   notes: {
-    sellerId: string;
+    userId: string;
     listingId: string;
     subscriptionId: string;
     listingTitle?: string;
@@ -192,9 +192,9 @@ export class RazorpayService {
   /**
    * Generate order receipt ID
    */
-  generateReceiptId(sellerId: string, listingId: string): string {
+  generateReceiptId(userId: string, listingId: string): string {
     const timestamp = Date.now();
-    return `ADLI-${sellerId.substring(0, 4).toUpperCase()}-${listingId.substring(0, 4).toUpperCase()}-${timestamp}`;
+    return `ADLI-${userId.substring(0, 4).toUpperCase()}-${listingId.substring(0, 4).toUpperCase()}-${timestamp}`;
   }
 }
 

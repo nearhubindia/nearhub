@@ -22,7 +22,6 @@ export interface InvoiceData {
   vendorState: string;
   vendorPincode: string;
   vendorGST: string;
-  vendorPAN: string;
   vendorEmail: string;
   vendorPhone: string;
 
@@ -63,7 +62,6 @@ export interface InvoiceConfig {
   vendorState: string;
   vendorPincode: string;
   vendorGST: string;
-  vendorPAN: string;
   vendorEmail: string;
   vendorPhone: string;
 }
@@ -166,7 +164,6 @@ class InvoiceService {
       vendorState: this.config.vendorState,
       vendorPincode: this.config.vendorPincode,
       vendorGST: this.config.vendorGST,
-      vendorPAN: this.config.vendorPAN,
       vendorEmail: this.config.vendorEmail,
       vendorPhone: this.config.vendorPhone,
 
@@ -414,7 +411,6 @@ class InvoiceService {
         <p>${invoice.vendorAddress}, ${invoice.vendorCity}</p>
         <p>${invoice.vendorState} - ${invoice.vendorPincode}</p>
         <p>GST: ${invoice.vendorGST}</p>
-        <p>PAN: ${invoice.vendorPAN}</p>
         <p>✉️ ${invoice.vendorEmail}</p>
         <p>📞 ${invoice.vendorPhone}</p>
       </div>
@@ -570,13 +566,12 @@ class InvoiceService {
       gstRate: 18,
       isInterState: false,
       vendorName: 'Synvide Business Solutions Private Limited',
-      vendorAddress: 'Registered Office Address',
-      vendorCity: 'Your City',
-      vendorState: 'Your State',
-      vendorPincode: 'Your Pincode',
+      vendorAddress: 'KR Puram',
+      vendorCity: 'Bangalore',
+      vendorState: 'Karnataka',
+      vendorPincode: '560036',
       vendorGST: '29ABKCS0463R1ZI',
-      vendorPAN: 'XXXXX XXXXX',
-      vendorEmail: 'billing@synvide.com',
+      vendorEmail: 'info@synvide.com',
       vendorPhone: '+91 XXXXXXXXXX',
     };
   }

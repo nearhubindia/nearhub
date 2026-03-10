@@ -192,7 +192,7 @@ export function registerUserRoutes(app: Express) {
       const allListings = listingsStorage.getAllListings();
 
       // Filter by user
-      let userListings = allListings.filter((listing) => listing.sellerId === userId);
+      let userListings = allListings.filter((listing) => listing.userId === userId);
 
       // Filter by status if provided
       if (status) {
@@ -234,7 +234,7 @@ export function registerUserRoutes(app: Express) {
 
       // Filter paid listings by user
       const userSubscriptions = allListings
-        .filter((listing) => listing.sellerId === userId && listing.isPaid)
+        .filter((listing) => listing.userId === userId && listing.isPaid)
         .map((listing) => ({
           id: `sub-${listing.id}`,
           listingId: listing.id,
@@ -280,7 +280,7 @@ export function registerUserRoutes(app: Express) {
       const allListings = listingsStorage.getAllListings();
 
       // Filter by user
-      const userListings = allListings.filter((listing) => listing.sellerId === userId);
+      const userListings = allListings.filter((listing) => listing.userId === userId);
 
       const stats = {
         totalListings: userListings.length,

@@ -39,6 +39,16 @@ export default function SearchScreen() {
       : 'All';
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>(initialCategory);
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const searchableListings = useMemo(
+    () =>
+      listings.filter((listing) => {
+        const status = (listing.status || 'active').toLowerCase();
+        if (status !== 'active') return false;
+        if (listing.expiresAt && new Date(listing.expiresAt).getTime() < Date.now()) return false;
+        return true;
+      }),
+    [listings]
+  );
 
   const navigateToResults = useCallback(
     (query: string) => {
@@ -130,7 +140,7 @@ export default function SearchScreen() {
         }
       });
 
-      listings.forEach((listing) => {
+      searchableListings.forEach((listing) => {
         const matches =
           listing.title.toLowerCase().includes(normalizedQuery) ||
           listing.description.toLowerCase().includes(normalizedQuery) ||
@@ -152,7 +162,7 @@ export default function SearchScreen() {
     });
 
     return ranked.slice(0, 16);
-  }, [searchHistory, listings]);
+  }, [searchHistory, searchableListings]);
 
   return (
     <View style={styles.container}>
@@ -380,7 +390,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   categoriesSection: {
-    marginTop: 14,
+    marginTop: 10,
   },
   categoriesHeader: {
     flexDirection: 'row',
@@ -392,8 +402,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
-    paddingTop: 8,
-    paddingBottom: 6,
+    paddingTop: 4,
+    paddingBottom: 4,
   },
   viewAllText: {
     fontSize: 12,
@@ -403,35 +413,35 @@ const styles = StyleSheet.create({
     paddingRight: 2,
   },
   categoriesGrid: {
-    paddingTop: 6,
+    paddingTop: 2,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 8,
+    rowGap: 4,
   },
   categoryTile: {
     width: '23%',
     alignItems: 'center',
   },
   iconTile: {
-    width: 56,
-    height: 56,
-    borderRadius: 10,
+    width: 46,
+    height: 46,
+    borderRadius: 9,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 5,
+    marginBottom: 3,
   },
   pictureImage: {
-    width: 26,
-    height: 26,
+    width: 20,
+    height: 20,
     position: 'absolute',
   },
   pictureIconFallback: {
-    fontSize: 20,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 18,
     opacity: 1,
   },
   iconTileSelected: {
@@ -439,8 +449,8 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   categoryLabel: {
-    fontSize: 12,
-    lineHeight: 14,
+    fontSize: 10,
+    lineHeight: 12,
     textAlign: 'center',
     fontFamily: 'Inter_500Medium',
     color: Colors.text,

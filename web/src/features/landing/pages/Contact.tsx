@@ -1,12 +1,14 @@
 import { type ReactElement, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, Phone, MapPin, Send } from 'lucide-react';
+import { Mail, Phone, MapPin, Send, Clock3 } from 'lucide-react';
 import { LandingFooter, Logo } from '@/shared/components';
+import { getApiUrl } from '@/lib/config';
 
 export default function Contact(): ReactElement {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    phone: '',
     subject: '',
     message: '',
   });
@@ -16,48 +18,63 @@ export default function Contact(): ReactElement {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setSubmitStatus('idle');
 
-    // Simulate form submission
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const response = await fetch(`${getApiUrl()}/api/contact`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          source: 'web',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
       setSubmitStatus('success');
-      setFormData({ name: '', email: '', subject: '', message: '' });
-
-      // Reset success message after 5 seconds
+      setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
       setTimeout(() => setSubmitStatus('idle'), 5000);
-    }, 1500);
+    } catch (error) {
+      console.error('[Contact] Failed to submit contact form:', error);
+      setSubmitStatus('error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const value =
+      e.target.name === 'phone' ? e.target.value.replace(/\D/g, '').slice(0, 10) : e.target.value;
+
     setFormData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [e.target.name]: value,
     }));
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-white">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center h-20 gap-8 sm:gap-10">
+    <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-[#fff7ef] text-slate-900">
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_8%_12%,rgba(30,93,168,0.12),transparent_45%),radial-gradient(circle_at_90%_18%,rgba(255,153,51,0.16),transparent_40%)]" />
+
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex h-20 items-center justify-between">
             <Link to="/">
               <Logo size="lg" showText={true} />
             </Link>
-            <div className="flex items-center gap-4 sm:gap-8">
-              <Link to="/" className="text-slate-600 hover:text-[#1e5da8] transition font-medium">
+            <div className="flex items-center gap-6 text-sm font-semibold sm:text-base">
+              <Link to="/" className="text-slate-600 transition hover:text-[#ff9933]">
                 Home
               </Link>
-              <Link
-                to="/features"
-                className="text-slate-600 hover:text-[#1e5da8] transition font-medium"
-              >
+              <Link to="/features" className="text-slate-600 transition hover:text-[#ff9933]">
                 Features
               </Link>
-              <Link
-                to="/contact"
-                className="text-[#1e5da8] font-semibold border-b-2 border-[#1e5da8]"
-              >
+              <Link to="/contact" className="text-[#1e5da8]">
                 Contact
               </Link>
             </div>
@@ -65,149 +82,135 @@ export default function Contact(): ReactElement {
         </div>
       </nav>
 
-      {/* Contact Section */}
-      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="text-center mb-16">
-            <h1 className="text-5xl sm:text-6xl font-black mb-6">
-              <span className="bg-gradient-to-r from-[#1e5da8] to-[#ff9933] bg-clip-text text-transparent">
-                Get in Touch
-              </span>
+      <main className="px-4 pb-20 pt-28 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <section className="mb-8 rounded-3xl border border-[#1e5da8]/10 bg-gradient-to-br from-[#1e5da8]/8 via-white to-[#ff9933]/12 p-6 shadow-sm sm:p-10">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ff9933]">Contact</p>
+            <h1 className="mt-3 text-4xl font-black sm:text-5xl">
+              Let’s Build Something <span className="text-[#ff9933]">Big</span>
             </h1>
-            <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-              Have questions? We'd love to hear from you. Send us a message and we'll respond as
-              soon as possible.
+            <p className="mt-3 max-w-3xl text-slate-600">
+              Share your requirement and our team will reach out with a rollout approach.
             </p>
-          </div>
+          </section>
 
-          <div className="grid lg:grid-cols-2 gap-12">
-            {/* Contact Information */}
-            <div className="space-y-8">
-              <div className="bg-white rounded-xl p-8 shadow-lg border border-blue-100">
-                <h2 className="text-2xl font-bold text-slate-900 mb-6">Contact Information</h2>
-
-                <div className="space-y-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-[#1e5da8] to-[#ff9933] rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Mail className="text-white" size={24} />
-                    </div>
+          <section className="grid gap-6 lg:grid-cols-[1fr,1.25fr]">
+            <aside className="space-y-4">
+              <div className="rounded-2xl border border-[#1e5da8]/10 bg-white p-6 shadow-sm">
+                <h2 className="text-xl font-black text-slate-900">Contact Channels</h2>
+                <div className="mt-5 space-y-4 text-slate-700">
+                  <div className="flex items-start gap-3">
+                    <Mail className="mt-0.5 text-[#ff9933]" size={18} />
                     <div>
-                      <h3 className="font-bold text-slate-900 mb-1">Email</h3>
-                      <p className="text-slate-600">support@nearhub.com</p>
-                      <p className="text-slate-600">business@nearhub.com</p>
+                      <p className="font-semibold">Email</p>
+                      <p className="text-sm text-slate-600">support@nearhub.com</p>
+                      <p className="text-sm text-slate-600">business@nearhub.com</p>
                     </div>
                   </div>
-
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-[#1e5da8] to-[#ff9933] rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Phone className="text-white" size={24} />
-                    </div>
+                  <div className="flex items-start gap-3">
+                    <Phone className="mt-0.5 text-[#ff9933]" size={18} />
                     <div>
-                      <h3 className="font-bold text-slate-900 mb-1">Phone</h3>
-                      <p className="text-slate-600">+91 1800-123-4567</p>
-                      <p className="text-sm text-slate-500">Mon-Fri: 9 AM - 6 PM IST</p>
+                      <p className="font-semibold">Phone</p>
+                      <p className="text-sm text-slate-600">+91 1800-123-4567</p>
                     </div>
                   </div>
-
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-[#1e5da8] to-[#ff9933] rounded-lg flex items-center justify-center flex-shrink-0">
-                      <MapPin className="text-white" size={24} />
-                    </div>
+                  <div className="flex items-start gap-3">
+                    <Clock3 className="mt-0.5 text-[#ff9933]" size={18} />
                     <div>
-                      <h3 className="font-bold text-slate-900 mb-1">Office</h3>
-                      <p className="text-slate-600">
-                        NearHub Technologies Pvt. Ltd.
-                        <br />
-                        Bangalore, Karnataka
-                        <br />
-                        India 560001
-                      </p>
+                      <p className="font-semibold">Working Hours</p>
+                      <p className="text-sm text-slate-600">Mon - Fri, 9 AM to 6 PM IST</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <MapPin className="mt-0.5 text-[#ff9933]" size={18} />
+                    <div>
+                      <p className="font-semibold">Office</p>
+                      <p className="text-sm text-slate-600">Bangalore, Karnataka, India</p>
                     </div>
                   </div>
                 </div>
               </div>
+            </aside>
 
-              {/* CTA Box */}
-              <div className="bg-gradient-to-br from-[#1e5da8]/10 via-white to-[#ff9933]/10 rounded-xl p-8 border border-blue-100">
-                <h3 className="text-xl font-bold text-slate-900 mb-3">Ready to Get Started?</h3>
-                <p className="text-slate-600 mb-6">
-                  Join the growing community of sellers, buyers, and service providers in India and
-                  beyond.
-                </p>
-                <a
-                  href="/app"
-                  className="inline-block bg-gradient-to-r from-[#1e5da8] to-[#ff9933] hover:from-[#1a4d8f] hover:to-[#ff8820] text-white px-8 py-3 rounded-lg font-bold transition transform hover:scale-105 shadow-lg shadow-[#1e5da8]/30"
-                >
-                  Launch NearHub Today
-                </a>
-              </div>
-            </div>
+            <div className="rounded-2xl border border-[#1e5da8]/10 bg-white p-6 shadow-sm sm:p-8">
+              <h2 className="text-2xl font-black text-slate-900">Send Us a Message</h2>
+              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="name" className="mb-1 block text-sm font-semibold text-slate-700">
+                      Name *
+                    </label>
+                    <input
+                      type="text"
+                      id="name"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      required
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#1e5da8] focus:ring-2 focus:ring-[#1e5da8]/30"
+                      placeholder="John Doe"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="email" className="mb-1 block text-sm font-semibold text-slate-700">
+                      Email *
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      required
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#1e5da8] focus:ring-2 focus:ring-[#1e5da8]/30"
+                      placeholder="john@example.com"
+                    />
+                  </div>
+                </div>
 
-            {/* Contact Form */}
-            <div className="bg-white rounded-xl p-8 shadow-lg border border-blue-100">
-              <h2 className="text-2xl font-bold text-slate-900 mb-6">Send us a Message</h2>
-
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <label htmlFor="name" className="block text-sm font-semibold text-slate-700 mb-2">
-                    Your Name *
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#1e5da8] focus:border-transparent outline-none transition"
-                    placeholder="John Doe"
-                  />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="phone" className="mb-1 block text-sm font-semibold text-slate-700">
+                      Phone Number *
+                    </label>
+                    <input
+                      type="tel"
+                      id="phone"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      required
+                      inputMode="numeric"
+                      pattern="[0-9]{10}"
+                      minLength={10}
+                      maxLength={10}
+                      title="Phone number must be exactly 10 digits"
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#1e5da8] focus:ring-2 focus:ring-[#1e5da8]/30"
+                      placeholder="9876543210"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="subject"
+                      className="mb-1 block text-sm font-semibold text-slate-700"
+                    >
+                      Subject *
+                    </label>
+                    <input
+                      type="text"
+                      id="subject"
+                      name="subject"
+                      value={formData.subject}
+                      onChange={handleChange}
+                      required
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#1e5da8] focus:ring-2 focus:ring-[#1e5da8]/30"
+                      placeholder="How can we help?"
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-semibold text-slate-700 mb-2"
-                  >
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#1e5da8] focus:border-transparent outline-none transition"
-                    placeholder="john@example.com"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="subject"
-                    className="block text-sm font-semibold text-slate-700 mb-2"
-                  >
-                    Subject *
-                  </label>
-                  <input
-                    type="text"
-                    id="subject"
-                    name="subject"
-                    value={formData.subject}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#1e5da8] focus:border-transparent outline-none transition"
-                    placeholder="How can we help?"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="message"
-                    className="block text-sm font-semibold text-slate-700 mb-2"
-                  >
+                  <label htmlFor="message" className="mb-1 block text-sm font-semibold text-slate-700">
                     Message *
                   </label>
                   <textarea
@@ -217,45 +220,44 @@ export default function Contact(): ReactElement {
                     onChange={handleChange}
                     required
                     rows={6}
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#1e5da8] focus:border-transparent outline-none transition resize-none"
-                    placeholder="Tell us more about your inquiry..."
+                    className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-[#1e5da8] focus:ring-2 focus:ring-[#1e5da8]/30"
+                    placeholder="Tell us about your use case..."
                   />
                 </div>
 
                 {submitStatus === 'success' && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-green-800">
-                    ✓ Message sent successfully! We'll get back to you soon.
+                  <div className="rounded-xl border border-green-500/35 bg-green-500/10 p-4 text-green-200">
+                    Message sent successfully. Our team will get back to you soon.
                   </div>
                 )}
-
                 {submitStatus === 'error' && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
-                    ✗ Failed to send message. Please try again.
+                  <div className="rounded-xl border border-red-500/35 bg-red-500/10 p-4 text-red-200">
+                    Failed to send message. Please try again.
                   </div>
                 )}
 
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-gradient-to-r from-[#1e5da8] to-[#ff9933] hover:from-[#1a4d8f] hover:to-[#ff8820] text-white px-8 py-4 rounded-lg font-bold transition transform hover:scale-105 shadow-lg shadow-[#1e5da8]/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1e5da8] to-[#ff9933] px-8 py-4 font-bold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSubmitting ? (
                     <>
-                      <span className="animate-spin">⏳</span>
+                      <span className="animate-spin">●</span>
                       Sending...
                     </>
                   ) : (
                     <>
-                      <Send size={20} />
+                      <Send size={18} />
                       Send Message
                     </>
                   )}
                 </button>
               </form>
             </div>
-          </div>
+          </section>
         </div>
-      </section>
+      </main>
 
       <LandingFooter />
     </div>

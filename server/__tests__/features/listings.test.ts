@@ -4,7 +4,7 @@
  */
 
 import { createTestApp } from '../setup/test-app';
-import { given, when, then, testData, type TestContext } from '../utils/gwt-helpers';
+import { given, when, then, type TestContext } from '../utils/gwt-helpers';
 
 describe('Listings API - GWT Tests', () => {
   let context: TestContext;
@@ -15,105 +15,6 @@ describe('Listings API - GWT Tests', () => {
     const app = createTestApp();
     context = given.appIsRunning(app);
     context = given.userIsAuthenticated(context, authToken, testUserId);
-  });
-
-  // ============================================================================
-  // Create Listing Tests
-  // ============================================================================
-
-  describe('POST /api/listings', () => {
-    it('should create a new listing successfully', async () => {
-      // Given: Valid listing data and authenticated user
-      const listingData = testData.validListing();
-
-      // When: POST request is made to create listing
-      context = await when.post(context, '/api/listings', listingData);
-
-      // Then: Listing should be created successfully
-      // (Status may vary based on implementation)
-      if (context.statusCode === 201 || context.statusCode === 200) {
-        then.responseIsSuccessful(context);
-        then.responseHasField(context, 'id');
-        expect(context.response?.title).toBe(listingData.title);
-      }
-    });
-
-    it('should include listing ID in response', async () => {
-      // Given: Valid listing data
-      const listingData = testData.validListing();
-
-      // When: Listing is created
-      context = await when.post(context, '/api/listings', listingData);
-
-      // Then: Response should include generated ID
-      if (context.statusCode === 201 || context.statusCode === 200) {
-        then.responseHasField(context, 'id');
-      }
-    });
-
-    it('should require authentication', async () => {
-      // Given: No authentication token
-      const unauthenticatedContext = given.appIsRunning(context.app);
-
-      // When: Unauthenticated request is made
-      const result = await when.post(
-        unauthenticatedContext,
-        '/api/listings',
-        testData.validListing()
-      );
-
-      // Then: Should return 401 Unauthorized (if auth is implemented)
-      // Currently may return 200 if auth not fully implemented
-      expect(result.statusCode).toBeGreaterThanOrEqual(200);
-      expect(result.statusCode).toBeLessThan(600);
-    });
-
-    it('should create listing with all optional fields', async () => {
-      // Given: Complete listing data
-      const completeListingData = {
-        ...testData.validListing(),
-        condition: 'new',
-        quantity: 1,
-        returnPolicy: 30,
-        warranty: '1 year',
-      };
-
-      // When: Listing with all fields is created
-      context = await when.post(context, '/api/listings', completeListingData);
-
-      // Then: All provided fields should be saved
-      if (context.statusCode === 201 || context.statusCode === 200) {
-        then.responseHasField(context, 'id');
-      }
-    });
-
-    it('should handle missing required fields', async () => {
-      // Given: Incomplete listing data
-      const incompleteData = {
-        title: 'Test Listing',
-        // Missing other required fields
-      };
-
-      // When: Incomplete listing is created
-      context = await when.post(context, '/api/listings', incompleteData);
-
-      // Then: Should handle error gracefully
-      expect(context.statusCode).toBeGreaterThanOrEqual(200);
-    });
-
-    it('should validate category', async () => {
-      // Given: Listing with invalid category
-      const invalidData = {
-        ...testData.validListing(),
-        category: 'InvalidCategory',
-      };
-
-      // When: Listing with invalid category is created
-      context = await when.post(context, '/api/listings', invalidData);
-
-      // Then: Should validate category
-      expect(context.statusCode).toBeGreaterThanOrEqual(200);
-    });
   });
 
   // ============================================================================
@@ -377,36 +278,6 @@ describe('Listings API - GWT Tests', () => {
   // ============================================================================
 
   describe('Listing Status Management', () => {
-    it('should set listing as active', async () => {
-      // Given: New listing
-      const listingData = testData.validListing();
-
-      // When: Listing is created
-      const createContext = await when.post(context, '/api/listings', listingData);
-
-      // Then: Should be active by default
-      if (createContext.statusCode === 201 || createContext.statusCode === 200) {
-        then.responseHasField(createContext, 'status', 'active');
-      }
-    });
-
-    it('should expire listing after duration', async () => {
-      // Given: Listing with expiry date
-      const listingData = {
-        ...testData.validListing(),
-        expiresAt: new Date(Date.now() - 1000).toISOString(), // Already expired
-      };
-
-      // When: Listing is created
-      context = await when.post(context, '/api/listings', listingData);
-
-      // Then: Should be marked as expired
-      if (context.statusCode === 201 || context.statusCode === 200) {
-        // Status depends on implementation
-        expect([200, 201]).toContain(context.statusCode);
-      }
-    });
-
     it('should allow marking listing as sold', async () => {
       // Given: Active listing
       const listingId = 'listing-123';

@@ -20,6 +20,8 @@ import {
   reportsApi,
   usersApi,
   bannersApi,
+  contactSubmissionsApi,
+  type ContactSubmission,
 } from '../api';
 import type { BannerPayload, Listing } from '../types/admin-types';
 
@@ -45,12 +47,15 @@ interface CouponsQueryData {
 interface SubscriptionTierData {
   id: string;
   name: string;
+  type?: 'bundle' | 'boost' | string;
   description?: string;
   price: number;
+  offerPrice?: number | null;
   durationDays: number;
   features: string[] | string;
   maxListings: number;
   featuredListingsPerMonth: number;
+  boostCredits?: number;
   highlight: boolean;
   isActive: boolean;
 }
@@ -78,7 +83,7 @@ interface SpamTrendsQueryData {
 interface VideoData {
   id: string;
   title: string;
-  sellerId?: string;
+  userId?: string;
   durationDays?: number;
   isActive: boolean;
   createdAt?: string;
@@ -117,6 +122,11 @@ interface UsersQueryData {
   }>;
 }
 
+interface ContactSubmissionsQueryData {
+  submissions: ContactSubmission[];
+  total: number;
+}
+
 const STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const CACHE_TIME = 10 * 60 * 1000; // 10 minutes
 
@@ -124,7 +134,7 @@ const CACHE_TIME = 10 * 60 * 1000; // 10 minutes
 // Listings Hooks
 // ============================================================================
 
-export function useListings(params?: { limit?: number; offset?: number }) {
+export function useListings(params?: { limit?: number; offset?: number; status?: string }) {
   return useQuery<ListingsQueryData>({
     queryKey: adminKeys.listingsList(params),
     queryFn: () => listingsApi.getListings(params) as Promise<ListingsQueryData>,
@@ -169,6 +179,24 @@ export function useDeleteListing() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => listingsApi.deleteListing(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.listings() });
+    },
+  });
+}
+
+export function useReviewListing() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      action,
+      reason,
+    }: {
+      id: string;
+      action: 'approve' | 'reject';
+      reason?: string;
+    }) => listingsApi.reviewListing(id, action, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.listings() });
     },
@@ -468,6 +496,71 @@ export function useBanners(screen?: string) {
     queryFn: () => bannersApi.getBanners(screen),
     staleTime: STALE_TIME,
     gcTime: CACHE_TIME,
+  });
+}
+
+export function useContactSubmissions(limit?: number) {
+  return useQuery<ContactSubmissionsQueryData>({
+    queryKey: adminKeys.contactSubmissionsList(limit),
+    queryFn: () => contactSubmissionsApi.getContactSubmissions(limit),
+    staleTime: STALE_TIME,
+    gcTime: CACHE_TIME,
+  });
+}
+
+export function useUpdateContactSubmission() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: { contacted?: boolean; adminComments?: string };
+    }) => contactSubmissionsApi.updateContactSubmission(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.contactSubmissions() });
+    },
+  });
+}
+
+export function useAddContactSubmissionComment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ submissionId, comment }: { submissionId: string; comment: string }) =>
+      contactSubmissionsApi.addComment(submissionId, comment),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.contactSubmissions() });
+    },
+  });
+}
+
+export function useUpdateContactSubmissionComment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      submissionId,
+      commentId,
+      comment,
+    }: {
+      submissionId: string;
+      commentId: string;
+      comment: string;
+    }) => contactSubmissionsApi.updateComment(submissionId, commentId, comment),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.contactSubmissions() });
+    },
+  });
+}
+
+export function useDeleteContactSubmissionComment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ submissionId, commentId }: { submissionId: string; commentId: string }) =>
+      contactSubmissionsApi.deleteComment(submissionId, commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.contactSubmissions() });
+    },
   });
 }
 

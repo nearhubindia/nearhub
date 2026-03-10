@@ -32,6 +32,7 @@ export const SERVER_CONFIG = {
   MSG91_API_KEY: process.env.MSG91_API_KEY || '',
   MSG91_SENDER_ID: process.env.MSG91_SENDER_ID || 'NRHUB',
   MSG91_ROUTE: parseInt(process.env.MSG91_ROUTE || '4', 10),
+  MSG91_TEMPLATE_ID: process.env.MSG91_TEMPLATE_ID || '',
 
   // OTP Service
   OTP_VALIDITY_MINUTES: parseInt(process.env.OTP_VALIDITY_MINUTES || '5', 10),

@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.nearhub",
+      "bundleIdentifier": "com.synvide.nearhub",
       "splash": {
         "image": "./assets/images/near_hub_splash.png",
         "resizeMode": "cover",
@@ -23,11 +23,11 @@
       }
     },
     "android": {
-      "package": "com.nearhub",
+      "package": "com.synvide.nearhub",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#1a2332",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "splash": {

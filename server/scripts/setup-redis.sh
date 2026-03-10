@@ -130,7 +130,7 @@ echo ""
 # Create environment file
 echo -e "${YELLOW}Creating .env configuration...${NC}"
 
-ENV_FILE=".env.local"
+ENV_FILE=".env"
 
 if [ ! -f "$ENV_FILE" ]; then
   cat > "$ENV_FILE" << EOF

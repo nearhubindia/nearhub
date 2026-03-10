@@ -3,7 +3,8 @@
  * Automatically sends push notifications for key events
  */
 
-import { broadcastPushNotification, sendPushToUser } from './push-notifications';
+import { broadcastPushNotification, sendPushToUser, sendPushToUsers } from './push-notifications';
+import { createInAppNotification } from './in-app-notifications';
 import type { Listing } from '../../features/admin/models/admin-settings';
 
 /**
@@ -70,11 +71,11 @@ export async function notifyPriceDrop(
  */
 export async function notifyListingExpiringSoon(
   listing: Listing,
-  sellerId: string,
+  userId: string,
   daysLeft: number
 ): Promise<void> {
   try {
-    await sendPushToUser(sellerId, {
+    await sendPushToUser(userId, {
       title: `⏰ Listing Expiring Soon`,
       body: `"${listing.title}" will expire in ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}. Renew now!`,
       data: {
@@ -123,13 +124,13 @@ export async function notifyNewMessage(
  * Send notification when someone is interested in a seller's listing
  */
 export async function notifyListingInterest(
-  sellerId: string,
+  userId: string,
   listingTitle: string,
   buyerName: string,
   listingId: string
 ): Promise<void> {
   try {
-    await sendPushToUser(sellerId, {
+    await sendPushToUser(userId, {
       title: `👀 Interest in your listing`,
       body: `${buyerName} is interested in "${listingTitle}"`,
       data: {
@@ -150,12 +151,12 @@ export async function notifyListingInterest(
  * Send notification when a listing is sold
  */
 export async function notifyListingSold(
-  sellerId: string,
+  userId: string,
   listingTitle: string,
   price: number
 ): Promise<void> {
   try {
-    await sendPushToUser(sellerId, {
+    await sendPushToUser(userId, {
       title: `🎉 Congratulations! Item Sold`,
       body: `"${listingTitle}" sold for ₹${price}`,
       data: {
@@ -581,12 +582,12 @@ export async function notifyCouponApplied(
  * Send notification when listing is approved by admin
  */
 export async function notifyListingApproved(
-  sellerId: string,
+  userId: string,
   listingTitle: string,
   listingId: string
 ): Promise<void> {
   try {
-    await sendPushToUser(sellerId, {
+    await sendPushToUser(userId, {
       title: `✅ Listing Approved`,
       body: `"${listingTitle}" has been approved and is now live!`,
       data: {
@@ -597,7 +598,7 @@ export async function notifyListingApproved(
       channelId: 'default',
     });
 
-    console.log(`[Auto-Notify] Listing approved notification sent to seller: ${sellerId}`);
+    console.log(`[Auto-Notify] Listing approved notification sent to seller: ${userId}`);
   } catch (error) {
     console.error('[Auto-Notify] Failed to send listing approved notification:', error);
   }
@@ -607,12 +608,13 @@ export async function notifyListingApproved(
  * Send notification when listing is rejected by admin
  */
 export async function notifyListingRejected(
-  sellerId: string,
+  userId: string,
   listingTitle: string,
   reason: string
 ): Promise<void> {
   try {
-    await sendPushToUser(sellerId, {
+    const targetIds = getUserNotificationTargets(userId);
+    await sendPushToUsers(targetIds, {
       title: `❌ Listing Rejected`,
       body: `"${listingTitle}" was not approved. Reason: ${reason}`,
       data: {
@@ -624,17 +626,34 @@ export async function notifyListingRejected(
       priority: 'high',
     });
 
-    console.log(`[Auto-Notify] Listing rejected notification sent to seller: ${sellerId}`);
+    console.log(`[Auto-Notify] Listing rejected notification sent to seller: ${userId}`);
   } catch (error) {
     console.error('[Auto-Notify] Failed to send listing rejected notification:', error);
   }
+}
+
+function getUserNotificationTargets(userId: string): string[] {
+  const raw = String(userId || '').trim();
+  if (!raw) return [];
+
+  const targets = new Set<string>([raw]);
+  const digits = raw.replace(/\D/g, '');
+  if (digits) targets.add(digits);
+
+  const last10 = digits.length > 10 ? digits.slice(-10) : digits;
+  if (last10) {
+    targets.add(last10);
+    targets.add(`+91${last10}`);
+  }
+
+  return [...targets];
 }
 
 /**
  * Send notification when listing is renewed
  */
 export async function notifyListingRenewed(
-  sellerId: string,
+  userId: string,
   listingTitle: string,
   newExpiryDate: Date
 ): Promise<void> {
@@ -645,7 +664,7 @@ export async function notifyListingRenewed(
       year: 'numeric',
     });
 
-    await sendPushToUser(sellerId, {
+    await sendPushToUser(userId, {
       title: `🔄 Listing Renewed`,
       body: `"${listingTitle}" has been renewed! New expiry: ${expiryDateStr}`,
       data: {
@@ -656,7 +675,7 @@ export async function notifyListingRenewed(
       channelId: 'default',
     });
 
-    console.log(`[Auto-Notify] Listing renewed notification sent to seller: ${sellerId}`);
+    console.log(`[Auto-Notify] Listing renewed notification sent to seller: ${userId}`);
   } catch (error) {
     console.error('[Auto-Notify] Failed to send listing renewed notification:', error);
   }
@@ -700,7 +719,7 @@ export async function notifySavedListingPriceDrop(
  * Send notification when listing reaches view milestone
  */
 export async function notifyViewMilestone(
-  sellerId: string,
+  userId: string,
   listingId: string,
   listingTitle: string,
   viewCount: number
@@ -718,7 +737,7 @@ export async function notifyViewMilestone(
 
     const emoji = milestoneEmojis[viewCount] || '🎉';
 
-    await sendPushToUser(sellerId, {
+    await sendPushToUser(userId, {
       title: `${emoji} Milestone Reached!`,
       body: `Your listing "${listingTitle}" has reached ${viewCount.toLocaleString()} views!`,
       data: {
@@ -733,9 +752,49 @@ export async function notifyViewMilestone(
     });
 
     console.log(
-      `[Auto-Notify] View milestone (${viewCount}) notification sent to seller: ${sellerId}`
+      `[Auto-Notify] View milestone (${viewCount}) notification sent to seller: ${userId}`
     );
   } catch (error) {
     console.error('[Auto-Notify] Failed to send view milestone notification:', error);
+  }
+}
+
+/**
+ * Send in-app notification to admins when a listing is submitted for approval
+ */
+export async function notifyAdminListingPendingReview({
+  listingId,
+  listingTitle,
+  userId,
+  location,
+  category,
+}: {
+  listingId: string;
+  listingTitle: string;
+  userId: string;
+  location?: string;
+  category?: string;
+}): Promise<void> {
+  try {
+    const details = [category, location].filter(Boolean).join(' | ');
+    const detailSuffix = details ? ` (${details})` : '';
+
+    await createInAppNotification({
+      userId: null,
+      userType: 'admin',
+      title: 'Listing Needs Approval',
+      message: `"${listingTitle}" by ${userId} is pending review${detailSuffix}.`,
+      type: 'warning',
+      category: 'listing',
+      referenceId: listingId,
+      priority: 'high',
+      actionLabel: 'Review Listing',
+      actionUrl: '/admin/listings/pending',
+      createdBy: 'system',
+    });
+
+    console.log(`[Auto-Notify] Admin pending-review notification created for listing: ${listingId}`);
+  } catch (error) {
+    console.error('[Auto-Notify] Failed to create admin pending-review notification:', error);
   }
 }

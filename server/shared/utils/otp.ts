@@ -1,18 +1,16 @@
 /**
  * OTP Service
- * Handles OTP generation, storage, and delivery via MSG91 or BSNL DLT
+ * Handles OTP generation, storage, and delivery via MSG91
  *
  * Features:
  * - Generate secure OTP codes
  * - Store OTP with expiration
  * - Send via MSG91 (primary)
- * - Send via BSNL DLT (if enabled)
  * - Verify OTP codes
  * - Prevent brute force attacks
  * - Rate limiting per phone number
  */
 
-import { bsnlDLT } from '../notifications/bsnl-dlt';
 import { msg91 } from '../notifications/msg91';
 
 export interface OTPRecord {
@@ -22,14 +20,14 @@ export interface OTPRecord {
   attempts: number;
   maxAttempts: number;
   createdAt: number;
-  sentVia: 'msg91' | 'dlt' | 'console';
+  sentVia: 'msg91' | 'console';
 }
 
 export interface SendOTPResponse {
   success: boolean;
   message: string;
   expiresIn: number; // seconds
-  sentVia?: 'msg91' | 'dlt' | 'console';
+  sentVia?: 'msg91' | 'console';
 }
 
 export interface VerifyOTPResponse {
@@ -125,13 +123,13 @@ class OTPService {
     try {
       // Generate OTP
       const otp = this.generateOTP();
+      console.log(`[OTP] Code for +91${phone}: ${otp}`);
 
-      // Determine delivery method (MSG91 first, BSNL fallback)
-      const bsnlStatus = bsnlDLT.getStatus();
+      // Determine delivery method (MSG91 only)
       const msg91Status = msg91.getStatus();
-      let sentVia: 'msg91' | 'dlt' | 'console' = 'console';
+      let sentVia: 'msg91' | 'console' = 'console';
 
-      // Try MSG91 first (primary)
+      // Try MSG91 (primary)
       if (msg91Status.enabled && msg91Status.configured) {
         try {
           const msg91Response = await msg91.sendOTP({
@@ -144,70 +142,15 @@ class OTPService {
             console.log(`[OTP] Sent via MSG91 to +91${phone} (ID: ${msg91Response.messageId})`);
           } else {
             console.warn(`[OTP] MSG91 failed: ${msg91Response.error}`);
-            // Try BSNL as fallback
-            if (bsnlStatus.enabled && bsnlStatus.configured) {
-              const dltResponse = await bsnlDLT.sendOTP({
-                phone,
-                otp,
-              });
-              if (dltResponse.success) {
-                sentVia = 'dlt';
-                console.log(
-                  `[OTP] Sent via BSNL DLT to +91${phone} (ID: ${dltResponse.messageId})`
-                );
-              } else {
-                console.warn(`[OTP] BSNL DLT also failed: ${dltResponse.error}`);
-                console.log(`[OTP] Code for +91${phone}: ${otp}`);
-              }
-            } else {
-              console.log(`[OTP] Code for +91${phone}: ${otp}`);
-            }
+            console.log(`[OTP] OTP not sent by MSG91; available only in server logs for +91${phone}`);
           }
         } catch (msg91Error) {
           console.error('[OTP] Error with MSG91:', msg91Error);
-          // Try BSNL as fallback
-          if (bsnlStatus.enabled && bsnlStatus.configured) {
-            try {
-              const dltResponse = await bsnlDLT.sendOTP({
-                phone,
-                otp,
-              });
-              if (dltResponse.success) {
-                sentVia = 'dlt';
-                console.log(
-                  `[OTP] Sent via BSNL DLT to +91${phone} (ID: ${dltResponse.messageId})`
-                );
-              } else {
-                console.log(`[OTP] Code for +91${phone}: ${otp}`);
-              }
-            } catch {
-              console.log(`[OTP] Code for +91${phone}: ${otp}`);
-            }
-          } else {
-            console.log(`[OTP] Code for +91${phone}: ${otp}`);
-          }
-        }
-      } else if (bsnlStatus.enabled && bsnlStatus.configured) {
-        // BSNL only
-        try {
-          const dltResponse = await bsnlDLT.sendOTP({
-            phone,
-            otp,
-          });
-
-          if (dltResponse.success) {
-            sentVia = 'dlt';
-            console.log(`[OTP] Sent via BSNL DLT to +91${phone} (ID: ${dltResponse.messageId})`);
-          } else {
-            console.warn(`[OTP] BSNL DLT failed: ${dltResponse.error}`);
-            console.log(`[OTP] Code for +91${phone}: ${otp}`);
-          }
-        } catch {
-          console.log(`[OTP] Code for +91${phone}: ${otp}`);
+          console.log(`[OTP] OTP not sent by MSG91; available only in server logs for +91${phone}`);
         }
       } else {
-        // Neither configured, just log
-        console.log(`[OTP] Code for +91${phone}: ${otp} (MSG91 and BSNL DLT not configured)`);
+        // MSG91 not configured, log OTP for debugging
+        console.log(`[OTP] MSG91 not configured for +91${phone}`);
       }
 
       // Store OTP
@@ -229,9 +172,7 @@ class OTPService {
         message:
           sentVia === 'msg91'
             ? 'OTP sent to your mobile via MSG91'
-            : sentVia === 'dlt'
-              ? 'OTP sent to your mobile via BSNL'
-              : 'OTP generated (check server logs in development)',
+            : 'OTP generated (check server logs)',
         expiresIn: Math.ceil(this.OTP_VALIDITY / 1000),
         sentVia,
       };
@@ -347,12 +288,12 @@ class OTPService {
   getStats(): {
     totalOTPsStored: number;
     rateLimitedPhones: number;
-    bsnlStatus: ReturnType<typeof bsnlDLT.getStatus>;
+    msg91Status: ReturnType<typeof msg91.getStatus>;
   } {
     return {
       totalOTPsStored: this.otpStore.size,
       rateLimitedPhones: this.rateLimitStore.size,
-      bsnlStatus: bsnlDLT.getStatus(),
+      msg91Status: msg91.getStatus(),
     };
   }
 
@@ -379,11 +320,14 @@ class OTPService {
 export const otpService = new OTPService();
 
 // Run cleanup every 5 minutes
-setInterval(
-  () => {
-    otpService.cleanupExpiredOTPs();
-  },
-  5 * 60 * 1000
-);
+const isJestRuntime = !!process.env.JEST_WORKER_ID;
+if (process.env.NODE_ENV !== 'test' && !isJestRuntime) {
+  setInterval(
+    () => {
+      otpService.cleanupExpiredOTPs();
+    },
+    5 * 60 * 1000
+  );
+}
 
 export default otpService;

@@ -5,7 +5,7 @@ import { useVideos, useDeleteVideo, useToggleVideoStatus } from '@/features/admi
 interface VideoRow {
   id: string;
   title: string;
-  sellerId?: string;
+  userId?: string;
   durationDays?: number;
   isActive: boolean;
   createdAt?: string;
@@ -133,7 +133,7 @@ export default function VideoManagementView() {
                       {video.title as string}
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      {((video.sellerId as string) || 'N/A').slice(0, 8)}...
+                      {(String(video.userId || 'N/A')).slice(0, 8)}...
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {(video.durationDays as number) || 'N/A'} days

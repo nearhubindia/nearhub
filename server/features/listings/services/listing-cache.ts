@@ -103,13 +103,13 @@ export async function getCachedCategoryListings<T>(
 }
 
 /**
- * Get cached listings by seller
+ * Get cached listings by user
  */
-export async function getCachedSellerListings<T>(
-  sellerId: string,
+export async function getCachedUserListings<T>(
+  userId: string,
   fetchFn: () => Promise<T>
 ): Promise<T> {
-  const cacheKey = `listings:seller:${sellerId}`;
+  const cacheKey = `listings:user:${userId}`;
 
   try {
     const cached = await redisCache.get(cacheKey);
@@ -170,15 +170,18 @@ export async function invalidateCategoryCache(category: string): Promise<void> {
 }
 
 /**
- * Invalidate seller cache
+ * Invalidate user cache
  */
-export async function invalidateSellerCache(sellerId: string): Promise<void> {
-  const cacheKey = `listings:seller:${sellerId}`;
+export async function invalidateUserCache(userId: string): Promise<void> {
+  const cacheKey = `listings:user:${userId}`;
 
   try {
     await redisCache.delete(cacheKey);
-    console.log(`[ListingCache] Invalidated cache for seller ${sellerId}`);
+    console.log(`[ListingCache] Invalidated cache for user ${userId}`);
   } catch (error) {
-    console.error('[ListingCache] Failed to invalidate seller cache:', error);
+    console.error('[ListingCache] Failed to invalidate user cache:', error);
   }
 }
+
+export const getCachedSellerListings = getCachedUserListings;
+export const invalidateSellerCache = invalidateUserCache;

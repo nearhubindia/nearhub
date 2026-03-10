@@ -5,9 +5,11 @@ import './index.css';
 import Landing from './features/landing/pages/Landing';
 import Features from './features/landing/pages/Features';
 import Contact from './features/landing/pages/Contact';
+import FooterPage from './features/landing/pages/FooterPage';
 import AdminLayout from './features/admin/pages/AdminLayout';
 import DashboardPage from './features/admin/pages/DashboardPage';
 import ListingsPage from './features/admin/pages/ListingsPage';
+import PendingListingsPage from './features/admin/pages/PendingListingsPage';
 import UsersPage from './features/admin/pages/UsersPage';
 import SubscriptionsPage from './features/admin/pages/SubscriptionsPage';
 import SpamDetectionPage from './features/admin/pages/SpamDetectionPage';
@@ -19,17 +21,21 @@ import InAppNotificationsPage from './features/admin/pages/InAppNotificationsPag
 import RevenuePage from './features/admin/pages/RevenuePage';
 import ReportsPage from './features/admin/pages/ReportsPage';
 import SettingsPage from './features/admin/pages/SettingsPage';
+import ContactSubmissionsPage from './features/admin/pages/ContactSubmissionsPage';
 import AdminLogin from './features/admin/pages/AdminLogin';
 import { ProtectedRoute } from './shared/components/ProtectedRoute';
+import { SeoManager } from './shared/components/SeoManager';
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <SeoManager />
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/features" element={<Features />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/footer/:pageKey" element={<FooterPage />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route
             path="/admin"
@@ -41,6 +47,7 @@ function App() {
           >
             <Route index element={<DashboardPage />} />
             <Route path="listings" element={<ListingsPage />} />
+            <Route path="listings/pending" element={<PendingListingsPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="subscriptions" element={<SubscriptionsPage />} />
             <Route path="spam" element={<SpamDetectionPage />} />
@@ -51,6 +58,7 @@ function App() {
             <Route path="in-app" element={<InAppNotificationsPage />} />
             <Route path="revenue" element={<RevenuePage />} />
             <Route path="reports" element={<ReportsPage />} />
+            <Route path="contact-submissions" element={<ContactSubmissionsPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
           <Route path="/app" element={<Navigate to="/" replace />} />

@@ -17,9 +17,6 @@ export function registerAuthRoutes(app: Express) {
         message: result.message,
         expiresIn: result.expiresIn,
         sentVia: result.sentVia,
-        ...(process.env.NODE_ENV === 'development' && {
-          otp: otpService.getOTPRecord(phone)?.otp,
-        }),
       });
     } catch (error) {
       console.error('Error sending OTP:', error);

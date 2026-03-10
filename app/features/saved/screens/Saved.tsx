@@ -110,6 +110,7 @@ export default function SavedScreen() {
               image={item.images[0]}
               location={item.location.city}
               condition={formatCondition(item.condition)}
+              isSponsored={Boolean((item as any).sponsored)}
               isSaved={savedIds.has(item.id)}
               onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
               onSave={() => handleSave(item.id)}

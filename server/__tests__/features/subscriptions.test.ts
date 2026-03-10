@@ -5,6 +5,7 @@
 
 import { createTestApp } from '../setup/test-app';
 import { given, when, then, testData, type TestContext } from '../utils/gwt-helpers';
+import request from 'supertest';
 
 describe('Subscriptions API - GWT Tests', () => {
   let context: TestContext;
@@ -392,6 +393,234 @@ describe('Subscriptions API - GWT Tests', () => {
       if (context.statusCode === 200) {
         expect([200, 404, 401, 403, 500]).toContain(context.statusCode);
       }
+    });
+  });
+
+  // ============================================================================
+  // Listing Upgrade Flow Tests
+  // ============================================================================
+
+  describe('Listing Upgrade Flow', () => {
+    describe('POST /api/subscriptions/upgrade-listing/checkout', () => {
+      it('should require authentication header', async () => {
+        const response = await request(context.app)
+          .post('/api/subscriptions/upgrade-listing/checkout')
+          .send({
+            listingId: 'listing-1',
+            duration: 90,
+            price: 99,
+          });
+
+        expect(response.status).toBe(401);
+      });
+
+      it('should validate required fields', async () => {
+        const response = await request(context.app)
+          .post('/api/subscriptions/upgrade-listing/checkout')
+          .set('x-user-id', userId)
+          .send({
+            duration: 90,
+            price: 99,
+          });
+
+        expect(response.status).toBe(400);
+        expect(response.body?.success).toBe(false);
+      });
+
+      it('should validate allowed duration values', async () => {
+        const response = await request(context.app)
+          .post('/api/subscriptions/upgrade-listing/checkout')
+          .set('x-user-id', userId)
+          .send({
+            listingId: 'listing-1',
+            duration: 60,
+            price: 99,
+          });
+
+        expect(response.status).toBe(400);
+        expect(response.body?.error).toContain('Invalid duration');
+      });
+
+      it('should return 404 when listing does not exist', async () => {
+        const response = await request(context.app)
+          .post('/api/subscriptions/upgrade-listing/checkout')
+          .set('x-user-id', userId)
+          .send({
+            listingId: 'missing-listing-99999',
+            duration: 90,
+            price: 99,
+          });
+
+        expect(response.status).toBe(404);
+        expect(response.body?.success).toBe(false);
+      });
+    });
+
+    describe('POST /api/subscriptions/upgrade-listing/verify-payment', () => {
+      it('should require authentication header', async () => {
+        const response = await request(context.app)
+          .post('/api/subscriptions/upgrade-listing/verify-payment')
+          .send({
+            listingId: 'listing-1',
+            duration: 90,
+            price: 99,
+            razorpay_order_id: 'order_123',
+            razorpay_payment_id: 'pay_123',
+            razorpay_signature: 'sig_123',
+          });
+
+        expect(response.status).toBe(401);
+      });
+
+      it('should validate required listing upgrade fields', async () => {
+        const response = await request(context.app)
+          .post('/api/subscriptions/upgrade-listing/verify-payment')
+          .set('x-user-id', userId)
+          .send({
+            duration: 90,
+            price: 99,
+            razorpay_order_id: 'order_123',
+            razorpay_payment_id: 'pay_123',
+            razorpay_signature: 'sig_123',
+          });
+
+        expect(response.status).toBe(400);
+        expect(response.body?.success).toBe(false);
+      });
+
+      it('should validate payment verification fields', async () => {
+        const response = await request(context.app)
+          .post('/api/subscriptions/upgrade-listing/verify-payment')
+          .set('x-user-id', userId)
+          .send({
+            listingId: 'listing-1',
+            duration: 90,
+            price: 99,
+          });
+
+        expect(response.status).toBe(400);
+        expect(response.body?.error).toContain('Missing payment verification fields');
+      });
+
+      it('should return 404 when listing does not exist', async () => {
+        const response = await request(context.app)
+          .post('/api/subscriptions/upgrade-listing/verify-payment')
+          .set('x-user-id', userId)
+          .send({
+            listingId: 'missing-listing-99999',
+            duration: 90,
+            price: 99,
+            razorpay_order_id: 'order_123',
+            razorpay_payment_id: 'pay_123',
+            razorpay_signature: 'sig_123',
+          });
+
+        expect(response.status).toBe(404);
+        expect(response.body?.success).toBe(false);
+      });
+    });
+
+    describe('POST /api/subscriptions/upgrade-listing (legacy)', () => {
+      it('should reject invalid upgrade duration', async () => {
+        const response = await request(context.app)
+          .post('/api/subscriptions/upgrade-listing')
+          .send({
+            listingId: 'listing-1',
+            duration: 60,
+            price: 99,
+          });
+
+        expect(response.status).toBe(400);
+        expect(response.body?.error).toContain('Invalid duration');
+      });
+    });
+
+    it('should upgrade listing after successful payment verification (mocked positive path)', async () => {
+      jest.resetModules();
+
+      const mockGetListingById = jest.fn().mockResolvedValue({
+        id: 'listing-1',
+        sellerId: userId,
+        title: 'Test Listing',
+      });
+      const mockUpdateListing = jest.fn().mockResolvedValue({
+        id: 'listing-1',
+        isPaid: true,
+        durationDays: 90,
+      });
+      const mockCreateOrder = jest.fn().mockResolvedValue({
+        id: 'order_mock_123',
+        amount: 9900,
+      });
+      const mockVerifyPaymentSignature = jest.fn().mockReturnValue(true);
+
+      jest.doMock('../../features/listings/services/listings', () => {
+        const actual = jest.requireActual('../../features/listings/services/listings');
+        return {
+          ...actual,
+          getListingById: mockGetListingById,
+          updateListing: mockUpdateListing,
+        };
+      });
+
+      jest.doMock('../../features/payments/services/razorpay', () => ({
+        getRazorpayService: () => ({
+          generateReceiptId: () => 'receipt_mock_123',
+          createOrder: mockCreateOrder,
+          verifyPaymentSignature: mockVerifyPaymentSignature,
+        }),
+      }));
+
+      const expressModule = await import('express');
+      const express = expressModule.default;
+      const { registerSubscriptionRoutes } = await import(
+        '../../features/subscriptions/routes/subscriptions'
+      );
+
+      const app = express();
+      app.use(express.json());
+      registerSubscriptionRoutes(app);
+
+      const checkoutResponse = await request(app)
+        .post('/api/subscriptions/upgrade-listing/checkout')
+        .set('x-user-id', userId)
+        .send({
+          listingId: 'listing-1',
+          duration: 90,
+          price: 99,
+        });
+
+      expect(checkoutResponse.status).toBe(200);
+      expect(checkoutResponse.body?.success).toBe(true);
+      expect(checkoutResponse.body?.payment?.razorpayOrderId).toBe('order_mock_123');
+      expect(mockCreateOrder).toHaveBeenCalledTimes(1);
+
+      const verifyResponse = await request(app)
+        .post('/api/subscriptions/upgrade-listing/verify-payment')
+        .set('x-user-id', userId)
+        .send({
+          listingId: 'listing-1',
+          duration: 90,
+          price: 99,
+          razorpay_order_id: 'order_mock_123',
+          razorpay_payment_id: 'pay_mock_123',
+          razorpay_signature: 'sig_mock_123',
+        });
+
+      expect(verifyResponse.status).toBe(200);
+      expect(verifyResponse.body?.success).toBe(true);
+      expect(mockVerifyPaymentSignature).toHaveBeenCalledTimes(1);
+      expect(mockUpdateListing).toHaveBeenCalledWith(
+        'listing-1',
+        expect.objectContaining({
+          isPaid: true,
+          durationDays: 90,
+          status: 'active',
+        })
+      );
+
+      jest.dontMock('../../features/listings/services/listings');
+      jest.dontMock('../../features/payments/services/razorpay');
     });
   });
 });

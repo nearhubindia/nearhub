@@ -1,0 +1,46 @@
+diff --git a/node_modules/expo/src/launch/withDevTools.ios.tsx b/node_modules/expo/src/launch/withDevTools.ios.tsx
+index f1f686c..843e532 100644
+--- a/node_modules/expo/src/launch/withDevTools.ios.tsx
++++ b/node_modules/expo/src/launch/withDevTools.ios.tsx
+@@ -10,16 +10,8 @@ import { isRunningInExpoGo } from '../environment/ExpoGo';
+ export function withDevTools<TComponent extends React.ComponentType<any>>(
+   AppRootComponent: TComponent
+ ): React.ComponentType<React.ComponentProps<TComponent>> {
+-  // This hook can be optionally imported because __DEV__ never changes during runtime.
+-  // Using __DEV__ like this enables tree shaking to remove the hook in production.
+-  const useOptionalKeepAwake: (tag?: string) => void = (() => {
+-    try {
+-      // Optionally import expo-keep-awake
+-      const { useKeepAwake, ExpoKeepAwakeTag } = require('expo-keep-awake');
+-      return () => useKeepAwake(ExpoKeepAwakeTag, { suppressDeactivateWarnings: true });
+-    } catch {}
+-    return () => {};
+-  })();
++  // Disable dev-only keep-awake to avoid unhandled activation errors on some runtimes.
++  const useOptionalKeepAwake: (tag?: string) => void = () => {};
+ 
+   const shouldUseExpoFastRefreshView = isRunningInExpoGo();
+ 
+diff --git a/node_modules/expo/src/launch/withDevTools.tsx b/node_modules/expo/src/launch/withDevTools.tsx
+index 5a98062..760c301 100644
+--- a/node_modules/expo/src/launch/withDevTools.tsx
++++ b/node_modules/expo/src/launch/withDevTools.tsx
+@@ -5,16 +5,8 @@ import * as React from 'react';
+ export function withDevTools<TComponent extends React.ComponentType<any>>(
+   AppRootComponent: TComponent
+ ): React.ComponentType<React.ComponentProps<TComponent>> {
+-  // This hook can be optionally imported because __DEV__ never changes during runtime.
+-  // Using __DEV__ like this enables tree shaking to remove the hook in production.
+-  const useOptionalKeepAwake: (tag?: string) => void = (() => {
+-    try {
+-      // Optionally import expo-keep-awake
+-      const { useKeepAwake, ExpoKeepAwakeTag } = require('expo-keep-awake');
+-      return () => useKeepAwake(ExpoKeepAwakeTag, { suppressDeactivateWarnings: true });
+-    } catch {}
+-    return () => {};
+-  })();
++  // Disable dev-only keep-awake to avoid unhandled activation errors on some Android runtimes.
++  const useOptionalKeepAwake: (tag?: string) => void = () => {};
+ 
+   function WithDevTools(props: React.ComponentProps<TComponent>) {
+     useOptionalKeepAwake();

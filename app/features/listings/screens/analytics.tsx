@@ -19,8 +19,8 @@ import { getBackendURL } from '@/lib/config';
 
 const { width } = Dimensions.get('window');
 
-interface SellerAnalytics {
-  sellerId: string;
+interface UserAnalytics {
+  userId?: string;
   totalListings: number;
   activeListings: number;
   totalViews: number;
@@ -46,7 +46,7 @@ interface SellerAnalytics {
 export default function SellerAnalyticsScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [analytics, setAnalytics] = useState<SellerAnalytics | null>(null);
+  const [analytics, setAnalytics] = useState<UserAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,7 +60,7 @@ export default function SellerAnalyticsScreen() {
         setLoading(true);
         setError(null);
         const apiUrl = getBackendURL();
-        const response = await fetch(`${apiUrl}/api/sellers/${user.id}/analytics`);
+        const response = await fetch(`${apiUrl}/api/users/${user.id}/analytics`);
 
         if (!response.ok) {
           throw new Error('Failed to fetch analytics');

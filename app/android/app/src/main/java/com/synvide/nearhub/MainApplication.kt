@@ -1,4 +1,4 @@
-package com.nearhub
+package com.synvide.nearhub
 
 import android.app.Application
 import android.content.res.Configuration

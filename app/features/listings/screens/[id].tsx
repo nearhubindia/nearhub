@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -28,7 +28,7 @@ export default function ListingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { getListingById, savedIds, toggleSaved } = useListings();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [isFocused, setIsFocused] = useState(true);
 
   // Pause videos when screen loses focus
@@ -41,8 +41,28 @@ export default function ListingDetailScreen() {
     }, [])
   );
 
-  const listing = useMemo(() => getListingById(id), [id]);
+  const listing = getListingById(id);
   const isSaved = savedIds.has(id);
+  const normalizedUserPhone = (user?.phone || '').replace(/[\s+-]/g, '');
+  const normalizedUserId = (user?.id || '').replace(/[\s+-]/g, '');
+  const listingPhone = (listing?.contactPhone || listing?.sellerPhone || '').trim();
+  const normalizedSellerPhone = listingPhone.replace(/[\s+-]/g, '');
+  const normalizedListingUserId = (listing?.userId || '').replace(/[\s+-]/g, '');
+  const listingUserIdLower = String(listing?.userId || '').trim().toLowerCase();
+  const isAdminListing =
+    listingUserIdLower === 'admin' ||
+    listingUserIdLower.startsWith('admin-') ||
+    listingUserIdLower.startsWith('admin_') ||
+    normalizedListingUserId.toLowerCase().startsWith('admin');
+  const canShowMessage = !isAdminListing;
+  const canShowCall = !isAdminListing || (isAdminListing && normalizedSellerPhone.length > 0);
+  const isOwner =
+    (!!normalizedUserPhone && normalizedUserPhone === normalizedSellerPhone) ||
+    (!!normalizedUserId && normalizedUserId === normalizedListingUserId);
+  const listingStatus = String((listing as any)?.status || '').toLowerCase();
+  const isExpired =
+    listingStatus === 'expired' ||
+    (!!listing?.expiresAt && new Date(listing.expiresAt).getTime() < Date.now());
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -122,12 +142,16 @@ export default function ListingDetailScreen() {
   const handleCall = () => {
     requireAuth(() => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (!normalizedSellerPhone) {
+        Alert.alert('Contact Seller', 'Seller phone number is not available.');
+        return;
+      }
       if (Platform.OS === 'web') {
-        Alert.alert('Contact Seller', `Call ${listing.sellerName} at ${listing.sellerPhone}`);
+        Alert.alert('Contact Seller', `Call ${listing.sellerName} at ${listingPhone}`);
       } else {
         Alert.alert('Contact Seller', `Would you like to call ${listing.sellerName}?`, [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Call', onPress: () => Linking.openURL(`tel:${listing.sellerPhone}`) },
+          { text: 'Call', onPress: () => Linking.openURL(`tel:${listingPhone}`) },
         ]);
       }
     });
@@ -194,15 +218,22 @@ export default function ListingDetailScreen() {
                 <Text style={styles.originalPrice}>₹{listing.price.toLocaleString('en-IN')}</Text>
               )}
             </View>
-            <View
-              style={[
-                styles.typeBadge,
-                listing.listingType === 'buy' ? styles.buyBadge : styles.sellBadge,
-              ]}
-            >
-              <Text style={styles.typeText}>
-                {listing.listingType === 'buy' ? 'Wanted' : 'For Sale'}
-              </Text>
+            <View style={styles.rightBadges}>
+              {isExpired && (
+                <View style={styles.expiredBadge}>
+                  <Text style={styles.expiredBadgeText}>Expired</Text>
+                </View>
+              )}
+              <View
+                style={[
+                  styles.typeBadge,
+                  listing.listingType === 'buy' ? styles.buyBadge : styles.sellBadge,
+                ]}
+              >
+                <Text style={styles.typeText}>
+                  {listing.listingType === 'buy' ? 'Wanted' : 'For Sale'}
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -221,6 +252,27 @@ export default function ListingDetailScreen() {
               <Text style={styles.condText}>{formatCondition(listing.condition)}</Text>
             </View>
           </View>
+
+          {isExpired && isOwner && (
+            <View style={styles.expiredCtaCard}>
+              <Text style={styles.expiredCtaTitle}>This listing has expired</Text>
+              <Text style={styles.expiredCtaSubtitle}>
+                Renew it to make it visible to buyers again.
+              </Text>
+              <Pressable
+                style={styles.renewNowButton}
+                onPress={() =>
+                  router.push({
+                    pathname: '/my-listings',
+                    params: { tab: 'expired', renewId: listing.id },
+                  })
+                }
+              >
+                <Feather name="refresh-cw" size={16} color="#fff" />
+                <Text style={styles.renewNowButtonText}>Renew now</Text>
+              </Pressable>
+            </View>
+          )}
 
           <View style={styles.divider} />
 
@@ -249,21 +301,27 @@ export default function ListingDetailScreen() {
         </View>
       </ScrollView>
 
-      <View
-        style={[
-          styles.bottomBar,
-          { paddingBottom: (insets.bottom || (Platform.OS === 'web' ? 34 : 0)) + 8 },
-        ]}
-      >
-        <Pressable style={styles.messageButton} onPress={handleMessage}>
-          <Feather name="message-circle" size={20} color={Colors.primary} />
-          <Text style={styles.messageText}>Message</Text>
-        </Pressable>
-        <Pressable style={styles.callButton} onPress={handleCall}>
-          <Feather name="phone" size={20} color="#fff" />
-          <Text style={styles.callText}>Call Seller</Text>
-        </Pressable>
-      </View>
+      {(canShowCall || canShowMessage) && (
+        <View
+          style={[
+            styles.bottomBar,
+            { paddingBottom: (insets.bottom || (Platform.OS === 'web' ? 34 : 0)) + 8 },
+          ]}
+        >
+          {canShowMessage && (
+            <Pressable style={styles.messageButton} onPress={handleMessage}>
+              <Feather name="message-circle" size={20} color={Colors.primary} />
+              <Text style={styles.messageText}>Message</Text>
+            </Pressable>
+          )}
+          {canShowCall && (
+            <Pressable style={[styles.callButton, !canShowMessage && { flex: 1 }]} onPress={handleCall}>
+              <Feather name="phone" size={20} color="#fff" />
+              <Text style={styles.callText}>Call Seller</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -337,6 +395,11 @@ const styles = createResponsiveStyles({
     justifyContent: 'space-between',
     marginBottom: 4,
   },
+  rightBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   price: {
     fontSize: 30,
     fontFamily: 'Inter_700Bold',
@@ -362,6 +425,17 @@ const styles = createResponsiveStyles({
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 12,
+  },
+  expiredBadge: {
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  expiredBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
   },
   sellBadge: {
     backgroundColor: '#ECFDF5',
@@ -406,6 +480,42 @@ const styles = createResponsiveStyles({
     fontSize: 12,
     fontFamily: 'Inter_500Medium',
     color: Colors.textSecondary,
+  },
+  expiredCtaCard: {
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
+    gap: 8,
+  },
+  expiredCtaTitle: {
+    fontSize: 14,
+    color: '#991b1b',
+    fontFamily: 'Inter_700Bold',
+  },
+  expiredCtaSubtitle: {
+    fontSize: 13,
+    color: '#7f1d1d',
+    fontFamily: 'Inter_400Regular',
+    lineHeight: 18,
+  },
+  renewNowButton: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  renewNowButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
   },
   divider: {
     height: 1,

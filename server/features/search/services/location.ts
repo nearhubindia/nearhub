@@ -640,11 +640,11 @@ export async function registerLocationRoutes(app: Express) {
   });
 
   /**
-   * GET /api/pricing/dynamic
-   * Get dynamic price multiplier for a location
-   * Based on demand (0.8 to 1.2)
+   * GET /api/location/pricing/dynamic
+   * Get dynamic price multiplier for a location.
+   * Kept under /api/location/* to avoid colliding with category/type dynamic-pricing routes.
    */
-  app.get('/api/pricing/dynamic', (req, res) => {
+  app.get('/api/location/pricing/dynamic', (req, res) => {
     try {
       const { city, state } = req.query;
 

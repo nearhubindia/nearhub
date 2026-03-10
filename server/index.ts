@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import createDebug from 'debug';
 import { registerRoutes } from './routes';
 import { redisCache } from './shared/cache/redis-cache';
 import { initializeElasticsearch } from './features/search/services/elasticsearch';
@@ -21,16 +22,20 @@ import { generalLimiter } from './lib/rate-limiter';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const debugServer = createDebug('app:server');
+const debugHttp = createDebug('app:http');
+const debugCors = createDebug('app:cors');
+const debugBody = createDebug('app:body');
+const debugWorkers = createDebug('app:workers');
 
 // Log DATABASE_URL to verify it's loaded
 if (process.env.DATABASE_URL) {
-  console.log(`[Env] DATABASE_URL configured: ${process.env.DATABASE_URL.substring(0, 40)}...`);
+  debugServer(`[Env] DATABASE_URL configured: ${process.env.DATABASE_URL.substring(0, 40)}...`);
 } else {
-  console.log('[Env] ⚠️ WARNING: DATABASE_URL not set!');
+  debugServer('[Env] WARNING: DATABASE_URL not set!');
 }
 
 const app = express();
-const log = console.log;
 
 declare module 'http' {
   interface IncomingMessage {
@@ -44,7 +49,7 @@ function setupCors(app: express.Application) {
 
     // Log incoming requests for debugging
     if (req.path.includes('/api/')) {
-      console.log(`[CORS] ${req.method} ${req.path} from origin:`, origin || '(no origin)');
+      debugCors(`[CORS] ${req.method} ${req.path} from origin: ${origin || '(no origin)'}`);
     }
 
     // Build allowed origins list
@@ -96,9 +101,9 @@ function setupBodyParsing(app: express.Application) {
   // Log body parsing for debugging
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.method === 'POST' && req.path.startsWith('/api/')) {
-      console.log(`[BodyParser] ${req.method} ${req.path}`);
-      console.log(`[BodyParser] Body:`, req.body);
-      console.log(`[BodyParser] Content-Type:`, req.get('content-type'));
+      debugBody(`[BodyParser] ${req.method} ${req.path}`);
+      debugBody('[BodyParser] Body: %O', req.body);
+      debugBody(`[BodyParser] Content-Type: ${req.get('content-type')}`);
     }
     next();
   });
@@ -130,7 +135,7 @@ function setupRequestLogging(app: express.Application) {
         logLine = logLine.slice(0, 79) + '…';
       }
 
-      log(logLine);
+      debugHttp(logLine);
     });
 
     next();
@@ -181,8 +186,8 @@ function serveLandingPage({
   const baseUrl = `${protocol}://${host}`;
   const expsUrl = `${host}`;
 
-  log(`baseUrl`, baseUrl);
-  log(`expsUrl`, expsUrl);
+  debugServer('baseUrl %s', baseUrl);
+  debugServer('expsUrl %s', expsUrl);
 
   const html = landingPageTemplate
     .replace(/BASE_URL_PLACEHOLDER/g, baseUrl)
@@ -198,7 +203,7 @@ function configureExpoAndLanding(app: express.Application) {
   const landingPageTemplate = fs.readFileSync(templatePath, 'utf-8');
   const appName = getAppName();
 
-  log('Serving static Expo files with dynamic manifest routing');
+  debugServer('Serving static Expo files with dynamic manifest routing');
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith('/api')) {
@@ -238,7 +243,7 @@ function configureExpoAndLanding(app: express.Application) {
     console.warn('Could not create or serve upload directory:', err);
   }
 
-  log('Expo routing: Checking expo-platform header on / and /manifest');
+  debugServer('Expo routing: Checking expo-platform header on / and /manifest');
 }
 
 function setupErrorHandler(app: express.Application) {
@@ -266,21 +271,21 @@ function setupErrorHandler(app: express.Application) {
   // Initialize Redis cache
   try {
     await redisCache.connect();
-    log('✓ Redis cache connected');
+    debugServer('Redis cache connected');
   } catch (error) {
-    log('✗ Redis connection failed (continuing without cache):', error);
+    debugServer('Redis connection failed (continuing without cache): %O', error);
   }
 
   // Initialize Elasticsearch (optional)
   if (SERVER_CONFIG.ELASTICSEARCH_ENABLED) {
     try {
       await initializeElasticsearch();
-      log('✓ Elasticsearch initialized');
+      debugServer('Elasticsearch initialized');
     } catch (error) {
-      log('⚠ Elasticsearch initialization failed (search will be disabled)');
+      debugServer('Elasticsearch initialization failed (search will be disabled): %O', error);
     }
   } else {
-    log('ℹ Elasticsearch disabled (set ELASTICSEARCH_ENABLED=true to enable)');
+    debugServer('Elasticsearch disabled (set ELASTICSEARCH_ENABLED=true to enable)');
   }
 
   setupCors(app);
@@ -288,16 +293,16 @@ function setupErrorHandler(app: express.Application) {
 
   // Apply general rate limiting to all API routes
   app.use('/api', generalLimiter);
-  log('✓ Rate limiting enabled (100 req/15min per IP)');
+  debugServer('Rate limiting enabled (100 req/15min per IP)');
 
   setupRequestLogging(app);
 
   // Initialize Razorpay payment service
   try {
     initializeRazorpay();
-    log('✓ Razorpay payment service initialized');
+    debugServer('Razorpay payment service initialized');
   } catch (error) {
-    log('⚠ Razorpay initialization failed (payments will be unavailable):', error);
+    debugServer('Razorpay initialization failed (payments will be unavailable): %O', error);
   }
 
   configureExpoAndLanding(app);
@@ -314,7 +319,7 @@ function setupErrorHandler(app: express.Application) {
       reusePort: true,
     },
     () => {
-      log(`express server serving on port ${port}`);
+      debugServer(`express server serving on port ${port}`);
 
       // Initialize background workers after server starts
       initializeBackgroundWorkers();
@@ -326,7 +331,7 @@ function setupErrorHandler(app: express.Application) {
  * Initialize background task workers
  */
 function initializeBackgroundWorkers(): void {
-  log('[Workers] Initializing background task scheduler...');
+  debugWorkers('Initializing background task scheduler...');
 
   // Subscription expiration worker - runs every 1 hour
   taskScheduler.register(
@@ -348,7 +353,7 @@ function initializeBackgroundWorkers(): void {
     { enabled: true, maxRetries: 3 }
   );
 
-  log('✓ Background workers initialized');
-  log('  - subscription-expiration: Every 1 hour');
-  log('  - listing-expiration: Every 30 minutes');
+  debugWorkers('Background workers initialized');
+  debugWorkers('subscription-expiration: Every 1 hour');
+  debugWorkers('listing-expiration: Every 30 minutes');
 }

@@ -150,7 +150,7 @@ export function registerListingExpirationRoutes(app: Express) {
       // TODO: Fetch listing from database
       const mockListing = {
         id: listingId,
-        sellerId: 'seller-1',
+        userId: 'user-1',
         price: 75000,
         title: 'Sample Listing',
       };
@@ -301,7 +301,7 @@ export function registerListingExpirationRoutes(app: Express) {
           images: Array.isArray(listing.images)
             ? listing.images
             : JSON.parse(listing.images || '[]'),
-          sellerId: listing.sellerId,
+          userId: listing.sellerId,
           createdAt: listing.createdAt,
           latitude: listing.latitude,
           longitude: listing.longitude,
@@ -330,13 +330,13 @@ export function registerListingExpirationRoutes(app: Express) {
   });
 
   /**
-   * GET /api/listings/seller/:sellerId/expiring-soon
-   * Get listings expiring in next N days (for seller notification)
+   * GET /api/listings/user/:userId/expiring-soon
+   * Get listings expiring in next N days (for user notification)
    * Query: ?daysWindow=7
    */
-  app.get('/api/listings/seller/:sellerId/expiring-soon', async (req: Request, res: Response) => {
+  app.get('/api/listings/user/:userId/expiring-soon', async (req: Request, res: Response) => {
     try {
-      const { sellerId } = req.params;
+      const { userId } = req.params;
       const { daysWindow = 7 } = req.query;
 
       // TODO: Fetch listings expiring within the window
@@ -349,7 +349,7 @@ export function registerListingExpirationRoutes(app: Express) {
 
       return res.json({
         success: true,
-        sellerId,
+        userId,
         daysWindow: parseInt(daysWindow as string),
         expiringListings: mockResults,
         message: mockResults.length === 0 ? 'No listings expiring soon' : undefined,

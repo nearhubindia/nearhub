@@ -62,13 +62,13 @@ export async function getActiveListing(
     limit?: number;
     offset?: number;
     category?: string;
-    sellerId?: string;
+    ownerId?: string;
     latitude?: number;
     longitude?: number;
     radiusKm?: number;
   } = {}
 ): Promise<Listing[]> {
-  const { limit = 50, offset = 0, category, sellerId, latitude, longitude, radiusKm } = opts;
+  const { limit = 50, offset = 0, category, ownerId, latitude, longitude, radiusKm } = opts;
 
   const conditions = [
     eq(listings.isActive, true),
@@ -80,8 +80,8 @@ export async function getActiveListing(
     conditions.push(eq(listings.category, category));
   }
 
-  if (sellerId) {
-    conditions.push(eq(listings.sellerId, sellerId));
+  if (ownerId) {
+    conditions.push(eq(listings.sellerId, ownerId));
   }
 
   // Build base query
@@ -89,7 +89,11 @@ export async function getActiveListing(
     .select()
     .from(listings)
     .where(and(...conditions))
-    .orderBy(desc(listings.createdAt))
+    .orderBy(
+      sql`CASE WHEN ${listings.boostedUntil} IS NOT NULL AND ${listings.boostedUntil} > now() THEN 1 ELSE 0 END DESC`,
+      desc(listings.featured),
+      desc(listings.createdAt)
+    )
     .limit(limit)
     .offset(offset);
 
@@ -111,7 +115,8 @@ export async function getActiveListing(
 
     // Filter results by distance (since we can't use HAVING without GROUP BY)
     const filtered = allResults.filter((listing) => {
-      if (!listing.latitude || !listing.longitude) return false;
+      // Keep non-geotagged listings visible (e.g., admin-created/manual entries).
+      if (!listing.latitude || !listing.longitude) return true;
       const lat1 = parseFloat(listing.latitude);
       const lon1 = parseFloat(listing.longitude);
       const lat2 = latitude;
@@ -140,15 +145,41 @@ export async function getActiveListing(
 }
 
 /**
- * Get listings by seller
+ * Boost a listing for a fixed number of hours.
  */
-export async function getListingsBySeller(sellerId: string): Promise<Listing[]> {
+export async function boostListingForHours(
+  id: string,
+  hours: number
+): Promise<Listing | null> {
+  const safeHours = Number.isFinite(hours) && hours > 0 ? Math.floor(hours) : 24;
+  const boostedUntil = new Date(Date.now() + safeHours * 60 * 60 * 1000);
+
+  const result = await db
+    .update(listings)
+    .set({
+      featured: true,
+      boostedUntil,
+      boostCount: sql`${listings.boostCount} + 1`,
+      updatedAt: new Date(),
+    } as any)
+    .where(eq(listings.id, id))
+    .returning();
+
+  return result.length > 0 ? result[0] : null;
+}
+
+/**
+ * Get listings by user
+ */
+export async function getListingsByUser(userId: string): Promise<Listing[]> {
   return await db
     .select()
     .from(listings)
-    .where(eq(listings.sellerId, sellerId))
+    .where(eq(listings.sellerId, userId))
     .orderBy(desc(listings.createdAt));
 }
+
+export const getListingsBySeller = getListingsByUser;
 
 /**
  * Get listings by subscription tier
@@ -183,6 +214,10 @@ export async function updateListing(
 
   if (normalizedUpdates.status === 'active') {
     normalizedUpdates.isActive = true;
+  }
+
+  if (normalizedUpdates.status === 'pending') {
+    normalizedUpdates.isActive = false;
   }
 
   const images =

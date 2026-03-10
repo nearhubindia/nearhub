@@ -1,6 +1,5 @@
 import type { Express, Request, Response } from 'express';
 import {
-  createListing,
   getActiveListing,
   getListingById,
   updateListing,
@@ -9,11 +8,13 @@ import {
 import {
   trackListingView,
   getListingAnalytics,
-  getSellerAnalytics,
+  getUserAnalytics,
   getViewMilestones,
 } from '../services/analytics';
-import { notifyNewListing, notifyViewMilestone } from '../../../shared/services/auto-notifications';
-import { listingCreationLimiter } from '../../../lib/rate-limiter';
+import {
+  notifyViewMilestone,
+  notifyAdminListingPendingReview,
+} from '../../../shared/services/auto-notifications';
 
 function parseJsonField(value: unknown): unknown[] {
   if (typeof value === 'string') return JSON.parse(value || '[]');
@@ -25,147 +26,39 @@ function normalizeOwnerId(value: unknown): string {
   return value.trim().replace(/[\s-]/g, '').toLowerCase();
 }
 
+function hasLocalDeviceUri(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const uri = value.trim().toLowerCase();
+  return (
+    uri.startsWith('file://') ||
+    uri.startsWith('content://') ||
+    uri.startsWith('ph://') ||
+    uri.startsWith('assets-library://')
+  );
+}
+
+function normalizeStatus(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
 export function registerListingRoutes(app: Express) {
   /**
-   * POST /api/listings
-   * Create a new listing (DEPRECATED - Use POST /api/subscriptions/create-listing instead)
-   *
-   * ⚠️ WARNING: This endpoint bypasses subscription limits and coupon validation.
-   * It should only be used for:
-   * - Admin testing
-   * - System-generated listings
-   * - Migration scripts
-   *
-   * For production listing creation, use /api/subscriptions/create-listing which:
-   * - Validates subscription limits
-   * - Supports coupon codes
-   * - Enforces tier restrictions (video uploads, featured listings, etc.)
-   * - Tracks subscription usage
-   */
-  app.post('/api/listings', listingCreationLimiter, async (req: Request, res: Response) => {
-    try {
-      const {
-        title,
-        description,
-        category,
-        price,
-        condition,
-        location,
-        images,
-        videos,
-        durationDays,
-        priceUnit,
-        listingType,
-        pincode,
-        latitude,
-        longitude,
-      } = req.body;
-      const sellerId = (req as any).userId || 'unknown';
-
-      // Log deprecation warning
-      console.warn(
-        '[Listings] ⚠️ DEPRECATED: POST /api/listings was called. Use /api/subscriptions/create-listing instead.'
-      );
-      console.warn('[Listings] Caller:', sellerId, 'IP:', req.ip);
-
-      // Validate required fields
-      if (!title || !description || !category || !location) {
-        return res.status(400).json({
-          success: false,
-          error: 'Missing required fields: title, description, category, location',
-        });
-      }
-
-      // Parse and validate price
-      const parsedPrice = parseFloat(price) || 0;
-      if (parsedPrice < 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'Price must be non-negative',
-        });
-      }
-
-      try {
-        // Use the createListing service to save to database
-        const listing = await createListing({
-          sellerId,
-          title: title.trim(),
-          description: description.trim(),
-          category,
-          price: parsedPrice.toString(), // Convert to string for decimal input
-          condition: condition || 'good',
-          location,
-          priceUnit,
-          listingType: listingType || 'mixed',
-          pincode,
-          latitude: latitude ? parseFloat(latitude).toString() : undefined,
-          longitude: longitude ? parseFloat(longitude).toString() : undefined,
-          images: images || [],
-          videos: videos || [],
-          status: 'active',
-          isActive: true,
-          durationDays: durationDays || 30, // Default 30 days
-        } as any);
-
-        // Send push notification for new listing (async, don't wait)
-        notifyNewListing(listing).catch((error) => {
-          console.error('[Listings] Failed to send new listing notification:', error);
-        });
-
-        return res.status(201).json({
-          success: true,
-          data: {
-            id: listing.id,
-            sellerId: listing.sellerId,
-            title: listing.title,
-            description: listing.description,
-            category: listing.category,
-            price: listing.price,
-            condition: listing.condition,
-            location: listing.location,
-            status: listing.status,
-            images: Array.isArray(listing.images)
-              ? listing.images
-              : JSON.parse(listing.images || '[]'),
-            videos: Array.isArray(listing.videos)
-              ? listing.videos
-              : JSON.parse(listing.videos || '[]'),
-            createdAt: listing.createdAt?.toISOString() || new Date().toISOString(),
-            expiresAt: listing.expiresAt?.toISOString() || null,
-          },
-        });
-      } catch (validationError) {
-        console.error('[Listings] Validation error:', validationError);
-        const errorMessage =
-          validationError instanceof Error ? validationError.message : 'Validation failed';
-        return res.status(400).json({
-          success: false,
-          error: errorMessage.includes('validation') ? errorMessage : 'Invalid listing data',
-        });
-      }
-    } catch (error) {
-      console.error('[Listings] Error creating listing:', error);
-      if (error instanceof Error) {
-        console.error('[Listings] Error details:', error.message);
-      }
-      return res.status(500).json({ success: false, error: 'Failed to create listing' });
-    }
-  });
-
-  /**
    * GET /api/listings
-   * Query: limit, offset, category, sellerId, latitude, longitude, radius
+   * Query: limit, offset, category, userId, latitude, longitude, radius
    */
   app.get('/api/listings', async (req: Request, res: Response) => {
     try {
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 500);
       const offset = parseInt(req.query.offset as string) || 0;
+      const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined;
+      const maxPrice = req.query.maxPrice ? parseFloat(req.query.maxPrice as string) : undefined;
       const category = Array.isArray(req.query.category)
         ? (req.query.category[0] as string)
         : (req.query.category as string | undefined);
-      const sellerId = Array.isArray(req.query.sellerId)
-        ? (req.query.sellerId[0] as string)
-        : (req.query.sellerId as string | undefined);
+      const userId = Array.isArray(req.query.userId)
+        ? (req.query.userId[0] as string)
+        : (req.query.userId as string | undefined);
+      const ownerId = userId;
 
       // Geo-filtering parameters
       const latitude = req.query.latitude ? parseFloat(req.query.latitude as string) : undefined;
@@ -176,19 +69,32 @@ export function registerListingRoutes(app: Express) {
         limit,
         offset,
         category,
-        sellerId,
+        ownerId,
         latitude,
         longitude,
         radiusKm,
       });
 
+      const priceFilteredListings = listings.filter((listing) => {
+        const numericPrice =
+          typeof listing.price === 'string' ? parseFloat(listing.price) : Number(listing.price);
+        if (Number.isNaN(numericPrice)) return false;
+        if (typeof minPrice === 'number' && numericPrice < minPrice) return false;
+        if (typeof maxPrice === 'number' && numericPrice > maxPrice) return false;
+        return true;
+      });
+
       return res.json({
         success: true,
-        data: listings.map((l) => ({
-          ...l,
-          images: parseJsonField(l.images),
-          videos: parseJsonField(l.videos),
-        })),
+        data: priceFilteredListings.map((l) => {
+          const { sellerId: _sellerId, ...listingWithoutSellerId } = l as any;
+          return {
+            ...listingWithoutSellerId,
+            userId: l.sellerId,
+            images: parseJsonField(l.images),
+            videos: parseJsonField(l.videos),
+          };
+        }),
         limit,
         offset,
       });
@@ -220,11 +126,15 @@ export function registerListingRoutes(app: Express) {
       return res.json({
         success: true,
         category,
-        listings: listings.map((l) => ({
-          ...l,
-          images: parseJsonField(l.images),
-          videos: parseJsonField(l.videos),
-        })),
+        listings: listings.map((l) => {
+          const { sellerId: _sellerId, ...listingWithoutSellerId } = l as any;
+          return {
+            ...listingWithoutSellerId,
+            userId: l.sellerId,
+            images: parseJsonField(l.images),
+            videos: parseJsonField(l.videos),
+          };
+        }),
         pagination: { limit, offset, total: listings.length },
       });
     } catch (error) {
@@ -265,11 +175,15 @@ export function registerListingRoutes(app: Express) {
       }
       return res.json({
         success: true,
-        listing: {
-          ...listing,
-          images: parseJsonField(listing.images),
-          videos: parseJsonField(listing.videos),
-        },
+        listing: (() => {
+          const { sellerId: _sellerId, ...listingWithoutSellerId } = listing as any;
+          return {
+            ...listingWithoutSellerId,
+            userId: listing.sellerId,
+            images: parseJsonField(listing.images),
+            videos: parseJsonField(listing.videos),
+          };
+        })(),
       });
     } catch (error) {
       console.error('[Listings] Error fetching listing:', error);
@@ -303,9 +217,54 @@ export function registerListingRoutes(app: Express) {
       }
 
       // Prevent editing certain fields after approval
-      const restrictedFields = ['id', 'sellerId', 'createdAt', 'viewCount'];
+      const restrictedFields = ['id', 'userId', 'createdAt', 'viewCount'];
       const sanitizedUpdates = { ...req.body };
       restrictedFields.forEach((field) => delete sanitizedUpdates[field]);
+
+      // If a seller edits an already approved listing, route it back to admin review.
+      // Status-only actions (e.g. mark sold) should not trigger re-approval.
+      const moderationSensitiveFields = new Set([
+        // Re-approval should only happen for core listing media/content changes.
+        'images',
+        'videos',
+      ]);
+      const hasModerationSensitiveChanges = Object.keys(sanitizedUpdates).some((field) =>
+        moderationSensitiveFields.has(field)
+      );
+      const currentStatus = normalizeStatus(existingListing.status);
+      const isApprovedLiveListing =
+        Boolean(existingListing.isActive) && currentStatus !== 'pending' && currentStatus !== 'rejected';
+      const shouldReapproveAfterEdit =
+        isApprovedLiveListing && !(req as any).isAdmin && hasModerationSensitiveChanges;
+
+      if (shouldReapproveAfterEdit) {
+        sanitizedUpdates.status = 'pending';
+        sanitizedUpdates.isActive = false;
+      }
+
+      if (
+        Array.isArray(sanitizedUpdates.images) &&
+        sanitizedUpdates.images.some((item: unknown) => hasLocalDeviceUri(item))
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'One or more images are local device paths. Please reselect images and upload again.',
+          code: 'INVALID_IMAGE_URI',
+        });
+      }
+
+      if (
+        Array.isArray(sanitizedUpdates.videos) &&
+        sanitizedUpdates.videos.some((item: unknown) => hasLocalDeviceUri(item))
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'One or more videos are local device paths. Please re-upload videos and try again.',
+          code: 'INVALID_VIDEO_URI',
+        });
+      }
 
       if (sanitizedUpdates.status === 'sold') {
         sanitizedUpdates.isActive = false;
@@ -315,9 +274,29 @@ export function registerListingRoutes(app: Express) {
         sanitizedUpdates.isActive = true;
       }
 
+      if (sanitizedUpdates.status === 'pending') {
+        sanitizedUpdates.isActive = false;
+      }
+
       const updated = await updateListing(listingId, sanitizedUpdates);
       if (!updated) {
         return res.status(404).json({ success: false, error: 'Failed to update listing' });
+      }
+
+      // If seller resubmits a rejected listing, or edits an approved listing, notify admins again.
+      if (
+        (existingListing.status === 'rejected' && sanitizedUpdates.status === 'pending') ||
+        shouldReapproveAfterEdit
+      ) {
+        notifyAdminListingPendingReview({
+          listingId: updated.id,
+          listingTitle: updated.title,
+          userId: updated.sellerId,
+          location: updated.location || undefined,
+          category: updated.category || undefined,
+        }).catch((error) =>
+          console.error('[Listings] Failed to notify admins for resubmitted listing:', error)
+        );
       }
 
       return res.json({
@@ -438,24 +417,27 @@ export function registerListingRoutes(app: Express) {
     }
   });
 
-  /**
-   * GET /api/sellers/:sellerId/analytics
-   * Get comprehensive analytics for all seller's listings
-   */
-  app.get('/api/sellers/:sellerId/analytics', async (req: Request, res: Response) => {
+  const getUserAnalyticsHandler = async (req: Request, res: Response, ownerId: string) => {
     try {
-      const sellerId = String(req.params.sellerId);
-
       // Optional: Add authorization check to ensure user can only access their own analytics
-      // if ((req as any).userId !== sellerId) {
+      // if ((req as any).userId !== ownerId) {
       //   return res.status(403).json({ success: false, error: 'Unauthorized' });
       // }
 
-      const analytics = await getSellerAnalytics(sellerId);
+      const analytics = await getUserAnalytics(ownerId);
       return res.json({ success: true, data: analytics });
     } catch (error) {
-      console.error('[Listings] Error fetching seller analytics:', error);
-      return res.status(500).json({ success: false, error: 'Failed to fetch seller analytics' });
+      console.error('[Listings] Error fetching user analytics:', error);
+      return res.status(500).json({ success: false, error: 'Failed to fetch user analytics' });
     }
+  };
+
+  /**
+   * GET /api/users/:userId/analytics
+   * Get comprehensive analytics for all user listings
+   */
+  app.get('/api/users/:userId/analytics', async (req: Request, res: Response) => {
+    return getUserAnalyticsHandler(req, res, String(req.params.userId));
   });
+
 }

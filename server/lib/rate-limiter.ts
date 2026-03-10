@@ -3,6 +3,7 @@
  * Protects API endpoints from abuse and DDoS attacks
  */
 import rateLimit from 'express-rate-limit';
+import { ipKeyGenerator } from 'express-rate-limit';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
@@ -25,7 +26,7 @@ export const generalLimiter = rateLimit({
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  keyGenerator: (req) => req.get('x-user-id') || req.ip || 'unknown',
+  keyGenerator: (req) => req.get('x-user-id') || ipKeyGenerator(req.ip || ''),
   skip: (req) => {
     const requestPath = getRequestPath(req);
 
@@ -129,12 +130,17 @@ export const listingCreationLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const requestWithUser = req as typeof req & { userId?: string };
-    const sellerId = typeof req.body?.sellerId === 'string' ? req.body.sellerId : undefined;
-    return requestWithUser.userId || req.get('x-user-id') || sellerId || req.ip || 'unknown';
+    const userId = typeof req.body?.userId === 'string' ? req.body.userId : undefined;
+    return (
+      requestWithUser.userId ||
+      req.get('x-user-id') ||
+      userId ||
+      ipKeyGenerator(req.ip || '')
+    );
   },
   skip: (req) => {
     // Do not apply listing/day limits to admin-created listings
-    const sellerId = typeof req.body?.sellerId === 'string' ? req.body.sellerId : '';
-    return sellerId.startsWith('admin');
+    const ownerId = typeof req.body?.userId === 'string' ? req.body.userId : '';
+    return ownerId.startsWith('admin');
   },
 });

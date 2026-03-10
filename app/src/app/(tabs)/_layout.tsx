@@ -3,6 +3,7 @@ import { BlurView } from 'expo-blur';
 import { Platform, StyleSheet, useColorScheme } from 'react-native';
 import React from 'react';
 import { Feather, Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/colors';
 import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
@@ -10,6 +11,12 @@ import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
 function ClassicTabLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const insets = useSafeAreaInsets();
+  const baseTabHeight = Platform.OS === 'web' ? responsiveModerateScale(74) : responsiveModerateScale(62);
+  const bottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
+  const tabBarHeight = baseTabHeight + bottomInset;
+  const tabBarPaddingBottom =
+    Platform.OS === 'web' ? 0 : Math.max(bottomInset, responsiveModerateScale(8));
 
   return (
     <Tabs
@@ -19,6 +26,9 @@ function ClassicTabLayout() {
         headerShown: false,
         tabBarStyle: {
           position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
           backgroundColor: Platform.select({
             ios: 'transparent',
             android: isDark ? '#000' : '#fff',
@@ -26,7 +36,9 @@ function ClassicTabLayout() {
           }),
           borderTopWidth: 0,
           elevation: 0,
-          height: Platform.OS === 'web' ? responsiveModerateScale(74) : responsiveModerateScale(62),
+          height: tabBarHeight,
+          paddingTop: Platform.OS === 'web' ? 4 : 6,
+          paddingBottom: tabBarPaddingBottom,
         },
         tabBarBackground: () =>
           Platform.OS === 'ios' ? (
@@ -39,7 +51,7 @@ function ClassicTabLayout() {
         tabBarLabelStyle: {
           fontFamily: 'Inter_500Medium',
           fontSize: responsiveFont(11),
-          marginBottom: Platform.OS === 'web' ? 6 : 2,
+          marginBottom: Platform.OS === 'web' ? 6 : 0,
         },
         tabBarIconStyle: {
           marginBottom: Platform.OS === 'web' ? 2 : 0,

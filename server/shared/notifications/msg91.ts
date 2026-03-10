@@ -11,20 +11,25 @@
  * Environment Variables:
  * - MSG91_API_KEY: Your MSG91 authentication key
  * - MSG91_SENDER_ID: Sender ID for SMS (optional, default: "NRHUB")
- * - MSG91_ROUTE: Route type (optional, default: 4 for promotional)
+ * - MSG91_ROUTE: Route type (optional; set only if required by your MSG91 account)
+ * - MSG91_TEMPLATE_ID: DLT template ID for compliant OTP delivery in India
  * - MSG91_ENABLED: Enable/disable service (optional, default: true)
  */
 
 import axios, { AxiosError } from 'axios';
 
 // MSG91 API Configuration
-// Using v2 API endpoint which is the current stable version
-const MSG91_API_URL = 'https://api.msg91.com/api/v2/send';
+const MSG91_SMS_API_URL = 'https://api.msg91.com/api/v2/send';
+const MSG91_SMS_TEMPLATE_API_URL = 'https://api.msg91.com/api/v2/sendsms';
+const MSG91_FLOW_API_URL = 'https://control.msg91.com/api/v5/flow/';
 
 export interface MSG91Config {
   apiKey: string;
   senderId: string;
   route?: number;
+  templateId?: string;
+  otpTemplateId?: string;
+  flowOtpKey?: string;
   enabled: boolean;
 }
 
@@ -42,6 +47,7 @@ export interface SMSSendRequest {
   message: string;
   senderId?: string;
   route?: number;
+  templateId?: string;
 }
 
 class MSG91Service {
@@ -51,7 +57,10 @@ class MSG91Service {
     this.config = {
       apiKey: process.env.MSG91_API_KEY || '',
       senderId: process.env.MSG91_SENDER_ID || 'NRHUB',
-      route: parseInt(process.env.MSG91_ROUTE || '4'), // 4 = Transactional
+      route: process.env.MSG91_ROUTE ? parseInt(process.env.MSG91_ROUTE, 10) : undefined,
+      templateId: process.env.MSG91_TEMPLATE_ID || '',
+      otpTemplateId: process.env.MSG91_OTP_TEMPLATE_ID || '',
+      flowOtpKey: process.env.MSG91_FLOW_OTP_KEY || 'otp',
       enabled: process.env.MSG91_ENABLED !== 'false', // default enabled
     };
 
@@ -77,11 +86,13 @@ class MSG91Service {
       enabled: this.config.enabled,
       configured: this.isConfigured(),
       senderId: this.config.senderId,
+      templateIdConfigured: !!this.config.templateId,
+      otpTemplateIdConfigured: !!this.config.otpTemplateId,
     };
   }
 
   /**
-   * Send OTP via MSG91
+   * Send OTP via MSG91 v5 Flow API
    *
    * Example:
    * const response = await msg91.sendOTP({
@@ -90,7 +101,6 @@ class MSG91Service {
    * });
    */
   async sendOTP(request: { phone: string; otp: string }): Promise<MSG91Response> {
-    // Validate configuration
     if (!this.isConfigured()) {
       console.error('[MSG91] Service not properly configured');
       return {
@@ -99,34 +109,119 @@ class MSG91Service {
       };
     }
 
+    if (!request.phone) {
+      return {
+        success: false,
+        error: 'Phone number required',
+      };
+    }
+
+    if (!request.otp || !/^\d{6}$/.test(request.otp)) {
+      return {
+        success: false,
+        error: 'Invalid OTP format (must be 6 digits)',
+      };
+    }
+
+    const flowTemplateId = this.config.otpTemplateId?.trim();
+    if (!flowTemplateId) {
+      return {
+        success: false,
+        error: 'MSG91_OTP_TEMPLATE_ID is required for Flow API',
+      };
+    }
+
+    let phoneNumber = request.phone.toString();
+    if (!phoneNumber.startsWith('91') && !phoneNumber.startsWith('+91')) {
+      phoneNumber = '91' + phoneNumber;
+    }
+    phoneNumber = phoneNumber.replace(/^\+/, '');
+
     try {
-      // Validate phone number
-      if (!request.phone) {
+      console.log(`[MSG91] Sending OTP via v5 flow API to ${phoneNumber}...`);
+      const response = await axios.post(
+        MSG91_FLOW_API_URL,
+        {
+          template_id: flowTemplateId,
+          short_url: '0',
+          recipients: [
+            {
+              mobiles: phoneNumber,
+              mobile: phoneNumber,
+              phone: phoneNumber,
+              otp: request.otp,
+              OTP: request.otp,
+              var: request.otp,
+              var1: request.otp,
+              VAR1: request.otp,
+              Param1: request.otp,
+              numeric: request.otp,
+              [this.config.flowOtpKey || 'otp']: request.otp,
+            },
+          ],
+        },
+        {
+          headers: {
+            authkey: this.config.apiKey,
+            'content-type': 'application/json',
+            accept: 'application/json',
+          },
+        }
+      );
+
+      console.log('[MSG91] Flow API Response:', response.data);
+      const responseData = response.data;
+      const isSuccessful =
+        responseData?.type === 'success' ||
+        responseData?.success === true ||
+        responseData?.status === 'success';
+
+      if (isSuccessful) {
+        const messageId =
+          responseData?.message ||
+          responseData?.request_id ||
+          responseData?.requestId ||
+          'unknown';
         return {
-          success: false,
-          error: 'Phone number required',
+          success: true,
+          messageId: messageId.toString(),
+          requestId: responseData?.request_id?.toString(),
+          data: responseData,
         };
       }
 
-      // Validate OTP
-      if (!request.otp || !/^\d{6}$/.test(request.otp)) {
-        return {
-          success: false,
-          error: 'Invalid OTP format (must be 6 digits)',
-        };
-      }
-
-      // Format message
-      const message = this.formatOTPMessage(request.otp);
-
-      // Send SMS
-      const response = await this.sendSMS({
-        phone: request.phone,
-        message,
-      });
-
-      return response;
+      const providerError =
+        responseData?.message ||
+        responseData?.error ||
+        responseData?.reason ||
+        responseData?.description;
+      return {
+        success: false,
+        error:
+          typeof providerError === 'string' && providerError.trim().length > 0
+            ? providerError
+            : 'Unexpected response format from MSG91 Flow API',
+        data: responseData,
+      };
     } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const axiosError = error as AxiosError<any>;
+        console.error('[MSG91] Flow API Error:', {
+          status: axiosError.response?.status,
+          data: axiosError.response?.data,
+          message: axiosError.message,
+        });
+        return {
+          success: false,
+          statusCode: axiosError.response?.status?.toString(),
+          error:
+            axiosError.response?.data?.message ||
+            axiosError.response?.data?.error ||
+            axiosError.message,
+          data: axiosError.response?.data,
+        };
+      }
+
       console.error('[MSG91] Error sending OTP:', error);
       return {
         success: false,
@@ -173,16 +268,24 @@ class MSG91Service {
       console.log(`[MSG91] Sending SMS to ${phoneNumber}...`);
 
       // Prepare request parameters
-      const params = {
+      const templateId = request.templateId || this.config.templateId;
+      const params: Record<string, string | number> = {
         authkey: this.config.apiKey,
         mobiles: phoneNumber,
         message: request.message,
         sender: request.senderId || this.config.senderId,
         response: 'json', // Request JSON response format
       };
+      const route = request.route || this.config.route;
+      if (typeof route === 'number') {
+        params.route = route;
+      }
+      if (templateId) {
+        params.DLT_TE_ID = templateId;
+      }
 
       // Make API request
-      const response = await axios.get(MSG91_API_URL, { params });
+      const response = await axios.get(MSG91_SMS_API_URL, { params });
 
       console.log('[MSG91] API Response:', response.data);
 
@@ -231,18 +334,20 @@ class MSG91Service {
         }
       }
 
-      // If we get here and response status is 200, consider it success
-      if (response.status === 200 && responseData) {
-        return {
-          success: true,
-          messageId: typeof responseData === 'string' ? responseData : 'unknown',
-          data: responseData,
-        };
-      }
-
+      // Non-success payloads can still come with HTTP 200; surface provider error.
+      const providerError =
+        (typeof responseData === 'object' &&
+          (responseData.error ||
+            responseData.message ||
+            responseData.reason ||
+            responseData.description)) ||
+        undefined;
       return {
         success: false,
-        error: 'Unexpected response format from MSG91',
+        error:
+          typeof providerError === 'string' && providerError.trim().length > 0
+            ? providerError
+            : 'Unexpected response format from MSG91',
         data: responseData,
       };
     } catch (error) {
@@ -270,11 +375,12 @@ class MSG91Service {
   }
 
   /**
-   * Format OTP message
+   * Format OTP message to match approved DLT text.
    */
   private formatOTPMessage(otp: string): string {
-    return `Your OTP is ${otp}. Do not share with anyone. Valid for 5 minutes.`;
+    return `Dear User, your OTP for NearHub authentication is ${otp}. This OTP is valid for 5 minutes. Do not share this OTP with anyone. - NearHub`;
   }
+
 }
 
 // Export singleton instance

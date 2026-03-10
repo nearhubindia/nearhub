@@ -65,6 +65,11 @@ export const adminKeys = {
   // Banners
   banners: () => [...adminKeys.all, 'banners'] as const,
   bannersList: (screen?: string) => [...adminKeys.banners(), { screen }] as const,
+
+  // Contact Submissions
+  contactSubmissions: () => [...adminKeys.all, 'contact-submissions'] as const,
+  contactSubmissionsList: (limit?: number) =>
+    [...adminKeys.contactSubmissions(), { limit }] as const,
 };
 
 // ============================================================================
@@ -76,12 +81,35 @@ const getAuthHeaders = (): HeadersInit => ({
   Authorization: `Bearer ${localStorage.getItem('adminToken')}`,
 });
 
-const handleResponse = async <T = unknown>(response: Response): Promise<T> => {
-  if (!response.ok) {
-    throw new Error(`API Error: ${response.statusText}`);
+export class ApiError extends Error {
+  status: number;
+  data: unknown;
+
+  constructor(status: number, message: string, data?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
   }
-  const json = await response.json();
-  return json as T;
+}
+
+const handleResponse = async <T = unknown>(response: Response): Promise<T> => {
+  let payload: any = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const message =
+      payload?.error ||
+      payload?.message ||
+      `API Error (${response.status}): ${response.statusText || 'Request failed'}`;
+    throw new ApiError(response.status, message, payload);
+  }
+
+  return payload as T;
 };
 
 // ============================================================================
@@ -89,10 +117,15 @@ const handleResponse = async <T = unknown>(response: Response): Promise<T> => {
 // ============================================================================
 
 export const listingsApi = {
-  async getListings(params?: { limit?: number; offset?: number }): Promise<unknown> {
+  async getListings(params?: {
+    limit?: number;
+    offset?: number;
+    status?: string;
+  }): Promise<unknown> {
     const queryString = new URLSearchParams();
     if (params?.limit) queryString.append('limit', params.limit.toString());
     if (params?.offset) queryString.append('offset', params.offset.toString());
+    if (params?.status) queryString.append('status', params.status);
 
     const response = await fetch(`${API_BASE_URL}/api/admin/listings?${queryString}`, {
       headers: getAuthHeaders(),
@@ -108,7 +141,7 @@ export const listingsApi = {
   },
 
   async createListing(data: Record<string, unknown>): Promise<unknown> {
-    const response = await fetch(`${API_BASE_URL}/api/listings`, {
+    const response = await fetch(`${API_BASE_URL}/api/admin/listings`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
@@ -133,9 +166,22 @@ export const listingsApi = {
     return handleResponse(response);
   },
 
+  async reviewListing(
+    id: string,
+    action: 'approve' | 'reject',
+    reason?: string
+  ): Promise<unknown> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/listings/${id}/review`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ action, reason }),
+    });
+    return handleResponse(response);
+  },
+
   async getListingsByCategory(category?: string): Promise<unknown> {
     const query = category ? `?category=${encodeURIComponent(category)}` : '';
-    const response = await fetch(`${API_BASE_URL}/api/listings${query}`, {
+    const response = await fetch(`${API_BASE_URL}/api/admin/listings${query}`, {
       headers: getAuthHeaders(),
     });
     return handleResponse(response);
@@ -258,7 +304,7 @@ export const spamDetectionApi = {
 
 export const videosApi = {
   async getVideos(): Promise<unknown> {
-    const response = await fetch(`${API_BASE_URL}/api/listings`, {
+    const response = await fetch(`${API_BASE_URL}/api/admin/listings`, {
       headers: getAuthHeaders(),
     });
     const result = await handleResponse<
@@ -279,14 +325,14 @@ export const videosApi = {
   },
 
   async getVideoById(id: string): Promise<unknown> {
-    const response = await fetch(`${API_BASE_URL}/api/listings/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/admin/listings/${id}`, {
       headers: getAuthHeaders(),
     });
     return handleResponse(response);
   },
 
   async deleteVideo(videoId: string): Promise<unknown> {
-    const response = await fetch(`${API_BASE_URL}/api/listings/${videoId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/admin/listings/${videoId}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -294,7 +340,7 @@ export const videosApi = {
   },
 
   async toggleVideoStatus(videoId: string): Promise<unknown> {
-    const response = await fetch(`${API_BASE_URL}/api/listings/${videoId}/toggle-status`, {
+    const response = await fetch(`${API_BASE_URL}/api/admin/listings/${videoId}/toggle-status`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
     });
@@ -457,5 +503,112 @@ export const bannersApi = {
       headers: getAuthHeaders(),
     });
     return handleResponse<{ success: boolean; message: string }>(response);
+  },
+};
+
+// ============================================================================
+// Contact Submissions API
+// ============================================================================
+
+export interface ContactSubmission {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  subject: string;
+  message: string;
+  source: string;
+  contacted: boolean;
+  adminComments?: string | null;
+  contactedAt?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  createdAt: string | null;
+  comments?: ContactSubmissionComment[];
+}
+
+export interface ContactSubmissionComment {
+  id: string;
+  submissionId: string;
+  comment: string;
+  createdBy?: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+interface ContactSubmissionsResponse {
+  success: boolean;
+  submissions: ContactSubmission[];
+  total: number;
+}
+
+interface ContactSubmissionUpdateResponse {
+  success: boolean;
+  submission: ContactSubmission;
+}
+
+interface ContactSubmissionCommentResponse {
+  success: boolean;
+  comment: ContactSubmissionComment;
+}
+
+export const contactSubmissionsApi = {
+  async getContactSubmissions(limit = 100): Promise<ContactSubmissionsResponse> {
+    const query = new URLSearchParams({ limit: String(limit) }).toString();
+    const response = await fetch(`${API_BASE_URL}/api/admin/contact-submissions?${query}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse<ContactSubmissionsResponse>(response);
+  },
+
+  async updateContactSubmission(
+    id: string,
+    data: { contacted?: boolean; adminComments?: string }
+  ): Promise<ContactSubmissionUpdateResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/contact-submissions/${id}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ContactSubmissionUpdateResponse>(response);
+  },
+
+  async addComment(
+    submissionId: string,
+    comment: string
+  ): Promise<ContactSubmissionCommentResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/contact-submissions/${submissionId}/comments`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ comment }),
+    });
+    return handleResponse<ContactSubmissionCommentResponse>(response);
+  },
+
+  async updateComment(
+    submissionId: string,
+    commentId: string,
+    comment: string
+  ): Promise<ContactSubmissionCommentResponse> {
+    const response = await fetch(
+      `${API_BASE_URL}/api/admin/contact-submissions/${submissionId}/comments/${commentId}`,
+      {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ comment }),
+      }
+    );
+    return handleResponse<ContactSubmissionCommentResponse>(response);
+  },
+
+  async deleteComment(submissionId: string, commentId: string): Promise<{ success: boolean }> {
+    const response = await fetch(
+      `${API_BASE_URL}/api/admin/contact-submissions/${submissionId}/comments/${commentId}`,
+      {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      }
+    );
+    return handleResponse<{ success: boolean }>(response);
   },
 };

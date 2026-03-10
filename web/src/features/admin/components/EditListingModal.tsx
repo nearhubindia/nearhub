@@ -20,10 +20,11 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
     category: listing?.category ?? 'Electronics',
     condition: listing?.condition ?? 'good',
     status: listing?.status ?? 'active',
+    contactPhone: listing?.contactPhone ?? '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [enhancements, setEnhancements] = useState<Enhancements>({
-    featured: listing?.enhancements?.featured || false,
+    featured: Boolean(listing?.featured || listing?.enhancements?.featured),
     priority: listing?.enhancements?.priority || false,
     verified: listing?.enhancements?.verified || false,
     topSearch: listing?.enhancements?.topSearch || false,
@@ -31,6 +32,7 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [isSuggestingCategory, setIsSuggestingCategory] = useState(false);
+  const [sponsored, setSponsored] = useState(Boolean(listing?.sponsored));
 
   const categories = ['Electronics', 'Vehicles', 'Real Estate', 'Services', 'Jobs'];
   const conditions = ['new', 'like_new', 'good', 'fair', 'poor'];
@@ -106,6 +108,8 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
         category: formData.category,
         condition: formData.condition,
         status: formData.status as 'active' | 'sold' | 'pending',
+        contactPhone: String(formData.contactPhone || '').trim(),
+        sponsored,
         ...enhancements,
       };
 
@@ -286,6 +290,18 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                   <option value="sold">Sold</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-900 mb-2">
+                  Contact Number <span className="text-xs font-normal text-slate-500">Optional</span>
+                </label>
+                <input
+                  type="tel"
+                  value={formData.contactPhone}
+                  onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                  placeholder="e.g. 9876543210"
+                />
+              </div>
             </div>
           </div>
 
@@ -296,7 +312,26 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
             </h3>
 
             <div className="grid grid-cols-2 gap-4">
-              {/* Featured */}
+              {/* Sponsored */}
+              <div className="border border-slate-300 rounded-lg p-4 hover:border-amber-500 transition">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={sponsored}
+                    onChange={() => setSponsored((prev) => !prev)}
+                    className="w-5 h-5 rounded cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 font-bold text-slate-900">
+                      <Star size={18} className="text-amber-500" />
+                      Sponsored Tag
+                    </div>
+                    <p className="text-xs text-slate-600 mt-1">Separate from featured boost ranking</p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Sponsored */}
               <div className="border border-slate-300 rounded-lg p-4 hover:border-teal-500 transition">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
@@ -310,7 +345,9 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                       <Star size={18} className="text-amber-500" />
                       Featured Listing
                     </div>
-                    <p className="text-xs text-slate-600 mt-1">Highlight listing with star badge</p>
+                    <p className="text-xs text-slate-600 mt-1">
+                      Highlight listing with featured ranking
+                    </p>
                   </div>
                 </label>
               </div>
@@ -376,10 +413,15 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
             </div>
 
             {/* Active Enhancements Summary */}
-            {Object.values(enhancements).some((v) => v) && (
+            {(sponsored || Object.values(enhancements).some((v) => v)) && (
               <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
                 <p className="text-sm font-bold text-teal-900 mb-2">Active Enhancements:</p>
                 <div className="flex flex-wrap gap-2">
+                  {sponsored && (
+                    <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold">
+                      📢 Sponsored
+                    </span>
+                  )}
                   {enhancements.featured && (
                     <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold">
                       ⭐ Featured

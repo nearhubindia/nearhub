@@ -14,7 +14,32 @@ import {
   type InsertSubscriptionTier,
   type UserSubscription,
 } from '../../admin/models/admin-settings';
-import { eq, and, gt, lt, sql } from 'drizzle-orm';
+import { eq, and, gt, lt, sql, asc } from 'drizzle-orm';
+
+function toDecimalString(value: unknown): string | null | undefined {
+  if (value === null || value === undefined || value === '') return value as null | undefined;
+  if (typeof value === 'number') return value.toString();
+  return String(value);
+}
+
+export class SubscriptionTierInUseError extends Error {
+  statusCode: number;
+  details: {
+    activeSubscriptions: number;
+    totalSubscriptions: number;
+    linkedListings: number;
+  };
+
+  constructor(
+    message: string,
+    details: { activeSubscriptions: number; totalSubscriptions: number; linkedListings: number }
+  ) {
+    super(message);
+    this.name = 'SubscriptionTierInUseError';
+    this.statusCode = 409;
+    this.details = details;
+  }
+}
 
 /**
  * Get all active subscription tiers
@@ -46,8 +71,16 @@ export async function getSubscriptionTierById(tierId: string): Promise<Subscript
 export async function createSubscriptionTier(
   data: InsertSubscriptionTier
 ): Promise<SubscriptionTier> {
+  const normalizedData: InsertSubscriptionTier = {
+    ...data,
+    price: toDecimalString((data as any).price) as any,
+    monthlyPrice: toDecimalString((data as any).monthlyPrice) as any,
+    annualPrice: toDecimalString((data as any).annualPrice) as any,
+    offerPrice: toDecimalString((data as any).offerPrice) as any,
+  };
+
   // Validate schema
-  const validated = insertSubscriptionTierSchema.parse(data);
+  const validated = insertSubscriptionTierSchema.parse(normalizedData);
 
   // Ensure features is JSON stringified
   const features =
@@ -73,15 +106,23 @@ export async function updateSubscriptionTier(
   tierId: string,
   data: Partial<InsertSubscriptionTier>
 ): Promise<SubscriptionTier | null> {
+  const normalizedData: Partial<InsertSubscriptionTier> = {
+    ...data,
+    price: toDecimalString((data as any).price) as any,
+    monthlyPrice: toDecimalString((data as any).monthlyPrice) as any,
+    annualPrice: toDecimalString((data as any).annualPrice) as any,
+    offerPrice: toDecimalString((data as any).offerPrice) as any,
+  };
+
   const features =
-    data.features && typeof data.features !== 'string'
-      ? JSON.stringify(data.features)
-      : data.features;
+    normalizedData.features && typeof normalizedData.features !== 'string'
+      ? JSON.stringify(normalizedData.features)
+      : normalizedData.features;
 
   const result = await db
     .update(subscriptionTiers)
     .set({
-      ...data,
+      ...normalizedData,
       features,
       updatedAt: new Date(),
     } as any)
@@ -199,6 +240,11 @@ export async function createUserSubscription(
   invoiceId?: string,
   couponId?: string
 ): Promise<UserSubscription> {
+  const tier = await getSubscriptionTierById(subscriptionTierId);
+  const tierBoostCredits = tier
+    ? Number((tier as any).boostCredits || tier.featuredListingsPerMonth || 0)
+    : 0;
+
   // NO LONGER deleting existing subscriptions - users can have multiple!
 
   const result = await db
@@ -211,12 +257,122 @@ export async function createUserSubscription(
       orderId,
       invoiceId,
       couponId,
+      boostsRemaining: tierBoostCredits,
       status: 'pending', // Start as pending, activate after payment verification
       autoRenew: false,
     })
     .returning();
 
   return result[0];
+}
+
+/**
+ * Get total remaining boost credits from all active subscriptions
+ */
+export async function getUserBoostCreditsSummary(userId: string): Promise<{
+  total: number;
+  bySubscription: Array<{ subscriptionId: string; boostsRemaining: number; expiresAt: Date }>;
+}> {
+  const rows = await db
+    .select({
+      id: userSubscriptions.id,
+      boostsRemaining: userSubscriptions.boostsRemaining,
+      expiresAt: userSubscriptions.expiresAt,
+    })
+    .from(userSubscriptions)
+    .where(
+      and(
+        eq(userSubscriptions.userId, userId),
+        eq(userSubscriptions.status, 'active'),
+        gt(userSubscriptions.expiresAt, new Date()),
+        gt(userSubscriptions.boostsRemaining, 0)
+      )
+    )
+    .orderBy(asc(userSubscriptions.expiresAt));
+
+  const bySubscription = rows.map((r) => ({
+    subscriptionId: r.id,
+    boostsRemaining: Number(r.boostsRemaining || 0),
+    expiresAt: r.expiresAt,
+  }));
+
+  const total = bySubscription.reduce((sum, s) => sum + s.boostsRemaining, 0);
+  return { total, bySubscription };
+}
+
+/**
+ * Consume one boost credit from earliest-expiring active subscription.
+ * Returns null if no credits available.
+ */
+export async function consumeUserBoostCredit(
+  userId: string
+): Promise<{ subscriptionId: string; boostsRemaining: number } | null> {
+  const activeWithCredits = await db
+    .select({
+      id: userSubscriptions.id,
+      boostsRemaining: userSubscriptions.boostsRemaining,
+      expiresAt: userSubscriptions.expiresAt,
+    })
+    .from(userSubscriptions)
+    .where(
+      and(
+        eq(userSubscriptions.userId, userId),
+        eq(userSubscriptions.status, 'active'),
+        gt(userSubscriptions.expiresAt, new Date()),
+        gt(userSubscriptions.boostsRemaining, 0)
+      )
+    )
+    .orderBy(asc(userSubscriptions.expiresAt))
+    .limit(1);
+
+  if (activeWithCredits.length === 0) return null;
+
+  const target = activeWithCredits[0];
+  const updateResult = await db
+    .update(userSubscriptions)
+    .set({
+      boostsRemaining: sql`${userSubscriptions.boostsRemaining} - 1`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(userSubscriptions.id, target.id),
+        gt(userSubscriptions.boostsRemaining, 0),
+        eq(userSubscriptions.status, 'active'),
+        gt(userSubscriptions.expiresAt, new Date())
+      )
+    )
+    .returning({
+      id: userSubscriptions.id,
+      boostsRemaining: userSubscriptions.boostsRemaining,
+    });
+
+  if (updateResult.length === 0) return null;
+  return {
+    subscriptionId: updateResult[0].id,
+    boostsRemaining: Number(updateResult[0].boostsRemaining || 0),
+  };
+}
+
+/**
+ * Add boost credits to a subscription after successful boost-pack purchase.
+ */
+export async function addBoostCreditsToSubscription(
+  subscriptionId: string,
+  credits: number
+): Promise<UserSubscription | null> {
+  if (!Number.isFinite(credits) || credits <= 0) return null;
+
+  const result = await db
+    .update(userSubscriptions)
+    .set({
+      boostsRemaining: sql`${userSubscriptions.boostsRemaining} + ${Math.floor(credits)}`,
+      updatedAt: new Date(),
+    })
+    .where(eq(userSubscriptions.id, subscriptionId))
+    .returning();
+
+  return result.length > 0 ? result[0] : null;
 }
 
 /**
@@ -332,6 +488,36 @@ export async function getSubscriptionStats() {
  * Delete subscription tier (admin only)
  */
 export async function deleteSubscriptionTier(tierId: string): Promise<boolean> {
+  const [activeSubsResult, totalSubsResult, linkedListingsResult] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(userSubscriptions)
+      .where(and(eq(userSubscriptions.subscriptionTierId, tierId), eq(userSubscriptions.status, 'active'))),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(userSubscriptions)
+      .where(eq(userSubscriptions.subscriptionTierId, tierId)),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(listings)
+      .where(eq(listings.subscriptionTierId, tierId)),
+  ]);
+
+  const activeSubscriptions = Number(activeSubsResult[0]?.count || 0);
+  const totalSubscriptions = Number(totalSubsResult[0]?.count || 0);
+  const linkedListings = Number(linkedListingsResult[0]?.count || 0);
+
+  if (totalSubscriptions > 0 || linkedListings > 0) {
+    throw new SubscriptionTierInUseError(
+      'Cannot delete subscription tier because it is referenced by existing data. Deactivate/archive the tier instead.',
+      {
+        activeSubscriptions,
+        totalSubscriptions,
+        linkedListings,
+      }
+    );
+  }
+
   const result = await db
     .delete(subscriptionTiers)
     .where(eq(subscriptionTiers.id, tierId))

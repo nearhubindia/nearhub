@@ -18,6 +18,8 @@ interface ListingCardProps {
   image?: string;
   location: string;
   condition: string;
+  isBoosted?: boolean;
+  isSponsored?: boolean;
   isSaved: boolean;
   onPress: () => void;
   onSave: () => void;
@@ -32,6 +34,8 @@ export default function ListingCard({
   image,
   location,
   condition,
+  isBoosted = false,
+  isSponsored = false,
   isSaved,
   onPress,
   onSave,
@@ -60,6 +64,16 @@ export default function ListingCard({
         <View style={styles.conditionBadge}>
           <Text style={styles.conditionText}>{condition}</Text>
         </View>
+        {isBoosted && (
+          <View style={styles.boostBadge}>
+            <Text style={styles.boostText}>Boost</Text>
+          </View>
+        )}
+        {isSponsored && (
+          <View style={styles.sponsoredBadge}>
+            <Text style={styles.sponsoredText}>Sponsored</Text>
+          </View>
+        )}
       </View>
       <View style={styles.info}>
         <View style={styles.priceRow}>
@@ -134,6 +148,34 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: responsiveFont(10),
     fontFamily: 'Inter_500Medium',
+  },
+  boostBadge: {
+    position: 'absolute',
+    top: responsiveModerateScale(8),
+    left: responsiveModerateScale(8),
+    backgroundColor: Colors.primary,
+    paddingHorizontal: responsiveModerateScale(7),
+    paddingVertical: responsiveModerateScale(2),
+    borderRadius: responsiveModerateScale(8),
+  },
+  boostText: {
+    color: '#fff',
+    fontSize: responsiveFont(10),
+    fontFamily: 'Inter_700Bold',
+  },
+  sponsoredBadge: {
+    position: 'absolute',
+    top: responsiveModerateScale(8),
+    left: responsiveModerateScale(58),
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: responsiveModerateScale(7),
+    paddingVertical: responsiveModerateScale(2),
+    borderRadius: responsiveModerateScale(8),
+  },
+  sponsoredText: {
+    color: '#fff',
+    fontSize: responsiveFont(10),
+    fontFamily: 'Inter_700Bold',
   },
   info: {
     padding: responsiveModerateScale(8),

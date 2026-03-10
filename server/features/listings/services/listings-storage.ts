@@ -8,7 +8,7 @@ import seedListings from '../../../data/seed-listings.json' assert { type: 'json
 
 export interface Listing {
   id: string;
-  sellerId: string;
+  userId: string;
   title: string;
   description: string;
   category: string;
@@ -32,7 +32,8 @@ export interface Listing {
 }
 
 export interface CreateListingInput {
-  sellerId: string;
+  userId?: string;
+  sellerId?: string;
   title: string;
   description?: string;
   category: string;
@@ -86,7 +87,7 @@ class ListingsStorage {
 
     const listing: Listing = {
       id,
-      sellerId: input.sellerId,
+      userId: input.userId || input.sellerId || '',
       title: input.title,
       description: input.description || '',
       category: input.category,
@@ -127,8 +128,12 @@ class ListingsStorage {
     return this.getAllListings().filter((listing) => listing.category === category);
   }
 
+  getListingsByUser(userId: string): Listing[] {
+    return this.getAllListings().filter((listing) => listing.userId === userId);
+  }
+
   getListingsBySeller(sellerId: string): Listing[] {
-    return this.getAllListings().filter((listing) => listing.sellerId === sellerId);
+    return this.getListingsByUser(sellerId);
   }
 
   updateListing(id: string, updates: Partial<Listing>): Listing | undefined {

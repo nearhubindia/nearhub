@@ -1,4 +1,4 @@
-package com.nearhub
+package com.synvide.nearhub
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

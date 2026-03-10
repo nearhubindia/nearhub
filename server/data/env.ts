@@ -12,25 +12,18 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
-
-// Try loading .env.local first, then .env (from multiple likely dirs)
-const searchDirs = [process.cwd(), path.resolve(process.cwd(), '..')];
-const envFileNames = ['.env.local', '.env'];
-
+const cwd = process.cwd();
+const envPath = path.basename(cwd) === 'server' ? path.resolve(cwd, '.env') : path.resolve(cwd, 'server/.env');
 let loaded = false;
-for (const dir of searchDirs) {
-  for (const name of envFileNames) {
-    const envPath = path.resolve(dir, name);
-    if (fs.existsSync(envPath)) {
-      const result = dotenv.config({ path: envPath });
-      if (!result.error) {
-        console.log(`[Env] Loaded: ${envPath}`);
-        loaded = true;
-      }
-    }
+
+if (fs.existsSync(envPath)) {
+  const result = dotenv.config({ path: envPath });
+  if (!result.error) {
+    console.log(`[Env] Loaded: ${envPath}`);
+    loaded = true;
   }
 }
 
 if (!loaded) {
-  console.warn('[Env] ⚠️  No .env / .env.local file found');
+  console.warn('[Env] ⚠️  No server .env file found');
 }

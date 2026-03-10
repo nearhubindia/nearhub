@@ -18,8 +18,12 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     category: 'Electronics',
     condition: 'good',
     location: '',
-    sellerId: 'admin',
+    contactPhone: '',
+    userId: 'admin',
     images: [] as string[],
+    videos: [] as string[],
+    featured: false,
+    sponsored: false,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
@@ -46,10 +50,26 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        setFormData({
-          ...formData,
-          images: [...(formData.images || []), base64String],
-        });
+        setFormData((prev) => ({
+          ...prev,
+          images: [...(prev.images || []), base64String],
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const files = Array.from(e.target.files || []);
+
+    files.forEach((file: File) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setFormData((prev) => ({
+          ...prev,
+          videos: [...(prev.videos || []), base64String],
+        }));
       };
       reader.readAsDataURL(file);
     });
@@ -59,6 +79,12 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     const newImages = [...(formData.images || [])];
     newImages.splice(index, 1);
     setFormData({ ...formData, images: newImages });
+  };
+
+  const removeVideo = (index: number): void => {
+    const newVideos = [...(formData.videos || [])];
+    newVideos.splice(index, 1);
+    setFormData({ ...formData, videos: newVideos });
   };
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
@@ -87,8 +113,18 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
         category: formData.category,
         condition: formData.condition,
         location: formData.location,
-        sellerId: formData.sellerId,
+        contactPhone: String(formData.contactPhone || '').trim(),
+        userId: formData.userId,
         images: formData.images,
+        videos: formData.videos,
+        featured: Boolean(formData.featured),
+        sponsored: Boolean(formData.sponsored),
+        listingType:
+          formData.videos.length > 0 && formData.images.length === 0
+            ? 'video'
+            : formData.videos.length > 0
+              ? 'mixed'
+              : 'image',
       };
 
       if (formData.offerPrice && Number(formData.offerPrice) > 0) {
@@ -242,6 +278,18 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                   required
                 />
               </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-900 mb-2">
+                  Contact Number <span className="text-xs font-normal text-slate-500">Optional</span>
+                </label>
+                <input
+                  type="tel"
+                  value={formData.contactPhone}
+                  onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
+                  placeholder="e.g. 9876543210"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                />
+              </div>
             </div>
 
             {/* Image Upload Section */}
@@ -294,11 +342,85 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
               )}
             </div>
 
+            {/* Video Upload Section */}
+            <div>
+              <label className="block text-sm font-bold text-slate-900 mb-2">Videos</label>
+              <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 hover:border-teal-500 transition">
+                <input
+                  type="file"
+                  accept="video/*"
+                  multiple
+                  onChange={handleVideoUpload}
+                  className="hidden"
+                  id="video-upload"
+                />
+                <label
+                  htmlFor="video-upload"
+                  className="flex flex-col items-center justify-center cursor-pointer"
+                >
+                  <Plus className="text-slate-400 mb-2" size={32} />
+                  <p className="text-sm text-slate-600 text-center">
+                    Click to upload videos
+                    <br />
+                    <span className="text-xs text-slate-500">Supports: MP4, MOV, WEBM</span>
+                  </p>
+                </label>
+              </div>
+
+              {formData.videos && formData.videos.length > 0 && (
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                  {formData.videos.map((video: string, index: number) => (
+                    <div key={index} className="relative group">
+                      <video
+                        src={video}
+                        className="w-full h-28 object-cover rounded-lg border-2 border-slate-200 bg-slate-100"
+                        controls
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeVideo(index)}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-900">
                 <strong>💡 Info:</strong> Users need an active subscription or coupon code with free
                 listings to create listings.
               </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex items-center gap-3 cursor-pointer bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <input
+                  type="checkbox"
+                  checked={formData.sponsored}
+                  onChange={(e) => setFormData({ ...formData, sponsored: e.target.checked })}
+                  className="w-4 h-4 accent-amber-600"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-amber-900">Sponsored Tag</p>
+                  <p className="text-xs text-amber-800">Show sponsored label in cards/details.</p>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <input
+                  type="checkbox"
+                  checked={formData.featured}
+                  onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
+                  className="w-4 h-4 accent-blue-600"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-blue-900">Featured Listing</p>
+                  <p className="text-xs text-blue-800">Use featured ranking separately from sponsored.</p>
+                </div>
+              </label>
             </div>
           </div>
 

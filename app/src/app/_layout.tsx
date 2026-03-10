@@ -58,6 +58,13 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="listings/edit"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
         name="chat/index"
         options={{
           headerShown: false,

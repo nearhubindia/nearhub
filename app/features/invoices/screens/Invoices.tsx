@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -31,6 +32,9 @@ interface Invoice {
   sellerGstin?: string;
   paymentId?: string;
   orderId?: string;
+  invoiceHtmlUrl?: string;
+  invoiceDownloadUrl?: string;
+  rawInvoiceData?: Record<string, unknown>;
   status: string;
   storedAt?: string;
 }
@@ -46,22 +50,66 @@ export default function InvoicesScreen() {
 
   useEffect(() => {
     loadInvoices();
-  }, []);
+  }, [user?.id]);
 
   const loadInvoices = async () => {
     try {
       setIsLoading(true);
-      const stored = await AsyncStorage.getItem(INVOICES_STORAGE_KEY);
-      if (stored) {
-        const parsedInvoices = JSON.parse(stored);
-        // Sort by date descending
-        parsedInvoices.sort(
-          (a: Invoice, b: Invoice) =>
-            new Date(b.storedAt || b.invoiceDate).getTime() -
-            new Date(a.storedAt || a.invoiceDate).getTime()
-        );
-        setInvoices(parsedInvoices);
+      const [stored, apiUrl] = await Promise.all([
+        AsyncStorage.getItem(INVOICES_STORAGE_KEY),
+        getApiUrl(),
+      ]);
+
+      const localInvoices: Invoice[] = stored ? (JSON.parse(stored) as Invoice[]) : [];
+      let remoteInvoices: Invoice[] = [];
+
+      if (user?.id) {
+        try {
+          const response = await fetch(`${apiUrl}/api/users/invoices`, {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': user.id,
+            },
+          });
+          const data = await response.json();
+          if (response.ok && data?.success && Array.isArray(data?.invoices)) {
+            remoteInvoices = data.invoices.map((invoice: any) => ({
+              invoiceNumber: String(invoice.invoiceNumber || ''),
+              invoiceDate: String(invoice.invoiceDate || ''),
+              customerName: String(invoice.customerName || ''),
+              total: Number(invoice.total || 0),
+              sellerName: invoice.sellerName,
+              sellerCity: invoice.sellerCity,
+              sellerGstin: invoice.sellerGstin,
+              paymentId: invoice.paymentId,
+              orderId: invoice.orderId,
+              invoiceHtmlUrl: invoice.invoiceHtmlUrl,
+              invoiceDownloadUrl: invoice.invoiceDownloadUrl,
+              rawInvoiceData: invoice.rawInvoiceData,
+              status: String(invoice.status || 'paid'),
+              storedAt: invoice.storedAt,
+            }));
+          }
+        } catch (remoteError) {
+          console.warn('[Invoices] Failed to fetch remote invoices:', remoteError);
+        }
       }
+
+      const deduped = new Map<string, Invoice>();
+      [...remoteInvoices, ...localInvoices].forEach((invoice) => {
+        if (invoice?.invoiceNumber) {
+          deduped.set(invoice.invoiceNumber, invoice);
+        }
+      });
+
+      const mergedInvoices = [...deduped.values()].sort(
+        (a, b) =>
+          new Date(b.storedAt || b.invoiceDate).getTime() -
+          new Date(a.storedAt || a.invoiceDate).getTime()
+      );
+
+      setInvoices(mergedInvoices);
+      await AsyncStorage.setItem(INVOICES_STORAGE_KEY, JSON.stringify(mergedInvoices));
     } catch (error) {
       console.error('[Invoices] Error loading invoices:', error);
     } finally {
@@ -77,18 +125,27 @@ export default function InvoicesScreen() {
 
   const handleViewInvoice = async (invoice: Invoice) => {
     try {
-      // For now, show invoice details in an alert
-      Alert.alert(
-        'Invoice Details',
-        `Invoice: ${invoice.invoiceNumber}\nDate: ${invoice.invoiceDate}\nSeller: ${invoice.sellerName || 'Synvide Business Solutions Private Limited'}\nCity: ${invoice.sellerCity || 'Bangalore'}\nGSTN: ${invoice.sellerGstin || '29ABKCS0463R1ZI'}\nAmount: ₹${invoice.total.toLocaleString('en-IN')}\nStatus: ${invoice.status}`,
-        [
-          {
-            text: 'Close',
-            onPress: () => {},
-            style: 'cancel',
-          },
-        ]
-      );
+      const apiUrl = await getApiUrl();
+      const fallbackViewUrl = invoice.rawInvoiceData
+        ? `${apiUrl}/api/invoices/${encodeURIComponent(invoice.invoiceNumber)}/view?data=${encodeURIComponent(JSON.stringify(invoice.rawInvoiceData))}`
+        : '';
+      const absoluteUrl = invoice.invoiceHtmlUrl
+        ? `${apiUrl}${invoice.invoiceHtmlUrl}`
+        : fallbackViewUrl;
+
+      if (!absoluteUrl) {
+        Alert.alert('Invoice Not Available', 'Invoice data is missing for this record.');
+        return;
+      }
+
+      if (Platform.OS === 'web') {
+        window.open(absoluteUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      await WebBrowser.openBrowserAsync(absoluteUrl, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+      });
     } catch (error) {
       console.error('[Invoices] Error viewing invoice:', error);
       Alert.alert('Error', 'Failed to view invoice');
@@ -97,11 +154,32 @@ export default function InvoicesScreen() {
 
   const handleDownloadInvoice = async (invoice: Invoice) => {
     try {
-      Alert.alert(
-        'Download Invoice',
-        'Invoice download feature will be available soon. You can view invoice details above.',
-        [{ text: 'OK', onPress: () => {} }]
-      );
+      const apiUrl = await getApiUrl();
+      const fallbackDownloadUrl = invoice.rawInvoiceData
+        ? `${apiUrl}/api/invoices/${encodeURIComponent(invoice.invoiceNumber)}/download?data=${encodeURIComponent(JSON.stringify(invoice.rawInvoiceData))}`
+        : '';
+      const absoluteUrl = invoice.invoiceDownloadUrl
+        ? `${apiUrl}${invoice.invoiceDownloadUrl}`
+        : fallbackDownloadUrl;
+
+      if (!absoluteUrl) {
+        Alert.alert('Invoice Not Available', 'Download link is missing for this invoice.');
+        return;
+      }
+
+      if (Platform.OS === 'web') {
+        window.open(absoluteUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      const canOpen = await Linking.canOpenURL(absoluteUrl);
+      if (!canOpen) {
+        Alert.alert('Download Failed', 'Unable to open download URL on this device.');
+        return;
+      }
+
+      await Linking.openURL(absoluteUrl);
+      Alert.alert('Download Started', 'Invoice opened in browser for download.');
     } catch (error) {
       console.error('[Invoices] Error downloading invoice:', error);
       Alert.alert('Error', 'Failed to download invoice');

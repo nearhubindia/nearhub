@@ -9,7 +9,7 @@ import { eq, and, desc, isNull, or, lt } from 'drizzle-orm';
 
 export interface CreateInAppNotificationOptions {
   userId?: string | null;
-  userType?: 'buyer' | 'seller' | 'all';
+  userType?: 'buyer' | 'seller' | 'admin' | 'all';
   title: string;
   message: string;
   type?: 'info' | 'success' | 'warning' | 'error';

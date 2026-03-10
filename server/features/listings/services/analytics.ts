@@ -112,11 +112,11 @@ export async function getListingAnalytics(listingId: string) {
 }
 
 /**
- * Get analytics for all listings of a seller
+ * Get analytics for all listings of a user
  */
-export async function getSellerAnalytics(sellerId: string) {
+export async function getUserAnalytics(userId: string) {
   try {
-    const sellerListings = await db
+    const userListings = await db
       .select({
         id: listings.id,
         title: listings.title,
@@ -126,18 +126,18 @@ export async function getSellerAnalytics(sellerId: string) {
         expiresAt: listings.expiresAt,
       })
       .from(listings)
-      .where(eq(listings.sellerId, sellerId))
+      .where(eq(listings.sellerId, userId))
       .orderBy(desc(listings.createdAt));
 
     // Calculate total views across all listings
-    const totalViews = sellerListings.reduce((sum, listing) => sum + (listing.viewCount || 0), 0);
+    const totalViews = userListings.reduce((sum, listing) => sum + (listing.viewCount || 0), 0);
 
     // Get top 5 most viewed listings
-    const topListings = [...sellerListings]
+    const topListings = [...userListings]
       .sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0))
       .slice(0, 5);
 
-    // Get view trends for last 30 days across all seller's listings
+    // Get view trends for last 30 days across all user's listings
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     const viewTrends = await db
@@ -147,26 +147,28 @@ export async function getSellerAnalytics(sellerId: string) {
       })
       .from(listingViews)
       .innerJoin(listings, eq(listingViews.listingId, listings.id))
-      .where(and(eq(listings.sellerId, sellerId), gte(listingViews.viewedAt, thirtyDaysAgo)))
+      .where(and(eq(listings.sellerId, userId), gte(listingViews.viewedAt, thirtyDaysAgo)))
       .groupBy(sql`DATE(${listingViews.viewedAt})`)
       .orderBy(sql`DATE(${listingViews.viewedAt}) DESC`);
 
     return {
-      sellerId,
-      totalListings: sellerListings.length,
-      activeListings: sellerListings.filter((l) => l.status === 'active').length,
+      userId,
+      totalListings: userListings.length,
+      activeListings: userListings.filter((l) => l.status === 'active').length,
       totalViews,
       averageViewsPerListing:
-        sellerListings.length > 0 ? Math.round(totalViews / sellerListings.length) : 0,
+        userListings.length > 0 ? Math.round(totalViews / userListings.length) : 0,
       topListings,
-      allListings: sellerListings,
+      allListings: userListings,
       last30DaysViews: viewTrends,
     };
   } catch (error) {
-    console.error('[Analytics] Error fetching seller analytics:', error);
+    console.error('[Analytics] Error fetching user analytics:', error);
     throw error;
   }
 }
+
+export const getSellerAnalytics = getUserAnalytics;
 
 /**
  * Get view milestones for notifications

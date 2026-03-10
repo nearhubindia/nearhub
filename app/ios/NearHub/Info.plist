@@ -28,7 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>nearhub</string>
-          <string>com.nearhub</string>
+          <string>com.synvide.nearhub</string>
         </array>
       </dict>
     </array>

@@ -7,15 +7,17 @@
  * process.env directly (not via SERVER_CONFIG which is already frozen).
  */
 
-import './env'; // side-effect: loads .env.local / .env
+import './env'; // side-effect: loads server/.env
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as adminSchema from '../features/admin/models/admin-settings';
 import { users } from '../features/users/models/users';
 
 // Read env AFTER dotenv has run (env module was imported first)
-const databaseUrl =
-  process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/nearhub';
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error('[DB] DATABASE_URL is required in server/.env');
+}
 const maxConnections = parseInt(process.env.DB_MAX_CONNECTIONS || '50', 10);
 const minConnections = parseInt(process.env.DB_MIN_CONNECTIONS || '10', 10);
 const idleTimeoutMs = parseInt(process.env.DB_IDLE_TIMEOUT_MS || '60000', 10);

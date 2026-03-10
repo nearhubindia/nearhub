@@ -8,20 +8,18 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 // Load environment variables
-const possiblePaths = [
-  path.resolve(import.meta.url, '../../.env'),
-  path.resolve(process.cwd(), '.env'),
-  '/home/pavanprasad/Downloads/nearhub/.env',
-];
-
-for (const envPath of possiblePaths) {
-  if (fs.existsSync(envPath)) {
-    console.log(`[Env] Loading from: ${envPath}`);
-    dotenv.config({ path: envPath });
-    break;
-  }
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const envPath = path.resolve(__dirname, '../.env');
+if (fs.existsSync(envPath)) {
+  console.log(`[Env] Loading from: ${envPath}`);
+  dotenv.config({ path: envPath });
+} else {
+  console.warn(`[Env] No .env file found at ${envPath}`);
 }
 
 import {

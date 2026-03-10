@@ -23,9 +23,9 @@ $ npm test
 
  PASS  __tests__/features/listings.test.ts (4.2s)
   Listings API - GWT Tests
-    POST /api/listings
-      ✓ should create a new listing successfully (18ms)
-      ✓ should include listing ID in response (12ms)
+    GET /api/listings
+      ✓ should retrieve all listings (24ms)
+      ✓ should support pagination (20ms)
       ...more tests...
 
  PASS  __tests__/features/coupons.test.ts (3.8s)
@@ -379,9 +379,6 @@ it.only('should debug this specific test', async () => {
  PASS  __tests__/features/listings.test.ts
 
   Listings API - GWT Tests
-    POST /api/listings
-      ✓ should create a new listing successfully (18ms)
-      ✓ should include listing ID in response (12ms)
     GET /api/listings
       ✓ should retrieve all listings (24ms)
       ✓ should support pagination (20ms)
@@ -395,10 +392,10 @@ Tests:  4 passed, 4 total
  FAIL  __tests__/features/listings.test.ts
 
   Listings API - GWT Tests
-    POST /api/listings
-      ✕ should create a new listing successfully (18ms)
+    GET /api/listings
+      ✕ should retrieve all listings (18ms)
 
-Expected: 201
+Expected: 200
 Received: 500
 
 at then.statusCodeIs (utils/gwt-helpers.ts:95)

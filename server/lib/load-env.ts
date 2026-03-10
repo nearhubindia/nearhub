@@ -13,21 +13,15 @@ import * as fs from 'fs';
  * @returns boolean - true if .env was loaded
  */
 export function loadEnv(scriptName: string = 'Script'): boolean {
-  const possiblePaths = [
-    path.resolve(process.cwd(), '../.env'),
-    path.resolve(process.cwd(), '.env'),
-    path.resolve(__dirname, '../../.env'),
-    '/home/pavanprasad/Downloads/nearhub/.env',
-  ];
-
-  for (const envPath of possiblePaths) {
-    if (fs.existsSync(envPath)) {
-      console.log(`[${scriptName}] Loading .env from: ${envPath}`);
-      dotenv.config({ path: envPath });
-      return true;
-    }
+  const cwd = process.cwd();
+  const envPath =
+    path.basename(cwd) === 'server' ? path.resolve(cwd, '.env') : path.resolve(cwd, 'server/.env');
+  if (fs.existsSync(envPath)) {
+    console.log(`[${scriptName}] Loading .env from: ${envPath}`);
+    dotenv.config({ path: envPath });
+    return true;
   }
 
-  console.warn(`[${scriptName}] ⚠️  No .env file found, using environment variables`);
+  console.warn(`[${scriptName}] ⚠️  No server .env file found, using environment variables`);
   return false;
 }

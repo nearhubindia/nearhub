@@ -9,11 +9,13 @@ import { registerAdminRoutes } from './features/admin/routes/admin';
 import { registerAdminUsersRoutes } from './features/admin/routes/admin-users';
 import { registerAdminListingsRoutes } from './features/admin/routes/admin-listings';
 import { registerAdminBannersRoutes } from './features/admin/routes/admin-banners';
+import { registerAdminContactSubmissionRoutes } from './features/admin/routes/admin-contact-submissions';
 import { registerReportsRoutes } from './features/admin/routes/reports';
 // Auth feature routes
 import { registerAuthRoutes } from './features/auth/routes/auth';
 // AI feature routes (shared)
 import { registerAIRoutes } from './features/shared/routes/ai';
+import { registerContactRoutes } from './features/shared/routes/contact';
 // Listings feature routes
 import { registerListingRoutes } from './features/listings/routes/listings';
 import { registerListingExpirationRoutes } from './features/listings/routes/listing-expiration';
@@ -40,6 +42,7 @@ import { registerPushNotificationRoutes } from './features/push/routes/push';
 import { registerInAppNotificationRoutes } from './features/notifications/routes/in-app';
 // Worker management routes
 import { registerWorkerRoutes } from './features/workers/routes/workers';
+import { registerApiDocsRoutes } from './shared/routes/api-docs';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check
@@ -53,12 +56,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Domain route modules
+  registerApiDocsRoutes(app);
   registerAuthRoutes(app);
   registerAIRoutes(app);
+  registerContactRoutes(app);
   registerAdminRoutes(app);
   registerAdminUsersRoutes(app);
   registerAdminListingsRoutes(app);
   registerAdminBannersRoutes(app);
+  registerAdminContactSubmissionRoutes(app);
   registerReportsRoutes(app);
   registerListingRoutes(app);
 

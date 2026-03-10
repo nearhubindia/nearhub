@@ -6,16 +6,35 @@ import {
   useUpdateSubscriptionTier,
   useDeleteSubscriptionTier,
 } from '@/features/admin/hooks';
+import { ApiError } from '@/features/admin/api';
 
 interface TierRow {
   id: string;
   name: string;
+  type?: 'bundle' | 'boost' | string;
   description?: string;
   price: number;
+  offerPrice?: number | null;
   durationDays: number;
   features: string[] | string;
   maxListings: number;
   featuredListingsPerMonth: number;
+  boostCredits?: number;
+  highlight: boolean;
+  isActive: boolean;
+}
+
+interface TierFormData {
+  name: string;
+  type: 'bundle' | 'boost';
+  description: string;
+  price: number | null;
+  offerPrice: number | null;
+  durationDays: number | null;
+  features: string[];
+  maxListings: number | null;
+  featuredListingsPerMonth: number | null;
+  boostCredits: number | null;
   highlight: boolean;
   isActive: boolean;
 }
@@ -28,14 +47,17 @@ export default function SubscriptionPlansView() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTier, setEditingTier] = useState<TierRow | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<TierFormData>({
     name: '',
+    type: 'bundle',
     description: '',
-    price: 0,
+    price: null,
+    offerPrice: null,
     durationDays: 30,
-    features: ['image'],
+    features: [] as string[],
     maxListings: 5,
     featuredListingsPerMonth: 0,
+    boostCredits: 0,
     highlight: false,
     isActive: true,
   });
@@ -44,13 +66,42 @@ export default function SubscriptionPlansView() {
 
   const handleSaveTier = async (): Promise<void> => {
     try {
+      if (
+        formData.offerPrice !== null &&
+        formData.price !== null &&
+        Number(formData.offerPrice) >= Number(formData.price)
+      ) {
+        alert('Offer price must be less than regular price.');
+        return;
+      }
+
+      const normalizedFeatures = [
+        ...formData.features.filter((feature) => feature !== 'image' && feature !== 'video'),
+      ];
+      const payload = {
+        ...formData,
+        price: Number(formData.price ?? 0),
+        offerPrice:
+          formData.offerPrice !== null && formData.offerPrice !== undefined
+            ? Number(formData.offerPrice)
+            : null,
+        durationDays: Number(formData.durationDays ?? 30),
+        maxListings: formData.type === 'boost' ? 0 : Number(formData.maxListings ?? 0),
+        featuredListingsPerMonth: 0,
+        boostCredits: Number(formData.boostCredits ?? 0),
+        features:
+          Number(formData.boostCredits ?? 0) > 0
+            ? Array.from(new Set([...normalizedFeatures, 'featured']))
+            : normalizedFeatures.filter((feature) => feature !== 'featured'),
+      };
+
       if (editingTier) {
         await updateTier.mutateAsync({
           id: editingTier.id as string,
-          data: formData,
+          data: payload,
         });
       } else {
-        await createTier.mutateAsync(formData);
+        await createTier.mutateAsync(payload);
       }
       closeModal();
     } catch (error) {
@@ -66,7 +117,25 @@ export default function SubscriptionPlansView() {
       await deleteTier.mutateAsync(tierId);
     } catch (error) {
       console.error('Error deleting tier:', error);
-      alert('Error deleting tier');
+      if (error instanceof ApiError && error.status === 409) {
+        const details = (error.data as any)?.details || {};
+        const activeSubscriptions = Number(details.activeSubscriptions || 0);
+        const totalSubscriptions = Number(details.totalSubscriptions || 0);
+        const linkedListings = Number(details.linkedListings || 0);
+
+        alert(
+          [
+            'Cannot delete this tier because it is in use.',
+            `Active subscriptions: ${activeSubscriptions}`,
+            `Total subscriptions: ${totalSubscriptions}`,
+            `Linked listings: ${linkedListings}`,
+            '',
+            'Deactivate the tier instead of deleting it.',
+          ].join('\n')
+        );
+        return;
+      }
+      alert('Error deleting tier. Please try again.');
     }
   };
 
@@ -74,12 +143,15 @@ export default function SubscriptionPlansView() {
     setEditingTier(null);
     setFormData({
       name: '',
+      type: 'bundle',
       description: '',
-      price: 0,
+      price: null,
+      offerPrice: null,
       durationDays: 30,
-      features: ['image'],
+      features: [],
       maxListings: 5,
       featuredListingsPerMonth: 0,
+      boostCredits: 0,
       highlight: false,
       isActive: true,
     });
@@ -96,12 +168,16 @@ export default function SubscriptionPlansView() {
           : [];
     setFormData({
       name: tier.name as string,
+      type: ((tier.type as any) || 'bundle') as 'bundle' | 'boost',
       description: (tier.description as string) || '',
       price: Number(tier.price ?? 0),
+      offerPrice:
+        tier.offerPrice !== undefined && tier.offerPrice !== null ? Number(tier.offerPrice) : null,
       durationDays: Number(tier.durationDays ?? 30),
       features: features as string[],
       maxListings: Number(tier.maxListings ?? 5),
       featuredListingsPerMonth: Number(tier.featuredListingsPerMonth ?? 0),
+      boostCredits: Number((tier as any).boostCredits ?? 0),
       highlight: tier.highlight as boolean,
       isActive: tier.isActive as boolean,
     });
@@ -113,15 +189,6 @@ export default function SubscriptionPlansView() {
     setEditingTier(null);
   };
 
-  const toggleFeature = (feature: string): void => {
-    setFormData((prev) => ({
-      ...prev,
-      features: prev.features.includes(feature)
-        ? prev.features.filter((f) => f !== feature)
-        : [...prev.features, feature],
-    }));
-  };
-
   const renderFeatures = (tier: TierRow): string => {
     const features =
       typeof tier.features === 'string'
@@ -129,11 +196,18 @@ export default function SubscriptionPlansView() {
         : Array.isArray(tier.features)
           ? tier.features
           : [];
-    return (
-      (features as string[])
-        .map((f: string) => f.charAt(0).toUpperCase() + f.slice(1))
-        .join(', ') || 'None'
-    );
+    const normalized = (features as string[]).filter((f) => f !== 'image' && f !== 'video');
+    const labels: string[] = [];
+
+    if (Number((tier as any).boostCredits || 0) > 0) {
+      labels.push(`Boost Credits: ${Number((tier as any).boostCredits || 0)}`);
+    }
+
+    normalized
+      .filter((f) => f !== 'featured')
+      .forEach((f: string) => labels.push(f.charAt(0).toUpperCase() + f.slice(1)));
+
+    return labels.join(', ') || 'None';
   };
 
   return (
@@ -167,10 +241,19 @@ export default function SubscriptionPlansView() {
                           Name
                         </th>
                         <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
+                          Type
+                        </th>
+                        <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
                           Price
                         </th>
                         <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
+                          Offer Price
+                        </th>
+                        <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
                           Duration
+                        </th>
+                        <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
+                          Boost Credits
                         </th>
                         <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
                           Features
@@ -199,11 +282,28 @@ export default function SubscriptionPlansView() {
                               )}
                             </div>
                           </td>
+                          <td className="px-6 py-4 text-sm text-slate-600">
+                            {String(tier.type || 'bundle') === 'boost' ? 'Boost Pack' : 'Bundle'}
+                          </td>
                           <td className="px-6 py-4 text-sm font-bold text-teal-600">
-                            {(tier.price as number) === 0 ? 'Free' : `₹${tier.price as number}`}
+                            {(tier.price as number) === 0 ? (
+                              'Free'
+                            ) : (
+                              `₹${tier.price as number}`
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-600 font-semibold">
+                            {tier.offerPrice && Number(tier.offerPrice) > 0
+                              ? `₹${Number(tier.offerPrice)}`
+                              : '-'}
                           </td>
                           <td className="px-6 py-4 text-sm text-slate-600">
                             {tier.durationDays as number} days
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-600">
+                            {Number((tier as any).boostCredits || 0) > 0
+                              ? Number((tier as any).boostCredits)
+                              : '-'}
                           </td>
                           <td className="px-6 py-4 text-sm text-slate-600">
                             <div className="text-xs text-slate-500 max-w-xs line-clamp-2">
@@ -278,14 +378,62 @@ export default function SubscriptionPlansView() {
                   </div>
 
                   <div>
+                    <label className="block text-sm font-bold text-slate-900 mb-2">Tier Type</label>
+                    <select
+                      value={formData.type}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          type: e.target.value as 'bundle' | 'boost',
+                        })
+                      }
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                    >
+                      <option value="bundle">Bundle (Listings + optional boosts)</option>
+                      <option value="boost">Boost Pack (credits only)</option>
+                    </select>
+                  </div>
+
+                  <div>
                     <label className="block text-sm font-bold text-slate-900 mb-2">Price (₹)</label>
                     <input
                       type="number"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
+                      value={formData.price ?? ''}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          price: e.target.value === '' ? null : Number(e.target.value),
+                        })
+                      }
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
                       min="0"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-900 mb-2">
+                      Offer Price (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.offerPrice ?? ''}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          offerPrice: e.target.value === '' ? null : Number(e.target.value),
+                        })
+                      }
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                      min="0"
+                      placeholder="Optional discounted price"
+                    />
+                    {formData.offerPrice !== null &&
+                      formData.price !== null &&
+                      formData.offerPrice >= formData.price && (
+                        <p className="text-xs text-red-500 mt-1">
+                          Offer price must be less than regular price.
+                        </p>
+                      )}
                   </div>
 
                   <div>
@@ -294,9 +442,12 @@ export default function SubscriptionPlansView() {
                     </label>
                     <input
                       type="number"
-                      value={formData.durationDays}
+                      value={formData.durationDays ?? ''}
                       onChange={(e) =>
-                        setFormData({ ...formData, durationDays: Number(e.target.value) })
+                        setFormData({
+                          ...formData,
+                          durationDays: e.target.value === '' ? null : Number(e.target.value),
+                        })
                       }
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
                       min="1"
@@ -316,38 +467,43 @@ export default function SubscriptionPlansView() {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-bold text-slate-900 mb-2">
-                      Max Listings
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.maxListings}
-                      onChange={(e) =>
-                        setFormData({ ...formData, maxListings: Number(e.target.value) })
-                      }
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                      min="-1"
-                      placeholder="-1 for unlimited"
-                    />
-                  </div>
+                  {formData.type !== 'boost' && (
+                    <div>
+                      <label className="block text-sm font-bold text-slate-900 mb-2">
+                        Max Listings
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.maxListings ?? ''}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            maxListings: e.target.value === '' ? null : Number(e.target.value),
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                        min="-1"
+                        placeholder="-1 for unlimited"
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-bold text-slate-900 mb-2">
-                      Featured Listings
+                      Boost Credits
                     </label>
                     <input
                       type="number"
-                      value={formData.featuredListingsPerMonth}
+                      value={formData.boostCredits ?? ''}
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          featuredListingsPerMonth: Number(e.target.value),
+                          boostCredits: e.target.value === '' ? null : Number(e.target.value),
                         })
                       }
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
                       min="0"
-                      placeholder="0 for none, total for plan duration"
+                      placeholder="Credits granted per purchase"
                     />
                   </div>
                 </div>
@@ -355,29 +511,14 @@ export default function SubscriptionPlansView() {
                 <div>
                   <h3 className="font-bold text-slate-900 mb-4">✨ Features</h3>
                   <div className="space-y-3">
-                    {['image', 'video', 'featured'].map((feature) => (
-                      <label
-                        key={feature}
-                        className="flex items-center gap-3 p-4 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={formData.features.includes(feature)}
-                          onChange={() => toggleFeature(feature)}
-                          className="w-5 h-5 accent-teal-500"
-                        />
-                        <div>
-                          <span className="font-bold text-slate-900 block">
-                            {feature.charAt(0).toUpperCase() + feature.slice(1)}
-                          </span>
-                          <span className="text-xs text-slate-500">
-                            {feature === 'image' && 'Allow image uploads'}
-                            {feature === 'video' && 'Allow video uploads'}
-                            {feature === 'featured' && 'Feature in top searched'}
-                          </span>
-                        </div>
-                      </label>
-                    ))}
+                    <div className="p-4 border border-slate-200 rounded-lg bg-slate-50">
+                      <p className="font-bold text-slate-900">Boost Visibility</p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Boost entitlement is controlled by <strong>Boost Credits</strong> for both
+                        bundle and boost-pack plans. Image/video uploads are no longer managed as
+                        subscription feature toggles.
+                      </p>
+                    </div>
                   </div>
                 </div>
 

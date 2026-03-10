@@ -18,7 +18,7 @@ import {
 } from '../../admin/services/admin-settings';
 
 export interface CreateListingRequest {
-  sellerId: string;
+  userId: string;
   title: string;
   description: string;
   category: string;
@@ -123,7 +123,7 @@ export function getListingCheckoutSummary(req: CreateListingRequest) {
  */
 export async function initiatePayment(
   subscriptionId: string,
-  sellerId: string,
+  userId: string,
   listingId: string,
   listingTitle: string,
   totalFee: number,
@@ -139,13 +139,13 @@ export async function initiatePayment(
   // Amount in paise (₹1 = 100 paise)
   const amountInPaise = Math.round(totalFee * 100);
 
-  const receiptId = razorpay.generateReceiptId(sellerId, listingId);
+  const receiptId = razorpay.generateReceiptId(userId, listingId);
 
   const order = await razorpay.createOrder({
     amount: amountInPaise,
     receipt: receiptId,
     notes: {
-      sellerId,
+      userId,
       listingId,
       subscriptionId,
       listingTitle,

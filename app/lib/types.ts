@@ -1,6 +1,7 @@
 import Colors from '@/constants/colors';
 
 export interface Listing {
+  userId?: string;
   id: string;
   title: string;
   description: string;
@@ -13,6 +14,7 @@ export interface Listing {
   videos?: string[]; // Up to 5 video URLs
   sellerName: string;
   sellerPhone: string;
+  contactPhone?: string;
   location: {
     latitude: number;
     longitude: number;
@@ -20,14 +22,20 @@ export interface Listing {
   };
   condition: 'new' | 'like_new' | 'good' | 'fair' | 'poor';
   listingType: 'sell' | 'buy' | 'service' | 'job';
-  status?: 'active' | 'sold' | 'pending';
+  status?: 'active' | 'sold' | 'pending' | 'rejected' | 'inactive' | 'expired';
+  rejectionReason?: string;
   expiresAt?: string;
   createdAt: string;
   isSaved?: boolean;
   aiValidated?: boolean;
   isPaid?: boolean;
+  featured?: boolean;
+  sponsored?: boolean;
+  boostedUntil?: string;
+  boostCount?: number;
   pincode?: string;
   duration?: number; // Duration in days for paid listings (15, 45, 90, 180)
+  durationDays?: number; // Server-side canonical duration field
   sellerAvatar?: string;
   viewCount?: number; // Total views for analytics
 }

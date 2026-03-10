@@ -7,8 +7,8 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Load from parent directory (.env is at root of monorepo)
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+// Load server-level environment file
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const databaseUrl =
   process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/nearhub';

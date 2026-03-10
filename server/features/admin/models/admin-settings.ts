@@ -135,6 +135,56 @@ export const appScreenBanners = pgTable('app_screen_banners', {
 });
 
 /**
+ * Contact Form Submissions Table
+ * Stores messages submitted from the web contact form.
+ */
+export const contactSubmissions = pgTable('contact_submissions', {
+  id: varchar('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+
+  name: varchar('name', { length: 120 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull(),
+  phone: varchar('phone', { length: 30 }).notNull().default(''),
+  subject: varchar('subject', { length: 200 }).notNull(),
+  message: text('message').notNull(),
+  source: varchar('source', { length: 30 }).notNull().default('web'),
+  contacted: boolean('contacted').notNull().default(false),
+  adminComments: text('admin_comments'),
+  contactedAt: timestamp('contacted_at'),
+
+  ipAddress: varchar('ip_address', { length: 45 }),
+  userAgent: text('user_agent'),
+
+  createdAt: timestamp('created_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+});
+
+/**
+ * Contact Submission Comments Table
+ * Stores multiple admin comments per enquiry.
+ */
+export const contactSubmissionComments = pgTable('contact_submission_comments', {
+  id: varchar('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+
+  submissionId: varchar('submission_id')
+    .notNull()
+    .references(() => contactSubmissions.id, { onDelete: 'cascade' }),
+  comment: text('comment').notNull(),
+  createdBy: varchar('created_by'),
+
+  createdAt: timestamp('created_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: timestamp('updated_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+});
+
+/**
  * Subscription Configuration Schema
  */
 export const insertAdminSettingsSchema = createInsertSchema(adminSettings).omit({
@@ -344,13 +394,14 @@ export const subscriptionTiers = pgTable('subscription_tiers', {
 
   // Tier info
   name: varchar('name', { length: 100 }).notNull(), // "Basic", "Standard", "Premium"
-  type: varchar('type', { length: 20 }).notNull(), // "image" | "video"
+  type: varchar('type', { length: 20 }).notNull(), // "bundle" | "boost"
   description: text('description'),
 
   // Pricing (monthly and annual)
   monthlyPrice: decimal('monthly_price', { precision: 10, scale: 2 }).notNull(), // e.g., 2.99, 9.99, 24.99
   annualPrice: decimal('annual_price', { precision: 10, scale: 2 }).notNull(), // e.g., 29.99, 99.99, 249.99
   price: decimal('price', { precision: 10, scale: 2 }).notNull(),
+  offerPrice: decimal('offer_price', { precision: 10, scale: 2 }),
   durationDays: integer('duration_days').notNull(), // 15, 30, 90, 180
 
   // Features (JSON array for flexibility)
@@ -359,6 +410,7 @@ export const subscriptionTiers = pgTable('subscription_tiers', {
   // Limits
   maxListings: integer('max_listings').notNull(), // -1 for unlimited
   featuredListingsPerMonth: integer('featured_listings_per_month').notNull(), // Number of featured listings allowed per month
+  boostCredits: integer('boost_credits').notNull().default(0), // Total boost credits granted by this tier purchase
 
   // Display
   highlight: boolean('highlight').default(false), // "Most popular" badge
@@ -405,6 +457,7 @@ export const userSubscriptions = pgTable('user_subscriptions', {
 
   // Status
   status: varchar('status', { length: 20 }).notNull().default('active'), // "active" | "expired" | "cancelled"
+  boostsRemaining: integer('boosts_remaining').notNull().default(0), // Remaining boost credits for this subscription purchase
 
   // Timestamps
   subscribedAt: timestamp('subscribed_at')
@@ -437,6 +490,7 @@ export const listings = pgTable('listings', {
   price: decimal('price', { precision: 10, scale: 2 }).notNull(),
   offerPrice: decimal('offer_price', { precision: 10, scale: 2 }),
   priceUnit: varchar('price_unit', { length: 50 }),
+  contactPhone: varchar('contact_phone', { length: 20 }),
 
   // Condition & location
   condition: varchar('condition', { length: 50 }).notNull(),
@@ -461,6 +515,9 @@ export const listings = pgTable('listings', {
 
   // Featured listing (requires subscription tier)
   featured: boolean('featured').notNull().default(false),
+  sponsored: boolean('sponsored').notNull().default(false),
+  boostedUntil: timestamp('boosted_until'),
+  boostCount: integer('boost_count').notNull().default(0),
 
   durationDays: integer('duration_days'),
   expiresAt: timestamp('expires_at'),

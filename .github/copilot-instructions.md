@@ -8,6 +8,12 @@
 
 ## Critical Rules
 
+### 0. Mandatory Strict Index
+- **Before creating any file/route**, follow `.github/COPILOT_STRICT_INDEX.md`
+- Treat it as canonical ownership + anti-duplication policy
+- Prefer **edit existing file** over creating sibling/parallel files
+- For server routes, never add an endpoint without checking method+path uniqueness
+
 ### 1. Feature-Based Structure
 - **All new code** goes in `features/` or `shared/`, never in root directories
 - Each feature has: `screens/` (or `pages/`), `components/`, `services/`, `hooks/`
@@ -246,16 +252,9 @@ const handleCreate = async () => {
    - **Used by:** Mobile app, Web app (production)
    - **Body params:** `sellerId, title, description, category, price, condition, location, images?, videos?, subscriptionTierId?, couponCode?, featured?`
 
-2. **`POST /api/listings`** ⚠️ **DEPRECATED** (Admin/Testing Only)
-   - **Location:** `server/features/listings/routes/listings.ts`
-   - **Purpose:** Direct listing creation (bypasses subscription checks)
-   - **Limitations:**
-     - ❌ No subscription limit validation
-     - ❌ No coupon support
-     - ❌ No tier restriction enforcement
-     - ⚠️ Logs deprecation warnings
-   - **Use cases:** Admin testing, system migrations, data seeding
-   - **DO NOT USE in production client code**
+2. **`POST /api/listings`** ❌ **REMOVED**
+   - This endpoint must not be reintroduced.
+   - Use `POST /api/subscriptions/create-listing` for listing creation.
 
 #### Listing Read Endpoints (Consolidated)
 **Single source of truth:** All in `server/features/listings/routes/listings.ts`
@@ -358,7 +357,7 @@ res.json({
 - ❌ Create files outside feature/shared structure
 - ❌ Mix kebab-case and PascalCase incorrectly
 - ❌ Run expo commands from root directory
-- ❌ Use `POST /api/listings` for client-side listing creation (use `/api/subscriptions/create-listing`)
+- ❌ Reintroduce `POST /api/listings` (removed endpoint)
 - ❌ Return raw Date objects in API responses (use `.toISOString()`)
 - ❌ Duplicate API endpoints across features (maintain single source of truth)
 
@@ -372,3 +371,4 @@ res.json({
 - ✅ Use `POST /api/subscriptions/create-listing` for listing creation (with subscription validation)
 - ✅ Convert Date objects to ISO strings in API responses
 - ✅ Check for existing endpoints before creating new ones
+- ✅ Follow `.github/COPILOT_STRICT_INDEX.md` before creating files/routes

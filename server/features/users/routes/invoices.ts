@@ -5,6 +5,27 @@
 
 import type { Express, Request, Response } from 'express';
 import InvoiceService, { InvoiceItem, InvoiceData } from '../services/invoice';
+import { db } from '../../../data/db';
+import { invoices } from '../../admin/models/admin-settings';
+import { and, desc, eq } from 'drizzle-orm';
+
+async function resolveInvoiceData(
+  invoiceNumber: string,
+  rawData?: string
+): Promise<InvoiceData | null> {
+  if (rawData) {
+    return JSON.parse(decodeURIComponent(rawData));
+  }
+
+  const result = await db
+    .select({ invoiceData: invoices.invoiceData })
+    .from(invoices)
+    .where(eq(invoices.invoiceNumber, invoiceNumber))
+    .limit(1);
+
+  if (result.length === 0) return null;
+  return JSON.parse(result[0].invoiceData) as InvoiceData;
+}
 
 export function registerInvoiceRoutes(app: Express) {
   // Initialize invoice service with Synvide Business Solutions config
@@ -125,19 +146,16 @@ export function registerInvoiceRoutes(app: Express) {
    */
   app.get('/api/invoices/:invoiceNumber/view', async (req: Request, res: Response) => {
     try {
-      // Temporary: For demo, we'll accept invoice data as query parameter
-      // In production, this would be fetched from database
+      const invoiceNumber = req.params.invoiceNumber as string;
       const invoiceJson = req.query.data as string;
-
-      if (!invoiceJson) {
+      const invoice = await resolveInvoiceData(invoiceNumber, invoiceJson);
+      if (!invoice) {
         return res.status(400).json({
           success: false,
-          error: "Invoice data required. Pass invoice JSON as 'data' query parameter.",
-          example: 'GET /api/invoices/INV-2026-02-16-XXXXX/view?data={...invoiceJSON}',
+          error: 'Invoice not found',
         });
       }
 
-      const invoice: InvoiceData = JSON.parse(decodeURIComponent(invoiceJson));
       const invoiceService = new InvoiceService(invoiceConfig);
       const html = invoiceService.createInvoiceHTML(invoice);
 
@@ -159,16 +177,16 @@ export function registerInvoiceRoutes(app: Express) {
    */
   app.get('/api/invoices/:invoiceNumber/download', async (req: Request, res: Response) => {
     try {
+      const invoiceNumber = req.params.invoiceNumber as string;
       const invoiceJson = req.query.data as string;
-
-      if (!invoiceJson) {
+      const invoice = await resolveInvoiceData(invoiceNumber, invoiceJson);
+      if (!invoice) {
         return res.status(400).json({
           success: false,
-          error: 'Invoice data required',
+          error: 'Invoice not found',
         });
       }
 
-      const invoice: InvoiceData = JSON.parse(decodeURIComponent(invoiceJson));
       const invoiceService = new InvoiceService(invoiceConfig);
       const html = invoiceService.createInvoiceHTML(invoice);
 
@@ -184,6 +202,55 @@ export function registerInvoiceRoutes(app: Express) {
       res.status(500).json({
         success: false,
         error: 'Failed to download invoice',
+      });
+    }
+  });
+
+  /**
+   * GET /api/users/invoices
+   * Returns invoices for authenticated user (or x-user-id header)
+   */
+  app.get('/api/users/invoices', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId || req.get('x-user-id') || req.query.userId;
+      if (!userId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing user identifier',
+        });
+      }
+
+      const rows = await db
+        .select()
+        .from(invoices)
+        .where(and(eq(invoices.customerId, String(userId))))
+        .orderBy(desc(invoices.createdAt))
+        .limit(200);
+
+      return res.json({
+        success: true,
+        invoices: rows.map((row) => ({
+          invoiceNumber: row.invoiceNumber,
+          invoiceDate: row.invoiceDate,
+          customerName: row.customerName,
+          total: Number(row.totalAmount || 0),
+          status: row.status || 'issued',
+          paymentId: row.paymentId || undefined,
+          orderId: row.orderId || undefined,
+          sellerName: 'Synvide Business Solutions Private Limited',
+          sellerCity: 'Bangalore',
+          sellerGstin: '29ABKCS0463R1ZI',
+          storedAt: row.createdAt,
+          invoiceHtmlUrl: `/api/invoices/${encodeURIComponent(row.invoiceNumber)}/view`,
+          invoiceDownloadUrl: `/api/invoices/${encodeURIComponent(row.invoiceNumber)}/download`,
+          rawInvoiceData: row.invoiceData ? JSON.parse(row.invoiceData) : undefined,
+        })),
+      });
+    } catch (error) {
+      console.error('[Invoices] Error fetching user invoices:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch invoices',
       });
     }
   });

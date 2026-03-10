@@ -157,14 +157,14 @@ export function registerAdminRoutes(app: Express) {
       const [activeListingsResult, videoUploadsResult, allListings] = await Promise.all([
         db.select({ value: count() }).from(listings).where(eq(listings.isActive, true)),
         db.select({ value: count() }).from(listings).where(eq(listings.listingType, 'video')),
-        db.select({ sellerId: listings.sellerId }).from(listings),
+        db.select({ userId: listings.sellerId }).from(listings),
       ]);
 
       res.json({
         success: true,
         stats: {
           activeListings: activeListingsResult[0]?.value || 0,
-          totalUsers: new Set(allListings.map((l) => l.sellerId)).size,
+          totalUsers: new Set(allListings.map((l) => l.userId)).size,
           spamReports: getReportsByStatus('pending').length,
           videoUploads: videoUploadsResult[0]?.value || 0,
         },
@@ -181,7 +181,7 @@ export function registerAdminRoutes(app: Express) {
 
   // ==================== MSG91 TESTING ====================
 
-  app.post('/api/test/msg91/send-sms', async (req: Request, res: Response) => {
+  const sendSmsTestHandler = async (req: Request, res: Response) => {
     try {
       const { phone, message } = req.body;
       if (!phone || !message)
@@ -194,9 +194,12 @@ export function registerAdminRoutes(app: Express) {
         error: error instanceof Error ? error.message : 'Failed to send SMS',
       });
     }
-  });
+  };
+  app.post('/api/admin/test/msg91/send-sms', sendSmsTestHandler);
+  // Backward-compatible alias (deprecated)
+  app.post('/api/test/msg91/send-sms', sendSmsTestHandler);
 
-  app.post('/api/test/msg91/send-otp', async (req: Request, res: Response) => {
+  const sendOtpTestHandler = async (req: Request, res: Response) => {
     try {
       const { phone } = req.body;
       if (!phone)
@@ -209,9 +212,12 @@ export function registerAdminRoutes(app: Express) {
         error: error instanceof Error ? error.message : 'Failed to send OTP',
       });
     }
-  });
+  };
+  app.post('/api/admin/test/msg91/send-otp', sendOtpTestHandler);
+  // Backward-compatible alias (deprecated)
+  app.post('/api/test/msg91/send-otp', sendOtpTestHandler);
 
-  app.get('/api/test/msg91/status', (_req: Request, res: Response) => {
+  const getMsg91StatusHandler = (_req: Request, res: Response) => {
     try {
       const status = msg91.getStatus();
       res.json({ success: true, service: 'MSG91', status, apiConfigured: status.configured });
@@ -221,5 +227,8 @@ export function registerAdminRoutes(app: Express) {
         error: error instanceof Error ? error.message : 'Failed to get status',
       });
     }
-  });
+  };
+  app.get('/api/admin/test/msg91/status', getMsg91StatusHandler);
+  // Backward-compatible alias (deprecated)
+  app.get('/api/test/msg91/status', getMsg91StatusHandler);
 }

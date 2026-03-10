@@ -143,8 +143,7 @@ export default function VerifyOTPScreen() {
       });
       const data = await res.json();
       if (data.success) {
-        const otpMessage = data.otp ? `Your new OTP is: ${data.otp}` : 'New OTP sent.';
-        Alert.alert('OTP Resent', otpMessage);
+        Alert.alert('OTP Resent', 'New OTP sent.');
         setResendTimer(30);
         setOtp(Array(OTP_LENGTH).fill(''));
         inputRefs.current[0]?.focus();

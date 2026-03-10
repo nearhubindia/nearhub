@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,7 +11,7 @@ import {
   Alert,
   Modal,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -25,8 +25,6 @@ import { getTimeAgo, formatCondition } from '@/lib/utils';
 import { getApiUrl } from '@/lib/query-client';
 import { createResponsiveStyles } from '@/lib/responsive';
 
-type TabType = 'active' | 'sold' | 'expired';
-
 interface UpgradePlan {
   duration: number;
   price: number;
@@ -34,26 +32,34 @@ interface UpgradePlan {
   subtitle: string;
 }
 
-const UPGRADE_PLANS: UpgradePlan[] = [
+const DEFAULT_UPGRADE_PLANS: UpgradePlan[] = [
   { duration: 45, price: 49, label: '45 Days', subtitle: 'Short boost for quick visibility' },
   { duration: 90, price: 99, label: '90 Days', subtitle: 'Balanced reach and value' },
   { duration: 180, price: 149, label: '180 Days', subtitle: 'Best value for long visibility' },
 ];
 
+const PLAN_AMOUNT_BY_DURATION: Record<number, number> = {
+  45: 49,
+  90: 99,
+  180: 149,
+};
+
 export default function MyListingsScreen() {
+  const params = useLocalSearchParams<{ tab?: string; renewId?: string }>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { listings, deleteListing, updateListing } = useListings();
+  const { listings, deleteListing, updateListing, refreshListings } = useListings();
   const {
     banners: listingsBanners,
     isLoading: isListingsBannersLoading,
     refreshBanners,
   } = useAppScreenBanners('listings');
-  const [selectedTab, setSelectedTab] = useState<TabType>('active');
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [markingSoldId, setMarkingSoldId] = useState<string | null>(null);
   const [markingActiveId, setMarkingActiveId] = useState<string | null>(null);
+  const [resubmittingId, setResubmittingId] = useState<string | null>(null);
+  const [boostingId, setBoostingId] = useState<string | null>(null);
   const [upgradeModalVisible, setUpgradeModalVisible] = useState(false);
   const [selectedUpgradeItem, setSelectedUpgradeItem] = useState<any | null>(null);
   const [upgradingDuration, setUpgradingDuration] = useState<number | null>(null);
@@ -61,13 +67,36 @@ export default function MyListingsScreen() {
   const [feedbackModalTitle, setFeedbackModalTitle] = useState('Success');
   const [feedbackModalMessage, setFeedbackModalMessage] = useState('');
   const [feedbackModalType, setFeedbackModalType] = useState<'success' | 'error'>('success');
+  const [autoRenewOpenedForId, setAutoRenewOpenedForId] = useState<string | null>(null);
+  const [upgradePlans, setUpgradePlans] = useState<UpgradePlan[]>(DEFAULT_UPGRADE_PLANS);
+  const [nowTick, setNowTick] = useState(Date.now());
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
-  // Filter user's listings
-  const myListings = listings.filter((listing) => listing.sellerPhone === user?.phone);
+  // Filter user's listings (handles +91, spaces, dashes by comparing trailing 10 digits)
+  const normalizePhone = (value: string | undefined | null) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    return digits.length > 10 ? digits.slice(-10) : digits;
+  };
+  const normalizeId = (value: string | undefined | null) => String(value || '').trim();
+  const userIdNormalized = normalizeId(user?.id);
+  const userPhoneNormalized = normalizePhone(user?.phone);
+  const myListings = listings.filter((listing) => {
+    const listingUserId = normalizeId(listing.userId);
+    if (userIdNormalized && listingUserId && listingUserId === userIdNormalized) {
+      return true;
+    }
 
-  const activeListings = myListings.filter((l) => l.status === 'active');
+    return normalizePhone(listing.sellerPhone) === userPhoneNormalized;
+  });
+
+  const activeListings = myListings.filter((l) => {
+    if (l.status !== 'active') return false;
+    if (!l.expiresAt) return true;
+    return new Date(l.expiresAt) >= new Date();
+  });
+  const pendingListings = myListings.filter((l) => l.status === 'pending');
+  const rejectedListings = myListings.filter((l) => l.status === 'rejected');
   const soldListings = myListings.filter((l) => l.status === 'sold');
   const expiredListings = myListings.filter((l) => {
     // Check if listing has expired based on duration
@@ -75,24 +104,120 @@ export default function MyListingsScreen() {
     return new Date(l.expiresAt) < new Date();
   });
 
-  const currentListings =
-    selectedTab === 'active'
-      ? activeListings
-      : selectedTab === 'sold'
-        ? soldListings
-        : expiredListings;
+  const isListingExpired = (item: any) =>
+    !!item?.expiresAt && new Date(item.expiresAt).getTime() < Date.now();
 
-  const onRefresh = async () => {
+  const getListingPriority = (item: any): number => {
+    if (item.status === 'pending') return 0;
+    if (item.status === 'rejected') return 1;
+    if (isListingExpired(item)) return 2;
+    if (item.status === 'active') return 3;
+    if (item.status === 'sold') return 4;
+    return 5;
+  };
+
+  const currentListings = [...myListings].sort((a, b) => {
+    const priorityDelta = getListingPriority(a) - getListingPriority(b);
+    if (priorityDelta !== 0) return priorityDelta;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
+  const fetchUpgradePlans = useCallback(async () => {
+    try {
+      const apiUrl = await getApiUrl();
+      const response = await fetch(`${apiUrl}/api/admin/subscription-tiers`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      if (!data?.success || !Array.isArray(data.tiers)) {
+        return;
+      }
+
+      const bestPlanByDuration = new Map<number, UpgradePlan>();
+
+      data.tiers.forEach((tier: any) => {
+        if (String(tier?.type || 'bundle') === 'boost') return;
+
+        const duration = Number(tier?.durationDays || tier?.duration || 0);
+        if (!Number.isFinite(duration) || duration <= 0) return;
+
+        const regularPrice = Number(tier?.price || 0);
+        const offerPrice = Number(tier?.offerPrice);
+        const effectivePrice =
+          Number.isFinite(offerPrice) && offerPrice > 0 && offerPrice < regularPrice
+            ? offerPrice
+            : regularPrice;
+
+        // Renewal/upgrade is payment-only; skip free tiers.
+        if (!Number.isFinite(effectivePrice) || effectivePrice <= 0) return;
+
+        const nextPlan: UpgradePlan = {
+          duration,
+          price: effectivePrice,
+          label: `${duration} Days`,
+          subtitle: (String(tier?.description || '').trim() || `${tier?.name || 'Premium'} plan`)
+            .slice(0, 80),
+        };
+
+        const currentPlan = bestPlanByDuration.get(duration);
+        if (!currentPlan || nextPlan.price < currentPlan.price) {
+          bestPlanByDuration.set(duration, nextPlan);
+        }
+      });
+
+      const normalizedPlans = [...bestPlanByDuration.values()].sort(
+        (a, b) => a.duration - b.duration
+      );
+      if (normalizedPlans.length > 0) {
+        setUpgradePlans(normalizedPlans);
+      }
+    } catch (error) {
+      console.warn('[MyListings] Failed to fetch live upgrade plans, using defaults.');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUpgradePlans();
+  }, [fetchUpgradePlans]);
+
+  useEffect(() => {
+    const renewId = typeof params.renewId === 'string' ? params.renewId : '';
+    if (!renewId || autoRenewOpenedForId === renewId) return;
+
+    const expiredListing = expiredListings.find((l) => l.id === renewId);
+    if (!expiredListing) return;
+
+    setSelectedUpgradeItem(expiredListing);
+    setUpgradeModalVisible(true);
+    setAutoRenewOpenedForId(renewId);
+  }, [params.renewId, expiredListings, autoRenewOpenedForId]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refreshBanners();
-    // Refresh listings
-    setTimeout(() => setRefreshing(false), 1000);
-  };
+    try {
+      await Promise.all([refreshListings(), refreshBanners(), fetchUpgradePlans()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchUpgradePlans, refreshBanners, refreshListings]);
 
-  const handleTabPress = (tab: TabType) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedTab(tab);
-  };
+  useFocusEffect(
+    useCallback(() => {
+      refreshListings().catch((error) => {
+        console.warn('[MyListings] Failed to refresh listings on focus:', error);
+      });
+    }, [refreshListings])
+  );
 
   const showSuccessModal = (message: string) => {
     setFeedbackModalTitle('Success');
@@ -191,14 +316,35 @@ export default function MyListingsScreen() {
     ]);
   };
 
-  const handleViewSubscription = (item: any) => {
-    const isPaid = item.isPaid;
-    const duration = item.durationDays || item.duration || 30;
-    const expiresAt = item.expiresAt ? new Date(item.expiresAt).toLocaleDateString() : 'N/A';
+  const handleResubmit = async (listingId: string, listingTitle: string) => {
+    Alert.alert('Resubmit Listing', `Resubmit "${listingTitle}" for admin approval?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Resubmit',
+        onPress: async () => {
+          setResubmittingId(listingId);
+          try {
+            await updateListing(listingId, { status: 'pending' });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            showSuccessModal('Listing resubmitted for approval');
+          } catch (error) {
+            console.error('Error resubmitting listing:', error);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            showErrorModal('Failed to resubmit listing. Please try again.');
+          } finally {
+            setResubmittingId(null);
+          }
+        },
+      },
+    ]);
+  };
 
-    const message = isPaid
-      ? `Subscription: Premium\nDuration: ${duration} days\nExpires: ${expiresAt}`
-      : `Subscription: Coupon\nDuration: ${duration} days\nExpires: ${expiresAt}`;
+  const handleViewSubscription = (item: any) => {
+    const planInfo = getListingPlanInfo(item);
+    const message =
+      `Plan: ${planInfo.planName}\n` +
+      `Amount: ${planInfo.amountLabel}\n` +
+      `Expiry: ${planInfo.expiryLabel}`;
 
     Alert.alert('Listing Details', message, [
       {
@@ -232,24 +378,85 @@ export default function MyListingsScreen() {
   };
 
   const getCurrentPlanDuration = (item: any): number => {
-    const paidDuration = Number(item?.duration || item?.durationDays || 0);
-    if (item?.isPaid && paidDuration > 0) return paidDuration;
-    return 15;
+    if (!item) return 30;
+
+    const durationCandidates = [
+      item.durationDays,
+      item.duration,
+      item.subscriptionDuration,
+      item.userSubscription?.tier?.durationDays,
+    ]
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0);
+
+    if (durationCandidates.length > 0) {
+      return Math.max(...durationCandidates);
+    }
+
+    return 30;
+  };
+
+  const getListingPlanInfo = (
+    item: any
+  ): { planName: string; amountLabel: string; expiryLabel: string } => {
+    const duration = getCurrentPlanDuration(item);
+    const amount = PLAN_AMOUNT_BY_DURATION[duration];
+    const planName =
+      duration === 30 ? 'Basic 30 Days' : duration === 15 ? 'Free 15 Days' : `Premium ${duration} Days`;
+    const amountLabel =
+      typeof amount === 'number'
+        ? `₹${amount.toLocaleString('en-IN')}`
+        : item?.isPaid
+          ? 'Included in subscription'
+          : 'Free';
+    const expiryLabel = item?.expiresAt
+      ? new Date(item.expiresAt).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })
+      : 'N/A';
+
+    return { planName, amountLabel, expiryLabel };
   };
 
   const getAvailableUpgradePlans = (item: any): UpgradePlan[] => {
+    if (isListingExpired(item)) {
+      return upgradePlans;
+    }
+
     const currentDuration = getCurrentPlanDuration(item);
-    return UPGRADE_PLANS.filter((plan) => plan.duration !== currentDuration);
+    return upgradePlans.filter((plan) => plan.duration > currentDuration);
+  };
+
+  const getBoostRemainingMs = (boostedUntil?: string | null): number => {
+    if (!boostedUntil) return 0;
+    const end = new Date(boostedUntil).getTime();
+    if (!Number.isFinite(end)) return 0;
+    return Math.max(0, end - nowTick);
+  };
+
+  const formatBoostRemaining = (ms: number): string => {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const hh = String(hours).padStart(2, '0');
+    const mm = String(minutes).padStart(2, '0');
+    const ss = String(seconds).padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
   };
 
   const processUpgrade = async (listingId: string, duration: number, price: number) => {
     try {
       setUpgradingDuration(duration);
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/api/subscriptions/upgrade-listing`, {
+      const apiUrl = await getApiUrl();
+      const checkoutResponse = await fetch(`${apiUrl}/api/subscriptions/upgrade-listing/checkout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-user-id': user?.id || '',
+          'x-user-phone': user?.phone || '',
         },
         body: JSON.stringify({
           listingId,
@@ -258,23 +465,184 @@ export default function MyListingsScreen() {
         }),
       });
 
-      if (response.ok) {
-        await response.json();
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        closeUpgradeModal();
-        showSuccessModal(`Listing upgraded to ${duration} days plan!`);
-        onRefresh();
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upgrade failed');
+      const checkoutData = await checkoutResponse.json();
+      if (!checkoutResponse.ok || !checkoutData.success || !checkoutData.payment) {
+        if (String(checkoutData?.error || '').toLowerCase() === 'listing not found') {
+          throw new Error(
+            'This listing is not available on server yet. Payment renewal works only for server-created listings.'
+          );
+        }
+        throw new Error(checkoutData.error || 'Failed to initiate upgrade payment');
       }
+
+      const { razorpayOrderId, amount, key } = checkoutData.payment;
+
+      // @ts-ignore - dynamic import to avoid New Architecture crash
+      const RazorpayCheckout = require('react-native-razorpay').default;
+
+      const paymentResult = await RazorpayCheckout.open({
+        description: `Listing upgrade - ${duration} days`,
+        image: 'https://nearhub.app/nearhub-logo.png',
+        currency: 'INR',
+        key,
+        amount: String(amount),
+        order_id: razorpayOrderId,
+        name: 'NearHub',
+        prefill: {
+          email: user?.email || '',
+          contact: user?.phone || '',
+          name: user?.name || '',
+        },
+        theme: { color: '#0A66C2' },
+      });
+
+      const verifyResponse = await fetch(
+        `${apiUrl}/api/subscriptions/upgrade-listing/verify-payment`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': user?.id || '',
+            'x-user-phone': user?.phone || '',
+          },
+          body: JSON.stringify({
+            listingId,
+            duration,
+            price,
+            razorpay_order_id: paymentResult.razorpay_order_id,
+            razorpay_payment_id: paymentResult.razorpay_payment_id,
+            razorpay_signature: paymentResult.razorpay_signature,
+          }),
+        }
+      );
+
+      const verifyData = await verifyResponse.json();
+      if (!verifyResponse.ok || !verifyData.success) {
+        throw new Error(verifyData.error || 'Payment verification failed');
+      }
+
+      await updateListing(listingId, {
+        isPaid: true,
+        featured: true,
+        duration,
+        durationDays: duration,
+        expiresAt: verifyData?.data?.expiresAt,
+        status: 'active',
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      closeUpgradeModal();
+      showSuccessModal(`Listing upgraded to ${duration} days plan!`);
+      onRefresh();
     } catch (error) {
-      console.error('Error upgrading listing:', error);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      showErrorModal('Failed to upgrade listing. Please try again.');
+      const gatewayError = (typeof error === 'object' && error !== null ? error : {}) as any;
+      const gatewayStep = String(gatewayError?.error?.step || '');
+      const gatewayReason = String(gatewayError?.error?.reason || '');
+      const gatewayDescription = String(gatewayError?.description || '');
+
+      let errMsg = error instanceof Error ? error.message : 'Upgrade failed';
+
+      const isPaymentAuthFailure =
+        gatewayStep.toLowerCase() === 'payment_authentication' ||
+        gatewayReason.toLowerCase() === 'payment_error' ||
+        gatewayDescription.toLowerCase().includes('payment_authentication');
+
+      if (isPaymentAuthFailure) {
+        errMsg = 'Payment authentication failed. Please retry with a valid payment method.';
+      }
+
+      const wasCancelled =
+        typeof errMsg === 'string' &&
+        (errMsg.toLowerCase().includes('cancelled') || errMsg.toLowerCase().includes('dismissed'));
+      const isKnownListingMissing =
+        typeof errMsg === 'string' &&
+        errMsg.toLowerCase().includes('not available on server yet');
+
+      if (!wasCancelled && !isKnownListingMissing && !isPaymentAuthFailure) {
+        console.error('Error upgrading listing:', error);
+      } else if (isPaymentAuthFailure) {
+        console.warn('[Renew] Payment authentication failed during Razorpay checkout.');
+      } else if (isKnownListingMissing) {
+        console.warn('[Renew] Listing not synced to backend, payment renewal blocked.');
+      }
+      if (!wasCancelled) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        showErrorModal(errMsg || 'Failed to upgrade listing. Please try again.');
+      }
     } finally {
       setUpgradingDuration(null);
+    }
+  };
+
+  const handleBoostNow = async (item: any, e: any) => {
+    e.stopPropagation();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const isAlreadyBoosted = !!item?.boostedUntil && new Date(item.boostedUntil) > new Date();
+    if (isAlreadyBoosted) {
+      showErrorModal('This listing is already boosted. Try again after current boost expires.');
+      return;
+    }
+    setBoostingId(item.id);
+
+    try {
+      const apiUrl = await getApiUrl();
+      const response = await fetch(`${apiUrl}/api/subscriptions/listings/${item.id}/boost`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || '',
+          'x-user-phone': user?.phone || '',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        if (response.status === 409 || data?.code === 'LISTING_ALREADY_BOOSTED') {
+          const untilLabel = data?.boostedUntil
+            ? new Date(data.boostedUntil).toLocaleString('en-IN')
+            : null;
+          showErrorModal(
+            untilLabel
+              ? `This listing is already boosted until ${untilLabel}.`
+              : 'This listing is already boosted.'
+          );
+          return;
+        }
+        if (response.status === 402 || data?.code === 'BOOST_CREDITS_EXHAUSTED') {
+          Alert.alert(
+            'Boost Credits Exhausted',
+            'You have no boost credits left. Purchase a boost pack to continue.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Buy Boost Pack',
+                onPress: () => router.push('/subscriptions'),
+              },
+            ]
+          );
+          return;
+        }
+
+        throw new Error(data?.error || 'Failed to boost listing');
+      }
+
+      await updateListing(item.id, {
+        featured: true,
+        boostedUntil: data?.boostedUntil || undefined,
+        boostCount:
+          item?.boostCount !== undefined && item?.boostCount !== null ? Number(item.boostCount) + 1 : 1,
+        status: 'active',
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showSuccessModal('Listing boosted for 24 hours.');
+      onRefresh();
+    } catch (error) {
+      console.error('[Boost] Error boosting listing:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showErrorModal(error instanceof Error ? error.message : 'Failed to boost listing');
+    } finally {
+      setBoostingId(null);
     }
   };
 
@@ -317,46 +685,25 @@ export default function MyListingsScreen() {
         </View>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        <Pressable
-          style={[styles.tab, selectedTab === 'active' && styles.tabActive]}
-          onPress={() => handleTabPress('active')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'active' && styles.tabTextActive]}>
-            Active ({activeListings.length})
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, selectedTab === 'sold' && styles.tabActive]}
-          onPress={() => handleTabPress('sold')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'sold' && styles.tabTextActive]}>
-            Sold ({soldListings.length})
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, selectedTab === 'expired' && styles.tabActive]}
-          onPress={() => handleTabPress('expired')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'expired' && styles.tabTextActive]}>
-            Expired ({expiredListings.length})
-          </Text>
-        </Pressable>
-      </View>
-
       {/* Listings */}
       <FlatList
         key="single-column"
         data={currentListings}
-        extraData={selectedTab}
-        renderItem={({ item }) => (
-          <View style={styles.listingItem}>
-            <View style={styles.cardContainer}>
-              <Pressable
-                style={styles.cardTapArea}
-                onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
-              >
+        renderItem={({ item }) => {
+          const listingPlanInfo = getListingPlanInfo(item);
+          const boostRemainingMs = getBoostRemainingMs(item?.boostedUntil);
+          const isCurrentlyBoosted = boostRemainingMs > 0;
+          const isExpiredItem = isListingExpired(item);
+
+          return (
+            <View style={styles.listingItem}>
+              <View style={styles.cardContainer}>
+                <Pressable
+                  style={styles.cardTapArea}
+                  onPress={() =>
+                    router.push({ pathname: '/listing/[id]', params: { id: item.id } })
+                  }
+                >
                 <View style={styles.imageContainer}>
                   <Image
                     source={item.images?.[0] ? { uri: item.images[0] } : undefined}
@@ -368,10 +715,24 @@ export default function MyListingsScreen() {
                   <View
                     style={[
                       styles.statusBadge,
-                      item.isPaid ? styles.premiumStatusBadge : styles.activeStatusBadge,
+                      item.status === 'pending'
+                        ? styles.pendingStatusBadge
+                        : item.status === 'rejected'
+                          ? styles.rejectedStatusBadge
+                        : item.isPaid
+                          ? styles.premiumStatusBadge
+                          : styles.activeStatusBadge,
                     ]}
                   >
-                    <Text style={styles.statusBadgeText}>{item.isPaid ? 'PREMIUM' : 'ACTIVE'}</Text>
+                    <Text style={styles.statusBadgeText}>
+                      {item.status === 'pending'
+                        ? 'APPROVAL PENDING'
+                        : item.status === 'rejected'
+                          ? 'REJECTED'
+                        : item.isPaid
+                          ? 'PREMIUM'
+                          : 'ACTIVE'}
+                    </Text>
                   </View>
 
                   <View style={styles.conditionBadge}>
@@ -410,6 +771,40 @@ export default function MyListingsScreen() {
                     <Text style={styles.metaDot}>•</Text>
                     <Text style={styles.metaText}>{getTimeAgo(item.createdAt)}</Text>
                   </View>
+
+                  {isCurrentlyBoosted && (
+                    <View style={styles.boostedTimerBanner}>
+                      <Feather name="zap" size={13} color="#166534" />
+                      <Text style={styles.boostedTimerText}>
+                        Boost active • ends in {formatBoostRemaining(boostRemainingMs)}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.planInfoContainer}>
+                    <View style={styles.planInfoRow}>
+                      <Text style={styles.planInfoLabel}>Plan</Text>
+                      <Text style={styles.planInfoValue}>{listingPlanInfo.planName}</Text>
+                    </View>
+                    <View style={styles.planInfoRow}>
+                      <Text style={styles.planInfoLabel}>Amount</Text>
+                      <Text style={styles.planInfoValue}>{listingPlanInfo.amountLabel}</Text>
+                    </View>
+                    <View style={styles.planInfoRow}>
+                      <Text style={styles.planInfoLabel}>Expiry</Text>
+                      <Text style={styles.planInfoValue}>{listingPlanInfo.expiryLabel}</Text>
+                    </View>
+                  </View>
+
+                  {item.status === 'rejected' ? (
+                    <View style={styles.rejectionReasonContainer}>
+                      <Text style={styles.rejectionReasonLabel}>Admin Message</Text>
+                      <Text style={styles.rejectionReasonText}>
+                        {item.rejectionReason ||
+                          'Your listing was rejected by admin. Edit and resubmit to continue.'}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
 
                 {/* Analytics Stats Row */}
@@ -426,16 +821,23 @@ export default function MyListingsScreen() {
                     <Text style={styles.analyticsLabel}>Likes</Text>
                   </View>
                   <View style={styles.analyticsDivider} />
-                  <View style={styles.analyticsItem}>
+                  <Pressable
+                    style={styles.analyticsItem}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push('/chat/');
+                    }}
+                  >
                     <Feather name="message-circle" size={18} color="#6b7280" />
                     <Text style={styles.analyticsValue}>2</Text>
                     <Text style={styles.analyticsLabel}>Chats</Text>
-                  </View>
+                  </Pressable>
                 </View>
               </Pressable>
 
-              {/* Action Buttons Grid - Only for Active Tab */}
-              {selectedTab === 'active' && (
+              {/* Action Buttons Grid */}
+              {item.status === 'active' && !isExpiredItem && (
                 <View style={styles.actionButtonsGrid}>
                   <Pressable
                     style={[styles.actionButton, styles.editButton]}
@@ -450,11 +852,24 @@ export default function MyListingsScreen() {
                   </Pressable>
 
                   <Pressable
-                    style={[styles.actionButton, styles.boostButton]}
-                    onPress={(e) => handleUpgradeButton(item, e)}
+                    style={[
+                      styles.actionButton,
+                      styles.boostButton,
+                      isCurrentlyBoosted && styles.actionButtonDisabled,
+                    ]}
+                    onPress={(e) => handleBoostNow(item, e)}
+                    disabled={boostingId === item.id || isCurrentlyBoosted}
                   >
-                    <Feather name="trending-up" size={18} color="#fff" />
-                    <Text style={styles.boostButtonText}>Upgrade</Text>
+                    {boostingId === item.id ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Feather name="trending-up" size={18} color="#fff" />
+                        <Text style={styles.boostButtonText}>
+                          {isCurrentlyBoosted ? 'Boosted' : 'Boost'}
+                        </Text>
+                      </>
+                    )}
                   </Pressable>
 
                   <Pressable
@@ -497,7 +912,53 @@ export default function MyListingsScreen() {
                 </View>
               )}
 
-              {item.status === 'sold' && (
+              {isExpiredItem && (
+                <View style={styles.actionButtonsGrid}>
+                  <Pressable
+                    style={[styles.actionButton, styles.actionButtonFull, styles.boostButton]}
+                    onPress={(e) => handleUpgradeButton(item, e)}
+                  >
+                    <Feather name="refresh-cw" size={18} color="#fff" />
+                    <Text style={styles.boostButtonText}>Renew</Text>
+                  </Pressable>
+                </View>
+              )}
+
+              {item.status === 'rejected' && (
+                <View style={styles.actionButtonsGrid}>
+                  <Pressable
+                    style={[styles.actionButton, styles.editButton]}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push({ pathname: '/listings/edit', params: { id: item.id } });
+                    }}
+                  >
+                    <Feather name="edit-2" size={18} color="#374151" />
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.actionButton, styles.actionButtonFull, styles.resubmitButton]}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      handleResubmit(item.id, item.title);
+                    }}
+                    disabled={resubmittingId === item.id}
+                  >
+                    {resubmittingId === item.id ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Feather name="refresh-cw" size={18} color="#fff" />
+                        <Text style={styles.resubmitButtonText}>Resubmit</Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              )}
+
+                {item.status === 'sold' && (
                 <View style={styles.actionButtonsGrid}>
                   <Pressable
                     style={[styles.actionButton, styles.actionButtonFull, styles.restoreButton]}
@@ -520,8 +981,9 @@ export default function MyListingsScreen() {
                 </View>
               )}
             </View>
-          </View>
-        )}
+            </View>
+          );
+        }}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
@@ -536,31 +998,20 @@ export default function MyListingsScreen() {
           <AppScreenBanners banners={listingsBanners} isLoading={isListingsBannersLoading} />
         }
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Feather name="package" size={48} color={Colors.textTertiary} />
-            <Text style={styles.emptyTitle}>
-              {selectedTab === 'active'
-                ? 'No active listings'
-                : selectedTab === 'sold'
-                  ? 'No sold items yet'
-                  : 'No expired listings'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {selectedTab === 'active'
-                ? 'Create your first listing to get started'
-                : selectedTab === 'sold'
-                  ? "Items you've sold will appear here"
-                  : 'Listings that have expired will show here'}
-            </Text>
-            {selectedTab === 'active' && (
+            <View style={styles.emptyState}>
+              <Feather name="package" size={48} color={Colors.textTertiary} />
+              <Text style={styles.emptyTitle}>No listings yet</Text>
+              <Text style={styles.emptySubtitle}>
+                Create your first listing to get started. Pending approvals and status badges will
+                appear here.
+              </Text>
               <Pressable style={styles.createButton} onPress={() => router.push('/(tabs)/create')}>
                 <Feather name="plus" size={20} color="#fff" />
                 <Text style={styles.createButtonText}>Create Listing</Text>
               </Pressable>
-            )}
-          </View>
-        }
-      />
+            </View>
+          }
+        />
 
       <Modal
         visible={upgradeModalVisible}
@@ -574,10 +1025,17 @@ export default function MyListingsScreen() {
           <View style={styles.upgradeModalSheet}>
             <View style={styles.upgradeModalHeader}>
               <View>
-                <Text style={styles.upgradeModalTitle}>Upgrade Listing</Text>
+                <Text style={styles.upgradeModalTitle}>
+                  {isListingExpired(selectedUpgradeItem) ? 'Renew Listing' : 'Boost Listing'}
+                </Text>
                 <Text style={styles.upgradeModalSubtitle} numberOfLines={1}>
                   {selectedUpgradeItem?.title || 'Select a plan'}
                 </Text>
+                {isListingExpired(selectedUpgradeItem) && (
+                  <Text style={styles.upgradeModalRenewNote}>
+                    Renewal extends this listing only (does not renew your subscription plan).
+                  </Text>
+                )}
               </View>
               <Pressable style={styles.upgradeModalCloseButton} onPress={closeUpgradeModal}>
                 <Feather name="x" size={18} color={Colors.textSecondary} />
@@ -595,7 +1053,9 @@ export default function MyListingsScreen() {
               {getAvailableUpgradePlans(selectedUpgradeItem).length === 0 ? (
                 <View style={styles.noPlansContainer}>
                   <Text style={styles.noPlansText}>
-                    No higher plans available for this listing.
+                    {isListingExpired(selectedUpgradeItem)
+                      ? 'No renewal plans available right now.'
+                      : 'No higher plans available for this listing.'}
                   </Text>
                 </View>
               ) : (
@@ -619,7 +1079,9 @@ export default function MyListingsScreen() {
                       {upgradingDuration === plan.duration ? (
                         <ActivityIndicator size="small" color="#fff" />
                       ) : (
-                        <Text style={styles.selectPlanButtonText}>Choose {plan.label}</Text>
+                        <Text style={styles.selectPlanButtonText}>
+                          Pay ₹{plan.price} for {plan.label}
+                        </Text>
                       )}
                     </Pressable>
                   </View>
@@ -747,26 +1209,26 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_600SemiBold',
   },
   listingItem: {
-    paddingHorizontal: 16,
-    marginBottom: 20,
+    paddingHorizontal: 14,
+    marginBottom: 18,
   },
   cardContainer: {
-    borderRadius: 12,
+    borderRadius: 18,
     backgroundColor: Colors.surface,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    elevation: 5,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.09,
+    shadowRadius: 18,
+    elevation: 6,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: '#E2E8F0',
   },
   cardTapArea: {
     backgroundColor: Colors.surface,
   },
   imageContainer: {
-    height: 210,
+    height: 200,
     position: 'relative',
     backgroundColor: Colors.borderLight,
   },
@@ -779,14 +1241,14 @@ const styles = createResponsiveStyles({
     top: 12,
     left: 12,
     zIndex: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.16,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 3,
   },
   activeStatusBadge: {
     backgroundColor: '#10b981',
@@ -794,34 +1256,62 @@ const styles = createResponsiveStyles({
   premiumStatusBadge: {
     backgroundColor: '#f59e0b',
   },
+  pendingStatusBadge: {
+    backgroundColor: '#f97316',
+  },
+  rejectedStatusBadge: {
+    backgroundColor: '#dc2626',
+  },
   statusBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
-    letterSpacing: 0.5,
+    letterSpacing: 0.35,
   },
   conditionBadge: {
     position: 'absolute',
     right: 12,
     bottom: 12,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   conditionBadgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontFamily: 'Inter_500Medium',
+    color: '#1e293b',
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
   },
   detailsSection: {
     paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 10,
+    paddingTop: 13,
+    paddingBottom: 12,
     backgroundColor: Colors.surface,
   },
+  rejectionReasonContainer: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  rejectionReasonLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#991b1b',
+    marginBottom: 4,
+  },
+  rejectionReasonText: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+    color: '#7f1d1d',
+    lineHeight: 18,
+  },
   priceText: {
-    fontSize: 26,
+    fontSize: 24,
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
   },
@@ -842,23 +1332,64 @@ const styles = createResponsiveStyles({
     textDecorationLine: 'line-through',
   },
   titleText: {
-    marginTop: 4,
-    fontSize: 17,
+    marginTop: 6,
+    fontSize: 16,
     color: Colors.text,
     fontFamily: 'Inter_600SemiBold',
-    lineHeight: 22,
+    lineHeight: 21,
   },
   metaRow: {
-    marginTop: 8,
+    marginTop: 9,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
   metaText: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
     flexShrink: 1,
+  },
+  planInfoContainer: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+    gap: 6,
+  },
+  boostedTimerBanner: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  boostedTimerText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#166534',
+  },
+  planInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  planInfoLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textSecondary,
+  },
+  planInfoValue: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.text,
+    maxWidth: '70%',
+    textAlign: 'right',
   },
   metaDot: {
     fontSize: 12,
@@ -868,9 +1399,9 @@ const styles = createResponsiveStyles({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    backgroundColor: Colors.borderLight,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    backgroundColor: '#F8FAFC',
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
@@ -879,9 +1410,10 @@ const styles = createResponsiveStyles({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
+    paddingVertical: 2,
   },
   analyticsValue: {
-    fontSize: 17,
+    fontSize: 16,
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
   },
@@ -906,13 +1438,16 @@ const styles = createResponsiveStyles({
     borderTopColor: Colors.borderLight,
   },
   actionButton: {
-    width: '48%',
+    width: '48.5%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 12,
-    borderRadius: 11,
+    paddingVertical: 11,
+    borderRadius: 12,
+  },
+  actionButtonDisabled: {
+    opacity: 0.6,
   },
   actionButtonFull: {
     width: '100%',
@@ -955,6 +1490,14 @@ const styles = createResponsiveStyles({
     backgroundColor: Colors.primaryDark,
   },
   restoreButtonText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#fff',
+  },
+  resubmitButton: {
+    backgroundColor: '#2563eb',
+  },
+  resubmitButtonText: {
     fontSize: 12,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
@@ -1032,6 +1575,13 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
     maxWidth: 260,
+  },
+  upgradeModalRenewNote: {
+    marginTop: 4,
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textTertiary,
+    maxWidth: 280,
   },
   upgradeModalCloseButton: {
     width: 30,

@@ -66,7 +66,12 @@ export default function SearchResultsScreen() {
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const filteredListings = useMemo(() => {
-    let results = listings;
+    let results = listings.filter((item) => {
+      const status = (item.status || 'active').toLowerCase();
+      if (status !== 'active') return false;
+      if (item.expiresAt && new Date(item.expiresAt).getTime() < Date.now()) return false;
+      return true;
+    });
 
     // Filter by category
     if (selectedCategory !== 'All') {
@@ -162,6 +167,7 @@ export default function SearchResultsScreen() {
           image={item.images[0]}
           location={item.location.city}
           condition={formatCondition(item.condition)}
+          isSponsored={Boolean((item as any).sponsored)}
           isSaved={savedIds.has(item.id)}
           onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
           onSave={() => handleSave(item.id, item.category)}

@@ -89,6 +89,16 @@ export default function HomeScreen() {
   const userLat = selectedLocationLat ?? user?.location?.latitude;
   const userLon = selectedLocationLon ?? user?.location?.longitude;
   const effectiveGeoRadiusKm = user?.preferences?.searchRadiusKm ?? geoRadiusKm;
+  const visibleListings = useMemo(
+    () =>
+      listings.filter((listing) => {
+        const status = listing.status || 'active';
+        if (status !== 'active') return false;
+        if (listing.expiresAt && new Date(listing.expiresAt).getTime() < Date.now()) return false;
+        return true;
+      }),
+    [listings]
+  );
 
   // Helper function to batch location state updates
   const updateLocation = useCallback((lat: number, lon: number, city: string) => {
@@ -352,9 +362,9 @@ export default function HomeScreen() {
   );
 
   const filteredListingsByLocation = useMemo(() => {
-    if (!userLat || !userLon) return listings;
+    if (!userLat || !userLon) return visibleListings;
     // Filter listings within geoRadiusKm of selected location
-    return listings.filter((l) => {
+    return visibleListings.filter((l) => {
       const distance = calculateDistance(
         userLat,
         userLon,
@@ -363,11 +373,11 @@ export default function HomeScreen() {
       );
       return distance <= selectedSearchRadiusKm;
     });
-  }, [listings, userLat, userLon, selectedSearchRadiusKm]);
+  }, [visibleListings, userLat, userLon, selectedSearchRadiusKm]);
 
   const nearYouListings = useMemo(() => {
     if (!userLat || !userLon) return [];
-    return listings
+    return visibleListings
       .filter((l) => {
         const distance = calculateDistance(
           userLat,
@@ -393,7 +403,12 @@ export default function HomeScreen() {
         return distA - distB;
       })
       .slice(0, 5);
-  }, [listings, userLat, userLon, selectedSearchRadiusKm]);
+  }, [visibleListings, userLat, userLon, selectedSearchRadiusKm]);
+
+  const boostedListings = useMemo(
+    () => filteredListingsByLocation.filter((listing) => Boolean(listing.featured)).slice(0, 5),
+    [filteredListingsByLocation]
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -438,6 +453,7 @@ export default function HomeScreen() {
   }, []);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const alignedResultCardWidth = useMemo(() => (SCREEN_WIDTH - 24 - 3) / 2, []);
 
   const renderItem = useCallback(
     ({ item, index }: { item: (typeof listings)[0]; index: number }) => (
@@ -452,6 +468,8 @@ export default function HomeScreen() {
           image={item.images[0]}
           location={item.location.city}
           condition={formatCondition(item.condition)}
+          isBoosted={Boolean(item.featured)}
+          isSponsored={Boolean((item as any).sponsored)}
           isSaved={savedIds.has(item.id)}
           onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
           onSave={() => handleSave(item.id, item.category)}
@@ -558,7 +576,7 @@ export default function HomeScreen() {
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   style={styles.nearYouScroll}
-                  contentContainerStyle={{ paddingHorizontal: 16, gap: 3 }}
+                  contentContainerStyle={styles.horizontalResultsContent}
                 >
                   {nearYouListings.map((item) => (
                     <Pressable
@@ -566,7 +584,7 @@ export default function HomeScreen() {
                       onPress={() =>
                         router.push({ pathname: '/listing/[id]', params: { id: item.id } })
                       }
-                      style={styles.nearYouCard}
+                      style={[styles.nearYouCard, { width: alignedResultCardWidth }]}
                     >
                       <Image
                         source={{ uri: item.images[0] }}
@@ -597,7 +615,7 @@ export default function HomeScreen() {
             )}
 
             {/* Featured Deals Section */}
-            {filteredListingsByLocation.length > 0 && (
+            {boostedListings.length > 0 && (
               <View style={styles.featuredSection}>
                 <View style={styles.sectionHeader}>
                   <Feather name="star" size={16} color={Colors.primary} />
@@ -607,15 +625,15 @@ export default function HomeScreen() {
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   style={styles.featuredScroll}
-                  contentContainerStyle={{ paddingHorizontal: 16, gap: 3 }}
+                  contentContainerStyle={styles.horizontalResultsContent}
                 >
-                  {filteredListingsByLocation.slice(0, 5).map((item) => (
+                  {boostedListings.map((item) => (
                     <Pressable
                       key={item.id}
                       onPress={() =>
                         router.push({ pathname: '/listing/[id]', params: { id: item.id } })
                       }
-                      style={styles.featuredCard}
+                      style={[styles.featuredCard, { width: alignedResultCardWidth }]}
                     >
                       <Image
                         source={{ uri: item.images[0] }}
@@ -627,7 +645,7 @@ export default function HomeScreen() {
                       </Text>
                       <Text style={styles.cardPrice}>₹{item.price.toLocaleString('en-IN')}</Text>
                       <View style={styles.cardBadge}>
-                        <Text style={styles.badgeText}>Featured</Text>
+                        <Text style={styles.badgeText}>Boost</Text>
                       </View>
                     </Pressable>
                   ))}
@@ -1124,8 +1142,7 @@ const styles = createResponsiveStyles({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: 0,
-    paddingRight: 16,
+    paddingHorizontal: 12,
     marginBottom: 4,
     gap: 8,
   },
@@ -1135,10 +1152,9 @@ const styles = createResponsiveStyles({
     color: Colors.text,
   },
   nearYouScroll: {
-    paddingHorizontal: 16,
+    marginTop: 2,
   },
   nearYouCard: {
-    width: 140,
     backgroundColor: Colors.surface,
     borderRadius: 0,
     overflow: 'hidden',
@@ -1173,10 +1189,9 @@ const styles = createResponsiveStyles({
     marginBottom: 8,
   },
   featuredScroll: {
-    marginTop: 6,
+    marginTop: 2,
   },
   featuredCard: {
-    width: 140,
     backgroundColor: Colors.surface,
     borderRadius: 0,
     overflow: 'hidden',
@@ -1211,6 +1226,10 @@ const styles = createResponsiveStyles({
   listContent: {
     paddingHorizontal: 12,
     paddingVertical: 4,
+  },
+  horizontalResultsContent: {
+    paddingHorizontal: 12,
+    gap: 3,
   },
   row: {
     gap: 3,

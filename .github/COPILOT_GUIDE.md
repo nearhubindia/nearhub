@@ -7,6 +7,8 @@
 ---
 
 ## Table of Contents
+> Before implementing anything, follow `.github/COPILOT_STRICT_INDEX.md` for canonical file/route ownership and no-duplicate rules.
+
 1. [Project Overview](#project-overview)
 2. [Monorepo Structure](#monorepo-structure)
 3. [Coding Standards](#coding-standards)
@@ -1092,21 +1094,10 @@ const response = await fetch(`${API_URL}/api/subscriptions/create-listing`, {
 // ✅ Integrated with payment system
 ```
 
-**2. Legacy Endpoint (Deprecated):** `POST /api/listings`
+**2. Removed Endpoint:** `POST /api/listings`
 ```typescript
-// Location: server/features/listings/routes/listings.ts  
-// ⚠️ DEPRECATED - Only for admin/testing/migrations
-
-// Limitations:
-// ❌ No subscription limit validation
-// ❌ No coupon support
-// ❌ No tier restriction enforcement
-// ⚠️ Logs deprecation warnings
-
-// Only use for:
-// - Admin panel testing
-// - System migrations
-// - Development/seeding
+// ❌ REMOVED - Must not be reintroduced.
+// Use: POST /api/subscriptions/create-listing
 ```
 
 #### Date Serialization Pattern

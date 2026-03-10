@@ -1665,6 +1665,7 @@ export default function CreateScreen() {
 
       await addListing(
         {
+          userId: user?.id || user?.phone || '',
           title: title.trim(),
           description: description.trim(),
           price: Number(price),
@@ -1697,12 +1698,15 @@ export default function CreateScreen() {
       await fetchActiveSubscription({ force: true });
 
       setOverallProgress(100);
-      setValidationMessage('✅ Success! Your listing is live.');
+      setValidationMessage('✅ Success! Your listing is submitted for admin review.');
 
       // Show success message briefly before clearing
       await new Promise((resolve) => setTimeout(resolve, 800));
 
-      Alert.alert('Listed!', 'Your item has been posted successfully.', [
+      Alert.alert(
+        'Submitted!',
+        'Your listing was submitted successfully and is pending admin approval.',
+        [
         {
           text: 'OK',
           onPress: () => {
@@ -1721,7 +1725,8 @@ export default function CreateScreen() {
             router.replace('/(tabs)');
           },
         },
-      ]);
+      ]
+      );
     } catch (e) {
       const error = e as any;
       console.error('[Create] Listing creation error:', error);
@@ -1733,6 +1738,22 @@ export default function CreateScreen() {
           '🛡️ Content Safety Check Failed',
           `Your image contains ${violations}. Our AI detected content that violates our community guidelines.\n\nPlease use different images that comply with our policies.`,
           [{ text: 'Got It' }]
+        );
+      } else if (error?.code === 'INAPPROPRIATE_VIDEO_CONTENT') {
+        const violations = error.details?.violations?.join(', ') || 'inappropriate content';
+        Alert.alert(
+          '🛡️ Video Safety Check Failed',
+          `Your video contains ${violations}. Please upload a different video that complies with our community guidelines.`,
+          [{ text: 'Got It' }]
+        );
+      } else if (
+        error?.code === 'VIDEO_MODERATION_UNAVAILABLE' ||
+        error?.code === 'VIDEO_SOURCE_UNSUPPORTED'
+      ) {
+        Alert.alert(
+          'Video Moderation Unavailable',
+          'We could not verify this video right now. Please try uploading again in a few minutes.',
+          [{ text: 'OK' }]
         );
       } else if (error?.code === 'PRODUCT_IMAGE_MISMATCH') {
         Alert.alert(

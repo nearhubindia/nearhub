@@ -5,6 +5,7 @@
  */
 
 import type { Express, Request, Response } from 'express';
+import { db } from '../../../data/db';
 import {
   calculateCheckout,
   getListingCheckoutSummary,
@@ -20,7 +21,7 @@ import {
 import { verifyAdminToken } from '../../admin/services/admin-auth';
 import { isListingFree, getPricingForDuration, type DurationOption } from '../services/pricing';
 import { getRazorpayService } from '../../payments/services/razorpay';
-import { createListing, updateListing } from '../../listings/services/listings';
+import { createListing, updateListing, boostListingForHours } from '../../listings/services/listings';
 import {
   applyCouponDiscount,
   recordCouponUsage,
@@ -31,13 +32,14 @@ import {
 import {
   getActiveListing,
   getListingById,
-  getListingsBySeller,
+  getListingsByUser,
 } from '../../listings/services/listings';
 import {
   notifyPaymentSuccess,
   notifyPaymentFailed,
   notifyInvoiceGenerated,
   notifyCouponApplied,
+  notifyAdminListingPendingReview,
 } from '../../../shared/services/auto-notifications';
 import {
   getActiveSubscriptionTiers,
@@ -48,14 +50,36 @@ import {
   createUserSubscription,
   canUserCreateListing,
   getTotalAllowedListings,
+  SubscriptionTierInUseError,
+  getUserBoostCreditsSummary,
+  consumeUserBoostCredit,
+  addBoostCreditsToSubscription,
 } from '../services/subscription-tiers';
-import {
-  analyzeImageContent,
-  analyzeVideoContent,
-  verifyProductImageMatch,
-} from '../../../shared/ai/ai';
 import { getActiveListingCount, getSubscriptionById } from '../services/subscription-tiers';
 import { listingCreationLimiter } from '../../../lib/rate-limiter';
+
+function normalizePhoneVariants(value: string): string[] {
+  const raw = String(value || '');
+  const digitsOnly = raw.replace(/\D/g, '');
+  const variants = new Set<string>();
+
+  if (raw) variants.add(raw);
+  if (digitsOnly) variants.add(digitsOnly);
+  if (digitsOnly.length > 10) variants.add(digitsOnly.slice(-10));
+
+  return [...variants];
+}
+
+function hasLocalDeviceUri(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const uri = value.trim().toLowerCase();
+  return (
+    uri.startsWith('file://') ||
+    uri.startsWith('content://') ||
+    uri.startsWith('ph://') ||
+    uri.startsWith('assets-library://')
+  );
+}
 
 export function registerSubscriptionRoutes(app: Express) {
   /**
@@ -104,18 +128,18 @@ export function registerSubscriptionRoutes(app: Express) {
       );
 
       // Get user's total listing count for backward compatibility
-      let sellerListings = await getListingsBySeller(userId);
+      let userListings = await getListingsByUser(userId);
 
       // If no listings found by userId, try user's phone number from header
-      if (sellerListings.length === 0) {
+      if (userListings.length === 0) {
         const userPhone = req.get('x-user-phone');
         if (userPhone) {
           const normalizedPhone = userPhone.replace(/[\s+-]/g, '');
-          sellerListings = await getListingsBySeller(normalizedPhone);
+          userListings = await getListingsByUser(normalizedPhone);
         }
       }
 
-      const totalListingsCount = sellerListings.length;
+      const totalListingsCount = userListings.length;
 
       // Enrich with tier details + PER-SUBSCRIPTION listing stats
       const { listings } = await import('../../admin/models/admin-settings');
@@ -186,14 +210,17 @@ export function registerSubscriptionRoutes(app: Express) {
 
           return {
             ...sub,
+            boostsRemaining: Number((sub as any).boostsRemaining || 0),
             tier: tier
               ? {
                   id: tier.id,
                   name: tier.name,
+                  type: (tier as any).type || 'bundle',
                   price: tier.price,
                   durationDays: tier.durationDays,
                   maxListings: tier.maxListings,
                   featuredListingsPerMonth: tier.featuredListingsPerMonth,
+                  boostCredits: Number((tier as any).boostCredits || 0),
                   features:
                     typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features,
                 }
@@ -212,6 +239,7 @@ export function registerSubscriptionRoutes(app: Express) {
           tierName: s.tier?.name,
           listingsUsed: s.listingsUsed,
           maxListings: s.tier?.maxListings,
+          boostsRemaining: s.boostsRemaining,
         })),
       });
 
@@ -244,7 +272,7 @@ export function registerSubscriptionRoutes(app: Express) {
         });
       }
 
-      const { tierId, duration = 30 } = req.body;
+      const { tierId, duration } = req.body;
 
       if (!tierId) {
         return res.status(400).json({
@@ -262,9 +290,11 @@ export function registerSubscriptionRoutes(app: Express) {
         });
       }
 
+      const effectiveDuration = Number(duration || tier.durationDays || 30);
+
       // Create subscription
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + duration);
+      expiresAt.setDate(expiresAt.getDate() + effectiveDuration);
 
       const subscription = await createUserSubscription(userId, tierId, expiresAt);
 
@@ -353,7 +383,7 @@ export function registerSubscriptionRoutes(app: Express) {
    * - Payment integration
    *
    * Body: {
-   *   sellerId, title, description, category, price, condition, location,
+   *   userId, title, description, category, price, condition, location,
    *   images?, videos?, userSubscriptionId?, subscriptionTierId?, couponCode?, priceUnit?,
    *   listingType?, pincode?, latitude?, longitude?, featured?
    * }
@@ -364,7 +394,7 @@ export function registerSubscriptionRoutes(app: Express) {
     async (req: Request, res: Response) => {
       try {
         const {
-          sellerId,
+          userId,
           title,
           description,
           category,
@@ -385,8 +415,10 @@ export function registerSubscriptionRoutes(app: Express) {
           featured = false,
         } = req.body;
 
-        // if sellerId appears to be an admin account, ensure request includes a valid admin JWT
-        if (typeof sellerId === 'string' && sellerId.startsWith('admin')) {
+        const ownerId = typeof userId === 'string' ? userId.trim() : '';
+
+        // if ownerId appears to be an admin account, ensure request includes a valid admin JWT
+        if (ownerId.startsWith('admin')) {
           const authHeader = req.get('Authorization') || '';
           const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
           const admin = verifyAdminToken(token);
@@ -396,20 +428,20 @@ export function registerSubscriptionRoutes(app: Express) {
         }
 
         // Validate required fields
-        if (!sellerId || !title || !price || !category || !condition || !location) {
+        if (!ownerId || !title || !price || !category || !condition || !location) {
           return res.status(400).json({
-            error: 'Missing required fields: sellerId, title, price, category, condition, location',
+            error: 'Missing required fields: userId, title, price, category, condition, location',
           });
         }
 
         // Check if user can create a listing (subscription limit check)
         // Skip check for admin accounts and coupon-based listings
-        if (!sellerId.startsWith('admin') && !couponCode) {
+        if (!ownerId.startsWith('admin') && !couponCode) {
           if (userSubscriptionId) {
             // NEW: Per-subscription quota check
             const { canCreateListingWithSubscription } =
               await import('../services/subscription-tiers');
-            const limitCheck = await canCreateListingWithSubscription(sellerId, userSubscriptionId);
+            const limitCheck = await canCreateListingWithSubscription(ownerId, userSubscriptionId);
             if (!limitCheck.allowed) {
               return res.status(403).json({
                 error: limitCheck.reason,
@@ -421,7 +453,7 @@ export function registerSubscriptionRoutes(app: Express) {
             }
           } else {
             // OLD: Global quota check (fallback for backward compatibility)
-            const limitCheck = await canUserCreateListing(sellerId);
+            const limitCheck = await canUserCreateListing(ownerId);
             if (!limitCheck.allowed) {
               return res.status(403).json({
                 error: limitCheck.reason,
@@ -433,9 +465,29 @@ export function registerSubscriptionRoutes(app: Express) {
           }
         }
 
+        const imageItems = Array.isArray(images) ? images : [];
+        const videoItems = Array.isArray(videos) ? videos : [];
+
+        // Reject local-device URIs: admin web cannot load them and they break moderation previews.
+        if (imageItems.some((item) => hasLocalDeviceUri(item))) {
+          return res.status(400).json({
+            error:
+              'One or more images are local device paths. Please reselect images and upload again.',
+            code: 'INVALID_IMAGE_URI',
+          });
+        }
+
+        if (videoItems.some((item) => hasLocalDeviceUri(item))) {
+          return res.status(400).json({
+            error:
+              'One or more videos are local device paths. Please re-upload videos and try again.',
+            code: 'INVALID_VIDEO_URI',
+          });
+        }
+
         // Validate image and video limits (max 5 each)
-        const imageCount = Array.isArray(images) ? images.length : 0;
-        const videoCount = Array.isArray(videos) ? videos.length : 0;
+        const imageCount = imageItems.length;
+        const videoCount = videoItems.length;
 
         if (imageCount > 5) {
           return res.status(400).json({
@@ -447,27 +499,6 @@ export function registerSubscriptionRoutes(app: Express) {
           return res.status(400).json({
             error: 'Maximum 5 videos allowed per listing',
           });
-        }
-
-        // If videos are being uploaded, validate subscription tier allows it
-        if (videoCount > 0 && subscriptionTierId) {
-          const tier = await getSubscriptionTierById(subscriptionTierId);
-          if (!tier) {
-            return res.status(400).json({
-              error: 'Invalid subscription tier selected',
-            });
-          }
-
-          // Parse tier features and check if video is allowed
-          const tierFeatures =
-            typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features || [];
-          if (!tierFeatures.includes('video')) {
-            return res.status(400).json({
-              error: `Your subscription tier "${tier.name}" does not support video uploads. Please upgrade to a tier that includes video feature.`,
-              tierName: tier.name,
-              tierFeatures: tierFeatures,
-            });
-          }
         }
 
         // If featured is requested, validate subscription tier allows it
@@ -488,14 +519,15 @@ export function registerSubscriptionRoutes(app: Express) {
             });
           }
 
-          // Check if tier supports featured listings
-          const tierFeatures =
-            typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features || [];
-          if (!tierFeatures.includes('featured')) {
+          const tierBoostCredits = Math.max(
+            Number((tier as any).boostCredits || 0),
+            Number(tier.featuredListingsPerMonth || 0)
+          );
+          if (tierBoostCredits <= 0) {
             return res.status(403).json({
-              error: `Your subscription tier "${tier.name}" does not include featured listings. Please upgrade to a tier that supports Featured listings.`,
+              error: `Your subscription tier "${tier.name}" does not include listing boosts. Please upgrade to a plan with boost quota.`,
               tierName: tier.name,
-              tierFeatures: tierFeatures,
+              boostCredits: tierBoostCredits,
               code: 'TIER_NO_FEATURED',
             });
           }
@@ -513,7 +545,7 @@ export function registerSubscriptionRoutes(app: Express) {
 
         if (couponCode) {
           // User is using a coupon code for free listing
-          const freeCheck = await getRemainingFreeListings(couponCode, sellerId);
+          const freeCheck = await getRemainingFreeListings(couponCode, ownerId);
           if (freeCheck.error || freeCheck.remaining <= 0) {
             return res.status(400).json({
               error: freeCheck.error || 'No free listings remaining on this coupon',
@@ -540,7 +572,7 @@ export function registerSubscriptionRoutes(app: Express) {
         }
 
         const listingData: CreateListingRequest = {
-          sellerId,
+          userId: ownerId,
           title,
           description,
           category,
@@ -558,85 +590,13 @@ export function registerSubscriptionRoutes(app: Express) {
           longitude: longitude ? parseFloat(longitude as string) : undefined,
         };
 
-        // 🛡️ AI CONTENT MODERATION: Validate images and videos before creating listing
-        console.log('[AI Moderation] Starting content validation...');
-        const hasImages = images && Array.isArray(images) && images.length > 0;
-        const hasVideos = videos && Array.isArray(videos) && videos.length > 0;
-
-        if (hasImages) {
-          console.log(`[AI Moderation] Analyzing ${images.length} image(s)...`);
-          // Analyze first image (could extend to all images if needed)
-          const firstImage = images[0];
-          if (firstImage && typeof firstImage === 'string') {
-            try {
-              // Step 1: Check for inappropriate content (safety)
-              const imageAnalysis = await analyzeImageContent(firstImage);
-              console.log('[AI Moderation] Safety check result:', imageAnalysis);
-
-              if (!imageAnalysis.isAppropriate) {
-                const reasons = [];
-                if (imageAnalysis.hasNudity) reasons.push('nudity');
-                if (imageAnalysis.hasViolence) reasons.push('violence');
-                if (imageAnalysis.hasWeapons) reasons.push('weapons');
-                if (imageAnalysis.hasDrugs) reasons.push('drugs');
-
-                return res.status(400).json({
-                  success: false,
-                  error: 'Image content violates community guidelines',
-                  code: 'INAPPROPRIATE_CONTENT',
-                  details: {
-                    contentType: 'image',
-                    violations: reasons,
-                    reason: imageAnalysis.reason,
-                    confidence: imageAnalysis.confidence,
-                  },
-                  message: `Your image was flagged for containing inappropriate content: ${reasons.join(', ')}. Please use different images.`,
-                });
-              }
-              console.log('[AI Moderation] ✓ Images passed safety check');
-
-              // Step 2: Verify product-image matching
-              const productMatch = await verifyProductImageMatch(firstImage, title, category);
-              console.log('[AI Moderation] Product match result:', productMatch);
-
-              if (!productMatch.matches && productMatch.confidence > 0.6) {
-                return res.status(400).json({
-                  success: false,
-                  error: 'Image does not match the product title and category',
-                  code: 'PRODUCT_IMAGE_MISMATCH',
-                  details: {
-                    contentType: 'image',
-                    expectedProduct: title,
-                    expectedCategory: category,
-                    detectedItems: productMatch.detectedItems,
-                    reason: productMatch.reason,
-                    confidence: productMatch.confidence,
-                  },
-                  message: `Your image doesn't match what you're selling. ${productMatch.reason}. Please upload correct product images.`,
-                });
-              }
-              console.log('[AI Moderation] ✓ Product-image match verified');
-            } catch (error) {
-              console.error('[AI Moderation] Image analysis failed:', error);
-              // Continue with listing creation if AI service is down (graceful degradation)
-              // TODO: Flag for manual review
-            }
-          }
-        }
-
-        if (hasVideos) {
-          console.log(`[AI Moderation] Video upload detected - requires frame analysis`);
-          // Note: Video frame extraction should happen client-side or via FFmpeg
-          // For now, we'll skip direct video validation but log it
-          // TODO: Implement video frame extraction and analysis
-          console.log(
-            '[AI Moderation] ⚠️ Video content moderation not yet implemented - manual review recommended'
-          );
-        }
+        // Manual moderation workflow:
+        // New listings are created as pending and require admin approval before going live.
+        console.log('[Listings] Manual review mode active - skipping AI auto-moderation checks.');
 
         // Create the listing
         const createdListing = await createListing({
-          sellerId: listingData.sellerId,
+          sellerId: ownerId,
           title: listingData.title,
           description: listingData.description || '',
           category: listingData.category,
@@ -648,20 +608,31 @@ export function registerSubscriptionRoutes(app: Express) {
           pincode: listingData.pincode,
           latitude: listingData.latitude?.toString(),
           longitude: listingData.longitude?.toString(),
-          images: images || [],
-          videos: videos || [],
+          images: imageItems,
+          videos: videoItems,
           subscriptionTierId: subscriptionTierId || null,
           userSubscriptionId: userSubscriptionId || null, // NEW: Track which subscription instance
           featured: isFeatured,
           isPaid,
           durationDays,
-          status: 'active',
-          isActive: true,
+          status: 'pending',
+          isActive: false,
         });
+
+        // Notify admins that a listing is waiting for manual review
+        notifyAdminListingPendingReview({
+          listingId: createdListing.id,
+          listingTitle: createdListing.title,
+          userId: ownerId,
+          location: listingData.location,
+          category: listingData.category,
+        }).catch((err) =>
+          console.error('[Subscriptions] Failed to notify admins for pending listing:', err)
+        );
 
         // If coupon was used, record the free listing usage
         if (isFreeFromCoupon && couponCode) {
-          const useResult = await useFreeListingFromCoupon(couponCode, sellerId, createdListing.id);
+          const useResult = await useFreeListingFromCoupon(couponCode, ownerId, createdListing.id);
           if (!useResult.success) {
             console.error(
               '[Subscriptions] Failed to record coupon free listing usage:',
@@ -674,9 +645,10 @@ export function registerSubscriptionRoutes(app: Express) {
         return res.json({
           success: true,
           isFree: isFreeFromCoupon,
+          requiresApproval: true,
           message: isFreeFromCoupon
-            ? `✓ Listing created with coupon! ${couponFreeRemaining} free listing${couponFreeRemaining !== 1 ? 's' : ''} remaining.`
-            : '✓ Listing created successfully with your subscription.',
+            ? `✓ Listing submitted for review with coupon! ${couponFreeRemaining} free listing${couponFreeRemaining !== 1 ? 's' : ''} remaining.`
+            : '✓ Listing submitted for admin review. It will go live after approval.',
           listing: {
             id: createdListing.id,
             title: createdListing.title,
@@ -704,13 +676,13 @@ export function registerSubscriptionRoutes(app: Express) {
   /**
    * POST /api/subscriptions/checkout
    * Initiate Razorpay payment for listing with optional coupon
-   * Body: { subscriptionId, sellerId, listingId, listingTitle, totalFee, duration, tierId?, couponCode? }
+   * Body: { subscriptionId, userId, listingId, listingTitle, totalFee, duration, tierId?, couponCode? }
    */
   app.post('/api/subscriptions/checkout', async (req: Request, res: Response) => {
     try {
       const {
         subscriptionId,
-        sellerId,
+        userId,
         listingId,
         listingTitle,
         totalFee,
@@ -718,10 +690,11 @@ export function registerSubscriptionRoutes(app: Express) {
         tierId,
         couponCode,
       } = req.body;
+      const ownerId = typeof userId === 'string' ? userId.trim() : '';
 
-      if (!subscriptionId || !sellerId || !listingId || !totalFee || !duration) {
+      if (!subscriptionId || !ownerId || !listingId || !totalFee || !duration) {
         return res.status(400).json({
-          error: 'Missing required fields: subscriptionId, sellerId, listingId, totalFee, duration',
+          error: 'Missing required fields: subscriptionId, userId, listingId, totalFee, duration',
         });
       }
 
@@ -733,7 +706,7 @@ export function registerSubscriptionRoutes(app: Express) {
 
       // Apply coupon if provided
       if (couponCode) {
-        const discountResult = await applyCouponDiscount(couponCode, finalFee, sellerId, tierId);
+        const discountResult = await applyCouponDiscount(couponCode, finalFee, ownerId, tierId);
 
         if (discountResult.success) {
           discountApplied = true;
@@ -742,7 +715,7 @@ export function registerSubscriptionRoutes(app: Express) {
           discountAmount = discountResult.discountAmount;
 
           // Get coupon ID for tracking
-          const couponValidation = await validateCouponCode(couponCode, sellerId, tierId);
+          const couponValidation = await validateCouponCode(couponCode, ownerId, tierId);
           if (couponValidation.isValid && couponValidation.coupon) {
             couponId = couponValidation.coupon.id;
           }
@@ -755,10 +728,12 @@ export function registerSubscriptionRoutes(app: Express) {
         }
       }
 
-      // Handle 100% discount (free subscription)
-      if (finalFee <= 0 && discountApplied) {
+      // Handle free subscriptions (free plan or 100% discounted plan)
+      if (finalFee <= 0) {
         console.log(
-          `[Checkout] 100% discount applied with coupon ${couponCode} - bypassing payment`
+          discountApplied
+            ? `[Checkout] 100% discount applied with coupon ${couponCode} - bypassing payment`
+            : `[Checkout] Zero-fee subscription (${subscriptionId}) - bypassing payment`
         );
 
         // Activate subscription immediately for free subscriptions
@@ -781,16 +756,18 @@ export function registerSubscriptionRoutes(app: Express) {
           console.error('[Checkout] Failed to activate free subscription:', activationError);
         }
 
-        // Record coupon usage
-        if (couponCode) {
-          await recordCouponUsage(couponCode, listingId, subscriptionId, sellerId, discountAmount);
+        // Record coupon usage (only when coupon is actually applied)
+        if (couponCode && discountApplied) {
+          await recordCouponUsage(couponCode, listingId, subscriptionId, ownerId, discountAmount);
         }
 
         // Return special response for free subscription
         return res.json({
           success: true,
           isFree: true,
-          message: `🎉 100% discount applied! Your subscription is completely FREE for ${duration} days`,
+          message: discountApplied
+            ? `🎉 100% discount applied! Your subscription is completely FREE for ${duration} days`
+            : `🎉 Free plan activated for ${duration} days`,
           payment: {
             razorpayOrderId: 'FREE_SUBSCRIPTION',
             amount: 0,
@@ -798,20 +775,22 @@ export function registerSubscriptionRoutes(app: Express) {
             key: '',
             subscriptionId: subscriptionId,
           },
-          discount: {
-            percentage: discountPercentage,
-            amount: discountAmount,
-            originalAmount: parseFloat(totalFee),
-            finalAmount: 0,
-            couponId,
-          },
+          discount: discountApplied
+            ? {
+                percentage: discountPercentage,
+                amount: discountAmount,
+                originalAmount: parseFloat(totalFee),
+                finalAmount: 0,
+                couponId,
+              }
+            : null,
           nextStep: 'No payment required - proceed directly to create listing',
         });
       }
 
       const paymentDetails = await initiatePayment(
         subscriptionId,
-        sellerId,
+        ownerId,
         listingId,
         listingTitle,
         finalFee,
@@ -889,8 +868,8 @@ export function registerSubscriptionRoutes(app: Express) {
       if (!isValid) {
         // Send payment failure notification
         if (customerId) {
-          const amount = invoiceItems && invoiceItems[0] ? invoiceItems[0].amount : 0;
-          notifyPaymentFailed(customerId, amount / 100, 'Invalid payment signature').catch((err) =>
+          const amount = Number(invoiceItems && invoiceItems[0] ? invoiceItems[0].amount : 0);
+          notifyPaymentFailed(customerId, amount, 'Invalid payment signature').catch((err) =>
             console.error('[Subscriptions] Failed to send payment failed notification:', err)
           );
         }
@@ -965,6 +944,36 @@ export function registerSubscriptionRoutes(app: Express) {
           );
 
           console.log('[Subscriptions] Invoice generated successfully:', invoiceData.invoiceNumber);
+
+          // Persist invoice for later view/download/history
+          try {
+            const { db } = await import('../../../data/db');
+            const { invoices } = await import('../../admin/models/admin-settings');
+            const dueDate = invoiceData?.dueDate ? new Date(invoiceData.dueDate) : new Date();
+
+            await db.insert(invoices).values({
+              invoiceNumber: invoiceData.invoiceNumber,
+              customerId: customerId,
+              customerName: customerName,
+              customerEmail: customerEmail,
+              customerPhone: customerPhone,
+              subscriptionId: subscriptionId || null,
+              orderId: razorpay_order_id || null,
+              paymentId: razorpay_payment_id || null,
+              paymentMethod: 'Razorpay',
+              subtotal: String(invoiceData.subtotal || 0),
+              sgst: String(invoiceData.sgst || 0),
+              cgst: String(invoiceData.cgst || 0),
+              igst: String(invoiceData.igst || 0),
+              totalAmount: String(invoiceData.total || 0),
+              items: JSON.stringify(invoiceData.items || []),
+              invoiceData: JSON.stringify(invoiceData),
+              status: 'paid',
+              dueDate,
+            } as any);
+          } catch (saveError) {
+            console.error('[Subscriptions] Failed to persist invoice record:', saveError);
+          }
 
           // Send invoice notification
           if (customerId && invoiceData) {
@@ -1043,10 +1052,10 @@ export function registerSubscriptionRoutes(app: Express) {
 
       // Send payment success notification
       if (customerId) {
-        const amount = invoiceItems && invoiceItems[0] ? invoiceItems[0].amount : 0;
+        const amount = Number(invoiceItems && invoiceItems[0] ? invoiceItems[0].amount : 0);
         const listingTitle =
           invoiceItems && invoiceItems[0] ? invoiceItems[0].description : undefined;
-        notifyPaymentSuccess(customerId, amount / 100, razorpay_payment_id, listingTitle).catch(
+        notifyPaymentSuccess(customerId, amount, razorpay_payment_id, listingTitle).catch(
           (err) =>
             console.error('[Subscriptions] Failed to send payment success notification:', err)
         );
@@ -1073,6 +1082,9 @@ export function registerSubscriptionRoutes(app: Express) {
         invoiceGenerated: !!invoiceData,
         invoiceHtmlUrl: invoiceData
           ? `/api/invoices/${invoiceData.invoiceNumber}/view?data=${encodeURIComponent(JSON.stringify(invoiceData))}`
+          : null,
+        invoiceDownloadUrl: invoiceData
+          ? `/api/invoices/${invoiceData.invoiceNumber}/download?data=${encodeURIComponent(JSON.stringify(invoiceData))}`
           : null,
       });
     } catch (error) {
@@ -1109,11 +1121,14 @@ export function registerSubscriptionRoutes(app: Express) {
         tier: {
           id: subscription.tier.id,
           name: subscription.tier.name,
+          type: (subscription.tier as any).type || 'bundle',
           price: subscription.tier.price,
           durationDays: subscription.tier.durationDays,
           maxListings: subscription.tier.maxListings,
           featuredListingsPerMonth: subscription.tier.featuredListingsPerMonth,
+          boostCredits: Number((subscription.tier as any).boostCredits || 0),
         },
+        boostsRemaining: Number((subscription as any).boostsRemaining || 0),
       });
     } catch (error) {
       console.error('[Subscriptions] Error fetching subscription:', error);
@@ -1157,9 +1172,9 @@ export function registerSubscriptionRoutes(app: Express) {
           console.log(`[Razorpay] Payment failed: ${data.payment.id}`);
           // TODO: Update subscription status to 'failed'
           // Send payment failed notification if user info available
-          if (data.payment?.notes?.sellerId) {
+          if (data.payment?.notes?.userId) {
             notifyPaymentFailed(
-              data.payment.notes.sellerId,
+              data.payment.notes.userId,
               data.payment.amount / 100,
               data.payment.error_description || 'Payment failed'
             ).catch((err) =>
@@ -1192,21 +1207,23 @@ export function registerSubscriptionRoutes(app: Express) {
     }
   });
 
-  /**
-   * GET /api/subscriptions/seller/:sellerId/active
-   * Get active listings for seller
-   */
-  app.get('/api/subscriptions/seller/:sellerId/active', async (req: Request, res: Response) => {
+  const getUserListingsHandler = async (
+    req: Request,
+    res: Response,
+    ownerIdParam: string
+  ): Promise<void> => {
     try {
-      const { sellerId } = req.params;
-      let listings = await getListingsBySeller(sellerId as string);
+      let listings = await getListingsByUser(ownerIdParam);
 
       // If no listings found, try user's phone from header
       if (listings.length === 0) {
         const userPhone = req.get('x-user-phone');
         if (userPhone) {
-          const normalizedPhone = userPhone.replace(/[\s+-]/g, '');
-          listings = await getListingsBySeller(normalizedPhone);
+          const phoneCandidates = normalizePhoneVariants(userPhone);
+          for (const candidate of phoneCandidates) {
+            listings = await getListingsByUser(candidate);
+            if (listings.length > 0) break;
+          }
         }
       }
 
@@ -1222,18 +1239,95 @@ export function registerSubscriptionRoutes(app: Express) {
             : listing.videos || [],
       }));
 
-      const activeListings = formattedListings.filter((l) => l.status === 'active' && l.isActive);
+      // Attach latest rejection reason for rejected listings so seller can edit + resubmit
+      const rejectedListingIds = formattedListings
+        .filter((l) => l.status === 'rejected')
+        .map((l) => l.id)
+        .filter(Boolean);
+      const rejectedUserIds = [...new Set(
+        formattedListings
+          .filter((l) => l.status === 'rejected')
+          .map((l) => String(l.sellerId || '').trim())
+          .filter(Boolean)
+      )];
 
-      return res.json({
+      const rejectionReasonByListingId = new Map<string, string>();
+      if (rejectedListingIds.length > 0) {
+        try {
+          const { inAppNotifications } = await import('../../admin/models/admin-settings');
+          const { and, eq, inArray, desc } = await import('drizzle-orm');
+          const rejectionNotifications = await db
+            .select({
+              referenceId: inAppNotifications.referenceId,
+              message: inAppNotifications.message,
+            })
+            .from(inAppNotifications)
+            .where(
+              and(
+                inArray(
+                  inAppNotifications.userId,
+                  rejectedUserIds.length > 0 ? rejectedUserIds : [ownerIdParam]
+                ),
+                eq(inAppNotifications.category, 'listing_rejection'),
+                inArray(inAppNotifications.referenceId, rejectedListingIds)
+              )
+            )
+            .orderBy(desc(inAppNotifications.createdAt));
+
+          for (const row of rejectionNotifications) {
+            const refId = String(row.referenceId || '');
+            const msg = String(row.message || '').trim();
+            if (!refId || !msg || rejectionReasonByListingId.has(refId)) continue;
+            rejectionReasonByListingId.set(refId, msg);
+          }
+        } catch (error) {
+          console.error('[Subscriptions] Failed to load rejection reasons:', error);
+        }
+      }
+
+      const listingsWithRejectionReason = formattedListings.map((listing) => {
+        const { sellerId: _sellerId, ...listingWithoutSellerId } = listing as any;
+        return {
+          ...listingWithoutSellerId,
+          userId: listing.sellerId,
+          rejectionReason:
+            listing.status === 'rejected' ? rejectionReasonByListingId.get(listing.id) || null : null,
+        };
+      });
+
+      const activeListings = listingsWithRejectionReason.filter(
+        (l) => l.status === 'active' && l.isActive
+      );
+
+      res.json({
         success: true,
-        sellerId,
+        userId: ownerIdParam,
+        listings: listingsWithRejectionReason,
+        totalListings: listingsWithRejectionReason.length,
         activeListings,
         total: activeListings.length,
       });
+      return;
     } catch (error) {
-      console.error('[Subscriptions] Error fetching seller listings:', error);
-      res.status(500).json({ error: 'Failed to fetch seller listings' });
+      console.error('[Subscriptions] Error fetching user listings:', error);
+      res.status(500).json({ error: 'Failed to fetch user listings' });
     }
+  };
+
+  /**
+   * GET /api/subscriptions/user/:userId/listings
+   * Get user listings (all + active subset)
+   */
+  app.get('/api/subscriptions/user/:userId/listings', async (req: Request, res: Response) => {
+    await getUserListingsHandler(req, res, String(req.params.userId || ''));
+  });
+
+  /**
+   * GET /api/subscriptions/user/:userId/active
+   * Get active user listings
+   */
+  app.get('/api/subscriptions/user/:userId/active', async (req: Request, res: Response) => {
+    await getUserListingsHandler(req, res, String(req.params.userId || ''));
   });
 
   /**
@@ -1301,14 +1395,19 @@ export function registerSubscriptionRoutes(app: Express) {
       // Accept both snake_case (from old clients) and camelCase (from frontend)
       const {
         name,
+        type,
         duration_days,
         durationDays,
         price,
+        offer_price,
+        offerPrice,
         features,
         max_listings,
         maxListings,
         featured_listings_per_month,
         featuredListingsPerMonth,
+        boost_credits,
+        boostCredits,
         highlight,
         is_active,
         isActive,
@@ -1321,6 +1420,9 @@ export function registerSubscriptionRoutes(app: Express) {
         featured_listings_per_month !== undefined
           ? featured_listings_per_month
           : (featuredListingsPerMonth ?? 0);
+      const finalOfferPrice = offer_price !== undefined ? offer_price : offerPrice;
+      const finalType = type || 'bundle';
+      const finalBoostCredits = boost_credits !== undefined ? boost_credits : (boostCredits ?? 0);
       const finalIsActive = is_active !== undefined ? is_active : isActive;
 
       if (!name || !finalDurationDays || price === undefined) {
@@ -1330,19 +1432,34 @@ export function registerSubscriptionRoutes(app: Express) {
         });
       }
 
+      const numericPrice = parseFloat(price);
+      const numericOfferPrice =
+        finalOfferPrice !== undefined && finalOfferPrice !== null && `${finalOfferPrice}` !== ''
+          ? parseFloat(finalOfferPrice)
+          : undefined;
+
+      if (numericOfferPrice !== undefined && (numericOfferPrice <= 0 || numericOfferPrice >= numericPrice)) {
+        return res.status(400).json({
+          success: false,
+          error: 'offerPrice must be greater than 0 and less than price',
+        });
+      }
+
       const f = features as any;
       const featuresStr = typeof f === 'string' ? f : JSON.stringify(f || []);
       const newTier = await createSubscriptionTier({
         name,
-        type: 'bundle', // New type for bundled tiers
+        type: finalType,
         durationDays: parseInt(finalDurationDays) as any,
-        price: parseFloat(price) as any,
+        price: numericPrice as any,
+        offerPrice: numericOfferPrice as any,
         features: featuresStr as any,
         description: name,
         maxListings: finalMaxListings ? parseInt(finalMaxListings) : 10,
         featuredListingsPerMonth: parseInt(finalFeaturedListings.toString()),
-        monthlyPrice: parseFloat(price) as any,
-        annualPrice: parseFloat(price) as any,
+        boostCredits: parseInt(String(finalBoostCredits || 0), 10),
+        monthlyPrice: numericPrice as any,
+        annualPrice: numericPrice as any,
         highlight: highlight === true,
         isActive: finalIsActive !== false,
       } as any);
@@ -1377,14 +1494,19 @@ export function registerSubscriptionRoutes(app: Express) {
       // Accept both snake_case (from old clients) and camelCase (from frontend)
       const {
         name,
+        type,
         duration_days,
         durationDays,
         price,
+        offer_price,
+        offerPrice,
         features,
         max_listings,
         maxListings,
         featured_listings_per_month,
         featuredListingsPerMonth,
+        boost_credits,
+        boostCredits,
         highlight,
         is_active,
         isActive,
@@ -1392,10 +1514,16 @@ export function registerSubscriptionRoutes(app: Express) {
 
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
+      if (type !== undefined) updateData.type = type;
       if (price !== undefined) {
         updateData.price = parseFloat(price);
         updateData.monthlyPrice = parseFloat(price);
         updateData.annualPrice = parseFloat(price);
+      }
+      if (offer_price !== undefined || offerPrice !== undefined) {
+        const nextOffer = offer_price !== undefined ? offer_price : offerPrice;
+        updateData.offerPrice =
+          nextOffer === null || `${nextOffer}` === '' ? null : parseFloat(nextOffer as any);
       }
       if (duration_days !== undefined || durationDays !== undefined) {
         updateData.durationDays = parseInt((duration_days || durationDays) as any);
@@ -1408,12 +1536,31 @@ export function registerSubscriptionRoutes(app: Express) {
           (featured_listings_per_month ?? featuredListingsPerMonth ?? 0).toString()
         );
       }
+      if (boost_credits !== undefined || boostCredits !== undefined) {
+        updateData.boostCredits = parseInt((boost_credits ?? boostCredits ?? 0).toString());
+      }
       if (features !== undefined) {
         updateData.features = typeof features === 'string' ? features : JSON.stringify(features);
       }
       if (highlight !== undefined) updateData.highlight = highlight;
       if (is_active !== undefined || isActive !== undefined) {
         updateData.isActive = is_active !== undefined ? is_active : isActive;
+      }
+
+      let effectivePrice = updateData.price ?? (price !== undefined ? Number(price) : undefined);
+      if (effectivePrice === undefined && updateData.offerPrice !== undefined) {
+        const existingTier = await getSubscriptionTierById(tierId);
+        effectivePrice = existingTier ? Number(existingTier.price) : undefined;
+      }
+      if (
+        updateData.offerPrice !== undefined &&
+        updateData.offerPrice !== null &&
+        !(updateData.offerPrice > 0 && effectivePrice !== undefined && updateData.offerPrice < Number(effectivePrice))
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'offerPrice must be greater than 0 and less than price',
+        });
       }
 
       const updatedTier = await updateSubscriptionTier(tierId, updateData as any);
@@ -1466,11 +1613,349 @@ export function registerSubscriptionRoutes(app: Express) {
         message: 'Subscription tier deleted',
       });
     } catch (error) {
+      if (error instanceof SubscriptionTierInUseError) {
+        return res.status(error.statusCode).json({
+          success: false,
+          error: error.message,
+          details: error.details,
+          action: 'deactivate_tier_instead',
+        });
+      }
       console.error('[Admin] Error deleting subscription tier:', error);
       return res.status(500).json({
         success: false,
         error: 'Failed to delete subscription tier',
       });
+    }
+  });
+
+  /**
+   * GET /api/subscriptions/boost/summary
+   * Returns remaining boost credits across active subscriptions
+   */
+  app.get('/api/subscriptions/boost/summary', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId || req.get('x-user-id');
+      if (!userId) {
+        return res.status(401).json({ success: false, error: 'Authentication required' });
+      }
+
+      const summary = await getUserBoostCreditsSummary(String(userId));
+      return res.json({
+        success: true,
+        totalBoostCredits: summary.total,
+        bySubscription: summary.bySubscription,
+      });
+    } catch (error) {
+      console.error('[Boost] Error fetching boost summary:', error);
+      return res.status(500).json({ success: false, error: 'Failed to fetch boost summary' });
+    }
+  });
+
+  /**
+   * GET /api/subscriptions/boost/plans
+   * Returns active boost-pack tiers
+   */
+  app.get('/api/subscriptions/boost/plans', async (_req: Request, res: Response) => {
+    try {
+      const tiers = await getActiveSubscriptionTiers();
+      const boostPlans = tiers
+        .filter((tier: any) => String(tier.type || 'bundle') === 'boost')
+        .map((tier: any) => {
+          const regularPrice = Number(tier.price || 0);
+          const offerPrice = Number(tier.offerPrice);
+          const finalPrice =
+            Number.isFinite(offerPrice) && offerPrice > 0 && offerPrice < regularPrice
+              ? offerPrice
+              : regularPrice;
+          return {
+            ...tier,
+            features: typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features,
+            finalPrice,
+          };
+        })
+        .sort((a: any, b: any) => Number(a.finalPrice) - Number(b.finalPrice));
+
+      return res.json({ success: true, plans: boostPlans });
+    } catch (error) {
+      console.error('[Boost] Error fetching boost plans:', error);
+      return res.status(500).json({ success: false, error: 'Failed to fetch boost plans' });
+    }
+  });
+
+  /**
+   * POST /api/subscriptions/listings/:listingId/boost
+   * Consumes 1 boost credit and boosts listing for 24h
+   */
+  app.post('/api/subscriptions/listings/:listingId/boost', async (req: Request, res: Response) => {
+    try {
+      const listingId = String(req.params.listingId || '');
+      const userId = (req as any).userId || req.get('x-user-id');
+      const userPhone = req.get('x-user-phone');
+
+      if (!listingId) {
+        return res.status(400).json({ success: false, error: 'Listing ID is required' });
+      }
+
+      if (!userId && !userPhone) {
+        return res.status(401).json({ success: false, error: 'Authentication required' });
+      }
+
+      const listing = await getListingById(listingId);
+      if (!listing) {
+        return res.status(404).json({ success: false, error: 'Listing not found' });
+      }
+
+      const normalizedUserPhone = String(userPhone || '').replace(/[\s+-]/g, '');
+      const normalizedOwnerId = String(listing.sellerId || '').replace(/[\s+-]/g, '');
+      const isOwner =
+        (!!userId && listing.sellerId === userId) ||
+        (!!normalizedUserPhone && normalizedOwnerId === normalizedUserPhone);
+
+      if (!isOwner) {
+        return res.status(403).json({ success: false, error: 'You can only boost your own listing' });
+      }
+
+      if (listing.status !== 'active' || listing.isActive !== true) {
+        return res.status(400).json({
+          success: false,
+          error: 'Only active listings can be boosted',
+        });
+      }
+
+      if (listing.boostedUntil && new Date(listing.boostedUntil) > new Date()) {
+        return res.status(409).json({
+          success: false,
+          code: 'LISTING_ALREADY_BOOSTED',
+          error: 'This listing is already boosted. You can boost again after current boost expires.',
+          boostedUntil: listing.boostedUntil,
+        });
+      }
+
+      const effectiveUserId = String(userId || normalizedUserPhone || listing.sellerId);
+      const consumed = await consumeUserBoostCredit(effectiveUserId);
+      if (!consumed) {
+        const tiers = await getActiveSubscriptionTiers();
+        const plans = tiers
+          .filter((tier: any) => String(tier.type || 'bundle') === 'boost')
+          .map((tier: any) => ({
+            id: tier.id,
+            name: tier.name,
+            durationDays: tier.durationDays,
+            boostCredits: Number((tier as any).boostCredits || 0),
+            price: Number(tier.price || 0),
+            offerPrice: tier.offerPrice ? Number(tier.offerPrice) : null,
+          }));
+
+        return res.status(402).json({
+          success: false,
+          code: 'BOOST_CREDITS_EXHAUSTED',
+          error: 'No boost credits remaining. Purchase a boost pack to continue.',
+          plans,
+        });
+      }
+
+      const boosted = await boostListingForHours(listingId, 24);
+      if (!boosted) {
+        return res.status(500).json({ success: false, error: 'Failed to boost listing' });
+      }
+
+      return res.json({
+        success: true,
+        listingId,
+        boostedUntil: boosted.boostedUntil,
+        boostsRemaining: consumed.boostsRemaining,
+        usedSubscriptionId: consumed.subscriptionId,
+        message: 'Listing boosted for 24 hours',
+      });
+    } catch (error) {
+      console.error('[Boost] Error boosting listing:', error);
+      return res.status(500).json({ success: false, error: 'Failed to boost listing' });
+    }
+  });
+
+  /**
+   * POST /api/subscriptions/boost/checkout
+   * Create payment order for boost pack purchase
+   */
+  app.post('/api/subscriptions/boost/checkout', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId || req.get('x-user-id');
+      if (!userId) {
+        return res.status(401).json({ success: false, error: 'Authentication required' });
+      }
+
+      const { tierId } = req.body;
+      if (!tierId) {
+        return res.status(400).json({ success: false, error: 'tierId is required' });
+      }
+
+      const tier = await getSubscriptionTierById(String(tierId));
+      if (!tier || String((tier as any).type || 'bundle') !== 'boost') {
+        return res.status(400).json({ success: false, error: 'Invalid boost tier selected' });
+      }
+
+      const regularPrice = Number(tier.price || 0);
+      const offerPrice = Number((tier as any).offerPrice);
+      const finalPrice =
+        Number.isFinite(offerPrice) && offerPrice > 0 && offerPrice < regularPrice
+          ? offerPrice
+          : regularPrice;
+
+      if (!Number.isFinite(finalPrice) || finalPrice <= 0) {
+        return res.status(400).json({ success: false, error: 'Invalid boost plan price' });
+      }
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + Number(tier.durationDays || 30));
+      const subscription = await createUserSubscription(String(userId), tier.id, expiresAt);
+
+      const amountInPaise = Math.round(finalPrice * 100);
+      const razorpay = getRazorpayService();
+      const receipt = razorpay.generateReceiptId(String(userId), `boost-${subscription.id}`);
+      const order = await razorpay.createOrder({
+        amount: amountInPaise,
+        receipt,
+        notes: {
+          userId: String(userId),
+          listingId: 'boost-pack',
+          subscriptionId: subscription.id,
+          listingTitle: tier.name,
+          duration: Number(tier.durationDays || 30),
+        },
+      });
+
+      return res.json({
+        success: true,
+        subscriptionId: subscription.id,
+        payment: {
+          razorpayOrderId: order.id,
+          amount: order.amount,
+          amountInRupees: order.amount / 100,
+          key: process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_API_KEY || '',
+        },
+        plan: {
+          id: tier.id,
+          name: tier.name,
+          boostCredits: Number((tier as any).boostCredits || 0),
+          durationDays: tier.durationDays,
+          price: finalPrice,
+        },
+      });
+    } catch (error) {
+      console.error('[Boost] Error creating boost checkout:', error);
+      return res.status(500).json({ success: false, error: 'Failed to initiate boost payment' });
+    }
+  });
+
+  /**
+   * POST /api/subscriptions/boost/verify-payment
+   * Verify boost payment and activate boost credits. Optionally applies one boost immediately.
+   */
+  app.post('/api/subscriptions/boost/verify-payment', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId || req.get('x-user-id');
+      const userPhone = req.get('x-user-phone');
+      if (!userId && !userPhone) {
+        return res.status(401).json({ success: false, error: 'Authentication required' });
+      }
+
+      const {
+        subscriptionId,
+        tierId,
+        listingId,
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+      } = req.body;
+
+      if (
+        !subscriptionId ||
+        !tierId ||
+        !razorpay_order_id ||
+        !razorpay_payment_id ||
+        !razorpay_signature
+      ) {
+        return res.status(400).json({ success: false, error: 'Missing payment verification fields' });
+      }
+
+      const isValidPayment = verifyPayment(
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature
+      );
+      if (!isValidPayment) {
+        return res.status(400).json({ success: false, error: 'Payment verification failed' });
+      }
+
+      const tier = await getSubscriptionTierById(String(tierId));
+      if (!tier || String((tier as any).type || 'bundle') !== 'boost') {
+        return res.status(400).json({ success: false, error: 'Invalid boost tier selected' });
+      }
+
+      const creditsToAdd = Number((tier as any).boostCredits || tier.featuredListingsPerMonth || 0);
+      if (!Number.isFinite(creditsToAdd) || creditsToAdd <= 0) {
+        return res.status(400).json({ success: false, error: 'Boost plan has no boost credits' });
+      }
+
+      const { db } = await import('../../../data/db');
+      const { userSubscriptions } = await import('../../admin/models/admin-settings');
+      const { eq } = await import('drizzle-orm');
+
+      await db
+        .update(userSubscriptions)
+        .set({
+          status: 'active',
+          paymentId: razorpay_payment_id,
+          orderId: razorpay_order_id,
+          updatedAt: new Date(),
+        })
+        .where(eq(userSubscriptions.id, String(subscriptionId)));
+
+      const updatedSubscription = await addBoostCreditsToSubscription(
+        String(subscriptionId),
+        creditsToAdd
+      );
+
+      let immediateBoost: any = null;
+      if (listingId) {
+        const listing = await getListingById(String(listingId));
+        if (listing) {
+          const normalizedUserPhone = String(userPhone || '').replace(/[\s+-]/g, '');
+          const normalizedOwnerId = String(listing.sellerId || '').replace(/[\s+-]/g, '');
+          const isOwner =
+            (!!userId && listing.sellerId === userId) ||
+            (!!normalizedUserPhone && normalizedOwnerId === normalizedUserPhone);
+
+          if (isOwner && listing.status === 'active' && listing.isActive === true) {
+            const consumed = await consumeUserBoostCredit(String(userId || normalizedUserPhone));
+            if (consumed) {
+              const boosted = await boostListingForHours(String(listingId), 24);
+              immediateBoost = {
+                listingId: String(listingId),
+                boostedUntil: boosted?.boostedUntil || null,
+                usedSubscriptionId: consumed.subscriptionId,
+                boostsRemainingAfterBoost: consumed.boostsRemaining,
+              };
+            }
+          }
+        }
+      }
+
+      const summary = await getUserBoostCreditsSummary(String(userId || userPhone));
+      return res.json({
+        success: true,
+        subscriptionId,
+        paymentId: razorpay_payment_id,
+        orderId: razorpay_order_id,
+        boostCreditsAdded: creditsToAdd,
+        boostsRemainingInSubscription: Number((updatedSubscription as any)?.boostsRemaining || 0),
+        totalBoostCredits: summary.total,
+        immediateBoost,
+      });
+    } catch (error) {
+      console.error('[Boost] Error verifying boost payment:', error);
+      return res.status(500).json({ success: false, error: 'Failed to verify boost payment' });
     }
   });
 
@@ -1499,8 +1984,245 @@ export function registerSubscriptionRoutes(app: Express) {
   });
 
   /**
+   * POST /api/subscriptions/upgrade-listing/checkout
+   * Create Razorpay order for listing upgrade
+   */
+  app.post('/api/subscriptions/upgrade-listing/checkout', async (req: Request, res: Response) => {
+    try {
+      const { listingId, duration, price } = req.body;
+      const userId = (req as any).userId || req.get('x-user-id');
+      const userPhone = req.get('x-user-phone');
+
+      if (!listingId || !duration || price === undefined) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required fields: listingId, duration, price',
+        });
+      }
+
+      if (!userId && !userPhone) {
+        return res.status(401).json({
+          success: false,
+          error: 'Authentication required',
+        });
+      }
+
+      const validDurations = [45, 90, 180];
+      if (!validDurations.includes(Number(duration))) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid duration. Must be 45, 90, or 180 days',
+        });
+      }
+
+      const listing = await getListingById(listingId);
+      if (!listing) {
+        return res.status(404).json({
+          success: false,
+          error: 'Listing not found',
+        });
+      }
+
+      const normalizedUserPhone = userPhone?.replace(/[\s+-]/g, '');
+      const normalizedOwnerId = listing.sellerId?.replace(/[\s+-]/g, '');
+      const isOwner =
+        (!!userId && listing.sellerId === userId) ||
+        (!!normalizedUserPhone && normalizedOwnerId === normalizedUserPhone);
+
+      if (!isOwner) {
+        return res.status(403).json({
+          success: false,
+          error: 'You can only upgrade your own listing',
+        });
+      }
+
+      const numericPrice = Number(price);
+      if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid price',
+        });
+      }
+
+      const razorpay = getRazorpayService();
+      const amountInPaise = Math.round(numericPrice * 100);
+      const effectiveUserId = String(userId || normalizedUserPhone || listing.sellerId);
+      const receipt = razorpay.generateReceiptId(effectiveUserId, listingId);
+
+      const order = await razorpay.createOrder({
+        amount: amountInPaise,
+        receipt,
+        notes: {
+          userId: effectiveUserId,
+          listingId,
+          subscriptionId: 'listing-upgrade',
+          listingTitle: listing.title,
+          duration: Number(duration),
+        },
+      });
+
+      return res.json({
+        success: true,
+        payment: {
+          razorpayOrderId: order.id,
+          amount: order.amount,
+          amountInRupees: order.amount / 100,
+          key: process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_API_KEY || '',
+        },
+      });
+    } catch (error) {
+      console.error('[Subscriptions] Error creating listing upgrade checkout:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to initiate upgrade payment',
+      });
+    }
+  });
+
+  /**
+   * POST /api/subscriptions/upgrade-listing/verify-payment
+   * Verify Razorpay payment and then upgrade listing
+   */
+  app.post(
+    '/api/subscriptions/upgrade-listing/verify-payment',
+    async (req: Request, res: Response) => {
+      try {
+        const {
+          listingId,
+          duration,
+          price,
+          razorpay_order_id,
+          razorpay_payment_id,
+          razorpay_signature,
+        } = req.body;
+        const userId = (req as any).userId || req.get('x-user-id');
+        const userPhone = req.get('x-user-phone');
+
+        if (!listingId || !duration || price === undefined) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing required fields: listingId, duration, price',
+          });
+        }
+
+        if (!userId && !userPhone) {
+          return res.status(401).json({
+            success: false,
+            error: 'Authentication required',
+          });
+        }
+
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing payment verification fields',
+          });
+        }
+
+        const validDurations = [45, 90, 180];
+        if (!validDurations.includes(Number(duration))) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid duration. Must be 45, 90, or 180 days',
+          });
+        }
+
+        const numericPrice = Number(price);
+        if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid price',
+          });
+        }
+
+        const listing = await getListingById(listingId);
+        if (!listing) {
+          return res.status(404).json({
+            success: false,
+            error: 'Listing not found',
+          });
+        }
+
+        const normalizedUserPhone = userPhone?.replace(/[\s+-]/g, '');
+        const normalizedOwnerId = listing.sellerId?.replace(/[\s+-]/g, '');
+        const isOwner =
+          (!!userId && listing.sellerId === userId) ||
+          (!!normalizedUserPhone && normalizedOwnerId === normalizedUserPhone);
+
+        if (!isOwner) {
+          return res.status(403).json({
+            success: false,
+            error: 'You can only upgrade your own listing',
+          });
+        }
+
+        const razorpay = getRazorpayService();
+        const isValidPayment = razorpay.verifyPaymentSignature({
+          razorpay_order_id,
+          razorpay_payment_id,
+          razorpay_signature,
+        });
+
+        if (!isValidPayment) {
+          return res.status(400).json({
+            success: false,
+            error: 'Payment verification failed',
+          });
+        }
+
+        // Calculate new expiry date (duration days from now)
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + Number(duration));
+
+        // Upgrade only after successful payment verification
+        const updatedListing = await updateListing(listingId, {
+          isPaid: true,
+          durationDays: Number(duration),
+          expiresAt,
+          featured: true,
+          isActive: true,
+          status: 'active',
+        });
+
+        if (!updatedListing) {
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to upgrade listing',
+          });
+        }
+
+        console.log(
+          `[Subscriptions] Listing ${listingId} upgraded after payment ${razorpay_payment_id} to ${duration} days`
+        );
+
+        return res.json({
+          success: true,
+          data: {
+            listingId,
+            duration: Number(duration),
+            expiresAt: expiresAt.toISOString(),
+            isPaid: true,
+            paymentId: razorpay_payment_id,
+            orderId: razorpay_order_id,
+          },
+          message: 'Listing upgraded successfully',
+        });
+      } catch (error) {
+        console.error('[Subscriptions] Error verifying listing upgrade payment:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to verify payment and upgrade listing',
+        });
+      }
+    }
+  );
+
+  /**
    * POST /api/subscriptions/upgrade-listing
-   * Upgrade an existing listing to a paid plan
+   * Legacy endpoint retained for backward compatibility.
+   * New clients should use:
+   * 1) /api/subscriptions/upgrade-listing/checkout
+   * 2) /api/subscriptions/upgrade-listing/verify-payment
    */
   app.post('/api/subscriptions/upgrade-listing', async (req: Request, res: Response) => {
     try {
@@ -1539,7 +2261,9 @@ export function registerSubscriptionRoutes(app: Express) {
       // Update the listing with paid status and new expiry
       const updatedListing = await updateListing(listingId, {
         isPaid: true,
+        durationDays: Number(duration),
         expiresAt: expiresAt, // Pass Date object, not string
+        featured: true,
         isActive: true,
         status: 'active',
       });

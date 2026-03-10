@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Data Scrapper",
+  "version": "1.1.0",
+  "description": "Extract business name, address, city, state, latitude, longitude, phone and website from Google Maps and export JSON or Excel.",
+  "permissions": ["storage", "downloads", "tabs", "sidePanel"],
+  "host_permissions": ["https://www.google.com/maps/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {},
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.google.com/maps/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

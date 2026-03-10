@@ -106,10 +106,7 @@ export default function RegisterScreen() {
       console.log('[Register] Parsed response:', data);
 
       if (data.success) {
-        const otpMessage = data.otp
-          ? `Your OTP is: ${data.otp}`
-          : 'OTP sent to your mobile number.';
-        Alert.alert('OTP Sent', otpMessage);
+        Alert.alert('OTP Sent', 'OTP sent to your mobile number.');
         router.push({
           pathname: '/auth/verify-otp',
           params: {
