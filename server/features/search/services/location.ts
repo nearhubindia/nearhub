@@ -1,15 +1,8 @@
-// Backend service for handling location data and demand metrics
-// Pincode database loaded from JSON file (19,559+ Indian pincodes)
-// Geolocation using GeoJSON polygon boundaries for reverse geocoding
-
 import type { Express, Request, Response } from 'express';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
-import { geolocationService } from './geolocation.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { and, desc, eq, ilike, isNotNull, sql } from 'drizzle-orm';
+import { db } from '../../../data/db';
+import { listings, locationIndex } from '../../admin/models/admin-settings';
+import { geolocationService } from './geolocation';
 
 export interface LocationMetrics {
   pincode: string;
@@ -35,280 +28,127 @@ export interface LocationRecord {
   region: string;
 }
 
-interface CitySearchResult {
-  locationName: string;
-  pincode: string;
-  city: string;
-  state: string;
-  district: string;
-  latitude: number;
-  longitude: number;
-  region: string;
+function toNumber(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
-interface PincodeGeoFeature {
-  properties?: {
-    Pincode?: string;
-    Office_Name?: string;
-    Division?: string;
-    Region?: string;
-    Circle?: string;
-  };
-  geometry?: {
-    type?: string;
-    coordinates?: number[][][];
+function toLocationRecord(row: typeof locationIndex.$inferSelect): LocationRecord {
+  return {
+    locationName: row.locationName,
+    pincode: row.pincode,
+    city: row.city,
+    state: row.state,
+    district: row.district,
+    latitude: toNumber(row.latitude),
+    longitude: toNumber(row.longitude),
+    region: row.region,
   };
 }
 
-interface PincodeGeoFeatureCollection {
-  features?: PincodeGeoFeature[];
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
-function normalizeCityName(rawCity: string): string {
-  const inParens = rawCity.match(/\(([^)]+)\)/)?.[1]?.trim();
-  if (inParens) {
-    return inParens.replace(/\s{2,}/g, ' ').trim();
-  }
-
-  return rawCity
-    .replace(/\s+(S\.O|B\.O|H\.O|SO|BO|HO)$/i, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+function computeDemandScore(totalListings: number, totalViews: number, totalSaves: number): number {
+  const baseScore = Math.min((totalListings / 100) * 20, 20);
+  const viewsScore = Math.min((totalViews / 10000) * 40, 40);
+  const savesScore = Math.min((totalSaves / 1000) * 40, 40);
+  return Math.round(baseScore + viewsScore + savesScore);
 }
 
-function normalizeLocationName(rawOfficeName: string): string {
-  return rawOfficeName
-    .replace(/\s+(S\.O|B\.O|H\.O|SO|BO|HO)$/i, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
+async function getLocationByPincode(pincode: string): Promise<LocationRecord | null> {
+  const rows = await db
+    .select()
+    .from(locationIndex)
+    .where(eq(locationIndex.pincode, pincode))
+    .limit(1);
+
+  if (!rows.length) {
+    return null;
+  }
+
+  return toLocationRecord(rows[0]);
 }
 
-function deriveCityName(officeName: string, district: string): string {
-  const inParens = officeName.match(/\(([^)]+)\)/)?.[1]?.trim();
-  if (inParens) {
-    return inParens;
+async function searchLocationRecords(query: string, limit: number): Promise<LocationRecord[]> {
+  const cleanQuery = query.trim();
+  if (cleanQuery.length < 2) {
+    return [];
   }
 
-  const normalized = normalizeCityName(officeName);
-  if (!normalized) {
-    return district;
-  }
+  const exact = cleanQuery;
+  const startsWith = `${cleanQuery}%`;
+  const contains = `%${cleanQuery}%`;
 
-  return normalized;
+  const rows = await db
+    .select()
+    .from(locationIndex)
+    .where(
+      sql`(
+        lower(${locationIndex.locationName}) LIKE lower(${contains})
+        OR lower(${locationIndex.city}) LIKE lower(${contains})
+        OR lower(${locationIndex.district}) LIKE lower(${contains})
+        OR lower(${locationIndex.searchText}) LIKE lower(${contains})
+      )`
+    )
+    .orderBy(sql`CASE
+      WHEN lower(${locationIndex.locationName}) = lower(${exact}) OR lower(${locationIndex.city}) = lower(${exact}) THEN 120
+      WHEN lower(${locationIndex.locationName}) LIKE lower(${startsWith}) OR lower(${locationIndex.city}) LIKE lower(${startsWith}) THEN 100
+      WHEN lower(${locationIndex.locationName}) LIKE lower(${contains}) OR lower(${locationIndex.city}) LIKE lower(${contains}) THEN 80
+      WHEN lower(${locationIndex.district}) LIKE lower(${startsWith}) THEN 60
+      WHEN lower(${locationIndex.district}) LIKE lower(${contains}) THEN 40
+      ELSE 0
+    END DESC`, sql`length(${locationIndex.city}) ASC`)
+    .limit(limit);
+
+  return rows.map(toLocationRecord);
 }
 
-// Lazy-loaded location data
-let SCRUBBED_LOCATIONS: LocationRecord[] = [];
-let CITY_SEARCH_INDEX: CitySearchResult[] = [];
-let LOCATION_BY_PINCODE = new Map<string, LocationRecord>();
-let isDataLoaded = false;
-let loadingPromise: Promise<void> | null = null;
+async function getMetricsForPincode(pincode: string): Promise<Pick<LocationMetrics, 'totalListings' | 'totalViews' | 'avgPrice'>> {
+  const result = await db
+    .select({
+      totalListings: sql<number>`count(*)`,
+      totalViews: sql<number>`coalesce(sum(${listings.viewCount}), 0)`,
+      avgPrice: sql<number>`coalesce(avg(cast(${listings.price} as numeric)), 0)`,
+    })
+    .from(listings)
+    .where(and(eq(listings.pincode, pincode), eq(listings.isActive, true), eq(listings.status, 'active')))
+    .limit(1);
 
-async function loadLocationData(): Promise<void> {
-  if (isDataLoaded) {
-    return;
-  }
-
-  if (loadingPromise) {
-    return loadingPromise;
-  }
-
-  loadingPromise = (async () => {
-    try {
-      console.log('[Location] Loading GeoJSON data (async)...');
-      const startTime = Date.now();
-
-      const geoJsonPath = path.resolve(__dirname, '../../../data/pincode_geo.geojson');
-
-      // Check if file exists (using fs.access for async)
-      try {
-        await fs.access(geoJsonPath);
-      } catch {
-        console.warn('[Location] GeoJSON file not found, using empty dataset');
-        isDataLoaded = true;
-        return;
-      }
-
-      const raw = await fs.readFile(geoJsonPath, 'utf-8');
-      const source = JSON.parse(raw) as PincodeGeoFeatureCollection;
-      const features = Array.isArray(source.features) ? source.features : [];
-      const index = new Map<string, LocationRecord>();
-
-      for (const feature of features) {
-        const pincode = feature.properties?.Pincode;
-        const officeName = feature.properties?.Office_Name;
-        if (!pincode || !officeName) {
-          continue;
-        }
-
-        const district = (feature.properties?.Division || '').trim();
-        const city = deriveCityName(officeName, district);
-        const locationName = normalizeLocationName(officeName);
-        if (!city) {
-          continue;
-        }
-
-        const state = (feature.properties?.Circle || '').trim();
-        const region = (feature.properties?.Region || '').trim();
-
-        const ring = feature.geometry?.coordinates?.[0];
-        if (!ring || ring.length === 0) {
-          continue;
-        }
-
-        let minLon = Number.POSITIVE_INFINITY;
-        let maxLon = Number.NEGATIVE_INFINITY;
-        let minLat = Number.POSITIVE_INFINITY;
-        let maxLat = Number.NEGATIVE_INFINITY;
-
-        for (const pair of ring) {
-          const lon = pair[0];
-          const lat = pair[1];
-          if (typeof lon !== 'number' || typeof lat !== 'number') {
-            continue;
-          }
-          minLon = Math.min(minLon, lon);
-          maxLon = Math.max(maxLon, lon);
-          minLat = Math.min(minLat, lat);
-          maxLat = Math.max(maxLat, lat);
-        }
-
-        if (!Number.isFinite(minLon) || !Number.isFinite(minLat)) {
-          continue;
-        }
-
-        const latitude = (minLat + maxLat) / 2;
-        const longitude = (minLon + maxLon) / 2;
-        const key = `${city.toLowerCase()}|${state.toLowerCase()}`;
-
-        if (!index.has(key)) {
-          index.set(key, {
-            locationName,
-            pincode,
-            city,
-            state,
-            district,
-            latitude,
-            longitude,
-            region,
-          });
-        }
-      }
-
-      SCRUBBED_LOCATIONS = Array.from(index.values());
-      CITY_SEARCH_INDEX = SCRUBBED_LOCATIONS.map((location) => ({
-        locationName: location.locationName,
-        pincode: location.pincode,
-        city: location.city,
-        state: location.state,
-        district: location.district,
-        latitude: location.latitude,
-        longitude: location.longitude,
-        region: location.region,
-      }));
-      LOCATION_BY_PINCODE = new Map(
-        SCRUBBED_LOCATIONS.map((location) => [location.pincode, location])
-      );
-
-      isDataLoaded = true;
-      const loadTime = Date.now() - startTime;
-      console.log(
-        `[Location] ✅ Loaded ${SCRUBBED_LOCATIONS.length} locations in ${loadTime}ms (async)`
-      );
-    } catch (error) {
-      console.error('[Location] Failed to load GeoJSON data:', error);
-      isDataLoaded = true; // Mark as loaded to prevent infinite retries
-    }
-  })();
-
-  return loadingPromise;
+  return {
+    totalListings: result.length ? toNumber(result[0].totalListings) : 0,
+    totalViews: result.length ? toNumber(result[0].totalViews) : 0,
+    avgPrice: result.length ? toNumber(result[0].avgPrice) : 0,
+  };
 }
 
-// In-memory cache of location metrics (could be replaced with database)
-let locationMetrics: Map<string, LocationMetrics> = new Map();
+async function ensureLocationIndexAvailable(): Promise<void> {
+  const countResult = await db.select({ count: sql<number>`count(*)` }).from(locationIndex).limit(1);
+  const count = countResult.length ? toNumber(countResult[0].count) : 0;
 
-// Initialize with demo data
-export function initializeLocationData() {
-  const demoData: LocationMetrics[] = [
-    {
-      pincode: '500001',
-      city: 'Hyderabad',
-      state: 'Telangana',
-      latitude: 17.385,
-      longitude: 78.4867,
-      totalListings: 1250,
-      totalViews: 45000,
-      totalSaves: 3200,
-      avgPrice: 45000,
-      demandScore: 85,
-    },
-    {
-      pincode: '400001',
-      city: 'Mumbai',
-      state: 'Maharashtra',
-      latitude: 19.076,
-      longitude: 72.8777,
-      totalListings: 3450,
-      totalViews: 125000,
-      totalSaves: 8900,
-      avgPrice: 75000,
-      demandScore: 95,
-    },
-    {
-      pincode: '560001',
-      city: 'Bangalore',
-      state: 'Karnataka',
-      latitude: 12.9716,
-      longitude: 77.5946,
-      totalListings: 2800,
-      totalViews: 98000,
-      totalSaves: 6500,
-      avgPrice: 65000,
-      demandScore: 92,
-    },
-    {
-      pincode: '700001',
-      city: 'Kolkata',
-      state: 'West Bengal',
-      latitude: 22.5726,
-      longitude: 88.3639,
-      totalListings: 1100,
-      totalViews: 38000,
-      totalSaves: 2400,
-      avgPrice: 38000,
-      demandScore: 72,
-    },
-    {
-      pincode: '110001',
-      city: 'Delhi',
-      state: 'Delhi',
-      latitude: 28.7041,
-      longitude: 77.1025,
-      totalListings: 2200,
-      totalViews: 87000,
-      totalSaves: 5800,
-      avgPrice: 55000,
-      demandScore: 88,
-    },
-  ];
-
-  demoData.forEach((data) => {
-    locationMetrics.set(`${data.city}-${data.state}`, data);
-  });
+  if (count === 0) {
+    console.warn('[Location] location_index is empty. Run: npm run location:import');
+  }
 }
 
 /**
  * Register location-based routes with the Express app
  */
 export async function registerLocationRoutes(app: Express) {
-  // Load location data asynchronously
-  console.log('[Location] Initializing location data...');
-  await loadLocationData();
+  console.log('[Location] Initializing location routes (DB-backed index)...');
+  await ensureLocationIndexAvailable();
 
-  // Initialize demo data
-  initializeLocationData();
-
-  // Initialize geolocation service for reverse geocoding
   console.log('[Location] Initializing geolocation service...');
   await geolocationService.initialize();
   if (geolocationService.isInitialized()) {
@@ -317,11 +157,6 @@ export async function registerLocationRoutes(app: Express) {
     );
   }
 
-  /**
-   * GET /api/location/reverse-geocode
-   * Reverse geocode coordinates to find pincode and location details
-   * Query params: latitude, longitude
-   */
   app.get('/api/location/reverse-geocode', async (req: Request, res: Response) => {
     try {
       const { latitude, longitude } = req.query;
@@ -350,37 +185,27 @@ export async function registerLocationRoutes(app: Express) {
         });
       }
 
-      // Use geolocation service to find pincode from coordinates
-      const result = await geolocationService.getPincodeByCoordinates(lat, lng);
-
-      if (!result) {
+      const pincodeResult = await geolocationService.getPincodeByCoordinates(lat, lng);
+      if (!pincodeResult) {
         return res.status(404).json({
           success: false,
           error: 'No pincode found for these coordinates',
         });
       }
 
-      const location = LOCATION_BY_PINCODE.get(result.pincode);
-
+      const location = await getLocationByPincode(pincodeResult.pincode);
       if (!location) {
         return res.status(404).json({
           success: false,
-          error: 'Location data not found for pincode: ' + result.pincode,
+          error: `Location data not found for pincode: ${pincodeResult.pincode}`,
         });
       }
 
       return res.json({
         success: true,
         data: {
-          pincode: location.pincode,
-          locationName: location.locationName,
-          city: location.city,
-          state: location.state,
-          district: location.district,
-          latitude: location.latitude,
-          longitude: location.longitude,
-          region: location.region,
-          matchType: result.accuracy, // 'exact' or 'approximate'
+          ...location,
+          matchType: pincodeResult.accuracy,
           originalCoordinates: {
             latitude: lat,
             longitude: lng,
@@ -389,21 +214,15 @@ export async function registerLocationRoutes(app: Express) {
       });
     } catch (error) {
       console.error('[Location] Error reverse geocoding:', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Failed to reverse geocode coordinates',
       });
     }
   });
 
-  /**
-   * GET /api/location/pincode/:pincode
-   * Lookup location details by pincode
-   */
   app.get('/api/location/pincode/:pincode', async (req, res) => {
     try {
-      await loadLocationData(); // Ensure data is loaded
-
       const { pincode } = req.params;
 
       if (!pincode || pincode.length !== 6 || !/^\d{6}$/.test(pincode)) {
@@ -413,49 +232,31 @@ export async function registerLocationRoutes(app: Express) {
         });
       }
 
-      const location = LOCATION_BY_PINCODE.get(pincode);
-
+      const location = await getLocationByPincode(pincode);
       if (!location) {
         return res.status(404).json({
           success: false,
-          error: 'Pincode not found in our database. Coverage includes major Indian cities.',
+          error: 'Pincode not found in our database.',
         });
       }
 
       return res.json({
         success: true,
-        data: {
-          pincode: location.pincode,
-          locationName: location.locationName,
-          city: location.city,
-          state: location.state,
-          district: location.district,
-          latitude: location.latitude,
-          longitude: location.longitude,
-          region: location.region,
-        },
+        data: location,
       });
     } catch (error) {
       console.error('[Location] Error looking up pincode:', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         error: 'Failed to lookup pincode',
       });
     }
   });
 
-  /**
-   * GET /api/location/cities/search
-   * Query params: q (min 2 chars), limit (optional, max 20)
-   */
   app.get('/api/location/cities/search', async (req: Request, res: Response) => {
     try {
-      await loadLocationData(); // Ensure data is loaded
-
       const rawQuery = (req.query.q as string | undefined)?.trim() ?? '';
-      const query = rawQuery.toLowerCase();
-
-      if (query.length < 2) {
+      if (rawQuery.length < 2) {
         return res.status(400).json({
           success: false,
           error: 'Query must be at least 2 characters',
@@ -467,39 +268,11 @@ export async function registerLocationRoutes(app: Express) {
         ? Math.max(1, Math.min(20, requestedLimit))
         : 10;
 
-      const ranked = CITY_SEARCH_INDEX.map((city) => {
-        const locationNameLower = city.locationName.toLowerCase();
-        const cityLower = city.city.toLowerCase();
-        const districtLower = city.district.toLowerCase();
-
-        let score = 0;
-        if (locationNameLower === query || cityLower === query) {
-          score = 120;
-        } else if (locationNameLower.startsWith(query) || cityLower.startsWith(query)) {
-          score = 100;
-        } else if (locationNameLower.includes(query) || cityLower.includes(query)) {
-          score = 80;
-        } else if (districtLower.startsWith(query)) {
-          score = 60;
-        } else if (districtLower.includes(query)) {
-          score = 40;
-        }
-
-        return { city, score };
-      })
-        .filter((entry) => entry.score > 0)
-        .sort((a, b) => {
-          if (b.score !== a.score) {
-            return b.score - a.score;
-          }
-          return a.city.city.length - b.city.city.length;
-        })
-        .slice(0, limit)
-        .map((entry) => entry.city);
+      const records = await searchLocationRecords(rawQuery, limit);
 
       return res.json({
         success: true,
-        data: ranked,
+        data: records,
       });
     } catch (error) {
       console.error('[Location] Error searching cities:', error);
@@ -510,39 +283,55 @@ export async function registerLocationRoutes(app: Express) {
     }
   });
 
-  /**
-   * GET /api/location/city/:city
-   * Get location metrics for a specific city
-   */
-  app.get('/api/location/city/:city', (req, res) => {
+  app.get('/api/location/city/:city', async (req, res) => {
     try {
       const { city } = req.params;
-      const state = req.query.state as string;
+      const state = String(req.query.state || '').trim();
 
       if (!city) {
         return res.status(400).json({ error: 'City is required' });
       }
 
-      const key = state ? `${city}-${state}` : city;
-      const metrics = locationMetrics.get(key);
+      const locations = await db
+        .select()
+        .from(locationIndex)
+        .where(
+          state
+            ? and(
+                ilike(locationIndex.city, city),
+                ilike(locationIndex.state, state)
+              )
+            : ilike(locationIndex.city, city)
+        )
+        .limit(1);
 
-      if (!metrics) {
+      if (!locations.length) {
         return res.status(404).json({ error: 'Location not found' });
       }
 
-      res.json(metrics);
+      const location = toLocationRecord(locations[0]);
+      const metrics = await getMetricsForPincode(location.pincode);
+      const demandScore = computeDemandScore(metrics.totalListings, metrics.totalViews, 0);
+
+      return res.json({
+        pincode: location.pincode,
+        city: location.city,
+        state: location.state,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        totalListings: metrics.totalListings,
+        totalViews: metrics.totalViews,
+        totalSaves: 0,
+        avgPrice: metrics.avgPrice,
+        demandScore,
+      });
     } catch (error) {
       console.error('Error fetching location metrics:', error);
-      res.status(500).json({ error: 'Failed to fetch location metrics' });
+      return res.status(500).json({ error: 'Failed to fetch location metrics' });
     }
   });
 
-  /**
-   * GET /api/location/nearby
-   * Find cities near given coordinates
-   * Query params: latitude, longitude, radius (km)
-   */
-  app.get('/api/location/nearby', (req, res) => {
+  app.get('/api/location/nearby', async (req, res) => {
     try {
       const { latitude, longitude, radius = 50 } = req.query;
 
@@ -554,97 +343,103 @@ export async function registerLocationRoutes(app: Express) {
       const lon = parseFloat(longitude as string);
       const radiusKm = parseFloat(radius as string);
 
-      const nearby: LocationMetrics[] = [];
-
-      for (const metrics of locationMetrics.values()) {
-        const distance = calculateDistance(lat, lon, metrics.latitude, metrics.longitude);
-        if (distance <= radiusKm) {
-          nearby.push(metrics);
-        }
+      if (Number.isNaN(lat) || Number.isNaN(lon) || Number.isNaN(radiusKm)) {
+        return res.status(400).json({ error: 'Invalid latitude, longitude or radius' });
       }
 
-      // Sort by distance
-      nearby.sort(
-        (a, b) =>
-          calculateDistance(lat, lon, a.latitude, a.longitude) -
-          calculateDistance(lat, lon, b.latitude, b.longitude)
-      );
+      const latDelta = radiusKm / 111;
+      const lonDelta = radiusKm / (111 * Math.max(0.1, Math.cos((lat * Math.PI) / 180)));
 
-      res.json(nearby);
+      const candidates = await db
+        .select()
+        .from(locationIndex)
+        .where(
+          sql`cast(${locationIndex.latitude} as numeric) between ${lat - latDelta} and ${lat + latDelta}
+            and cast(${locationIndex.longitude} as numeric) between ${lon - lonDelta} and ${lon + lonDelta}`
+        )
+        .limit(500);
+
+      const nearby = candidates
+        .map((row) => {
+          const location = toLocationRecord(row);
+          const distance = calculateDistance(lat, lon, location.latitude, location.longitude);
+          return { ...location, distanceKm: Number(distance.toFixed(2)) };
+        })
+        .filter((row) => row.distanceKm <= radiusKm)
+        .sort((a, b) => a.distanceKm - b.distanceKm);
+
+      return res.json(nearby);
     } catch (error) {
       console.error('Error fetching nearby locations:', error);
-      res.status(500).json({ error: 'Failed to fetch nearby locations' });
+      return res.status(500).json({ error: 'Failed to fetch nearby locations' });
     }
   });
 
-  /**
-   * GET /api/location/trending
-   * Get top trending cities by demand score
-   * Query params: limit (default: 5)
-   */
-  app.get('/api/location/trending', (req, res) => {
+  app.get('/api/location/trending', async (req, res) => {
     try {
       const { limit = 5 } = req.query;
-      const limitNum = Math.min(parseInt(limit as string) || 5, 20);
+      const limitNum = Math.min(parseInt(limit as string, 10) || 5, 20);
 
-      const sorted = Array.from(locationMetrics.values())
-        .sort((a, b) => b.demandScore - a.demandScore)
-        .slice(0, limitNum);
+      const topPincodes = await db
+        .select({
+          pincode: listings.pincode,
+          totalListings: sql<number>`count(*)`,
+          totalViews: sql<number>`coalesce(sum(${listings.viewCount}), 0)`,
+          avgPrice: sql<number>`coalesce(avg(cast(${listings.price} as numeric)), 0)`,
+        })
+        .from(listings)
+        .where(and(eq(listings.isActive, true), eq(listings.status, 'active'), isNotNull(listings.pincode)))
+        .groupBy(listings.pincode)
+        .orderBy(desc(sql`coalesce(sum(${listings.viewCount}), 0)`), desc(sql`count(*)`))
+        .limit(limitNum * 2);
 
-      res.json(sorted);
+      const metrics: LocationMetrics[] = [];
+
+      for (const row of topPincodes) {
+        const pincode = row.pincode;
+        if (!pincode) {
+          continue;
+        }
+
+        const location = await getLocationByPincode(pincode);
+        if (!location) {
+          continue;
+        }
+
+        const totalListings = toNumber(row.totalListings);
+        const totalViews = toNumber(row.totalViews);
+        const totalSaves = 0;
+
+        metrics.push({
+          pincode,
+          city: location.city,
+          state: location.state,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          totalListings,
+          totalViews,
+          totalSaves,
+          avgPrice: toNumber(row.avgPrice),
+          demandScore: computeDemandScore(totalListings, totalViews, totalSaves),
+        });
+      }
+
+      metrics.sort((a, b) => b.demandScore - a.demandScore);
+      return res.json(metrics.slice(0, limitNum));
     } catch (error) {
       console.error('Error fetching trending locations:', error);
-      res.status(500).json({ error: 'Failed to fetch trending locations' });
+      return res.status(500).json({ error: 'Failed to fetch trending locations' });
     }
   });
 
-  /**
-   * POST /api/location/update-demand
-   * Update demand metrics for a location (called after listing activity)
-   */
-  app.post('/api/location/update-demand', (req, res) => {
-    try {
-      const { city, state, views = 0, saves = 0, pricePoint = 0 } = req.body;
-
-      if (!city || !state) {
-        return res.status(400).json({ error: 'City and state are required' });
-      }
-
-      const key = `${city}-${state}`;
-      const metrics = locationMetrics.get(key);
-
-      if (!metrics) {
-        return res.status(404).json({ error: 'Location not found' });
-      }
-
-      // Update metrics
-      metrics.totalViews += views;
-      metrics.totalSaves += saves;
-
-      if (pricePoint > 0) {
-        metrics.avgPrice = (metrics.avgPrice + pricePoint) / 2; // Simple average
-      }
-
-      // Recalculate demand score
-      // Based on: listings (20%), views (40%), saves (40%)
-      const baseScore = Math.min((metrics.totalListings / 100) * 20, 20);
-      const viewsScore = Math.min((metrics.totalViews / 10000) * 40, 40);
-      const savesScore = Math.min((metrics.totalSaves / 1000) * 40, 40);
-      metrics.demandScore = Math.round(baseScore + viewsScore + savesScore);
-
-      res.json(metrics);
-    } catch (error) {
-      console.error('Error updating demand metrics:', error);
-      res.status(500).json({ error: 'Failed to update demand metrics' });
-    }
+  app.post('/api/location/update-demand', (_req, res) => {
+    return res.status(501).json({
+      success: false,
+      error: 'Demand update endpoint is deprecated. Metrics are now derived from listing data.',
+    });
   });
 
-  /**
-   * GET /api/location/pricing/dynamic
-   * Get dynamic price multiplier for a location.
-   * Kept under /api/location/* to avoid colliding with category/type dynamic-pricing routes.
-   */
-  app.get('/api/location/pricing/dynamic', (req, res) => {
+  app.get('/api/location/pricing/dynamic', async (req, res) => {
     try {
       const { city, state } = req.query;
 
@@ -652,53 +447,40 @@ export async function registerLocationRoutes(app: Express) {
         return res.status(400).json({ error: 'City and state are required' });
       }
 
-      const key = `${city}-${state}`;
-      const metrics = locationMetrics.get(key);
+      const locations = await db
+        .select()
+        .from(locationIndex)
+        .where(and(ilike(locationIndex.city, String(city)), ilike(locationIndex.state, String(state))))
+        .limit(1);
 
-      if (!metrics) {
+      if (!locations.length) {
         return res.status(404).json({ error: 'Location not found' });
       }
 
-      // Multiplier based on demand score (50-100 score → 0.8-1.2 multiplier)
-      const multiplier = 0.8 + (metrics.demandScore / 100) * 0.4;
+      const location = toLocationRecord(locations[0]);
+      const metrics = await getMetricsForPincode(location.pincode);
+      const demandScore = computeDemandScore(metrics.totalListings, metrics.totalViews, 0);
+      const multiplier = 0.8 + (demandScore / 100) * 0.4;
 
-      res.json({
-        city,
-        state,
-        demandScore: metrics.demandScore,
+      return res.json({
+        city: location.city,
+        state: location.state,
+        demandScore,
         priceMultiplier: parseFloat(multiplier.toFixed(2)),
-        baselinePrice: 199, // Standard plan base price
+        baselinePrice: 199,
         adjustedPrice: Math.round(199 * multiplier),
         explanation:
-          metrics.demandScore > 85
+          demandScore > 85
             ? 'High demand in this location - prices adjusted upward'
-            : metrics.demandScore < 70
+            : demandScore < 70
               ? 'Lower demand in this location - lower prices available'
               : 'Standard pricing for this location',
       });
     } catch (error) {
       console.error('Error calculating dynamic pricing:', error);
-      res.status(500).json({ error: 'Failed to calculate dynamic pricing' });
+      return res.status(500).json({ error: 'Failed to calculate dynamic pricing' });
     }
   });
 }
 
-/**
- * Calculate distance between two coordinates using Haversine formula
- * @returns Distance in kilometers
- */
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Earth's radius in km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-export { calculateDistance, loadLocationData };
+export { calculateDistance, ensureLocationIndexAvailable };

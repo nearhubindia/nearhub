@@ -535,6 +535,28 @@ export const listings = pgTable('listings', {
 });
 
 /**
+ * Location Index Table
+ * Scrubbed pincode/city/state records derived from GeoJSON for fast lookups.
+ */
+export const locationIndex = pgTable('location_index', {
+  pincode: varchar('pincode', { length: 6 }).primaryKey(),
+  locationName: varchar('location_name', { length: 180 }).notNull(),
+  city: varchar('city', { length: 120 }).notNull(),
+  state: varchar('state', { length: 120 }).notNull(),
+  district: varchar('district', { length: 120 }).notNull().default(''),
+  latitude: decimal('latitude', { precision: 10, scale: 7 }).notNull(),
+  longitude: decimal('longitude', { precision: 10, scale: 7 }).notNull(),
+  region: varchar('region', { length: 120 }).notNull().default(''),
+  searchText: text('search_text').notNull(),
+  createdAt: timestamp('created_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: timestamp('updated_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+});
+
+/**
  * Zod Schemas for Subscription Management
  */
 export const insertSubscriptionTierSchema = createInsertSchema(subscriptionTiers).omit({
@@ -610,6 +632,8 @@ export type InsertUserSubscription = z.infer<typeof insertUserSubscriptionSchema
 
 export type Listing = typeof listings.$inferSelect;
 export type InsertListing = z.infer<typeof insertListingSchema>;
+export type LocationIndex = typeof locationIndex.$inferSelect;
+export type InsertLocationIndex = typeof locationIndex.$inferInsert;
 
 export type Coupon = typeof coupons.$inferSelect;
 export type InsertCoupon = z.infer<typeof insertCouponSchema>;
