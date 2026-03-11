@@ -66,7 +66,7 @@ export default function SettingsScreen() {
       label: 'Privacy & Security',
       subtitle: 'Password and account safety',
       type: 'navigation',
-      onPress: () => Alert.alert('Coming Soon', 'Privacy settings will be available soon'),
+      onPress: () => router.push('/settings/privacy-security'),
     },
     {
       icon: 'bell',
@@ -101,14 +101,14 @@ export default function SettingsScreen() {
       subtitle: 'Choose your preferred language',
       value: 'English',
       type: 'navigation',
-      onPress: () => Alert.alert('Coming Soon', 'Language selection coming soon'),
+      onPress: () => router.push('/settings/language'),
     },
     {
       icon: 'moon',
       label: 'Dark Mode',
       subtitle: 'Appearance preferences',
       type: 'navigation',
-      onPress: () => Alert.alert('Coming Soon', 'Dark mode coming soon'),
+      onPress: () => router.push('/settings/dark-mode'),
     },
   ];
 
@@ -118,21 +118,21 @@ export default function SettingsScreen() {
       label: 'Help & Support',
       subtitle: 'Contact NearHub support',
       type: 'navigation',
-      onPress: () => Alert.alert('Help', 'Contact us at support@nearhub.com'),
+      onPress: () => router.push('/settings/help-support'),
     },
     {
       icon: 'file-text',
       label: 'Terms & Conditions',
       subtitle: 'Read usage terms',
       type: 'navigation',
-      onPress: () => Alert.alert('Coming Soon', 'Terms & conditions coming soon'),
+      onPress: () => router.push('/settings/terms'),
     },
     {
       icon: 'shield',
       label: 'Privacy Policy',
       subtitle: 'How your data is handled',
       type: 'navigation',
-      onPress: () => Alert.alert('Coming Soon', 'Privacy policy coming soon'),
+      onPress: () => router.push('/settings/privacy-policy'),
     },
     {
       icon: 'info',
@@ -140,7 +140,7 @@ export default function SettingsScreen() {
       subtitle: 'App version and details',
       value: 'v1.0.0',
       type: 'navigation',
-      onPress: () => Alert.alert('NearHub', 'Version 1.0.0\n\nYour local marketplace'),
+      onPress: () => router.push('/settings/about'),
     },
   ];
 
@@ -149,22 +149,9 @@ export default function SettingsScreen() {
       icon: 'trash-2',
       label: 'Delete Account',
       subtitle: 'Permanently erase your account',
-      type: 'action',
+      type: 'navigation',
       danger: true,
-      onPress: () => {
-        Alert.alert(
-          'Delete Account',
-          'This action cannot be undone. All your data will be permanently deleted.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Delete',
-              style: 'destructive',
-              onPress: () => Alert.alert('Coming Soon', 'Account deletion will be available soon'),
-            },
-          ]
-        );
-      },
+      onPress: () => router.push('/settings/delete-account'),
     },
     {
       icon: 'log-out',
