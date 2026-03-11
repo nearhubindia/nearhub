@@ -8,6 +8,9 @@ export default function SettingsView() {
   const [featuredListingEnabled, setFeaturedListingEnabled] = useState(true);
   const [topSearchEnabled, setTopSearchEnabled] = useState(true);
   const [geoRadiusKm, setGeoRadiusKm] = useState(50);
+  const [starterCreditsEnabled, setStarterCreditsEnabled] = useState(true);
+  const [starterListingsCount, setStarterListingsCount] = useState(2);
+  const [starterBoostsCount, setStarterBoostsCount] = useState(2);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -26,8 +29,17 @@ export default function SettingsView() {
 
         if (response.ok) {
           const data = await response.json();
-          if (data.settings?.geoRadiusKm) {
+          if (typeof data.settings?.geoRadiusKm === 'number') {
             setGeoRadiusKm(data.settings.geoRadiusKm);
+          }
+          if (typeof data.settings?.starterCreditsEnabled === 'boolean') {
+            setStarterCreditsEnabled(data.settings.starterCreditsEnabled);
+          }
+          if (typeof data.settings?.starterListingsCount === 'number') {
+            setStarterListingsCount(Math.max(0, data.settings.starterListingsCount));
+          }
+          if (typeof data.settings?.starterBoostsCount === 'number') {
+            setStarterBoostsCount(Math.max(0, data.settings.starterBoostsCount));
           }
         }
       } catch (error) {
@@ -60,6 +72,9 @@ export default function SettingsView() {
         },
         body: JSON.stringify({
           geoRadiusKm: geoRadiusKm,
+          starterCreditsEnabled,
+          starterListingsCount,
+          starterBoostsCount,
         }),
         credentials: 'include',
       });
@@ -256,6 +271,76 @@ export default function SettingsView() {
                   <p className="text-sm text-slate-600 mt-1">
                     Set the default search radius for location-based listing searches (1-500 km)
                   </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Starter Credits Settings */}
+            <div className="bg-white border border-slate-200 rounded-lg p-8">
+              <h3 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                <span className="text-2xl">🎁</span> Starter Credits (New Users)
+              </h3>
+              <p className="text-slate-600 mb-6">
+                Configure one-time free credits granted automatically on first registration
+              </p>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
+                  <div>
+                    <h4 className="font-bold text-slate-900">Enable Starter Credits</h4>
+                    <p className="text-sm text-slate-600 mt-1">
+                      When enabled, every new account receives free listing and boost credits once
+                    </p>
+                  </div>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={starterCreditsEnabled}
+                      onChange={(e) => setStarterCreditsEnabled(e.target.checked)}
+                      className="w-6 h-6 accent-teal-500"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-900 mb-2">
+                      Starter Listings
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={starterListingsCount}
+                      onChange={(e) =>
+                        setStarterListingsCount(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
+                      }
+                      disabled={!starterCreditsEnabled}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500 disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                    <p className="text-sm text-slate-600 mt-1">
+                      Free listing credits given once to each new user
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-900 mb-2">
+                      Starter Boosts
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={starterBoostsCount}
+                      onChange={(e) =>
+                        setStarterBoostsCount(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
+                      }
+                      disabled={!starterCreditsEnabled}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500 disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                    <p className="text-sm text-slate-600 mt-1">
+                      Free boost credits given once to each new user
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

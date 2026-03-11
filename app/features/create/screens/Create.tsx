@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -34,7 +34,6 @@ import {
   Category,
   CATEGORIES,
   CONDITIONS,
-  ValidationResult,
   PriceUnit,
   PRICE_UNITS,
   Listing,
@@ -120,8 +119,6 @@ export default function CreateScreen() {
   const [videoDuration, setVideoDuration] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState | null>(null);
-  const [isValidating, setIsValidating] = useState(false);
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [overallProgress, setOverallProgress] = useState(0); // 0-100 percentage
 
@@ -146,10 +143,21 @@ export default function CreateScreen() {
     } | null;
   };
 
+  type StarterCreditsSummary = {
+    isActive: boolean;
+    listingsTotal: number;
+    listingsUsed: number;
+    listingsRemaining: number;
+    boostsTotal: number;
+    boostsUsed: number;
+    boostsRemaining: number;
+  };
+
   // Active subscription state
   const [allSubscriptions, setAllSubscriptions] = useState<SubscriptionData[]>([]);
   const [selectedSubscription, setSelectedSubscription] = useState<SubscriptionData | null>(null);
   const [activeSubscription, setActiveSubscription] = useState<SubscriptionData | null>(null); // For backward compatibility
+  const [starterCredits, setStarterCredits] = useState<StarterCreditsSummary | null>(null);
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(true);
   const [showSubscriptionSelector, setShowSubscriptionSelector] = useState(false);
   const previousSubscriptionCount = useRef(0);
@@ -157,15 +165,7 @@ export default function CreateScreen() {
   const isFetchingSubscriptionRef = useRef(false);
   const lastSubscriptionFetchAtRef = useRef(0);
   const SUBSCRIPTION_FETCH_THROTTLE_MS = 2000;
-  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
-  const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
-  const [isSuggestingCategory, setIsSuggestingCategory] = useState(false);
-  const [isExtractingKeywords, setIsExtractingKeywords] = useState(false);
-  const [isSuggestingPrice, setIsSuggestingPrice] = useState(false);
-  const [keywords, setKeywords] = useState<string[]>([]);
-  const [suggestedPrice, setSuggestedPrice] = useState<string | null>(null);
   const [validationMessage, setValidationMessage] = useState<string>('');
-  const [qualityScore, setQualityScore] = useState<number | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
   const [compressionProgress, setCompressionProgress] = useState(0);
   const [showRecorder, setShowRecorder] = useState(false);
@@ -200,6 +200,52 @@ export default function CreateScreen() {
       : listingType === 'service'
         ? SERVICE_CATEGORIES
         : CATEGORIES;
+
+  const totalSteps = 9;
+  const completedSteps = [
+    Boolean(listingType),
+    listingType === 'job' ? true : images.length > 0,
+    true, // video is optional
+    title.trim().length > 0,
+    price.trim().length > 0 && !Number.isNaN(Number(price)),
+    Boolean(category),
+    Boolean(locationCity || (latitude !== null && longitude !== null)),
+    Boolean(condition),
+    description.trim().length > 0,
+  ].filter(Boolean).length;
+  const completionPercentage = Math.round((completedSteps / totalSteps) * 100);
+
+  const subscriptionStats = useMemo(() => {
+    let totalUsed = 0;
+    let totalAvailable = 0;
+    let totalLimit = 0;
+    let isUnlimited = false;
+
+    allSubscriptions.forEach((subscription) => {
+      if (!subscription.tier) return;
+      totalUsed += subscription.listingsUsed;
+      if (subscription.tier.maxListings === -1) {
+        isUnlimited = true;
+      } else {
+        totalLimit += subscription.tier.maxListings;
+        totalAvailable += subscription.tier.maxListings - subscription.listingsUsed;
+      }
+    });
+
+    return {
+      totalUsed,
+      totalAvailable,
+      totalLimit,
+      isUnlimited,
+      isMultiple: allSubscriptions.length > 1,
+      isFull: !isUnlimited && totalAvailable <= 0,
+    };
+  }, [allSubscriptions]);
+
+  const hasStarterListingsAvailable = useMemo(
+    () => Boolean(starterCredits?.isActive && (starterCredits?.listingsRemaining || 0) > 0),
+    [starterCredits]
+  );
 
   useEffect(() => {
     if (listingType === 'job' && !JOB_CATEGORIES.includes(category)) {
@@ -433,6 +479,7 @@ export default function CreateScreen() {
   const fetchActiveSubscription = useCallback(
     async (options?: { force?: boolean }): Promise<number> => {
       if (!user?.id) {
+        setStarterCredits(null);
         setIsLoadingSubscription(false);
         return 0;
       }
@@ -470,6 +517,7 @@ export default function CreateScreen() {
         });
 
         const data = await response.json();
+        setStarterCredits(data?.starterCredits || null);
         console.log('[Create] fetchActiveSubscription - Response:', {
           status: response.status,
           ok: response.ok,
@@ -496,6 +544,7 @@ export default function CreateScreen() {
             setAllSubscriptions([]);
             setSelectedSubscription(null);
             setActiveSubscription(null);
+            setStarterCredits(null);
             previousSubscriptionCount.current = 0;
             return 0;
           }
@@ -611,261 +660,9 @@ export default function CreateScreen() {
     }, [fetchActiveSubscription])
   );
 
-  const generateDescriptionWithAI = useCallback(async () => {
-    if (!title.trim()) {
-      Alert.alert('Title Required', 'Please enter a title first to generate a description.');
-      return;
-    }
-
-    setIsGeneratingDescription(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    try {
-      const apiUrl = await getApiUrl();
-      const response = await fetch(`${apiUrl}/api/ai/generate-description`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          category: category,
-          price: price || 'Not specified',
-          condition: condition,
-        }),
-      });
-
-      const data = await response.json();
-      if (data.text) {
-        setDescription(data.text);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error) {
-      console.error('AI description generation error:', error);
-      Alert.alert('Error', 'Failed to generate description. Make sure Ollama is running.');
-    } finally {
-      setIsGeneratingDescription(false);
-    }
-  }, [title, category, condition, price]);
-
-  const generateTitleWithAI = useCallback(async () => {
-    if (!description.trim()) {
-      Alert.alert('Description Required', 'Please enter a description first to generate a title.');
-      return;
-    }
-
-    setIsGeneratingTitle(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    try {
-      const apiUrl = await getApiUrl();
-      const response = await fetch(`${apiUrl}/api/ai/generate-title`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description: description.trim(),
-          category: category,
-        }),
-      });
-
-      const data = await response.json();
-      if (data.text) {
-        setTitle(data.text);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error) {
-      console.error('AI title generation error:', error);
-      Alert.alert('Error', 'Failed to generate title. Make sure Ollama is running.');
-    } finally {
-      setIsGeneratingTitle(false);
-    }
-  }, [description, category]);
-
-  const suggestCategoryWithAI = useCallback(async () => {
-    if (!title.trim()) {
-      Alert.alert('Title Required', 'Please enter a title first to get a category suggestion.');
-      return;
-    }
-
-    setIsSuggestingCategory(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    try {
-      const apiUrl = await getApiUrl();
-      const response = await fetch(`${apiUrl}/api/ai/suggest-category`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim(),
-        }),
-      });
-
-      const data = await response.json();
-      if (data.text) {
-        setCategory(data.text as Category);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error) {
-      console.error('AI category suggestion error:', error);
-      Alert.alert('Error', 'Failed to suggest category. Make sure Ollama is running.');
-    } finally {
-      setIsSuggestingCategory(false);
-    }
-  }, [title, description]);
-
-  const extractKeywordsWithAI = useCallback(async () => {
-    if (!title.trim()) {
-      Alert.alert('Title Required', 'Please enter a title first to extract keywords.');
-      return;
-    }
-
-    setIsExtractingKeywords(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    try {
-      const apiUrl = await getApiUrl();
-      const response = await fetch(`${apiUrl}/api/ai/extract-keywords`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim(),
-        }),
-      });
-
-      const data = await response.json();
-      if (data.keywords && Array.isArray(data.keywords)) {
-        setKeywords(data.keywords);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-    } catch (error) {
-      console.error('AI keyword extraction error:', error);
-      Alert.alert('Error', 'Failed to extract keywords. Make sure Ollama is running.');
-    } finally {
-      setIsExtractingKeywords(false);
-    }
-  }, [title, description]);
-
-  const suggestPriceWithAI = useCallback(async () => {
-    if (!title.trim() || !category) {
-      Alert.alert('Info Required', 'Please enter a title and select a category first.');
-      return;
-    }
-
-    setIsSuggestingPrice(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    try {
-      // Simulate AI pricing based on category and condition
-      // In production, this could call a backend ML model
-      const basePrices: { [key: string]: number } = {
-        Electronics: 25000,
-        Vehicles: 500000,
-        'Real Estate': 5000000,
-        Services: 0,
-        Jobs: 0,
-        Furniture: 15000,
-        Clothing: 2000,
-        'Home & Garden': 10000,
-        Sports: 5000,
-        Education: 0,
-        Pets: 20000,
-        Other: 10000,
-      };
-
-      const base = basePrices[category] || 10000;
-      const conditionMultiplier =
-        {
-          new: 1.0,
-          like_new: 0.85,
-          good: 0.7,
-          fair: 0.5,
-          poor: 0.3,
-        }[condition] || 0.7;
-
-      const suggested = Math.round(base * conditionMultiplier);
-      setSuggestedPrice(suggested.toLocaleString('en-IN'));
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      console.error('AI pricing suggestion error:', error);
-      Alert.alert('Error', 'Failed to suggest price.');
-    } finally {
-      setIsSuggestingPrice(false);
-    }
-  }, [category, condition, title]);
-
-  const calculateQualityScore = useCallback(async () => {
-    let score = 0;
-    let messages: string[] = [];
-
-    // Title quality (max 20 points)
-    if (title.length > 30 && title.length < 80) {
-      score += 20;
-    } else if (title.length > 10) {
-      score += 10;
-      messages.push('Title could be more descriptive');
-    } else {
-      messages.push('Title is too short');
-    }
-
-    // Description quality (max 25 points)
-    if (description.length > 100) {
-      score += 25;
-    } else if (description.length > 50) {
-      score += 15;
-      messages.push('Add more details to description');
-    } else {
-      messages.push('Description is too short');
-    }
-
-    // Image/Video (max 20 points)
-    if (mediaType === 'video' && videoUri) {
-      score += 20;
-    } else if (images.length >= 3) {
-      score += 20;
-    } else if (images.length >= 1) {
-      score += 10;
-      messages.push('Add more images');
-    } else {
-      messages.push('Add image or video');
-    }
-
-    // Price (max 15 points)
-    if (price && !isNaN(Number(price))) {
-      score += 15;
-    } else {
-      messages.push('Enter a valid price');
-    }
-
-    // Category (max 10 points)
-    if (category && category !== 'Other') {
-      score += 10;
-    } else {
-      messages.push('Select specific category');
-    }
-
-    // Condition (max 10 points)
-    if (condition !== 'fair' && condition !== 'poor') {
-      score += 10;
-    }
-
-    setQualityScore(Math.min(100, score));
-
-    if (messages.length > 0) {
-      Alert.alert(
-        'Listing Quality',
-        `Score: ${Math.min(100, score)}/100\n\n${messages.join('\n')}`
-      );
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Perfect Listing!', `Quality Score: ${Math.min(100, score)}/100`, [
-        { text: 'Great!' },
-      ]);
-    }
-  }, [title, description, images, videoUri, mediaType, price, category, condition]);
-
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const bottomCtaSafeSpacing = Platform.OS === 'web' ? 34 : 86;
+  const heroTopPadding = Platform.OS === 'web' ? 18 : 18 + Math.max(insets.top, 10);
 
   const convertBlobUrlToBase64 = async (uri: string): Promise<string> => {
     try {
@@ -1070,11 +867,6 @@ export default function CreateScreen() {
               if (duplicateHash) {
                 setValidationMessage('Duplicate image detected. Reusing optimized storage.');
               }
-
-              // Validate the image using base64
-              if (asset.base64) {
-                validateImage(asset.base64);
-              }
             }
           } catch (compressionError) {
             console.error('Image compression error:', compressionError);
@@ -1092,9 +884,6 @@ export default function CreateScreen() {
 
             setValidationMessage('Using original image quality.');
             setImages((prev) => [...prev, finalImageData]);
-            if (asset.base64) {
-              validateImage(asset.base64);
-            }
           } finally {
             setIsCompressingImages(false);
             setImageCompressionProgress(null);
@@ -1106,94 +895,8 @@ export default function CreateScreen() {
         setIsCompressingImages(false);
       }
     },
-    [title, category, description]
+    []
   );
-
-  const validateImage = async (base64: string) => {
-    // Require title + category before calling remote validation on web
-    if (!title.trim() || !category) {
-      // Skip validation if required metadata isn't present yet
-      return;
-    }
-
-    // Run validation in background (non-blocking) with timeout
-    setIsValidating(true);
-    setValidationResult(null);
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000); // 8 second timeout
-
-    try {
-      const baseUrl = await getApiUrl();
-      const url = new URL('/api/validate-listing', baseUrl);
-      const res = await fetch(url.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category,
-          title,
-          description,
-          isVideo: false,
-        }),
-        signal: controller.signal,
-      });
-
-      const data = await res.json();
-
-      // Also check with local AI moderation if available
-      if (title.trim()) {
-        try {
-          const modRes = await fetch(`${baseUrl}/api/ai/moderate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: title.trim(),
-              description: description.trim(),
-            }),
-            signal: controller.signal,
-          });
-          const modData = await modRes.json();
-
-          // Combine results
-          if (modData.flagged) {
-            data.isAppropriate = false;
-            data.suggestion = `AI flagged: ${modData.reason}`;
-          }
-        } catch (e) {
-          console.log('Local AI moderation not available, using Phi2 validation');
-        }
-      }
-
-      // Always mark as valid for user's own listings (validation is advisory only)
-      const validationResult = {
-        ...data,
-        isValid: true, // Allow all uploads - validation is informational
-        isAppropriate: data.isAppropriate !== false, // Only flag if explicitly set
-      };
-
-      setValidationResult(validationResult);
-      Haptics.notificationAsync(
-        validationResult.isAppropriate
-          ? Haptics.NotificationFeedbackType.Success
-          : Haptics.NotificationFeedbackType.Warning
-      );
-    } catch (e) {
-      console.error('Validation error:', e);
-      // Always allow upload - validation is non-blocking
-      setValidationResult({
-        isValid: true,
-        isAppropriate: true,
-        matchesCategory: true,
-        confidence: 0.5,
-        detectedItems: [],
-        suggestion: '',
-        reason: 'Validation completed',
-      });
-    } finally {
-      clearTimeout(timeout);
-      setIsValidating(false);
-    }
-  };
 
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
@@ -1207,133 +910,6 @@ export default function CreateScreen() {
 
     setImageHashes((prev) => prev.filter((_, i) => i !== index));
     setImageDeduplicationInfo(null);
-
-    if (images.length <= 1) {
-      setValidationResult(null);
-    }
-  };
-
-  const validateVideoFrame = async (videoUri: string) => {
-    setIsValidating(true);
-    setValidationResult(null);
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000); // 8 second timeout
-
-    try {
-      let base64Data: string | undefined;
-      let videoDurationMs: number | undefined;
-
-      if (Platform.OS !== 'web') {
-        try {
-          console.log('[Create] Generating video thumbnail from:', videoUri);
-          const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(videoUri, {
-            time: 1000,
-            quality: 0.7,
-          });
-          console.log('[Create] Thumbnail generated:', thumbUri);
-
-          videoDurationMs = undefined; // duration field removed in expo-video-thumbnails SDK 54+
-
-          const thumbBase64 = await FileSystem.readAsStringAsync(thumbUri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          console.log('[Create] Thumbnail converted to base64, length:', thumbBase64.length);
-          base64Data = thumbBase64;
-        } catch (thumbnailError) {
-          console.error('[Create] Thumbnail generation failed:', thumbnailError);
-          // Continue without thumbnail validation
-          base64Data = undefined;
-        }
-      }
-
-      if (!base64Data) {
-        console.log('[Create] Skipping video validation (no thumbnail available)');
-        setValidationResult({
-          isValid: true,
-          isAppropriate: true,
-          matchesCategory: true,
-          confidence: 0.5,
-          detectedItems: [],
-          suggestion: '',
-          reason: 'Video frame validation not available',
-        });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        return;
-      }
-
-      console.log('[Create] Validating video with API...');
-      const baseUrl = await getApiUrl();
-      const url = new URL('/api/validate-listing', baseUrl);
-      const res = await fetch(url.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: `data:image/jpeg;base64,${base64Data}`,
-          category,
-          title,
-          description,
-          isVideo: true,
-          videoDuration: videoDurationMs,
-        }),
-        signal: controller.signal,
-      });
-      const data = await res.json();
-      console.log('[Create] Video validation result:', data);
-
-      // Also check with local AI moderation if available
-      if (title.trim()) {
-        try {
-          const modRes = await fetch(`${baseUrl}/api/ai/moderate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: title.trim(),
-              description: description.trim(),
-            }),
-            signal: controller.signal,
-          });
-          const modData = await modRes.json();
-
-          // Combine results
-          if (modData.flagged) {
-            data.isAppropriate = false;
-            data.suggestion = `AI flagged video: ${modData.reason}`;
-          }
-        } catch (e) {
-          console.log('[Create] Local AI moderation not available, using Phi2 validation');
-        }
-      }
-
-      // Always mark as valid for user's own videos (validation is advisory only)
-      const validationResult = {
-        ...data,
-        isValid: true, // Allow all uploads - validation is informational
-        isAppropriate: data.isAppropriate !== false, // Only flag if explicitly set
-      };
-
-      setValidationResult(validationResult);
-      Haptics.notificationAsync(
-        validationResult.isAppropriate
-          ? Haptics.NotificationFeedbackType.Success
-          : Haptics.NotificationFeedbackType.Warning
-      );
-    } catch (e) {
-      console.error('[Create] Video validation error:', e);
-      // Always allow upload - validation is non-blocking
-      setValidationResult({
-        isValid: true,
-        isAppropriate: true,
-        matchesCategory: true,
-        confidence: 0.5,
-        detectedItems: [],
-        suggestion: '',
-        reason: 'Validation completed',
-      });
-    } finally {
-      clearTimeout(timeout);
-      setIsValidating(false);
-    }
   };
 
   const handleRecordedVideo = useCallback(async (recordedUri: string) => {
@@ -1374,7 +950,6 @@ export default function CreateScreen() {
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      validateVideoFrame(compressedResult.uri);
     } catch (compressionError) {
       console.error('[Create] Video compression error:', compressionError);
       setValidationMessage('Using original video quality.');
@@ -1391,7 +966,6 @@ export default function CreateScreen() {
         console.warn('[Create] Could not generate video thumbnail:', thumbError);
       }
 
-      validateVideoFrame(recordedUri);
     } finally {
       setIsCompressing(false);
       setCompressionProgress(0);
@@ -1448,7 +1022,6 @@ export default function CreateScreen() {
           }
 
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          validateVideoFrame(compressedResult.uri);
         } catch (compressionError) {
           console.error('Video compression error:', compressionError);
           // Fall back to original video if compression fails
@@ -1466,7 +1039,6 @@ export default function CreateScreen() {
             console.warn('[Create] Could not generate video thumbnail:', thumbError);
           }
 
-          validateVideoFrame(uri);
         } finally {
           setIsCompressing(false);
           setCompressionProgress(0);
@@ -1477,7 +1049,7 @@ export default function CreateScreen() {
       console.error('Video picker error:', e);
       setIsCompressing(false);
     }
-  }, [title, category, description]);
+  }, []);
 
   // Upload progress UI helper
   const renderUploadProgress = () => {
@@ -1522,10 +1094,6 @@ export default function CreateScreen() {
     console.log(
       '[Create] submitListing called — isSubmitting:',
       isSubmitting,
-      'isValidating:',
-      isValidating,
-      'validationResult:',
-      validationResult,
       'duration:',
       duration,
       'subscription:',
@@ -1549,19 +1117,12 @@ export default function CreateScreen() {
       Alert.alert('Missing Info', 'Please add at least one photo.');
       return;
     }
-    if (validationResult && validationResult.isAppropriate === false) {
-      Alert.alert(
-        'Content Issue',
-        'This image was flagged as inappropriate. Please use a different image.'
-      );
-      return;
-    }
 
     setIsSubmitting(true);
     setIsUploading(false);
     setUploadProgress(null);
     setOverallProgress(10); // Starting
-    setValidationMessage('🛡️ AI is verifying your content for quality and safety...');
+    setValidationMessage('Preparing your listing...');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
@@ -1705,7 +1266,6 @@ export default function CreateScreen() {
           pincode: pincode || undefined,
           condition,
           listingType: 'sell' as Listing['listingType'], // default to sell
-          aiValidated: !!validationResult?.isValid,
           duration, // Pass duration for paid listings
         },
         duration,
@@ -1740,7 +1300,6 @@ export default function CreateScreen() {
               setImageDeduplicationInfo(null);
               setVideoUri(null);
               setVideoThumbnail(null);
-              setValidationResult(null);
               // Navigate to home page
               router.replace('/(tabs)');
             },
@@ -1751,38 +1310,7 @@ export default function CreateScreen() {
       const error = e as any;
       console.error('[Create] Listing creation error:', error);
 
-      // Check if it's an AI validation error
-      if (error?.code === 'INAPPROPRIATE_CONTENT') {
-        const violations = error.details?.violations?.join(', ') || 'inappropriate content';
-        Alert.alert(
-          '🛡️ Content Safety Check Failed',
-          `Your image contains ${violations}. Our AI detected content that violates our community guidelines.\n\nPlease use different images that comply with our policies.`,
-          [{ text: 'Got It' }]
-        );
-      } else if (error?.code === 'INAPPROPRIATE_VIDEO_CONTENT') {
-        const violations = error.details?.violations?.join(', ') || 'inappropriate content';
-        Alert.alert(
-          '🛡️ Video Safety Check Failed',
-          `Your video contains ${violations}. Please upload a different video that complies with our community guidelines.`,
-          [{ text: 'Got It' }]
-        );
-      } else if (
-        error?.code === 'VIDEO_MODERATION_UNAVAILABLE' ||
-        error?.code === 'VIDEO_SOURCE_UNSUPPORTED'
-      ) {
-        Alert.alert(
-          'Video Moderation Unavailable',
-          'We could not verify this video right now. Please try uploading again in a few minutes.',
-          [{ text: 'OK' }]
-        );
-      } else if (error?.code === 'PRODUCT_IMAGE_MISMATCH') {
-        Alert.alert(
-          '🔍 Product Verification Failed',
-          error.message ||
-            "Your image doesn't match the product you're selling. Please upload correct product images.",
-          [{ text: 'Update Images' }]
-        );
-      } else if (
+      if (
         error?.code === 'DAILY_LISTING_LIMIT_REACHED' ||
         error?.code === 'RATE_LIMIT_EXCEEDED' ||
         error?.message?.includes('HTTP 429')
@@ -1828,11 +1356,11 @@ export default function CreateScreen() {
       return;
     }
 
-    // Check for active subscription
-    if (!selectedSubscription || !selectedSubscription.tier) {
+    // Allow listing with paid subscription OR starter listing credits.
+    if ((!selectedSubscription || !selectedSubscription.tier) && !hasStarterListingsAvailable) {
       Alert.alert(
-        'Subscription Required',
-        'You need an active subscription to create listings. Subscribe to a plan to get started.',
+        'Plan Required',
+        'You need an active subscription or starter credits to create a listing.',
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -1841,6 +1369,12 @@ export default function CreateScreen() {
           },
         ]
       );
+      return;
+    }
+
+    // No paid plan selected, but starter listing credits are available.
+    if (!selectedSubscription || !selectedSubscription.tier) {
+      await submitListing();
       return;
     }
 
@@ -1866,6 +1400,11 @@ export default function CreateScreen() {
     });
 
     if (!hasUnlimited && totalAvailable <= 0) {
+      if (hasStarterListingsAvailable) {
+        await submitListing();
+        return;
+      }
+
       // All subscriptions of this type are full
       Alert.alert(
         'All Subscriptions Full',
@@ -1976,7 +1515,49 @@ export default function CreateScreen() {
           keyboardShouldPersistTaps="handled"
           scrollEnabled={true}
         >
-          <Text style={styles.screenTitle}>Create Listing</Text>
+          <View style={styles.heroContainer}>
+            <LinearGradient
+              colors={['#0F172A', '#0E7490', '#14B8A6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.heroCard, { paddingTop: heroTopPadding }]}
+            >
+              <View style={styles.heroGlowOrbA} />
+              <View style={styles.heroGlowOrbB} />
+              <Text style={styles.heroEyebrow}>NearHub Seller Studio</Text>
+              <Text style={styles.screenTitle}>Create Listing</Text>
+              <Text style={styles.heroSubtitle}>
+                Build a premium listing in minutes. Every submission is reviewed by admin before it
+                goes live.
+              </Text>
+
+              <View style={styles.heroProgressRow}>
+                <View style={styles.heroProgressTrack}>
+                  <View
+                    style={[styles.heroProgressFill, { width: `${Math.max(completionPercentage, 8)}%` }]}
+                  />
+                </View>
+                <Text style={styles.heroProgressText}>
+                  {completedSteps}/{totalSteps} steps
+                </Text>
+              </View>
+
+              <View style={styles.heroMetaRow}>
+                <View style={styles.heroMetaPill}>
+                  <Feather name="image" size={12} color="#CCFBF1" />
+                  <Text style={styles.heroMetaText}>{images.length} photos</Text>
+                </View>
+                <View style={styles.heroMetaPill}>
+                  <Feather name="video" size={12} color="#CCFBF1" />
+                  <Text style={styles.heroMetaText}>{videoUri ? 'Video added' : 'No video'}</Text>
+                </View>
+                <View style={styles.heroMetaPill}>
+                  <Feather name="shield" size={12} color="#CCFBF1" />
+                  <Text style={styles.heroMetaText}>Admin review</Text>
+                </View>
+              </View>
+            </LinearGradient>
+          </View>
 
           {/* Step 1: Listing Type */}
           <View style={styles.section}>
@@ -2071,13 +1652,6 @@ export default function CreateScreen() {
                   <Pressable style={styles.removeImage} onPress={() => removeImage(index)}>
                     <Ionicons name="close-circle" size={18} color={Colors.accent} />
                   </Pressable>
-                  {validationResult &&
-                    validationResult.isValid &&
-                    validationResult.isAppropriate && (
-                      <View style={styles.aiVerifiedOverlay}>
-                        <Text style={styles.aiVerifiedOverlayText}>✓ AI Verified</Text>
-                      </View>
-                    )}
                 </View>
               ))}
             </ScrollView>
@@ -2128,33 +1702,6 @@ export default function CreateScreen() {
                 </View>
               </View>
             )}
-
-            {isValidating && (
-              <View style={styles.validationInlineBanner}>
-                <ActivityIndicator size="small" color={Colors.primary} />
-                <Text style={styles.validationText}>AI is analyzing your image...</Text>
-              </View>
-            )}
-
-            {validationResult && !isValidating && !validationResult.isValid && (
-              <View
-                style={[
-                  styles.validationInlineBanner,
-                  { backgroundColor: '#FEF2F2', marginTop: 10 },
-                ]}
-              >
-                <View style={styles.validationInlineContent}>
-                  <View style={styles.validationError}>
-                    <Feather name="alert-triangle" size={16} color={Colors.error} />
-                    <Text style={styles.validationErrorText}>Please upload a valid image</Text>
-                  </View>
-                  <Text style={styles.validationReason}>{validationResult.reason}</Text>
-                  {validationResult.suggestion ? (
-                    <Text style={styles.validationSuggestion}>{validationResult.suggestion}</Text>
-                  ) : null}
-                </View>
-              </View>
-            )}
           </View>
 
           {/* Step 3: Upload Video (Optional) */}
@@ -2192,14 +1739,14 @@ export default function CreateScreen() {
                 contentContainerStyle={styles.imageRow}
               >
                 <Pressable
-                  style={[styles.addVideoButton, { width: 80, height: 80 }]}
+                  style={styles.addVideoButton}
                   onPress={() => setShowRecorder(true)}
                 >
                   <Feather name="camera" size={18} color="#fff" />
                   <Text style={styles.addImageText}>Record</Text>
                 </Pressable>
                 <Pressable
-                  style={[styles.addVideoButton, { width: 80, height: 80 }]}
+                  style={styles.addVideoButton}
                   onPress={pickVideo}
                 >
                   <Feather name="video" size={18} color="#fff" />
@@ -2235,48 +1782,13 @@ export default function CreateScreen() {
                       onPress={() => {
                         setVideoUri(null);
                         setVideoThumbnail(null);
-                        setValidationResult(null);
                       }}
                     >
                       <Ionicons name="close-circle" size={18} color={Colors.accent} />
                     </Pressable>
-                    {validationResult &&
-                      validationResult.isValid &&
-                      validationResult.isAppropriate && (
-                        <View style={styles.aiVerifiedOverlay}>
-                          <Text style={styles.aiVerifiedOverlayText}>✓ AI Verified</Text>
-                        </View>
-                      )}
                   </View>
                 )}
               </ScrollView>
-            )}
-
-            {isValidating && (
-              <View style={[styles.validationInlineBanner, { marginTop: 12 }]}>
-                <ActivityIndicator size="small" color={Colors.primary} />
-                <Text style={styles.validationText}>AI is analyzing your video...</Text>
-              </View>
-            )}
-
-            {validationResult && !isValidating && !validationResult.isValid && (
-              <View
-                style={[
-                  styles.validationInlineBanner,
-                  { marginTop: 12, backgroundColor: '#FEF2F2' },
-                ]}
-              >
-                <View style={styles.validationInlineContent}>
-                  <View style={styles.validationError}>
-                    <Feather name="alert-triangle" size={16} color={Colors.error} />
-                    <Text style={styles.validationErrorText}>Please upload a valid video</Text>
-                  </View>
-                  <Text style={styles.validationReason}>{validationResult.reason}</Text>
-                  {validationResult.suggestion ? (
-                    <Text style={styles.validationSuggestion}>{validationResult.suggestion}</Text>
-                  ) : null}
-                </View>
-              </View>
             )}
           </View>
 
@@ -2323,48 +1835,6 @@ export default function CreateScreen() {
                 keyboardType="numeric"
               />
             </View>
-
-            {/* AI Price Suggestion */}
-            {category && (
-              <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Pressable
-                  style={[styles.aiButton, isSuggestingPrice && styles.aiButtonDisabled]}
-                  onPress={suggestPriceWithAI}
-                  disabled={isSuggestingPrice}
-                >
-                  {isSuggestingPrice ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <Feather name="zap" size={14} color="#fff" />
-                      <Text style={styles.aiButtonText}>Suggest Price</Text>
-                    </>
-                  )}
-                </Pressable>
-                {suggestedPrice && (
-                  <Pressable
-                    onPress={() => {
-                      setPrice(suggestedPrice.replace(/,/g, ''));
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: '#EFF6FF',
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 8,
-                      gap: 6,
-                    }}
-                  >
-                    <Text style={{ color: Colors.primary, fontSize: 13, fontWeight: '600' }}>
-                      ₹{suggestedPrice}
-                    </Text>
-                    <Text style={{ color: Colors.textSecondary, fontSize: 12 }}>Use</Text>
-                  </Pressable>
-                )}
-              </View>
-            )}
 
             <View style={styles.unitSelectorInline}>
               <Text style={styles.unitInlineLabel}>Unit:</Text>
@@ -2419,25 +1889,21 @@ export default function CreateScreen() {
               </View>
               {offerPrice && Number(offerPrice) > 0 && Number(price) > 0 && (
                 <View
-                  style={{
-                    marginTop: 8,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    backgroundColor: Number(offerPrice) >= Number(price) ? '#FEF2F2' : '#ECFDF5',
-                    borderRadius: 8,
-                    borderLeftWidth: 3,
-                    borderLeftColor:
-                      Number(offerPrice) >= Number(price) ? Colors.error : Colors.success,
-                  }}
+                  style={[
+                    styles.offerPriceFeedback,
+                    Number(offerPrice) >= Number(price)
+                      ? styles.offerPriceFeedbackInvalid
+                      : styles.offerPriceFeedbackValid,
+                  ]}
                 >
                   {Number(offerPrice) >= Number(price) ? (
-                    <Text style={{ color: Colors.error, fontSize: 12, fontWeight: '600' }}>
+                    <Text style={[styles.offerPriceFeedbackText, styles.offerPriceFeedbackTextInvalid]}>
                       {listingType === 'job'
                         ? '⚠️ Incentives must be less than or equal to salary'
                         : '⚠️ Offer price must be less than listed price'}
                     </Text>
                   ) : (
-                    <Text style={{ color: Colors.success, fontSize: 12, fontWeight: '600' }}>
+                    <Text style={styles.offerPriceFeedbackText}>
                       {listingType === 'job'
                         ? `✓ Salary: ₹${Number(price).toLocaleString('en-IN')} + Incentives: ₹${offerPrice}`
                         : `✓ Save ₹${(Number(price) - Number(offerPrice)).toLocaleString('en-IN')} for buyers`}
@@ -2547,298 +2013,150 @@ export default function CreateScreen() {
           </View>
 
           <View style={styles.section}>
-            <View style={styles.sectionLabelRow}>
-              <View style={styles.stepHeader}>
-                <View style={styles.stepBadge}>
-                  <Text style={styles.stepBadgeText}>9</Text>
-                </View>
-                <Text style={styles.sectionLabel}>Description</Text>
+            <View style={styles.stepHeader}>
+              <View style={styles.stepBadge}>
+                <Text style={styles.stepBadgeText}>9</Text>
               </View>
-              <Pressable
-                style={[styles.aiButton, isGeneratingDescription && styles.aiButtonDisabled]}
-                onPress={generateDescriptionWithAI}
-                disabled={isGeneratingDescription}
-              >
-                {isGeneratingDescription ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Feather name="zap" size={14} color="#fff" />
-                    <Text style={styles.aiButtonText}>Generate</Text>
-                  </>
-                )}
-              </Pressable>
+              <Text style={styles.sectionLabel}>Description</Text>
             </View>
             <RichTextEditor
               value={description}
               onChange={setDescription}
-              onAIGenerate={generateDescriptionWithAI}
-              isGenerating={isGeneratingDescription}
               placeholder="Describe your item... (up to 800 characters)"
             />
           </View>
 
           {/* Subscription Status */}
           <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Feather name="shield" size={14} color="#0EA5E9" />
+              <Text style={styles.sectionLabel}>Subscription Status</Text>
+            </View>
             {isLoadingSubscription ? (
-              <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+              <View style={styles.subscriptionLoadingContainer}>
                 <ActivityIndicator size="small" color={Colors.primary} />
-                <Text style={{ color: Colors.textSecondary, fontSize: 12, marginTop: 6 }}>
-                  Checking subscription...
-                </Text>
+                <Text style={styles.subscriptionLoadingText}>Checking subscription...</Text>
               </View>
             ) : allSubscriptions.length > 0 ? (
-              /* Active subscription banner */
-              <View
-                style={{
-                  backgroundColor: '#E8F4FD',
-                  borderRadius: 12,
-                  padding: 12,
-                  borderWidth: 1,
-                  borderColor: Colors.primary + '30',
-                }}
-              >
-                <View
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}
-                >
-                  <View
-                    style={{
-                      backgroundColor: Colors.primary,
-                      borderRadius: 12,
-                      width: 22,
-                      height: 22,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
+              <View style={styles.subscriptionCard}>
+                <View style={styles.subscriptionCardHeader}>
+                  <View style={styles.subscriptionStatusIcon}>
                     <Feather name="check" size={13} color="#fff" />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.text }}>
-                        {allSubscriptions.length > 1
-                          ? `Active Subscriptions (${allSubscriptions.length})`
-                          : `${allSubscriptions[0]?.tier?.name} Plan Active`}
-                      </Text>
-                    </View>
-                    <Text style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 1 }}>
-                      {allSubscriptions.length > 1
+                  <View style={styles.subscriptionHeaderTextWrap}>
+                    <Text style={styles.subscriptionCardTitle}>
+                      {subscriptionStats.isMultiple
+                        ? `Active Subscriptions (${allSubscriptions.length})`
+                        : `${allSubscriptions[0]?.tier?.name} Plan Active`}
+                    </Text>
+                    <Text style={styles.subscriptionCardSubtitle}>
+                      {subscriptionStats.isMultiple
                         ? 'Combined listing quota from all plans'
                         : `Expires ${new Date(allSubscriptions[0]?.expiresAt || new Date()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}
                     </Text>
                   </View>
-                  {allSubscriptions.length > 1 && (
+                  {subscriptionStats.isMultiple && (
                     <Pressable
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setShowSubscriptionSelector(true);
                       }}
-                      style={{
-                        backgroundColor: Colors.primary,
-                        paddingHorizontal: 10,
-                        paddingVertical: 5,
-                        borderRadius: 6,
-                      }}
+                      style={styles.subscriptionSelectButton}
                     >
-                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>Select</Text>
+                      <Text style={styles.subscriptionSelectButtonText}>Select</Text>
                     </Pressable>
                   )}
                 </View>
 
-                {/* Stats - Show consolidated across ALL subscriptions */}
-                {(() => {
-                  // Always show ALL subscriptions consolidated
-                  const isMultiple = allSubscriptions.length > 1;
+                <View style={styles.subscriptionStatsGrid}>
+                  <View style={styles.subscriptionStatItem}>
+                    <Text style={styles.subscriptionStatValue}>{subscriptionStats.totalUsed}</Text>
+                    <Text style={styles.subscriptionStatLabel}>
+                      {subscriptionStats.isMultiple ? 'Total Used' : 'Used'}
+                    </Text>
+                  </View>
+                  <View style={styles.subscriptionStatDivider} />
+                  <View style={styles.subscriptionStatItem}>
+                    <Text style={[styles.subscriptionStatValue, styles.subscriptionStatValueSuccess]}>
+                      {subscriptionStats.isUnlimited ? '∞' : subscriptionStats.totalAvailable}
+                    </Text>
+                    <Text style={styles.subscriptionStatLabel}>
+                      {subscriptionStats.isMultiple ? 'Total Left' : 'Available'}
+                    </Text>
+                  </View>
+                  <View style={styles.subscriptionStatDivider} />
+                  <View style={styles.subscriptionStatItem}>
+                    <Text style={[styles.subscriptionStatValue, styles.subscriptionStatValueDark]}>
+                      {subscriptionStats.isUnlimited ? '∞' : subscriptionStats.totalLimit}
+                    </Text>
+                    <Text style={styles.subscriptionStatLabel}>
+                      {subscriptionStats.isMultiple ? 'Combined' : 'Per Plan'}
+                    </Text>
+                  </View>
+                </View>
 
-                  // Calculate consolidated stats across ALL subscriptions
-                  let totalUsed = 0;
-                  let totalAvailable = 0;
-                  let totalLimit = 0;
-                  let isUnlimited = false;
-
-                  allSubscriptions.forEach((sub) => {
-                    if (sub.tier) {
-                      totalUsed += sub.listingsUsed;
-                      if (sub.tier.maxListings === -1) {
-                        isUnlimited = true;
-                      } else {
-                        totalLimit += sub.tier.maxListings;
-                        totalAvailable += sub.tier.maxListings - sub.listingsUsed;
-                      }
-                    }
-                  });
-
-                  return (
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        backgroundColor: '#fff',
-                        borderRadius: 8,
-                        padding: 8,
-                        gap: 10,
-                      }}
-                    >
-                      <View style={{ flex: 1, alignItems: 'center' }}>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.primary }}>
-                          {totalUsed}
-                        </Text>
-                        <Text style={{ fontSize: 10, color: Colors.textSecondary }}>
-                          {isMultiple ? 'Total Used' : 'Used'}
-                        </Text>
-                      </View>
-                      <View style={{ width: 1, backgroundColor: Colors.border }} />
-                      <View style={{ flex: 1, alignItems: 'center' }}>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.success }}>
-                          {isUnlimited ? '∞' : totalAvailable}
-                        </Text>
-                        <Text style={{ fontSize: 10, color: Colors.textSecondary }}>
-                          {isMultiple ? 'Total Left' : 'Available'}
-                        </Text>
-                      </View>
-                      <View style={{ width: 1, backgroundColor: Colors.border }} />
-                      <View style={{ flex: 1, alignItems: 'center' }}>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.text }}>
-                          {isUnlimited ? '∞' : totalLimit}
-                        </Text>
-                        <Text style={{ fontSize: 10, color: Colors.textSecondary }}>
-                          {isMultiple ? 'Combined' : 'Per Plan'}
-                        </Text>
-                      </View>
-                    </View>
-                  );
-                })()}
-
-                {/* Info note when user has multiple subscriptions */}
-                {allSubscriptions.length > 1 && (
-                  <View
-                    style={{
-                      backgroundColor: '#F0F7FF',
-                      borderRadius: 6,
-                      padding: 8,
-                      marginTop: 8,
-                    }}
-                  >
-                    <Text style={{ fontSize: 10, color: Colors.primary, textAlign: 'center' }}>
-                      💡 Showing combined stats for all {allSubscriptions.length} subscriptions. Tap
-                      "Select" to choose one.
+                {subscriptionStats.isMultiple && (
+                  <View style={styles.subscriptionHintBanner}>
+                    <Feather name="info" size={12} color="#0369A1" />
+                    <Text style={styles.subscriptionHintText}>
+                      Showing combined stats for all {allSubscriptions.length} subscriptions. Tap
+                      Select to choose one.
                     </Text>
                   </View>
                 )}
 
-                {/* Full subscription warning */}
-                {(() => {
-                  // Check if ALL subscriptions combined have available quota
-                  let totalAvailable = 0;
-                  let hasUnlimited = false;
-
-                  allSubscriptions.forEach((sub) => {
-                    if (sub.tier) {
-                      if (sub.tier.maxListings === -1) {
-                        hasUnlimited = true;
-                      } else {
-                        totalAvailable += sub.tier.maxListings - sub.listingsUsed;
-                      }
-                    }
-                  });
-
-                  const isFull = !hasUnlimited && totalAvailable <= 0;
-
-                  return isFull ? (
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        marginTop: 8,
-                        gap: 6,
-                        backgroundColor: '#FFF3E0',
-                        borderRadius: 6,
-                        padding: 8,
+                {subscriptionStats.isFull && (
+                  <View style={styles.subscriptionWarningRow}>
+                    <Feather name="alert-triangle" size={12} color="#C2410C" />
+                    <Text style={styles.subscriptionWarningText}>
+                      {subscriptionStats.isMultiple
+                        ? `All ${allSubscriptions.length} subscriptions are full. Upgrade to create more listings.`
+                        : "You've reached your listing limit. Upgrade to create more."}
+                    </Text>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push('/subscriptions');
                       }}
+                      style={styles.subscriptionWarningButton}
                     >
-                      <Feather name="alert-triangle" size={12} color="#F57C00" />
-                      <Text style={{ color: '#F57C00', fontSize: 11, flex: 1 }}>
-                        {allSubscriptions.length > 1
-                          ? `All ${allSubscriptions.length} subscriptions are full. Upgrade to create more listings.`
-                          : "You've reached your listing limit. Upgrade to create more."}
-                      </Text>
-                      <Pressable
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          router.push('/subscriptions');
-                        }}
-                        style={{
-                          backgroundColor: '#F57C00',
-                          paddingHorizontal: 10,
-                          paddingVertical: 5,
-                          borderRadius: 5,
-                        }}
-                      >
-                        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>
-                          Upgrade
-                        </Text>
-                      </Pressable>
-                    </View>
-                  ) : null;
-                })()}
+                      <Text style={styles.subscriptionWarningButtonText}>Upgrade</Text>
+                    </Pressable>
+                  </View>
+                )}
               </View>
             ) : (
-              /* No subscription prompt */
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push('/subscriptions');
                 }}
-                style={({ pressed }) => [
-                  {
-                    backgroundColor: '#FFF8E1',
-                    borderRadius: 12,
-                    padding: 12,
-                    borderWidth: 1.5,
-                    borderColor: '#FFD54F',
-                    borderStyle: 'dashed' as const,
-                  },
-                  pressed && { opacity: 0.85 },
-                ]}
+                style={({ pressed }) => [styles.noSubscriptionCard, pressed && styles.noSubscriptionCardPressed]}
               >
-                <View
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}
-                >
-                  <View
-                    style={{
-                      backgroundColor: '#FFD54F',
-                      borderRadius: 12,
-                      width: 26,
-                      height: 26,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
+                <View style={styles.noSubscriptionHeader}>
+                  <View style={styles.noSubscriptionIconWrap}>
                     <Feather name="shopping-bag" size={14} color="#F57C00" />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: Colors.text }}>
-                      Subscription Required
+                  <View style={styles.noSubscriptionTextWrap}>
+                    <Text style={styles.noSubscriptionTitle}>
+                      {hasStarterListingsAvailable
+                        ? 'Starter Credits Available'
+                        : 'Subscription Required'}
                     </Text>
-                    <Text style={{ fontSize: 11, color: Colors.textSecondary, marginTop: 1 }}>
-                      Subscribe to a plan to start creating listings
+                    <Text style={styles.noSubscriptionSubtitle}>
+                      {hasStarterListingsAvailable
+                        ? `${starterCredits?.listingsRemaining || 0} free listing${(starterCredits?.listingsRemaining || 0) === 1 ? '' : 's'} remaining. You can post now or subscribe for higher limits.`
+                        : 'Subscribe to a plan to start creating listings'}
                     </Text>
                   </View>
                   <Feather name="chevron-right" size={18} color="#F57C00" />
                 </View>
-                <View
-                  style={{
-                    backgroundColor: '#fff',
-                    borderRadius: 8,
-                    padding: 10,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
+                <View style={styles.noSubscriptionInfoBox}>
                   <Feather name="star" size={12} color={Colors.primary} />
-                  <Text style={{ fontSize: 12, color: Colors.text, flex: 1 }}>
-                    Plans start at affordable prices with features like featured listings, video
-                    uploads & more
+                  <Text style={styles.noSubscriptionInfoText}>
+                    {hasStarterListingsAvailable
+                      ? `Starter boosts left: ${starterCredits?.boostsRemaining || 0}. Paid plans unlock recurring quota and premium features.`
+                      : 'Plans start at affordable prices with features like featured listings, video uploads & more'}
                   </Text>
                 </View>
               </Pressable>
@@ -2861,58 +2179,45 @@ export default function CreateScreen() {
             </View>
           )}
 
-          {/* Subscription Plans Banner - only show if no subscription */}
-          {allSubscriptions.length === 0 && !isLoadingSubscription && (
+          <View style={styles.publishPanel}>
+            <View style={styles.publishPanelTopRow}>
+              <Text style={styles.publishPanelTitle}>Ready to publish?</Text>
+              <Text style={styles.publishPanelCount}>
+                {completedSteps}/{totalSteps}
+              </Text>
+            </View>
+            <Text style={styles.publishPanelSubtitle}>
+              Your listing will appear after admin verification.
+            </Text>
             <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push('/subscriptions' as any);
-              }}
-              style={({ pressed }) => [styles.subscriptionBanner, pressed && { opacity: 0.85 }]}
+              style={({ pressed }) => [
+                styles.submitButton,
+                pressed && styles.submitPressed,
+                isSubmitting && styles.submitDisabled,
+              ]}
+              onPress={handleSubmit}
+              disabled={isSubmitting}
             >
-              <View style={styles.subscriptionBannerContent}>
-                <View style={styles.subscriptionBannerLeft}>
-                  <Feather name="star" size={16} color={Colors.primary} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.subscriptionBannerTitle}>Get a Subscription</Text>
-                    <Text style={styles.subscriptionBannerSubtext}>
-                      Subscribe to create listings & unlock premium features
-                    </Text>
-                  </View>
-                </View>
-                <Feather name="chevron-right" size={18} color={Colors.primary} />
-              </View>
+              <LinearGradient
+                colors={['#0EA5E9', '#2563EB', '#1D4ED8']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.submitGradient}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Feather name="send" size={16} color="#fff" />
+                    <Text style={styles.submitText}>Post Listing</Text>
+                  </>
+                )}
+              </LinearGradient>
             </Pressable>
-          )}
+          </View>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.submitButton,
-              pressed && styles.submitPressed,
-              (isSubmitting || isValidating) && styles.submitDisabled,
-            ]}
-            onPress={handleSubmit}
-            disabled={isSubmitting || isValidating}
-          >
-            <LinearGradient
-              colors={[Colors.primaryLight, Colors.primary, Colors.primaryDark]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.submitGradient}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Feather name="send" size={16} color="#fff" />
-                  <Text style={styles.submitText}>Post Listing</Text>
-                </>
-              )}
-            </LinearGradient>
-          </Pressable>
-
-          {/* AI Validation & Upload Progress Banner */}
-          {(isValidating || isSubmitting || validationMessage) && (
+          {/* Upload & submit progress banner */}
+          {(isSubmitting || validationMessage) && (
             <View style={styles.validationBanner}>
               <LinearGradient
                 colors={
@@ -2942,9 +2247,7 @@ export default function CreateScreen() {
                       <Text style={styles.validationTitle}>
                         {overallProgress === 100
                           ? '✅ Listing Posted Successfully!'
-                          : isValidating
-                            ? '🤖 AI Validation in Progress'
-                            : isUploading
+                          : isUploading
                               ? '⬆️ Uploading Content'
                               : '✨ Creating Your Listing'}
                       </Text>
@@ -2952,11 +2255,7 @@ export default function CreateScreen() {
                     </View>
                     <Text style={styles.validationMessage}>
                       {validationMessage ||
-                        (isValidating
-                          ? 'Checking content quality and safety...'
-                          : isSubmitting
-                            ? 'Almost ready to publish!'
-                            : 'Please wait...')}
+                        (isSubmitting ? 'Almost ready to publish!' : 'Please wait...')}
                     </Text>
                   </View>
                 </View>
@@ -3501,7 +2800,7 @@ export default function CreateScreen() {
 const styles = createResponsiveStyles({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#F3F6FB',
   },
   guestNotice: {
     flexDirection: 'row',
@@ -3637,34 +2936,131 @@ const styles = createResponsiveStyles({
   },
   content: {
     paddingHorizontal: 16,
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
   },
   screenTitle: {
-    fontSize: 28,
+    fontSize: 30,
     fontFamily: 'Inter_700Bold',
-    color: Colors.text,
-    marginBottom: 20,
+    color: '#F8FAFC',
+    letterSpacing: 0.2,
+  },
+  heroContainer: {
+    marginHorizontal: -16,
+    marginTop: -16,
+    marginBottom: 18,
+  },
+  heroCard: {
+    borderRadius: 0,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    overflow: 'hidden',
+    borderWidth: 0,
+  },
+  heroGlowOrbA: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 999,
+    backgroundColor: 'rgba(56, 189, 248, 0.28)',
+    top: -40,
+    right: -20,
+  },
+  heroGlowOrbB: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 999,
+    backgroundColor: 'rgba(20, 184, 166, 0.24)',
+    bottom: -28,
+    left: -18,
+  },
+  heroEyebrow: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#A5F3FC',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  heroSubtitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    color: '#DBEAFE',
+    lineHeight: 19,
+    marginTop: 8,
+  },
+  heroProgressRow: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  heroProgressTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    overflow: 'hidden',
+  },
+  heroProgressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#CFFAFE',
+  },
+  heroProgressText: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#ECFEFF',
+  },
+  heroMetaRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  heroMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15, 23, 42, 0.36)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  heroMetaText: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: '#ECFEFF',
   },
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 20,
+    gap: 9,
   },
   typeButton: {
     width: '48%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 11,
-    borderRadius: 10,
+    paddingVertical: 12,
+    borderRadius: 12,
     gap: 6,
-    backgroundColor: Colors.surface,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#D7E1EE',
   },
   typeButtonActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
+    elevation: 5,
   },
   typeText: {
     fontSize: 13,
@@ -3732,13 +3128,23 @@ const styles = createResponsiveStyles({
     color: '#fff',
   },
   section: {
-    marginBottom: 16,
+    marginBottom: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 3,
   },
   sectionLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
-    color: Colors.text,
-    marginBottom: 6,
+    color: '#0F172A',
+    marginBottom: 4,
   },
   sectionHeaderRow: {
     flexDirection: 'row' as const,
@@ -3872,16 +3278,25 @@ const styles = createResponsiveStyles({
   sectionHint: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
-    color: Colors.textTertiary,
+    color: '#64748B',
     marginBottom: 10,
-    marginTop: -4,
+    marginTop: -2,
   },
   addVideoButton: {
-    borderRadius: 10,
+    width: 88,
+    height: 88,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    backgroundColor: Colors.primary,
+    gap: 6,
+    backgroundColor: '#0F172A',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 4,
   },
   addVideoText: {
     fontSize: 14,
@@ -3890,18 +3305,18 @@ const styles = createResponsiveStyles({
   },
   addVideoDuration: {
     fontSize: 11,
-    fontFamily: 'Inter_400Regular',
-    color: Colors.textTertiary,
+    fontFamily: 'Inter_500Medium',
+    color: '#94A3B8',
   },
   videoSelected: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#F0FDFA',
     padding: 14,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.success,
+    borderColor: '#99F6E4',
   },
   videoInfo: {
     flexDirection: 'row',
@@ -3927,15 +3342,15 @@ const styles = createResponsiveStyles({
     borderRadius: 3,
   },
   input: {
-    backgroundColor: Colors.surface,
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
     fontFamily: 'Inter_400Regular',
-    color: Colors.text,
+    color: '#0F172A',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#D5E2F0',
   },
   textArea: {
     height: 100,
@@ -3944,11 +3359,11 @@ const styles = createResponsiveStyles({
   priceInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#D5E2F0',
     marginBottom: 12,
   },
   currency: {
@@ -3981,14 +3396,14 @@ const styles = createResponsiveStyles({
   unitChip: {
     paddingHorizontal: 14,
     paddingVertical: 9,
-    borderRadius: 8,
-    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#D5E2F0',
   },
   unitChipSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
   },
   unitChipText: {
     fontSize: 13,
@@ -4012,33 +3427,64 @@ const styles = createResponsiveStyles({
     color: Colors.textSecondary,
     marginBottom: 10,
   },
+  offerPriceFeedback: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderLeftWidth: 3,
+  },
+  offerPriceFeedbackValid: {
+    backgroundColor: '#ECFDF5',
+    borderLeftColor: Colors.success,
+  },
+  offerPriceFeedbackInvalid: {
+    backgroundColor: '#FEF2F2',
+    borderLeftColor: Colors.error,
+  },
+  offerPriceFeedbackText: {
+    color: Colors.success,
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  offerPriceFeedbackTextInvalid: {
+    color: Colors.error,
+  },
   imageRow: {
-    gap: 8,
+    gap: 10,
     paddingVertical: 4,
   },
   addImageButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: Colors.primary,
+    width: 88,
+    height: 88,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#1E293B',
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
-    backgroundColor: Colors.primary,
+    gap: 6,
+    backgroundColor: '#0F172A',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 4,
   },
   addImageText: {
-    fontSize: 10,
-    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
     color: '#fff',
   },
   imageThumb: {
-    width: 80,
-    height: 80,
-    borderRadius: 10,
+    width: 88,
+    height: 88,
+    borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
+    borderWidth: 1,
+    borderColor: '#DBE7F4',
+    backgroundColor: '#E2E8F0',
   },
   thumbImage: {
     width: '100%',
@@ -4046,8 +3492,10 @@ const styles = createResponsiveStyles({
   },
   removeImage: {
     position: 'absolute',
-    top: 4,
-    right: 4,
+    top: 6,
+    right: 6,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 999,
   },
   aiVerifiedOverlay: {
     position: 'absolute',
@@ -4175,15 +3623,15 @@ const styles = createResponsiveStyles({
   },
   chip: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: Colors.surface,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#D5E2F0',
   },
   chipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
   },
   chipText: {
     fontSize: 12,
@@ -4194,10 +3642,10 @@ const styles = createResponsiveStyles({
     color: '#fff',
   },
   subscriptionBanner: {
-    backgroundColor: '#F0F9FF',
-    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: '#D7E2EF',
     marginTop: 10,
     marginBottom: 4,
   },
@@ -4206,7 +3654,7 @@ const styles = createResponsiveStyles({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
   },
   subscriptionBannerLeft: {
     flexDirection: 'row',
@@ -4216,25 +3664,214 @@ const styles = createResponsiveStyles({
   },
   subscriptionBannerTitle: {
     fontSize: 13,
-    fontWeight: '700',
-    color: Colors.text,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
     marginBottom: 1,
   },
   subscriptionBannerSubtext: {
     fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    color: '#64748B',
+  },
+  subscriptionLoadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  subscriptionLoadingText: {
     color: Colors.textSecondary,
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    marginTop: 6,
+  },
+  subscriptionCard: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#CFE8FF',
+  },
+  subscriptionCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  subscriptionStatusIcon: {
+    backgroundColor: '#0284C7',
+    borderRadius: 999,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  subscriptionHeaderTextWrap: {
+    flex: 1,
+  },
+  subscriptionCardTitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
+  },
+  subscriptionCardSubtitle: {
+    marginTop: 2,
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+  },
+  subscriptionSelectButton: {
+    backgroundColor: '#0369A1',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 7,
+  },
+  subscriptionSelectButtonText: {
+    color: '#fff',
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  subscriptionStatsGrid: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  subscriptionStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  subscriptionStatDivider: {
+    width: 1,
+    backgroundColor: '#E2E8F0',
+  },
+  subscriptionStatValue: {
+    fontSize: 17,
+    fontFamily: 'Inter_700Bold',
+    color: '#0369A1',
+  },
+  subscriptionStatValueSuccess: {
+    color: '#0F766E',
+  },
+  subscriptionStatValueDark: {
+    color: '#0F172A',
+  },
+  subscriptionStatLabel: {
+    marginTop: 2,
+    fontSize: 10,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+  },
+  subscriptionHintBanner: {
+    marginTop: 10,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#E0F2FE',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  subscriptionHintText: {
+    flex: 1,
+    fontSize: 10,
+    fontFamily: 'Inter_500Medium',
+    color: '#0369A1',
+  },
+  subscriptionWarningRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 6,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 10,
+    padding: 9,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+  },
+  subscriptionWarningText: {
+    color: '#C2410C',
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    flex: 1,
+  },
+  subscriptionWarningButton: {
+    backgroundColor: '#EA580C',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  subscriptionWarningButtonText: {
+    color: '#fff',
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  noSubscriptionCard: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#FCD34D',
+    borderStyle: 'dashed' as const,
+  },
+  noSubscriptionCardPressed: {
+    opacity: 0.85,
+  },
+  noSubscriptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  noSubscriptionIconWrap: {
+    backgroundColor: '#FDE68A',
+    borderRadius: 999,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noSubscriptionTextWrap: {
+    flex: 1,
+  },
+  noSubscriptionTitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
+  },
+  noSubscriptionSubtitle: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    color: '#6B7280',
+    marginTop: 1,
+  },
+  noSubscriptionInfoBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  noSubscriptionInfoText: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#0F172A',
+    flex: 1,
   },
   submitButton: {
-    borderRadius: 10,
+    borderRadius: 14,
     overflow: 'hidden',
-    marginTop: 6,
-    marginBottom: 10,
+    marginTop: 10,
+    marginBottom: 2,
   },
   submitGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 13,
     paddingHorizontal: 16,
     gap: 6,
   },
@@ -4246,9 +3883,48 @@ const styles = createResponsiveStyles({
     opacity: 0.5,
   },
   submitText: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
+  },
+  publishPanel: {
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DDE6F2',
+    shadowColor: '#0B1220',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  publishPanelTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  publishPanelTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
+  },
+  publishPanelCount: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#0369A1',
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  publishPanelSubtitle: {
+    marginTop: 6,
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: '#64748B',
   },
   authGate: {
     flex: 1,
@@ -4306,18 +3982,18 @@ const styles = createResponsiveStyles({
   userInfoCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 13,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: '#DCE7F3',
     gap: 10,
   },
   userAvatar: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     borderRadius: 12,
-    backgroundColor: 'rgba(10, 102, 194, 0.1)',
+    backgroundColor: '#E0F2FE',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -4325,14 +4001,14 @@ const styles = createResponsiveStyles({
     flex: 1,
   },
   userName: {
-    fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
-    color: Colors.text,
+    fontSize: 14,
+    fontFamily: 'Inter_700Bold',
+    color: '#0F172A',
   },
   userPhone: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
-    color: Colors.textSecondary,
+    color: '#64748B',
     marginTop: 1,
   },
   durationCard: {
@@ -4383,20 +4059,25 @@ const styles = createResponsiveStyles({
   stepHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+    gap: 10,
+    marginBottom: 10,
   },
   stepBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.primary,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#0F172A',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 3,
   },
   stepBadgeText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
     color: '#fff',
   },
   pricingInfoBanner: {
@@ -4477,30 +4158,30 @@ const styles = createResponsiveStyles({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.surface,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 10,
-    paddingVertical: 11,
-    paddingHorizontal: 12,
+    borderColor: '#D5E2F0',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 13,
     gap: 8,
   },
   selectLocationText: {
     flex: 1,
     fontSize: 13,
-    fontFamily: 'Inter_500Medium',
-    color: Colors.primary,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#0369A1',
     textAlign: 'center',
   },
   selectedLocationCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderWidth: 1.2,
-    borderColor: Colors.success,
-    borderRadius: 10,
-    paddingVertical: 10,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#6EE7B7',
+    borderRadius: 12,
+    paddingVertical: 11,
     paddingHorizontal: 12,
   },
   locationInfo: {
@@ -4514,29 +4195,31 @@ const styles = createResponsiveStyles({
   },
   locationName: {
     fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-    color: Colors.success,
+    fontFamily: 'Inter_700Bold',
+    color: '#047857',
   },
   locationPincode: {
     fontSize: 12,
     fontFamily: 'Inter_500Medium',
-    color: Colors.textSecondary,
+    color: '#334155',
     marginTop: 2,
   },
   locationCity: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
-    color: Colors.textSecondary,
+    color: '#475569',
     marginTop: 2,
   },
   changeLocationButton: {
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#D1FAE5',
   },
   changeLocationText: {
     fontSize: 11,
     fontFamily: 'Inter_600SemiBold',
-    color: Colors.primary,
+    color: '#065F46',
   },
 
   /* Location Modal Styles */

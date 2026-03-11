@@ -86,6 +86,16 @@ interface ActiveSubscription {
   } | null;
 }
 
+interface StarterCreditsSummary {
+  isActive: boolean;
+  listingsTotal: number;
+  listingsUsed: number;
+  listingsRemaining: number;
+  boostsTotal: number;
+  boostsUsed: number;
+  boostsRemaining: number;
+}
+
 interface ConsolidatedActiveSubscription {
   key: string;
   tierId: string;
@@ -130,6 +140,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
   const [couponError, setCouponError] = useState<string | null>(null);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [activeSubscriptions, setActiveSubscriptions] = useState<ActiveSubscription[]>([]);
+  const [starterCredits, setStarterCredits] = useState<StarterCreditsSummary | null>(null);
   const [selectedActiveSubscriptionId, setSelectedActiveSubscriptionId] = useState<string | null>(
     null
   );
@@ -220,6 +231,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
         },
       });
       const data = await response.json();
+      setStarterCredits(data?.starterCredits || null);
       if (data.success && Array.isArray(data.data) && data.data.length > 0) {
         // Keep all active non-expired subscriptions
         const activeSubs = data.data.filter(
@@ -252,6 +264,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
     } catch (error) {
       console.error('[Subscriptions] Error fetching active subscription:', error);
       setActiveSubscriptions([]);
+      setStarterCredits(null);
       setSelectedActiveSubscriptionId(null);
       setDefaultActiveSubscriptionId(null);
     }
@@ -902,15 +915,35 @@ export default function SubscriptionsScreen(): React.JSX.Element {
           </View>
         )}
 
+        {starterCredits && starterCredits.isActive && (
+          <View style={styles.starterCreditsCard}>
+            <View style={styles.starterCreditsHeader}>
+              <Feather name="gift" size={16} color={Colors.primary} />
+              <Text style={styles.starterCreditsTitle}>Starter Credits</Text>
+            </View>
+            <Text style={styles.starterCreditsText}>
+              Listings left: {starterCredits.listingsRemaining} of {starterCredits.listingsTotal}
+            </Text>
+            <Text style={styles.starterCreditsText}>
+              Boosts left: {starterCredits.boostsRemaining} of {starterCredits.boostsTotal}
+            </Text>
+          </View>
+        )}
+
         {/* Info Banner */}
         {consolidatedActiveSubscriptions.length === 0 && (
           <View style={styles.infoBanner}>
             <Feather name="shopping-bag" size={20} color={Colors.primary} />
             <View style={styles.infoBannerContent}>
-              <Text style={styles.infoBannerTitle}>Subscribe to List</Text>
+              <Text style={styles.infoBannerTitle}>
+                {starterCredits?.isActive && starterCredits.listingsRemaining > 0
+                  ? 'Starter Listings Available'
+                  : 'Subscribe to List'}
+              </Text>
               <Text style={styles.infoBannerText}>
-                Choose a plan to create listings and get boost visibility. Or use a coupon code for
-                free listings.
+                {starterCredits?.isActive && starterCredits.listingsRemaining > 0
+                  ? `You can create ${starterCredits.listingsRemaining} listing${starterCredits.listingsRemaining === 1 ? '' : 's'} with starter credits. Subscribe anytime for higher recurring limits.`
+                  : 'Choose a plan to create listings and get boost visibility. Or use a coupon code for free listings.'}
               </Text>
             </View>
           </View>
@@ -1319,6 +1352,31 @@ const styles = StyleSheet.create({
   },
 
   // Info Banner
+  starterCreditsCard: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+    gap: 4,
+  },
+  starterCreditsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  starterCreditsTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.text,
+  },
+  starterCreditsText: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textSecondary,
+  },
   infoBanner: {
     flexDirection: 'row',
     backgroundColor: Colors.primary + '10',
