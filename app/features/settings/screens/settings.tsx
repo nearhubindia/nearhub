@@ -192,11 +192,6 @@ export default function SettingsScreen() {
         </View>
         <View style={styles.settingCopy}>
           <Text style={[styles.settingLabel, item.danger && styles.settingLabelDanger]}>{item.label}</Text>
-          {item.subtitle ? (
-            <Text style={[styles.settingSubtitle, item.danger && styles.settingSubtitleDanger]}>
-              {item.subtitle}
-            </Text>
-          ) : null}
         </View>
       </View>
       <View style={styles.settingRight}>
@@ -337,7 +332,7 @@ const styles = StyleSheet.create({
   },
   settingItem: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 13,
     paddingHorizontal: 14,
@@ -349,7 +344,7 @@ const styles = StyleSheet.create({
   },
   settingLeft: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     flex: 1,
   },
   iconContainer: {
@@ -361,7 +356,6 @@ const styles = StyleSheet.create({
     borderColor: '#DFEAFB',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 1,
   },
   iconContainerDanger: {
     backgroundColor: '#FFECEF',
@@ -377,17 +371,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     color: '#1F2E4A',
   },
-  settingSubtitle: {
-    marginTop: 2,
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: '#7687A3',
-  },
   settingLabelDanger: {
     color: Colors.accent,
-  },
-  settingSubtitleDanger: {
-    color: '#D67886',
   },
   settingRight: {
     flexDirection: 'row',
