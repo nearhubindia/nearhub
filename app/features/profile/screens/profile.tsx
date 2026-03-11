@@ -474,7 +474,8 @@ export default function ProfileScreen() {
         onRequestClose={() => setShowPincodeModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingTop: insets.top + 12 }]}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 12 }]}>
+            <View style={styles.modalHandle} />
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <Pressable
@@ -744,13 +745,24 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '90%',
+    minHeight: '72%',
+    maxHeight: '92%',
+  },
+  modalHandle: {
+    alignSelf: 'center',
+    width: 46,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#CCD8E8',
+    marginTop: 10,
+    marginBottom: 6,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
+    paddingTop: 8,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
