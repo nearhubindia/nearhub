@@ -75,7 +75,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
 ];
 const MENU_ACCENT = '#0B6DD8';
-const UI_LAYOUT_VERSION = 'UI vdf718da';
+const UI_LAYOUT_VERSION = 'UI vd6198ef';
 
 export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalProps) {
   const insets = useSafeAreaInsets();
@@ -231,12 +231,6 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
                         {item.subtitle}
                       </Text>
                     </View>
-                    <Feather
-                      name="arrow-right"
-                      size={responsiveModerateScale(16)}
-                      color={item.color || Colors.primary}
-                      style={styles.menuCardArrow}
-                    />
                   </Pressable>
                 ))}
               </View>
@@ -254,7 +248,6 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
                   </View>
                   <Text style={styles.logoutLabel}>Logout</Text>
                 </View>
-                <Feather name="arrow-right" size={responsiveModerateScale(18)} color={Colors.accent} />
               </Pressable>
             )}
           </ScrollView>
@@ -533,7 +526,6 @@ const styles = StyleSheet.create({
   menuCardBody: {
     flex: 1,
     minWidth: 0,
-    paddingRight: responsiveModerateScale(20),
   },
   menuCardTitle: {
     fontSize: responsiveFont(13.6),
@@ -547,11 +539,6 @@ const styles = StyleSheet.create({
     lineHeight: responsiveModerateScale(15),
     fontFamily: 'Inter_500Medium',
     color: '#7484A2',
-  },
-  menuCardArrow: {
-    position: 'absolute',
-    right: responsiveModerateScale(12),
-    bottom: responsiveModerateScale(12),
   },
   divider: {
     height: 1,
