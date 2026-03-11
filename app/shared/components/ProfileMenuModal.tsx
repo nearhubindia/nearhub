@@ -75,7 +75,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
 ];
 const MENU_ACCENT = '#0B6DD8';
-const UI_LAYOUT_VERSION = 'UI vdc96129';
+const UI_LAYOUT_VERSION = 'UI vfa1a783';
 
 export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalProps) {
   const insets = useSafeAreaInsets();
@@ -204,49 +204,41 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
               </View>
 
               <View style={styles.menuGrid}>
-                {Array.from({ length: Math.ceil(MENU_ITEMS.length / 2) }).map((_, rowIndex) => {
-                  const rowItems = MENU_ITEMS.slice(rowIndex * 2, rowIndex * 2 + 2);
-
-                  return (
-                    <View key={`row-${rowIndex}`} style={styles.menuGridRow}>
-                      {rowItems.map((item) => (
-                        <Pressable
-                          key={item.route}
-                          style={[styles.menuCard, rowItems.length === 1 && styles.menuCardFull]}
-                          android_ripple={{ color: '#E6EEFC' }}
-                          onPress={() => handleMenuItemPress(item.route)}
-                        >
-                          <View
-                            style={[
-                              styles.menuCardIcon,
-                              item.color && { backgroundColor: item.color + '20' },
-                            ]}
-                          >
-                            <Feather
-                              name={item.icon}
-                              size={responsiveModerateScale(15)}
-                              color={item.color || '#12223A'}
-                            />
-                          </View>
-                          <View style={styles.menuCardBody}>
-                            <Text style={styles.menuCardTitle}>
-                              {item.label}
-                            </Text>
-                            <Text style={styles.menuCardSubtitle}>
-                              {item.subtitle}
-                            </Text>
-                          </View>
-                          <Feather
-                            name="arrow-right"
-                            size={responsiveModerateScale(16)}
-                            color={item.color || Colors.primary}
-                            style={styles.menuCardArrow}
-                          />
-                        </Pressable>
-                      ))}
+                {MENU_ITEMS.map((item) => (
+                  <Pressable
+                    key={item.route}
+                    style={styles.menuCard}
+                    android_ripple={{ color: '#E6EEFC' }}
+                    onPress={() => handleMenuItemPress(item.route)}
+                  >
+                    <View
+                      style={[
+                        styles.menuCardIcon,
+                        item.color && { backgroundColor: item.color + '20' },
+                      ]}
+                    >
+                      <Feather
+                        name={item.icon}
+                        size={responsiveModerateScale(15)}
+                        color={item.color || '#12223A'}
+                      />
                     </View>
-                  );
-                })}
+                    <View style={styles.menuCardBody}>
+                      <Text style={styles.menuCardTitle}>
+                        {item.label}
+                      </Text>
+                      <Text style={styles.menuCardSubtitle}>
+                        {item.subtitle}
+                      </Text>
+                    </View>
+                    <Feather
+                      name="arrow-right"
+                      size={responsiveModerateScale(16)}
+                      color={item.color || Colors.primary}
+                      style={styles.menuCardArrow}
+                    />
+                  </Pressable>
+                ))}
               </View>
             </View>
 
@@ -502,23 +494,17 @@ const styles = StyleSheet.create({
     borderColor: '#DEE9FF',
   },
   menuGrid: {
-    marginHorizontal: -5,
-  },
-  menuGridRow: {
-    flexDirection: 'row',
-    marginHorizontal: 5,
+    gap: 10,
   },
   menuCard: {
-    flex: 1,
-    minHeight: responsiveModerateScale(78),
-    borderRadius: 20,
+    minHeight: responsiveModerateScale(74),
+    borderRadius: 18,
     backgroundColor: '#F2F6FD',
     borderWidth: 1,
     borderColor: '#E5ECFA',
     paddingHorizontal: responsiveModerateScale(10),
     paddingVertical: responsiveModerateScale(10),
-    marginBottom: 10,
-    marginHorizontal: 5,
+    marginBottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
     ...Platform.select({
@@ -532,9 +518,6 @@ const styles = StyleSheet.create({
         elevation: 1,
       },
     }),
-  },
-  menuCardFull: {
-    flex: 0.5,
   },
   menuCardIcon: {
     width: responsiveModerateScale(36),
