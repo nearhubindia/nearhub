@@ -1,5 +1,9 @@
 import SettingsView from '../components/SettingsView';
 
-export default function SettingsPage() {
-  return <SettingsView />;
+interface SettingsPageProps {
+  focusStarterKit?: boolean;
+}
+
+export default function SettingsPage({ focusStarterKit = false }: SettingsPageProps) {
+  return <SettingsView focusStarterKit={focusStarterKit} />;
 }

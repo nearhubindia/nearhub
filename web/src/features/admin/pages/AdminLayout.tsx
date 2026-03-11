@@ -19,6 +19,7 @@ import {
   Inbox,
   Image,
   MessagesSquare,
+  Gift,
 } from 'lucide-react';
 import { useListings } from '@/features/admin/hooks';
 
@@ -46,6 +47,7 @@ export default function AdminLayout() {
     { path: '/admin/listings/pending', name: 'Approvals', icon: Clock3 },
     { path: '/admin/users', name: 'Users', icon: Users },
     { path: '/admin/subscriptions', name: 'Subscriptions', icon: CreditCard },
+    { path: '/admin/starter-kit', name: 'Starter Kit', icon: Gift },
     { path: '/admin/spam', name: 'Spam Detection', icon: AlertTriangle },
     { path: '/admin/videos', name: 'Video Mgt', icon: Film },
     { path: '/admin/coupons', name: 'Coupons', icon: Tag },
