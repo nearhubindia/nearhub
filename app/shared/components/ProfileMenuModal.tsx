@@ -75,7 +75,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
 ];
 const MENU_ACCENT = '#0B6DD8';
-const UI_LAYOUT_VERSION = 'UI v4ff9db0';
+const UI_LAYOUT_VERSION = 'UI va900b2e';
 
 export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalProps) {
   const insets = useSafeAreaInsets();
@@ -224,7 +224,7 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
                           >
                             <Feather
                               name={item.icon}
-                              size={responsiveModerateScale(18)}
+                              size={responsiveModerateScale(16)}
                               color={item.color || '#12223A'}
                             />
                           </View>
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
   },
   menuCard: {
     flex: 1,
-    minHeight: responsiveModerateScale(90),
+    minHeight: responsiveModerateScale(84),
     borderRadius: 20,
     backgroundColor: '#F2F6FD',
     borderWidth: 1,
@@ -537,9 +537,9 @@ const styles = StyleSheet.create({
     flex: 0.5,
   },
   menuCardIcon: {
-    width: responsiveModerateScale(44),
-    height: responsiveModerateScale(44),
-    borderRadius: responsiveModerateScale(14),
+    width: responsiveModerateScale(40),
+    height: responsiveModerateScale(40),
+    borderRadius: responsiveModerateScale(12),
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E0E9F7',
@@ -550,18 +550,18 @@ const styles = StyleSheet.create({
   menuCardBody: {
     flex: 1,
     minWidth: 0,
-    paddingRight: responsiveModerateScale(24),
+    paddingRight: responsiveModerateScale(22),
   },
   menuCardTitle: {
-    fontSize: responsiveFont(13.8),
-    lineHeight: responsiveModerateScale(18),
+    fontSize: responsiveFont(13),
+    lineHeight: responsiveModerateScale(17),
     fontFamily: 'Inter_600SemiBold',
     color: '#2A3553',
   },
   menuCardSubtitle: {
     marginTop: 4,
-    fontSize: responsiveFont(11.2),
-    lineHeight: responsiveModerateScale(15),
+    fontSize: responsiveFont(10.6),
+    lineHeight: responsiveModerateScale(14),
     fontFamily: 'Inter_500Medium',
     color: '#7484A2',
   },
