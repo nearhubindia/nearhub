@@ -75,7 +75,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
 ];
 const MENU_ACCENT = '#0B6DD8';
-const UI_LAYOUT_VERSION = 'UI v5c1823e';
+const UI_LAYOUT_VERSION = 'UI v4ff9db0';
 
 export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalProps) {
   const insets = useSafeAreaInsets();
@@ -229,10 +229,10 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
                             />
                           </View>
                           <View style={styles.menuCardBody}>
-                            <Text style={styles.menuCardTitle} numberOfLines={1}>
+                            <Text style={styles.menuCardTitle}>
                               {item.label}
                             </Text>
-                            <Text style={styles.menuCardSubtitle} numberOfLines={1}>
+                            <Text style={styles.menuCardSubtitle}>
                               {item.subtitle}
                             </Text>
                           </View>
@@ -515,8 +515,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F6FD',
     borderWidth: 1,
     borderColor: '#E5ECFA',
-    paddingHorizontal: responsiveModerateScale(11),
-    paddingVertical: responsiveModerateScale(11),
+    paddingHorizontal: responsiveModerateScale(12),
+    paddingVertical: responsiveModerateScale(12),
     marginBottom: 10,
     marginHorizontal: 5,
     flexDirection: 'row',
@@ -550,20 +550,25 @@ const styles = StyleSheet.create({
   menuCardBody: {
     flex: 1,
     minWidth: 0,
+    paddingRight: responsiveModerateScale(24),
   },
   menuCardTitle: {
-    fontSize: responsiveFont(14.5),
+    fontSize: responsiveFont(13.8),
+    lineHeight: responsiveModerateScale(18),
     fontFamily: 'Inter_600SemiBold',
     color: '#2A3553',
   },
   menuCardSubtitle: {
-    marginTop: 3,
-    fontSize: responsiveFont(11.8),
+    marginTop: 4,
+    fontSize: responsiveFont(11.2),
+    lineHeight: responsiveModerateScale(15),
     fontFamily: 'Inter_500Medium',
     color: '#7484A2',
   },
   menuCardArrow: {
-    marginLeft: responsiveModerateScale(8),
+    position: 'absolute',
+    right: responsiveModerateScale(12),
+    bottom: responsiveModerateScale(12),
   },
   divider: {
     height: 1,
