@@ -19,6 +19,7 @@ import { useAuth } from '@/shared/contexts/auth-context';
 interface SettingItem {
   icon: keyof typeof Feather.glyphMap;
   label: string;
+  subtitle?: string;
   value?: string;
   type: 'toggle' | 'navigation' | 'action';
   onPress?: () => void;
@@ -56,18 +57,21 @@ export default function SettingsScreen() {
     {
       icon: 'user',
       label: 'Edit Profile',
+      subtitle: 'Manage personal details',
       type: 'navigation',
       onPress: () => router.push('/profile'),
     },
     {
       icon: 'lock',
       label: 'Privacy & Security',
+      subtitle: 'Password and account safety',
       type: 'navigation',
       onPress: () => Alert.alert('Coming Soon', 'Privacy settings will be available soon'),
     },
     {
       icon: 'bell',
       label: 'Push Notifications',
+      subtitle: 'Alerts for messages and activity',
       type: 'toggle',
       toggle: notifications,
       onToggle: setNotifications,
@@ -75,6 +79,7 @@ export default function SettingsScreen() {
     {
       icon: 'mail',
       label: 'Email Notifications',
+      subtitle: 'Updates to your inbox',
       type: 'toggle',
       toggle: emailNotifications,
       onToggle: setEmailNotifications,
@@ -85,6 +90,7 @@ export default function SettingsScreen() {
     {
       icon: 'map-pin',
       label: 'Auto-localize Listings',
+      subtitle: 'Show nearby content automatically',
       type: 'toggle',
       toggle: autoLocalize,
       onToggle: setAutoLocalize,
@@ -92,6 +98,7 @@ export default function SettingsScreen() {
     {
       icon: 'globe',
       label: 'Language',
+      subtitle: 'Choose your preferred language',
       value: 'English',
       type: 'navigation',
       onPress: () => Alert.alert('Coming Soon', 'Language selection coming soon'),
@@ -99,6 +106,7 @@ export default function SettingsScreen() {
     {
       icon: 'moon',
       label: 'Dark Mode',
+      subtitle: 'Appearance preferences',
       type: 'navigation',
       onPress: () => Alert.alert('Coming Soon', 'Dark mode coming soon'),
     },
@@ -108,24 +116,28 @@ export default function SettingsScreen() {
     {
       icon: 'help-circle',
       label: 'Help & Support',
+      subtitle: 'Contact NearHub support',
       type: 'navigation',
       onPress: () => Alert.alert('Help', 'Contact us at support@nearhub.com'),
     },
     {
       icon: 'file-text',
       label: 'Terms & Conditions',
+      subtitle: 'Read usage terms',
       type: 'navigation',
       onPress: () => Alert.alert('Coming Soon', 'Terms & conditions coming soon'),
     },
     {
       icon: 'shield',
       label: 'Privacy Policy',
+      subtitle: 'How your data is handled',
       type: 'navigation',
       onPress: () => Alert.alert('Coming Soon', 'Privacy policy coming soon'),
     },
     {
       icon: 'info',
       label: 'About',
+      subtitle: 'App version and details',
       value: 'v1.0.0',
       type: 'navigation',
       onPress: () => Alert.alert('NearHub', 'Version 1.0.0\n\nYour local marketplace'),
@@ -136,6 +148,7 @@ export default function SettingsScreen() {
     {
       icon: 'trash-2',
       label: 'Delete Account',
+      subtitle: 'Permanently erase your account',
       type: 'action',
       danger: true,
       onPress: () => {
@@ -156,6 +169,7 @@ export default function SettingsScreen() {
     {
       icon: 'log-out',
       label: 'Logout',
+      subtitle: 'Sign out from this device',
       type: 'action',
       danger: true,
       onPress: handleLogout,
@@ -174,11 +188,16 @@ export default function SettingsScreen() {
     >
       <View style={styles.settingLeft}>
         <View style={[styles.iconContainer, item.danger && styles.iconContainerDanger]}>
-          <Feather name={item.icon} size={18} color={item.danger ? Colors.accent : Colors.text} />
+          <Feather name={item.icon} size={17} color={item.danger ? Colors.accent : '#0F2748'} />
         </View>
-        <Text style={[styles.settingLabel, item.danger && styles.settingLabelDanger]}>
-          {item.label}
-        </Text>
+        <View style={styles.settingCopy}>
+          <Text style={[styles.settingLabel, item.danger && styles.settingLabelDanger]}>{item.label}</Text>
+          {item.subtitle ? (
+            <Text style={[styles.settingSubtitle, item.danger && styles.settingSubtitleDanger]}>
+              {item.subtitle}
+            </Text>
+          ) : null}
+        </View>
       </View>
       <View style={styles.settingRight}>
         {item.type === 'toggle' ? (
@@ -191,10 +210,10 @@ export default function SettingsScreen() {
         ) : item.value ? (
           <>
             <Text style={styles.settingValue}>{item.value}</Text>
-            <Feather name="chevron-right" size={20} color={Colors.textTertiary} />
+            <Feather name="chevron-right" size={18} color="#8192AB" />
           </>
         ) : (
-          <Feather name="chevron-right" size={20} color={Colors.textTertiary} />
+          <Feather name="chevron-right" size={18} color="#8192AB" />
         )}
       </View>
     </Pressable>
@@ -254,100 +273,131 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: '#EFF3FA',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingHorizontal: 18,
+    paddingBottom: 14,
+    backgroundColor: '#EFF3FA',
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DCE7F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 18,
-    fontFamily: 'Inter_600SemiBold',
-    color: Colors.text,
+    fontSize: 21,
+    fontFamily: 'Inter_700Bold',
+    color: '#1A2C49',
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
-    color: Colors.textSecondary,
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+    color: '#627A9A',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    paddingHorizontal: 4,
+    letterSpacing: 0.9,
+    marginBottom: 9,
+    paddingHorizontal: 6,
   },
   settingsGroup: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
+    backgroundColor: '#F8FAFE',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#DEE7F5',
     overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0E2445',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   settingItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: '#E6ECF7',
   },
   settingItemPressed: {
-    backgroundColor: Colors.background,
+    backgroundColor: '#EEF3FC',
   },
   settingLeft: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    alignItems: 'flex-start',
     flex: 1,
   },
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: Colors.background,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#EEF4FF',
+    borderWidth: 1,
+    borderColor: '#DFEAFB',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 1,
   },
   iconContainerDanger: {
-    backgroundColor: Colors.accent + '15',
+    backgroundColor: '#FFECEF',
+    borderColor: '#FFD2D8',
+  },
+  settingCopy: {
+    flex: 1,
+    marginLeft: 11,
+    minWidth: 0,
   },
   settingLabel: {
-    fontSize: 15,
-    fontFamily: 'Inter_500Medium',
-    color: Colors.text,
+    fontSize: 15.2,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#1F2E4A',
+  },
+  settingSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: '#7687A3',
   },
   settingLabelDanger: {
     color: Colors.accent,
   },
+  settingSubtitleDanger: {
+    color: '#D67886',
+  },
   settingRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    marginLeft: 10,
   },
   settingValue: {
-    fontSize: 14,
+    fontSize: 12.5,
     fontFamily: 'Inter_400Regular',
-    color: Colors.textSecondary,
+    color: '#7A8CA8',
+    marginRight: 5,
   },
 });
