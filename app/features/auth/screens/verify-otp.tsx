@@ -8,6 +8,8 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -23,11 +25,8 @@ const OTP_LENGTH = 6;
 
 export default function VerifyOTPScreen() {
   const insets = useSafeAreaInsets();
-  const { phone, name, email, gender } = useLocalSearchParams<{
+  const { phone } = useLocalSearchParams<{
     phone: string;
-    name: string;
-    email: string;
-    gender: string;
   }>();
   const { login } = useAuth();
 
@@ -103,9 +102,6 @@ export default function VerifyOTPScreen() {
         body: JSON.stringify({
           phone,
           otp: otpCode,
-          name,
-          email,
-          gender,
         }),
       });
       const data = await res.json();
@@ -113,7 +109,14 @@ export default function VerifyOTPScreen() {
       if (data.success && data.user) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await login(data.user);
-        router.replace('/(tabs)');
+        if (data.isNewUser) {
+          router.replace({
+            pathname: '/auth/complete-profile',
+            params: { phone: data.user.phone || phone },
+          });
+        } else {
+          router.replace('/(tabs)');
+        }
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert(
@@ -139,7 +142,7 @@ export default function VerifyOTPScreen() {
       const res = await fetch(url.toString(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone: phoneValue }),
       });
       const data = await res.json();
       if (data.success) {
@@ -153,79 +156,96 @@ export default function VerifyOTPScreen() {
     }
   };
 
-  const maskedPhone = phone ? `+91 ${phone.slice(0, 3)}***${phone.slice(-3)}` : '';
+  const phoneValue = typeof phone === 'string' ? phone : '';
+  const maskedPhone = phoneValue ? `+91 ${phoneValue.slice(0, 3)}***${phoneValue.slice(-3)}` : '';
 
   return (
-    <View style={[styles.container, { paddingTop: (insets.top || webTopInset) + 20 }]}>
-      <Pressable style={styles.backButton} onPress={() => router.back()}>
-        <Feather name="arrow-left" size={20} color={Colors.text} />
-      </Pressable>
-
-      <View style={styles.content}>
-        <View style={styles.iconCircle}>
-          <Feather name="shield" size={28} color={Colors.primary} />
-        </View>
-        <Text style={styles.title}>Verify OTP</Text>
-        <Text style={styles.subtitle}>
-          Enter the 6-digit code sent to{'\n'}
-          <Text style={styles.phoneHighlight}>{maskedPhone}</Text>
-        </Text>
-
-        <View style={styles.otpRow}>
-          {otp.map((digit, index) => (
-            <TextInput
-              key={index}
-              ref={(ref) => {
-                inputRefs.current[index] = ref;
-              }}
-              style={[styles.otpInput, digit ? styles.otpInputFilled : null]}
-              value={digit}
-              onChangeText={(text) => handleOtpChange(text, index)}
-              onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
-              keyboardType="number-pad"
-              maxLength={OTP_LENGTH}
-              selectTextOnFocus
-              testID={`otp-input-${index}`}
-            />
-          ))}
-        </View>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.verifyButton,
-            pressed && styles.verifyButtonPressed,
-            (isVerifying || otpCode.length !== OTP_LENGTH) && styles.verifyButtonDisabled,
-          ]}
-          onPress={handleVerify}
-          disabled={isVerifying || otpCode.length !== OTP_LENGTH}
-        >
-          <LinearGradient
-            colors={[Colors.primaryLight, Colors.primary, Colors.primaryDark]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.verifyGradient}
-          >
-            {isVerifying ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Feather name="check-circle" size={20} color="#fff" />
-                <Text style={styles.verifyText}>Verify & Continue</Text>
-              </>
-            )}
-          </LinearGradient>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
+    >
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: (insets.top || webTopInset) + 20,
+            paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 20),
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Feather name="arrow-left" size={20} color={Colors.text} />
         </Pressable>
 
-        <View style={styles.resendRow}>
-          <Text style={styles.resendLabel}>Didn&apos;t receive the code? </Text>
-          <Pressable onPress={handleResend} disabled={resendTimer > 0}>
-            <Text style={[styles.resendLink, resendTimer > 0 && styles.resendLinkDisabled]}>
-              {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
-            </Text>
+        <View style={styles.content}>
+          <View style={styles.iconCircle}>
+            <Feather name="shield" size={28} color={Colors.primary} />
+          </View>
+          <Text style={styles.title}>Verify OTP</Text>
+          <Text style={styles.subtitle}>
+            Enter the 6-digit code sent to{'\n'}
+            <Text style={styles.phoneHighlight}>{maskedPhone}</Text>
+          </Text>
+
+          <View style={styles.otpRow}>
+            {otp.map((digit, index) => (
+              <TextInput
+                key={index}
+                ref={(ref) => {
+                  inputRefs.current[index] = ref;
+                }}
+                style={[styles.otpInput, digit ? styles.otpInputFilled : null]}
+                value={digit}
+                onChangeText={(text) => handleOtpChange(text, index)}
+                onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
+                keyboardType="number-pad"
+                maxLength={OTP_LENGTH}
+                selectTextOnFocus
+                testID={`otp-input-${index}`}
+              />
+            ))}
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.verifyButton,
+              pressed && styles.verifyButtonPressed,
+              (isVerifying || otpCode.length !== OTP_LENGTH) && styles.verifyButtonDisabled,
+            ]}
+            onPress={handleVerify}
+            disabled={isVerifying || otpCode.length !== OTP_LENGTH}
+          >
+            <LinearGradient
+              colors={[Colors.primaryLight, Colors.primary, Colors.primaryDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.verifyGradient}
+            >
+              {isVerifying ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Feather name="check-circle" size={20} color="#fff" />
+                  <Text style={styles.verifyText}>Verify & Continue</Text>
+                </>
+              )}
+            </LinearGradient>
           </Pressable>
+
+          <View style={styles.resendRow}>
+            <Text style={styles.resendLabel}>Didn&apos;t receive the code? </Text>
+            <Pressable onPress={handleResend} disabled={resendTimer > 0}>
+              <Text style={[styles.resendLink, resendTimer > 0 && styles.resendLinkDisabled]}>
+                {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
+              </Text>
+            </Pressable>
+          </View>
         </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -234,6 +254,9 @@ const styles = createResponsiveStyles({
     flex: 1,
     backgroundColor: Colors.background,
     paddingHorizontal: 20,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   backButton: {
     width: 36,
@@ -245,6 +268,7 @@ const styles = createResponsiveStyles({
   content: {
     alignItems: 'center',
     paddingTop: 20,
+    width: '100%',
   },
   iconCircle: {
     width: 62,
@@ -315,6 +339,7 @@ const styles = createResponsiveStyles({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 50,
     paddingVertical: 15,
     gap: 10,
   },

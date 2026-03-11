@@ -101,6 +101,13 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="auth/complete-profile"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
         name="profile"
         options={{
           headerShown: false,

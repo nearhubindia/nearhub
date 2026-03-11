@@ -8,9 +8,11 @@ import {
   StyleSheet,
   Platform,
   Animated,
+  I18nManager,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/shared/contexts/auth-context';
@@ -55,16 +57,12 @@ const MENU_ITEMS: MenuItem[] = [
     route: '/invoices',
   },
   {
-    icon: 'message-circle',
-    label: 'Messages',
-    route: '/messages',
-  },
-  {
     icon: 'settings',
     label: 'Settings',
     route: '/settings',
   },
 ];
+const MENU_ACCENT = '#0B6DD8';
 
 export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalProps) {
   const insets = useSafeAreaInsets();
@@ -91,7 +89,6 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
     const routeMap: { [key: string]: string } = {
       '/saved': '/(tabs)/saved',
       '/invoices': '/(tabs)/invoices',
-      '/messages': '/chat',
       // Other routes will be handled as-is when implemented
     };
 
@@ -127,16 +124,24 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
             },
           ]}
         >
-          {/* Header */}
           <View style={styles.header}>
-            <Pressable onPress={onClose} style={styles.closeButton} hitSlop={8}>
-              <Feather name="x" size={responsiveModerateScale(20)} color={Colors.text} />
+            <View>
+              <Text style={styles.headerTitle}>Account</Text>
+              <Text style={styles.headerSubtitle}>Manage your NearHub profile</Text>
+            </View>
+            <Pressable onPress={onClose} style={styles.closeButton} hitSlop={10}>
+              <Feather name="x" size={responsiveModerateScale(20)} color="#0B2545" />
             </Pressable>
           </View>
 
           {/* Profile Section */}
           {isAuthenticated && user ? (
-            <View style={styles.profileSection}>
+            <LinearGradient
+              colors={['#0B6DD8', '#2A8CF2']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.profileSection}
+            >
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
                   {user.name?.charAt(0).toUpperCase() || user.phone?.charAt(0) || 'U'}
@@ -145,8 +150,11 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{user.name || 'User'}</Text>
                 <Text style={styles.profilePhone}>{user.phone}</Text>
+                <View style={styles.memberPill}>
+                  <Text style={styles.profileMeta}>NearHub member</Text>
+                </View>
               </View>
-            </View>
+            </LinearGradient>
           ) : (
             <Pressable
               style={styles.loginPrompt}
@@ -163,37 +171,49 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
           {/* Menu Items */}
           <ScrollView
             style={styles.menuScroll}
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={true}
+            persistentScrollbar={Platform.OS === 'android'}
             contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
           >
-            {MENU_ITEMS.map((item, index) => (
-              <Pressable
-                key={index}
-                style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
-                onPress={() => handleMenuItemPress(item.route)}
-              >
-                <View style={styles.menuItemContent}>
-                  <View
-                    style={[
-                      styles.iconContainer,
-                      item.color && { backgroundColor: item.color + '15' },
-                    ]}
-                  >
+            <View style={styles.menuGroup}>
+              <Text style={styles.menuGroupTitle}>Quick Access</Text>
+              {MENU_ITEMS.map((item, index) => (
+                <Pressable
+                  key={index}
+                  style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+                  onPress={() => handleMenuItemPress(item.route)}
+                >
+                  <View style={styles.menuItemMain}>
+                    <View
+                      style={[
+                        styles.iconContainer,
+                        item.color && { backgroundColor: item.color + '15' },
+                      ]}
+                    >
+                      <Feather
+                        name={item.icon}
+                        size={responsiveModerateScale(17)}
+                        color={item.color || '#0B2545'}
+                      />
+                    </View>
+                    <Text style={styles.menuItemLabel} numberOfLines={1} ellipsizeMode="tail">
+                      {item.label}
+                    </Text>
+                  </View>
+                  <View pointerEvents="none" style={styles.chevronWrap}>
                     <Feather
-                      name={item.icon}
-                      size={responsiveModerateScale(18)}
-                      color={item.color || Colors.text}
+                      name="chevron-right"
+                      size={responsiveModerateScale(15)}
+                      color="#7A8CA6"
+                      style={[
+                        styles.trailingChevron,
+                        I18nManager.isRTL ? styles.trailingChevronRtl : null,
+                      ]}
                     />
                   </View>
-                  <Text style={styles.menuItemLabel}>{item.label}</Text>
-                </View>
-                <Feather
-                  name="chevron-right"
-                  size={responsiveModerateScale(17)}
-                  color={Colors.textTertiary}
-                />
-              </Pressable>
-            ))}
+                </Pressable>
+              ))}
+            </View>
 
             {/* Divider */}
             <View style={styles.divider} />
@@ -201,10 +221,14 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
             {/* Logout */}
             {isAuthenticated && (
               <Pressable
-                style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  styles.logoutItem,
+                  pressed && styles.logoutItemPressed,
+                ]}
                 onPress={handleLogout}
               >
-                <View style={styles.menuItemContent}>
+                <View style={styles.menuItemMain}>
                   <View style={[styles.iconContainer, { backgroundColor: Colors.accent + '15' }]}>
                     <Feather
                       name="log-out"
@@ -212,7 +236,13 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
                       color={Colors.accent}
                     />
                   </View>
-                  <Text style={[styles.menuItemLabel, { color: Colors.accent }]}>Logout</Text>
+                  <Text
+                    style={[styles.menuItemLabel, styles.logoutLabel]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    Logout
+                  </Text>
                 </View>
               </Pressable>
             )}
@@ -226,68 +256,107 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(7, 17, 32, 0.52)',
     flexDirection: 'row',
   },
   backdrop: {
     flex: 1,
   },
   menuContainer: {
-    width: '82%',
-    maxWidth: responsiveWidth(90),
+    width: '84%',
+    maxWidth: responsiveWidth(92),
     height: '100%',
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: 24,
-    borderBottomLeftRadius: 24,
+    backgroundColor: '#EFF3FA',
+    borderTopLeftRadius: 30,
+    borderBottomLeftRadius: 30,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: -3, height: 0 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
+        shadowColor: '#0A1C33',
+        shadowOffset: { width: -6, height: 0 },
+        shadowOpacity: 0.24,
+        shadowRadius: 22,
       },
       android: {
-        elevation: 12,
+        elevation: 22,
       },
       web: {
-        boxShadow: '-4px 0 14px rgba(0,0,0,0.18)',
+        boxShadow: '-6px 0 24px rgba(8,22,45,0.26)',
       },
     }),
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: responsiveModerateScale(16),
-    paddingBottom: responsiveModerateScale(10),
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: responsiveModerateScale(18),
+    paddingBottom: responsiveModerateScale(14),
+  },
+  headerTitle: {
+    fontSize: responsiveFont(16),
+    fontFamily: 'Inter_700Bold',
+    color: MENU_ACCENT,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  headerSubtitle: {
+    marginTop: 2,
+    fontSize: responsiveFont(11),
+    fontFamily: 'Inter_500Medium',
+    color: '#7084A3',
   },
   closeButton: {
-    width: responsiveModerateScale(36),
-    height: responsiveModerateScale(36),
-    borderRadius: responsiveModerateScale(18),
-    backgroundColor: Colors.surface,
+    width: responsiveModerateScale(44),
+    height: responsiveModerateScale(44),
+    borderRadius: responsiveModerateScale(22),
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DCE7F6',
     alignItems: 'center',
     justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0C2B4A',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: responsiveModerateScale(16),
-    paddingVertical: responsiveModerateScale(16),
-    backgroundColor: Colors.surface,
+    paddingVertical: responsiveModerateScale(18),
     marginHorizontal: 16,
-    borderRadius: 16,
+    borderRadius: 18,
     marginBottom: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0A4F9B',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.22,
+        shadowRadius: 18,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   avatar: {
-    width: responsiveModerateScale(48),
-    height: responsiveModerateScale(48),
-    borderRadius: responsiveModerateScale(24),
-    backgroundColor: Colors.primary,
+    width: responsiveModerateScale(54),
+    height: responsiveModerateScale(54),
+    borderRadius: responsiveModerateScale(27),
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.38)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    fontSize: responsiveFont(20),
+    fontSize: responsiveFont(24),
     fontFamily: 'Inter_700Bold',
     color: '#fff',
   },
@@ -298,13 +367,26 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: responsiveFont(16),
     fontFamily: 'Inter_600SemiBold',
-    color: Colors.text,
+    color: '#FFFFFF',
     marginBottom: 2,
   },
   profilePhone: {
-    fontSize: responsiveFont(13),
+    fontSize: responsiveFont(14),
     fontFamily: 'Inter_400Regular',
-    color: Colors.textSecondary,
+    color: 'rgba(255,255,255,0.92)',
+  },
+  memberPill: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  profileMeta: {
+    fontSize: responsiveFont(11),
+    fontFamily: 'Inter_600SemiBold',
+    color: '#FFFFFF',
   },
   loginPrompt: {
     flexDirection: 'row',
@@ -314,11 +396,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: responsiveModerateScale(16),
     backgroundColor: Colors.surface,
     marginHorizontal: 16,
-    borderRadius: 16,
+    borderRadius: 14,
     marginBottom: 16,
     gap: responsiveModerateScale(8),
-    borderWidth: 2,
-    borderColor: Colors.primary,
+    borderWidth: 1,
+    borderColor: '#CFE2FF',
   },
   loginText: {
     fontSize: responsiveFont(14),
@@ -328,41 +410,120 @@ const styles = StyleSheet.create({
   menuScroll: {
     flex: 1,
   },
+  menuGroup: {
+    marginHorizontal: 16,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E4ECF8',
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#102949',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.08,
+        shadowRadius: 14,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  menuGroupTitle: {
+    marginTop: 2,
+    marginBottom: 12,
+    marginHorizontal: 12,
+    fontSize: responsiveFont(12),
+    fontFamily: 'Inter_700Bold',
+    color: '#7287A6',
+    textTransform: 'uppercase',
+    letterSpacing: 0.9,
+  },
   menuItem: {
+    position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: responsiveModerateScale(12),
-    paddingHorizontal: responsiveModerateScale(16),
-    marginHorizontal: 16,
-    borderRadius: 12,
-    marginBottom: 4,
+    justifyContent: 'flex-start',
+    width: '100%',
+    flexWrap: 'nowrap',
+    minHeight: responsiveModerateScale(60),
+    paddingVertical: responsiveModerateScale(8),
+    paddingHorizontal: responsiveModerateScale(10),
+    borderRadius: 16,
+    marginBottom: 10,
+    backgroundColor: '#F8FAFE',
+    borderWidth: 1,
+    borderColor: '#EEF3FB',
+  },
+  menuItemMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+    paddingRight: responsiveModerateScale(42),
   },
   menuItemPressed: {
-    backgroundColor: Colors.surface,
-  },
-  menuItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: responsiveModerateScale(10),
+    backgroundColor: '#EDF3FD',
   },
   iconContainer: {
-    width: responsiveModerateScale(34),
-    height: responsiveModerateScale(34),
-    borderRadius: responsiveModerateScale(10),
-    backgroundColor: Colors.surface,
+    width: responsiveModerateScale(36),
+    height: responsiveModerateScale(36),
+    borderRadius: responsiveModerateScale(11),
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E4ECF8',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   menuItemLabel: {
-    fontSize: responsiveFont(14),
-    fontFamily: 'Inter_500Medium',
-    color: Colors.text,
+    flex: 1,
+    fontSize: responsiveFont(14.5),
+    lineHeight: responsiveFont(20),
+    fontFamily: 'Inter_600SemiBold',
+    color: '#12223A',
+    marginLeft: responsiveModerateScale(11),
+  },
+  chevronWrap: {
+    position: 'absolute',
+    right: responsiveModerateScale(10),
+    top: '50%',
+    marginTop: responsiveModerateScale(-14),
+    width: responsiveModerateScale(28),
+    height: responsiveModerateScale(28),
+    borderRadius: responsiveModerateScale(14),
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E4ECF8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  trailingChevron: {
+    marginLeft: 1.5,
+  },
+  trailingChevronRtl: {
+    transform: [{ scaleX: -1 }],
   },
   divider: {
     height: 1,
-    backgroundColor: Colors.border,
-    marginVertical: 12,
-    marginHorizontal: 20,
+    backgroundColor: '#DDE6F3',
+    marginVertical: 14,
+    marginHorizontal: 16,
+  },
+  logoutItem: {
+    marginHorizontal: 16,
+    backgroundColor: '#FFF4F6',
+    borderWidth: 1,
+    borderColor: '#FFDCE2',
+    marginBottom: 4,
+  },
+  logoutItemPressed: {
+    backgroundColor: '#FFE9ED',
+  },
+  logoutLabel: {
+    color: Colors.accent,
+    fontFamily: 'Inter_600SemiBold',
   },
 });

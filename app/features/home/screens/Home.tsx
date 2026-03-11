@@ -29,7 +29,6 @@ import { calculateDistance } from '@/lib/location-data';
 import { Category } from '@/lib/types';
 import { formatCondition } from '@/lib/utils';
 import ListingCard from '@/shared/components/ListingCard';
-import ProfileMenuModal from '@/shared/components/ProfileMenuModal';
 import { NotificationBell } from '@/shared/components/NotificationBell';
 import { Logo } from '@/shared/components/Logo';
 import BrandWordmark from '@/shared/components/BrandWordmark';
@@ -68,7 +67,6 @@ export default function HomeScreen() {
   } = useAppScreenBanners('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>('All');
   const [refreshing, setRefreshing] = useState(false);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Location selection state
@@ -446,12 +444,6 @@ export default function HomeScreen() {
     [toggleSaved, trackSave]
   );
 
-  const openProfileMenu = useCallback(() => {
-    setTimeout(() => {
-      setShowProfileMenu(true);
-    }, 120);
-  }, []);
-
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const alignedResultCardWidth = useMemo(() => (SCREEN_WIDTH - 24 - 3) / 2, []);
 
@@ -550,15 +542,6 @@ export default function HomeScreen() {
                   <Feather name="chevron-right" size={16} color={Colors.textTertiary} />
                 </Pressable>
                 <NotificationBell />
-                <Pressable
-                  style={styles.profileShortcutButton}
-                  onPress={openProfileMenu}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open profile menu"
-                >
-                  <Feather name="user" size={16} color={Colors.text} />
-                </Pressable>
               </View>
             </View>
 
@@ -893,8 +876,6 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* Profile Menu Modal */}
-      <ProfileMenuModal visible={showProfileMenu} onClose={() => setShowProfileMenu(false)} />
     </View>
   );
 }
@@ -1001,16 +982,6 @@ const styles = createResponsiveStyles({
     paddingHorizontal: 12,
     marginBottom: 6,
     marginTop: 2,
-  },
-  profileShortcutButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   nearhubPromoSection: {
     marginBottom: 6,
