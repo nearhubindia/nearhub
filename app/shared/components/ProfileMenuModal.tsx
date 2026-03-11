@@ -75,7 +75,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
 ];
 const MENU_ACCENT = '#0B6DD8';
-const UI_LAYOUT_VERSION = 'UI vfa1a783';
+const UI_LAYOUT_VERSION = 'UI vdf718da';
 
 export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalProps) {
   const insets = useSafeAreaInsets();
@@ -219,7 +219,7 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
                     >
                       <Feather
                         name={item.icon}
-                        size={responsiveModerateScale(15)}
+                        size={responsiveModerateScale(16)}
                         color={item.color || '#12223A'}
                       />
                     </View>
@@ -497,7 +497,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   menuCard: {
-    minHeight: responsiveModerateScale(74),
+    minHeight: responsiveModerateScale(76),
     borderRadius: 18,
     backgroundColor: '#F2F6FD',
     borderWidth: 1,
@@ -520,15 +520,15 @@ const styles = StyleSheet.create({
     }),
   },
   menuCardIcon: {
-    width: responsiveModerateScale(36),
-    height: responsiveModerateScale(36),
-    borderRadius: responsiveModerateScale(11),
+    width: responsiveModerateScale(38),
+    height: responsiveModerateScale(38),
+    borderRadius: responsiveModerateScale(12),
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E0E9F7',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: responsiveModerateScale(8),
+    marginRight: responsiveModerateScale(10),
   },
   menuCardBody: {
     flex: 1,
@@ -536,22 +536,22 @@ const styles = StyleSheet.create({
     paddingRight: responsiveModerateScale(20),
   },
   menuCardTitle: {
-    fontSize: responsiveFont(12.2),
-    lineHeight: responsiveModerateScale(16),
+    fontSize: responsiveFont(13.6),
+    lineHeight: responsiveModerateScale(18),
     fontFamily: 'Inter_600SemiBold',
     color: '#2A3553',
   },
   menuCardSubtitle: {
-    marginTop: 3,
-    fontSize: responsiveFont(9.9),
-    lineHeight: responsiveModerateScale(13),
+    marginTop: 2,
+    fontSize: responsiveFont(11),
+    lineHeight: responsiveModerateScale(15),
     fontFamily: 'Inter_500Medium',
     color: '#7484A2',
   },
   menuCardArrow: {
     position: 'absolute',
-    right: responsiveModerateScale(10),
-    bottom: responsiveModerateScale(10),
+    right: responsiveModerateScale(12),
+    bottom: responsiveModerateScale(12),
   },
   divider: {
     height: 1,
