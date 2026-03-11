@@ -2,6 +2,19 @@
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
+## Cloudflare Deploy (Important)
+
+Use explicit scripts so changes always reach the expected environment:
+
+- Production (`nearhub.in`): `npm run deploy:cloudflare:prod`
+- Preview (non-production): `npm run deploy:cloudflare:preview`
+- Auto mode (uses current git branch): `npm run deploy:cloudflare:auto`
+
+Notes:
+
+- `nearhub.in` updates only when deploying with `--branch=main`.
+- Deploying without explicit branch may publish to preview (`master`) and not reflect on production.
+
 Currently, two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh

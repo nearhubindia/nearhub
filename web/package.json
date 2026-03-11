@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy:cloudflare:prod": "npm run build && npx wrangler pages deploy dist --project-name=nearhub --branch=main",
+    "deploy:cloudflare:preview": "npm run build && npx wrangler pages deploy dist --project-name=nearhub --branch=master",
+    "deploy:cloudflare:auto": "node scripts/deploy-cloudflare.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
