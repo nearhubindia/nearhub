@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { BadgePercent, CalendarDays, Layers, Plus, Sparkles, X } from 'lucide-react';
 import {
   useSubscriptionTiers,
   useCreateSubscriptionTier,
@@ -90,7 +90,9 @@ export default function SubscriptionPlansView() {
         ...formData,
         price: Number(formData.price ?? 0),
         offerPrice:
-          formData.offerPrice !== null && formData.offerPrice !== undefined
+          formData.offerPrice !== null &&
+          formData.offerPrice !== undefined &&
+          Number(formData.offerPrice) > 0
             ? Number(formData.offerPrice)
             : null,
         durationDays: Number(formData.durationDays ?? 30),
@@ -180,7 +182,9 @@ export default function SubscriptionPlansView() {
       description: (tier.description as string) || '',
       price: Number(tier.price ?? 0),
       offerPrice:
-        tier.offerPrice !== undefined && tier.offerPrice !== null ? Number(tier.offerPrice) : null,
+        tier.offerPrice !== undefined && tier.offerPrice !== null && Number(tier.offerPrice) > 0
+          ? Number(tier.offerPrice)
+          : null,
       durationDays: Number(tier.durationDays ?? 30),
       features: features as string[],
       maxListings: Number(tier.maxListings ?? 5),
@@ -217,6 +221,10 @@ export default function SubscriptionPlansView() {
 
     return labels.join(', ') || 'None';
   };
+
+  const inputClass =
+    'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-4 focus:ring-cyan-100';
+  const labelClass = 'mb-2 block text-sm font-semibold tracking-wide text-slate-700';
 
   return (
     <div>
@@ -358,46 +366,69 @@ export default function SubscriptionPlansView() {
 
         {/* Create/Edit Tier Modal */}
         {showCreateModal && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-gradient-to-r from-teal-500 to-cyan-500 text-white p-6 border-b">
-                <h2 className="text-2xl font-black">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
+            <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-[0_24px_80px_-24px_rgba(2,6,23,0.65)]">
+              <button
+                onClick={closeModal}
+                aria-label="Close modal"
+                className="absolute right-4 top-4 z-20 rounded-full bg-white/90 p-2 text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-900"
+              >
+                <X size={16} />
+              </button>
+
+              <div className="relative overflow-hidden border-b border-cyan-200 bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-6 text-white sm:px-8">
+                <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/15 blur-2xl" />
+                <div className="absolute -bottom-12 left-1/2 h-24 w-32 rounded-full bg-cyan-200/20 blur-2xl" />
+                <p className="relative mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide">
+                  <Sparkles size={14} />
+                  Subscription Builder
+                </p>
+                <h2 className="relative text-2xl font-extrabold tracking-tight sm:text-3xl">
                   {editingTier ? 'Edit Tier' : 'Create New Tier'}
                 </h2>
+                <p className="relative mt-1 text-sm text-cyan-50/95">
+                  Set pricing, validity, and benefits for this plan.
+                </p>
               </div>
 
-              <div className="p-6 space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-900 mb-2">Tier Name</label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                      placeholder="e.g., Premium Plan"
-                    />
-                  </div>
+              <div className="max-h-[72vh] space-y-6 overflow-y-auto p-6 sm:p-8">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className={labelClass}>Tier Name</label>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className={inputClass}
+                        placeholder="e.g., Premium Plan"
+                      />
+                    </div>
 
-                  <div>
-                    <label className="block text-sm font-bold text-slate-900 mb-2">Tier Type</label>
-                    <select
-                      value={formData.type}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          type: e.target.value as 'bundle' | 'boost',
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                    >
-                      <option value="bundle">Bundle (Listings + optional boosts)</option>
-                      <option value="boost">Boost Pack (credits only)</option>
-                    </select>
+                    <div>
+                      <label className={labelClass}>Tier Type</label>
+                      <select
+                        value={formData.type}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            type: e.target.value as 'bundle' | 'boost',
+                          })
+                        }
+                        className={inputClass}
+                      >
+                        <option value="bundle">Bundle (Listings + optional boosts)</option>
+                        <option value="boost">Boost Pack (credits only)</option>
+                      </select>
+                    </div>
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-sm font-bold text-slate-900 mb-2">Price (₹)</label>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                    <label className={`${labelClass} flex items-center gap-2`}>
+                      <BadgePercent size={14} /> Price (₹)
+                    </label>
                     <input
                       type="number"
                       value={formData.price ?? ''}
@@ -407,14 +438,14 @@ export default function SubscriptionPlansView() {
                           price: e.target.value === '' ? null : Number(e.target.value),
                         })
                       }
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                      className={inputClass}
                       min="0"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-bold text-slate-900 mb-2">
-                      Offer Price (₹)
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                    <label className={`${labelClass} flex items-center gap-2`}>
+                      <BadgePercent size={14} /> Offer Price (₹)
                     </label>
                     <input
                       type="number"
@@ -425,22 +456,22 @@ export default function SubscriptionPlansView() {
                           offerPrice: e.target.value === '' ? null : Number(e.target.value),
                         })
                       }
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                      className={inputClass}
                       min="0"
-                      placeholder="Optional discounted price"
+                      placeholder="Optional"
                     />
                     {formData.offerPrice !== null &&
                       formData.price !== null &&
                       formData.offerPrice >= formData.price && (
-                        <p className="text-xs text-red-500 mt-1">
+                        <p className="mt-2 text-xs font-medium text-rose-600">
                           Offer price must be less than regular price.
                         </p>
                       )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-bold text-slate-900 mb-2">
-                      Duration (Days)
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                    <label className={`${labelClass} flex items-center gap-2`}>
+                      <CalendarDays size={14} /> Duration (Days)
                     </label>
                     <input
                       type="number"
@@ -451,28 +482,28 @@ export default function SubscriptionPlansView() {
                           durationDays: e.target.value === '' ? null : Number(e.target.value),
                         })
                       }
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                      className={inputClass}
                       min="1"
                     />
                   </div>
+                </div>
 
-                  <div className="col-span-2">
-                    <label className="block text-sm font-bold text-slate-900 mb-2">
-                      Description
-                    </label>
-                    <textarea
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                      placeholder="Describe this tier..."
-                      rows={2}
-                    />
-                  </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                  <label className={labelClass}>Description</label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className={inputClass}
+                    placeholder="Describe this tier..."
+                    rows={3}
+                  />
+                </div>
 
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   {formData.type !== 'boost' && (
-                    <div>
-                      <label className="block text-sm font-bold text-slate-900 mb-2">
-                        Max Listings
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                      <label className={`${labelClass} flex items-center gap-2`}>
+                        <Layers size={14} /> Max Listings
                       </label>
                       <input
                         type="number"
@@ -483,16 +514,16 @@ export default function SubscriptionPlansView() {
                             maxListings: e.target.value === '' ? null : Number(e.target.value),
                           })
                         }
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                        className={inputClass}
                         min="-1"
                         placeholder="-1 for unlimited"
                       />
                     </div>
                   )}
 
-                  <div>
-                    <label className="block text-sm font-bold text-slate-900 mb-2">
-                      Boost Credits
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                    <label className={`${labelClass} flex items-center gap-2`}>
+                      <Sparkles size={14} /> Boost Credits
                     </label>
                     <input
                       type="number"
@@ -503,60 +534,68 @@ export default function SubscriptionPlansView() {
                           boostCredits: e.target.value === '' ? null : Number(e.target.value),
                         })
                       }
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                      className={inputClass}
                       min="0"
-                      placeholder="Credits granted per purchase"
+                      placeholder="Credits per purchase"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <h3 className="font-bold text-slate-900 mb-4">✨ Features</h3>
-                  <div className="space-y-3">
-                    <div className="p-4 border border-slate-200 rounded-lg bg-slate-50">
-                      <p className="font-bold text-slate-900">Boost Visibility</p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Boost entitlement is controlled by <strong>Boost Credits</strong> for both
-                        bundle and boost-pack plans. Image/video uploads are no longer managed as
-                        subscription feature toggles.
-                      </p>
-                    </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-700">
+                    <Sparkles size={14} /> Features
+                  </h3>
+                  <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
+                    <p className="font-semibold text-slate-900">Boost Visibility</p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Boost entitlement is controlled by <strong>Boost Credits</strong> for both
+                      bundle and boost-pack plans. Image/video uploads are no longer managed as
+                      subscription feature toggles.
+                    </p>
                   </div>
                 </div>
 
-                <div className="space-y-3 pt-4 border-t">
-                  <label className="flex items-center gap-3 p-3 border border-slate-200 rounded cursor-pointer hover:bg-slate-50">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-cyan-300 hover:shadow-sm">
                     <input
                       type="checkbox"
                       checked={formData.highlight}
                       onChange={(e) => setFormData({ ...formData, highlight: e.target.checked })}
-                      className="w-5 h-5 accent-teal-500"
+                      className="mt-0.5 h-5 w-5 accent-cyan-600"
                     />
-                    <span className="font-bold text-slate-900">Mark as "Most Popular"</span>
+                    <span>
+                      <span className="block font-bold text-slate-900">Mark as Most Popular</span>
+                      <span className="text-sm text-slate-500">Highlights this tier in UI</span>
+                    </span>
                   </label>
 
-                  <label className="flex items-center gap-3 p-3 border border-slate-200 rounded cursor-pointer hover:bg-slate-50">
+                  <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-cyan-300 hover:shadow-sm">
                     <input
                       type="checkbox"
                       checked={formData.isActive}
                       onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                      className="w-5 h-5 accent-teal-500"
+                      className="mt-0.5 h-5 w-5 accent-cyan-600"
                     />
-                    <span className="font-bold text-slate-900">Active</span>
+                    <span>
+                      <span className="block font-bold text-slate-900">Active</span>
+                      <span className="text-sm text-slate-500">
+                        Users can subscribe to this tier
+                      </span>
+                    </span>
                   </label>
                 </div>
               </div>
 
-              <div className="flex gap-3 bg-slate-100 border-t p-6">
+              <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-5 sm:flex-row sm:p-6">
                 <button
                   onClick={closeModal}
-                  className="flex-1 px-6 py-3 border border-slate-300 rounded-lg font-bold text-slate-900 hover:bg-slate-100 hover:border-slate-400 transition cursor-pointer"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-6 py-3 font-bold text-slate-700 transition hover:bg-slate-100 sm:flex-1"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveTier}
-                  className="flex-1 bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg hover:scale-105 transition cursor-pointer"
+                  className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-200 transition hover:brightness-105 sm:flex-1"
                 >
                   {editingTier ? 'Update Tier' : 'Create Tier'}
                 </button>

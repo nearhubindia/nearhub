@@ -1440,9 +1440,15 @@ export function registerSubscriptionRoutes(app: Express) {
       }
 
       const numericPrice = parseFloat(price);
-      const numericOfferPrice =
+      const parsedOfferPrice =
         finalOfferPrice !== undefined && finalOfferPrice !== null && `${finalOfferPrice}` !== ''
           ? parseFloat(finalOfferPrice)
+          : undefined;
+      const numericOfferPrice =
+        parsedOfferPrice !== undefined &&
+        Number.isFinite(parsedOfferPrice) &&
+        parsedOfferPrice > 0
+          ? parsedOfferPrice
           : undefined;
 
       if (
@@ -1532,8 +1538,13 @@ export function registerSubscriptionRoutes(app: Express) {
       }
       if (offer_price !== undefined || offerPrice !== undefined) {
         const nextOffer = offer_price !== undefined ? offer_price : offerPrice;
-        updateData.offerPrice =
-          nextOffer === null || `${nextOffer}` === '' ? null : parseFloat(nextOffer as any);
+        if (nextOffer === null || `${nextOffer}` === '') {
+          updateData.offerPrice = null;
+        } else {
+          const parsedNextOffer = parseFloat(nextOffer as any);
+          updateData.offerPrice =
+            Number.isFinite(parsedNextOffer) && parsedNextOffer > 0 ? parsedNextOffer : null;
+        }
       }
       if (duration_days !== undefined || durationDays !== undefined) {
         updateData.durationDays = parseInt((duration_days || durationDays) as any);

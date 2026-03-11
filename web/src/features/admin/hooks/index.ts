@@ -113,6 +113,18 @@ interface GrowthReportData {
   revenueTrend?: string;
 }
 
+interface RecentActivityItem {
+  id?: string;
+  user?: string;
+  action?: string;
+  listingTitle?: string;
+  timestamp?: string | null;
+}
+
+interface RecentActivityQueryData {
+  activities?: RecentActivityItem[];
+}
+
 interface UsersQueryData {
   data?: Array<{
     id: string;
@@ -401,6 +413,15 @@ export function useGrowthReport() {
   return useQuery<GrowthReportData>({
     queryKey: adminKeys.reportGrowth(),
     queryFn: () => reportsApi.getGrowthReport() as Promise<GrowthReportData>,
+    staleTime: STALE_TIME,
+    gcTime: CACHE_TIME,
+  });
+}
+
+export function useRecentActivity() {
+  return useQuery<RecentActivityQueryData>({
+    queryKey: adminKeys.reportRecentActivity(),
+    queryFn: () => reportsApi.getRecentActivity() as Promise<RecentActivityQueryData>,
     staleTime: STALE_TIME,
     gcTime: CACHE_TIME,
   });

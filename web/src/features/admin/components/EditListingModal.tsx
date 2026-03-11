@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Star, Zap, Check, Target } from 'lucide-react';
+import { CircleDollarSign, FileText, Sparkles, Star, Tag, Target, X, Zap, Check } from 'lucide-react';
 import type { Listing, Enhancements } from '@/features/admin/types/admin-types';
 import { useUpdateListing } from '@/features/admin/hooks';
 import { validators } from '@/features/admin/utils';
@@ -128,342 +128,335 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
     }
   };
 
+  const inputClass =
+    'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-4 focus:ring-cyan-100';
+  const labelClass = 'mb-2 block text-sm font-semibold tracking-wide text-slate-700';
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-black">Edit Listing</h2>
-            <button
-              onClick={onClose}
-              className="text-white hover:bg-slate-700 p-2 rounded cursor-pointer transition"
-            >
-              <X size={24} />
-            </button>
-          </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
+      <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-[0_24px_80px_-24px_rgba(2,6,23,0.65)]">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close modal"
+          className="absolute right-4 top-4 z-20 rounded-full bg-white/90 p-2 text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-900"
+        >
+          <X size={16} />
+        </button>
+
+        <div className="relative overflow-hidden border-b border-cyan-200 bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-6 text-white sm:px-8">
+          <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/15 blur-2xl" />
+          <p className="relative mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide">
+            <Sparkles size={14} />
+            Listing Editor
+          </p>
+          <h2 className="relative text-2xl font-extrabold tracking-tight sm:text-3xl">Edit Listing</h2>
           {listing && (
-            <p className="text-slate-300 text-sm mt-2">
+            <p className="relative mt-1 text-sm text-cyan-50/95">
               ID: {listing.id} • {listing.title}
             </p>
           )}
         </div>
 
-        {/* Form Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {formErrors.submit && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              {formErrors.submit}
-            </div>
-          )}
-          {/* Basic Information */}
-          <div className="space-y-4">
-            <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
-              <span className="text-xl">📝</span> Basic Information
-            </h3>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-bold text-slate-900">Title</label>
-                <button
-                  onClick={generateTitleWithAI}
-                  disabled={isGeneratingTitle || !formData.description}
-                  className="text-xs px-3 py-1 rounded bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-bold"
-                >
-                  {isGeneratingTitle ? 'Generating...' : '✨ AI Generate'}
-                </button>
+        <form onSubmit={handleSubmit}>
+          <div className="max-h-[72vh] space-y-6 overflow-y-auto p-6 sm:p-8">
+            {formErrors.submit && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
+                {formErrors.submit}
               </div>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-              />
-            </div>
+            )}
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-bold text-slate-900">Description</label>
-                <button
-                  onClick={generateDescriptionWithAI}
-                  disabled={isGeneratingDescription || !formData.title}
-                  className="text-xs px-3 py-1 rounded bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-bold"
-                >
-                  {isGeneratingDescription ? 'Generating...' : '✨ AI Generate'}
-                </button>
-              </div>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={4}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-              />
-            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
+                <FileText size={16} /> Basic Information
+              </h3>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">Price</label>
-                <input
-                  type="text"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">
-                  Offer Price <span className="text-xs font-normal text-slate-500">Optional</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.offerPrice || ''}
-                  onChange={(e) => setFormData({ ...formData, offerPrice: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                  placeholder="Discounted price"
-                />
-                {formData.offerPrice &&
-                  parseFloat(formData.offerPrice) > 0 &&
-                  parseFloat(formData.offerPrice) >= parseFloat(formData.price || '0') && (
-                    <p className="text-red-600 text-xs mt-1">
-                      ⚠ Offer price must be less than listed price
-                    </p>
-                  )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-bold text-slate-900">Category</label>
-                  <button
-                    onClick={suggestCategoryWithAI}
-                    disabled={isSuggestingCategory || !formData.title}
-                    className="text-xs px-3 py-1 rounded bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-bold"
-                  >
-                    {isSuggestingCategory ? 'Suggesting...' : '✨ AI Suggest'}
-                  </button>
+              <div className="space-y-4">
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <label className={labelClass}>Title</label>
+                    <button
+                      type="button"
+                      onClick={generateTitleWithAI}
+                      disabled={isGeneratingTitle || !formData.description}
+                      className="rounded-full bg-fuchsia-100 px-3 py-1 text-xs font-bold text-fuchsia-700 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isGeneratingTitle ? 'Generating...' : 'AI Generate'}
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className={inputClass}
+                  />
                 </div>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                >
-                  <option value="">Select Category</option>
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">Condition</label>
-                <select
-                  value={formData.condition}
-                  onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                >
-                  {conditions.map((cond) => (
-                    <option key={cond} value={cond}>
-                      {cond.replace('_', ' ')}
-                    </option>
-                  ))}
-                </select>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <label className={labelClass}>Description</label>
+                    <button
+                      type="button"
+                      onClick={generateDescriptionWithAI}
+                      disabled={isGeneratingDescription || !formData.title}
+                      className="rounded-full bg-fuchsia-100 px-3 py-1 text-xs font-bold text-fuchsia-700 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isGeneratingDescription ? 'Generating...' : 'AI Generate'}
+                    </button>
+                  </div>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={4}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className={`${labelClass} flex items-center gap-2`}>
+                      <CircleDollarSign size={14} /> Price
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.price}
+                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={`${labelClass} flex items-center gap-2`}>
+                      <Tag size={14} /> Offer Price
+                      <span className="text-xs font-normal text-slate-500">Optional</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.offerPrice || ''}
+                      onChange={(e) => setFormData({ ...formData, offerPrice: e.target.value })}
+                      className={inputClass}
+                      placeholder="Discounted price"
+                    />
+                    {formData.offerPrice &&
+                      parseFloat(formData.offerPrice) > 0 &&
+                      parseFloat(formData.offerPrice) >= parseFloat(formData.price || '0') && (
+                        <p className="mt-1 text-xs font-medium text-rose-600">
+                          Offer price must be less than listed price.
+                        </p>
+                      )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <label className={labelClass}>Category</label>
+                      <button
+                        type="button"
+                        onClick={suggestCategoryWithAI}
+                        disabled={isSuggestingCategory || !formData.title}
+                        className="rounded-full bg-fuchsia-100 px-3 py-1 text-xs font-bold text-fuchsia-700 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isSuggestingCategory ? 'Suggesting...' : 'AI Suggest'}
+                      </button>
+                    </div>
+                    <select
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className={inputClass}
+                    >
+                      <option value="">Select Category</option>
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Condition</label>
+                    <select
+                      value={formData.condition}
+                      onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
+                      className={inputClass}
+                    >
+                      {conditions.map((cond) => (
+                        <option key={cond} value={cond}>
+                          {cond.replace('_', ' ')}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>Status</label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          status: e.target.value as 'active' | 'sold' | 'pending',
+                        })
+                      }
+                      className={inputClass}
+                    >
+                      <option value="active">Active</option>
+                      <option value="pending">Pending</option>
+                      <option value="sold">Sold</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>
+                      Contact Number <span className="text-xs font-normal text-slate-500">Optional</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.contactPhone}
+                      onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g. 9876543210"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">Status</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      status: e.target.value as 'active' | 'sold' | 'pending',
-                    })
-                  }
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                >
-                  <option value="active">Active</option>
-                  <option value="pending">Pending</option>
-                  <option value="sold">Sold</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">
-                  Contact Number{' '}
-                  <span className="text-xs font-normal text-slate-500">Optional</span>
-                </label>
-                <input
-                  type="tel"
-                  value={formData.contactPhone}
-                  onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                  placeholder="e.g. 9876543210"
-                />
-              </div>
-            </div>
-          </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
+                <Sparkles size={16} /> Enhancement Features
+              </h3>
 
-          {/* Enhancement Features */}
-          <div className="space-y-4 border-t border-slate-200 pt-6">
-            <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
-              <span className="text-xl">✨</span> Enhancement Features
-            </h3>
-
-            <div className="grid grid-cols-2 gap-4">
-              {/* Sponsored */}
-              <div className="border border-slate-300 rounded-lg p-4 hover:border-amber-500 transition">
-                <label className="flex items-center gap-3 cursor-pointer">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
                   <input
                     type="checkbox"
                     checked={sponsored}
                     onChange={() => setSponsored((prev) => !prev)}
-                    className="w-5 h-5 rounded cursor-pointer"
+                    className="h-5 w-5 rounded"
                   />
                   <div className="flex-1">
                     <div className="flex items-center gap-2 font-bold text-slate-900">
                       <Star size={18} className="text-amber-500" />
                       Sponsored Tag
                     </div>
-                    <p className="text-xs text-slate-600 mt-1">
-                      Separate from featured boost ranking
-                    </p>
+                    <p className="mt-1 text-xs text-slate-600">Separate from featured boost ranking</p>
                   </div>
                 </label>
-              </div>
 
-              {/* Sponsored */}
-              <div className="border border-slate-300 rounded-lg p-4 hover:border-teal-500 transition">
-                <label className="flex items-center gap-3 cursor-pointer">
+                <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
                   <input
                     type="checkbox"
                     checked={enhancements.featured}
                     onChange={() => handleEnhancementChange('featured')}
-                    className="w-5 h-5 rounded cursor-pointer"
+                    className="h-5 w-5 rounded"
                   />
                   <div className="flex-1">
                     <div className="flex items-center gap-2 font-bold text-slate-900">
                       <Star size={18} className="text-amber-500" />
                       Featured Listing
                     </div>
-                    <p className="text-xs text-slate-600 mt-1">
-                      Highlight listing with featured ranking
-                    </p>
+                    <p className="mt-1 text-xs text-slate-600">Highlight listing with featured ranking</p>
                   </div>
                 </label>
-              </div>
 
-              {/* Priority */}
-              <div className="border border-slate-300 rounded-lg p-4 hover:border-teal-500 transition">
-                <label className="flex items-center gap-3 cursor-pointer">
+                <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
                   <input
                     type="checkbox"
                     checked={enhancements.priority}
                     onChange={() => handleEnhancementChange('priority')}
-                    className="w-5 h-5 rounded cursor-pointer"
+                    className="h-5 w-5 rounded"
                   />
                   <div className="flex-1">
                     <div className="flex items-center gap-2 font-bold text-slate-900">
                       <Zap size={18} className="text-blue-500" />
                       Priority Listing
                     </div>
-                    <p className="text-xs text-slate-600 mt-1">Show higher in search results</p>
+                    <p className="mt-1 text-xs text-slate-600">Show higher in search results</p>
                   </div>
                 </label>
-              </div>
 
-              {/* Verified */}
-              <div className="border border-slate-300 rounded-lg p-4 hover:border-teal-500 transition">
-                <label className="flex items-center gap-3 cursor-pointer">
+                <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
                   <input
                     type="checkbox"
                     checked={enhancements.verified}
                     onChange={() => handleEnhancementChange('verified')}
-                    className="w-5 h-5 rounded cursor-pointer"
+                    className="h-5 w-5 rounded"
                   />
                   <div className="flex-1">
                     <div className="flex items-center gap-2 font-bold text-slate-900">
                       <Check size={18} className="text-green-500" />
                       Verified Badge
                     </div>
-                    <p className="text-xs text-slate-600 mt-1">Show verified seller/item badge</p>
+                    <p className="mt-1 text-xs text-slate-600">Show verified seller/item badge</p>
                   </div>
                 </label>
-              </div>
 
-              {/* Top Search */}
-              <div className="border border-slate-300 rounded-lg p-4 hover:border-teal-500 transition">
-                <label className="flex items-center gap-3 cursor-pointer">
+                <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4 md:col-span-2">
                   <input
                     type="checkbox"
                     checked={enhancements.topSearch}
                     onChange={() => handleEnhancementChange('topSearch')}
-                    className="w-5 h-5 rounded cursor-pointer"
+                    className="h-5 w-5 rounded"
                   />
                   <div className="flex-1">
                     <div className="flex items-center gap-2 font-bold text-slate-900">
                       <Target size={18} className="text-red-500" />
                       Top Search Placement
                     </div>
-                    <p className="text-xs text-slate-600 mt-1">
-                      Appear at top of relevant searches
-                    </p>
+                    <p className="mt-1 text-xs text-slate-600">Appear at top of relevant searches</p>
                   </div>
                 </label>
               </div>
-            </div>
 
-            {/* Active Enhancements Summary */}
-            {(sponsored || Object.values(enhancements).some((v) => v)) && (
-              <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
-                <p className="text-sm font-bold text-teal-900 mb-2">Active Enhancements:</p>
-                <div className="flex flex-wrap gap-2">
-                  {sponsored && (
-                    <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold">
-                      📢 Sponsored
-                    </span>
-                  )}
-                  {enhancements.featured && (
-                    <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold">
-                      ⭐ Featured
-                    </span>
-                  )}
-                  {enhancements.priority && (
-                    <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">
-                      ⚡ Priority
-                    </span>
-                  )}
-                  {enhancements.verified && (
-                    <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
-                      ✓ Verified
-                    </span>
-                  )}
-                  {enhancements.topSearch && (
-                    <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">
-                      🎯 Top Search
-                    </span>
-                  )}
+              {(sponsored || Object.values(enhancements).some((v) => v)) && (
+                <div className="mt-4 rounded-xl border border-teal-200 bg-teal-50 p-4">
+                  <p className="mb-2 text-sm font-bold text-teal-900">Active Enhancements:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {sponsored && (
+                      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
+                        Sponsored
+                      </span>
+                    )}
+                    {enhancements.featured && (
+                      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
+                        Featured
+                      </span>
+                    )}
+                    {enhancements.priority && (
+                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">
+                        Priority
+                      </span>
+                    )}
+                    {enhancements.verified && (
+                      <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+                        Verified
+                      </span>
+                    )}
+                    {enhancements.topSearch && (
+                      <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">
+                        Top Search
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
-          {/* Footer */}
-          <div className="sticky bottom-0 flex gap-3 bg-slate-100 border-t border-slate-200 p-6">
+          <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-5 sm:flex-row sm:p-6">
             <button
               type="button"
               onClick={onClose}
               disabled={updateListing.isPending}
-              className="flex-1 px-6 py-3 rounded-lg font-bold border border-slate-300 text-slate-900 hover:bg-slate-100 hover:border-slate-400 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-xl border border-slate-300 bg-white px-6 py-3 font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={updateListing.isPending}
-              className="flex-1 bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg hover:scale-105 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-200 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
             >
               {updateListing.isPending ? 'Saving...' : 'Save Changes'}
             </button>

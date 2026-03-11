@@ -49,6 +49,7 @@ export {
   useVideoById,
   useRevenueStats,
   useGrowthReport,
+  useRecentActivity,
   usePerformanceReport,
   useTransactionReport,
   useModerationReport,

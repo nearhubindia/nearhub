@@ -12,11 +12,30 @@ import {
 } from 'recharts';
 import { Users, FileText, BarChart3, TrendingUp } from 'lucide-react';
 import { chartData, categoryData, COLORS } from '@/features/admin/constants/admin-constants';
-import { useGrowthReport } from '@/features/admin/hooks';
+import { useGrowthReport, useRecentActivity } from '@/features/admin/hooks';
 import type { Stat } from '@/features/admin/types/admin-types';
 
 export default function DashboardView() {
   const { data: reportData, isLoading } = useGrowthReport();
+  const { data: recentActivityData } = useRecentActivity();
+
+  const formatRelativeTime = (timestamp?: string | null): string => {
+    if (!timestamp) return 'Just now';
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return 'Just now';
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+  };
+
+  const activities = Array.isArray(recentActivityData?.activities)
+    ? recentActivityData.activities
+    : [];
 
   const stats: Stat[] = [
     {
@@ -144,23 +163,24 @@ export default function DashboardView() {
         <div className="bg-white rounded-lg p-6 border border-slate-200 hover:shadow-lg transition">
           <h2 className="text-lg font-bold text-slate-900 mb-4">Recent Activity</h2>
           <div className="space-y-4">
-            {[
-              { user: 'John Doe', action: 'Posted new listing', time: '5 minutes ago' },
-              { user: 'Jane Smith', action: 'Completed transaction', time: '12 minutes ago' },
-              { user: 'Mike Johnson', action: 'Subscribed to Premium', time: '1 hour ago' },
-              { user: 'Sarah Lee', action: 'Posted service listing', time: '2 hours ago' },
-            ].map((activity, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between py-3 border-b last:border-0 last:pb-0"
-              >
-                <div>
-                  <p className="text-slate-900 font-medium">{activity.user}</p>
-                  <p className="text-slate-600 text-sm">{activity.action}</p>
+            {activities.length > 0 ? (
+              activities.map((activity, i) => (
+                <div
+                  key={activity.id ?? i}
+                  className="flex items-center justify-between py-3 border-b last:border-0 last:pb-0"
+                >
+                  <div>
+                    <p className="text-slate-900 font-medium">{activity.user || 'Unknown user'}</p>
+                    <p className="text-slate-600 text-sm">{activity.action || 'Activity'}</p>
+                  </div>
+                  <span className="text-xs text-slate-500">
+                    {formatRelativeTime(activity.timestamp)}
+                  </span>
                 </div>
-                <span className="text-xs text-slate-500">{activity.time}</span>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-slate-500">No recent activity available.</p>
+            )}
           </div>
         </div>
       </div>

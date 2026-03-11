@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { CircleDollarSign, FileText, MapPin, Plus, Sparkles, Tag, X } from 'lucide-react';
 import { useCreateListing } from '@/features/admin/hooks';
 import { validators } from '@/features/admin/utils';
 
@@ -139,301 +139,316 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     }
   };
 
+  const inputClass =
+    'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-4 focus:ring-cyan-100';
+  const labelClass = 'mb-2 block text-sm font-semibold tracking-wide text-slate-700';
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-teal-500 to-cyan-500 text-white p-6 border-b border-teal-600">
-          <h2 className="text-2xl font-black flex items-center gap-2">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
+      <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-[0_24px_80px_-24px_rgba(2,6,23,0.65)]">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close modal"
+          className="absolute right-4 top-4 z-20 rounded-full bg-white/90 p-2 text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-900"
+        >
+          <X size={16} />
+        </button>
+
+        <div className="relative overflow-hidden border-b border-cyan-200 bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-6 text-white sm:px-8">
+          <div className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/15 blur-2xl" />
+          <p className="relative mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide">
+            <Sparkles size={14} />
+            Seller Console
+          </p>
+          <h2 className="relative flex items-center gap-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
             <Plus size={24} />
             Create New Listing
           </h2>
-          <p className="text-teal-50 text-sm mt-2">Fill in the details to create a new listing</p>
+          <p className="relative mt-1 text-sm text-cyan-50/95">
+            Fill in the details to create a new listing.
+          </p>
         </div>
 
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {formErrors.submit && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              {formErrors.submit}
-            </div>
-          )}
-
-          {/* Basic Information */}
-          <div className="space-y-4">
-            <h3 className="font-bold text-lg text-slate-900">Basic Information</h3>
-
-            <div>
-              <label className="block text-sm font-bold text-slate-900 mb-2">Title *</label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Enter listing title"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-slate-900 mb-2">Description</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Enter listing description (optional)"
-                rows={4}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">Price (₹) *</label>
-                <input
-                  type="number"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  placeholder="0"
-                  min="0"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                  required
-                />
-                <p className="text-xs text-slate-600 mt-1">Price in INR (₹)</p>
+        <form onSubmit={handleSubmit}>
+          <div className="max-h-[72vh] space-y-6 overflow-y-auto p-6 sm:p-8">
+            {formErrors.submit && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
+                {formErrors.submit}
               </div>
+            )}
 
-              <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">
-                  Offer Price (₹){' '}
-                  <span className="text-xs font-normal text-slate-500">Optional</span>
-                </label>
-                <input
-                  type="number"
-                  value={formData.offerPrice}
-                  onChange={(e) => setFormData({ ...formData, offerPrice: e.target.value })}
-                  placeholder="Discounted price"
-                  min="0"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                />
-                {formData.offerPrice &&
-                  parseFloat(formData.offerPrice) > 0 &&
-                  parseFloat(formData.offerPrice) >= parseFloat(formData.price || '0') && (
-                    <p className="text-red-600 text-xs mt-1">
-                      ⚠ Offer price must be less than listed price
-                    </p>
-                  )}
-                {formData.offerPrice &&
-                  parseFloat(formData.offerPrice) > 0 &&
-                  parseFloat(formData.offerPrice) < parseFloat(formData.price || '0') && (
-                    <p className="text-green-600 text-xs mt-1">
-                      ✓ Saving ₹
-                      {(
-                        parseFloat(formData.price || '0') - parseFloat(formData.offerPrice)
-                      ).toLocaleString()}
-                    </p>
-                  )}
-              </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
+                <FileText size={16} /> Basic Information
+              </h3>
 
-              <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">Category *</label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                  required
-                >
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">Condition *</label>
-                <select
-                  value={formData.condition}
-                  onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                  required
-                >
-                  {conditions.map((cond) => (
-                    <option key={cond} value={cond}>
-                      {cond.replace('_', ' ').toUpperCase()}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">Location *</label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="City, State"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">
-                  Contact Number{' '}
-                  <span className="text-xs font-normal text-slate-500">Optional</span>
-                </label>
-                <input
-                  type="tel"
-                  value={formData.contactPhone}
-                  onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
-                  placeholder="e.g. 9876543210"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                />
-              </div>
-            </div>
-
-            {/* Image Upload Section */}
-            <div>
-              <label className="block text-sm font-bold text-slate-900 mb-2">Images</label>
-              <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 hover:border-teal-500 transition">
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageUpload}
-                  className="hidden"
-                  id="image-upload"
-                />
-                <label
-                  htmlFor="image-upload"
-                  className="flex flex-col items-center justify-center cursor-pointer"
-                >
-                  <Plus className="text-slate-400 mb-2" size={32} />
-                  <p className="text-sm text-slate-600 text-center">
-                    Click to upload images
-                    <br />
-                    <span className="text-xs text-slate-500">
-                      Supports: JPG, PNG, GIF (Max 5 images)
-                    </span>
-                  </p>
-                </label>
-              </div>
-
-              {/* Image Previews */}
-              {formData.images && formData.images.length > 0 && (
-                <div className="grid grid-cols-3 gap-3 mt-4">
-                  {formData.images.map((img: string, index: number) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={img}
-                        alt={`Preview ${index + 1}`}
-                        className="w-full h-24 object-cover rounded-lg border-2 border-slate-200"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ))}
+              <div className="space-y-4">
+                <div>
+                  <label className={labelClass}>Title *</label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="Enter listing title"
+                    className={inputClass}
+                    required
+                  />
                 </div>
-              )}
+
+                <div>
+                  <label className={labelClass}>Description</label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Enter listing description (optional)"
+                    rows={4}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className={`${labelClass} flex items-center gap-2`}>
+                      <CircleDollarSign size={14} /> Price (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.price}
+                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                      placeholder="0"
+                      min="0"
+                      className={inputClass}
+                      required
+                    />
+                    <p className="mt-1 text-xs text-slate-500">Price in INR</p>
+                  </div>
+
+                  <div>
+                    <label className={`${labelClass} flex items-center gap-2`}>
+                      <Tag size={14} /> Offer Price (₹)
+                      <span className="text-xs font-normal text-slate-500">Optional</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.offerPrice}
+                      onChange={(e) => setFormData({ ...formData, offerPrice: e.target.value })}
+                      placeholder="Discounted price"
+                      min="0"
+                      className={inputClass}
+                    />
+                    {formData.offerPrice &&
+                      parseFloat(formData.offerPrice) > 0 &&
+                      parseFloat(formData.offerPrice) >= parseFloat(formData.price || '0') && (
+                        <p className="mt-1 text-xs font-medium text-rose-600">
+                          Offer price must be less than listed price.
+                        </p>
+                      )}
+                    {formData.offerPrice &&
+                      parseFloat(formData.offerPrice) > 0 &&
+                      parseFloat(formData.offerPrice) < parseFloat(formData.price || '0') && (
+                        <p className="mt-1 text-xs font-medium text-emerald-600">
+                          Saving ₹
+                          {(
+                            parseFloat(formData.price || '0') - parseFloat(formData.offerPrice)
+                          ).toLocaleString()}
+                        </p>
+                      )}
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Category *</label>
+                    <select
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className={inputClass}
+                      required
+                    >
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Condition *</label>
+                    <select
+                      value={formData.condition}
+                      onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
+                      className={inputClass}
+                      required
+                    >
+                      {conditions.map((cond) => (
+                        <option key={cond} value={cond}>
+                          {cond.replace('_', ' ').toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={`${labelClass} flex items-center gap-2`}>
+                      <MapPin size={14} /> Location *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      placeholder="City, State"
+                      className={inputClass}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>
+                      Contact Number <span className="text-xs font-normal text-slate-500">Optional</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.contactPhone}
+                      onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
+                      placeholder="e.g. 9876543210"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Video Upload Section */}
-            <div>
-              <label className="block text-sm font-bold text-slate-900 mb-2">Videos</label>
-              <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 hover:border-teal-500 transition">
-                <input
-                  type="file"
-                  accept="video/*"
-                  multiple
-                  onChange={handleVideoUpload}
-                  className="hidden"
-                  id="video-upload"
-                />
-                <label
-                  htmlFor="video-upload"
-                  className="flex flex-col items-center justify-center cursor-pointer"
-                >
-                  <Plus className="text-slate-400 mb-2" size={32} />
-                  <p className="text-sm text-slate-600 text-center">
-                    Click to upload videos
-                    <br />
-                    <span className="text-xs text-slate-500">Supports: MP4, MOV, WEBM</span>
-                  </p>
-                </label>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <label className={labelClass}>Images</label>
+                <div className="rounded-xl border-2 border-dashed border-slate-300 p-5 transition hover:border-cyan-400 hover:bg-cyan-50/40">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    id="image-upload"
+                  />
+                  <label htmlFor="image-upload" className="flex cursor-pointer flex-col items-center justify-center">
+                    <Plus className="mb-2 text-slate-400" size={30} />
+                    <p className="text-center text-sm text-slate-600">
+                      Click to upload images
+                      <span className="mt-1 block text-xs text-slate-500">
+                        Supports: JPG, PNG, GIF
+                      </span>
+                    </p>
+                  </label>
+                </div>
+
+                {formData.images && formData.images.length > 0 && (
+                  <div className="mt-4 grid grid-cols-3 gap-3">
+                    {formData.images.map((img: string, index: number) => (
+                      <div key={index} className="group relative">
+                        <img
+                          src={img}
+                          alt={`Preview ${index + 1}`}
+                          className="h-24 w-full rounded-lg border-2 border-slate-200 object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute right-1 top-1 rounded-full bg-rose-500 p-1 text-white opacity-0 transition group-hover:opacity-100"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {formData.videos && formData.videos.length > 0 && (
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  {formData.videos.map((video: string, index: number) => (
-                    <div key={index} className="relative group">
-                      <video
-                        src={video}
-                        className="w-full h-28 object-cover rounded-lg border-2 border-slate-200 bg-slate-100"
-                        controls
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeVideo(index)}
-                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ))}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <label className={labelClass}>Videos</label>
+                <div className="rounded-xl border-2 border-dashed border-slate-300 p-5 transition hover:border-cyan-400 hover:bg-cyan-50/40">
+                  <input
+                    type="file"
+                    accept="video/*"
+                    multiple
+                    onChange={handleVideoUpload}
+                    className="hidden"
+                    id="video-upload"
+                  />
+                  <label htmlFor="video-upload" className="flex cursor-pointer flex-col items-center justify-center">
+                    <Plus className="mb-2 text-slate-400" size={30} />
+                    <p className="text-center text-sm text-slate-600">
+                      Click to upload videos
+                      <span className="mt-1 block text-xs text-slate-500">
+                        Supports: MP4, MOV, WEBM
+                      </span>
+                    </p>
+                  </label>
                 </div>
-              )}
+
+                {formData.videos && formData.videos.length > 0 && (
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    {formData.videos.map((video: string, index: number) => (
+                      <div key={index} className="group relative">
+                        <video
+                          src={video}
+                          className="h-28 w-full rounded-lg border-2 border-slate-200 bg-slate-100 object-cover"
+                          controls
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeVideo(index)}
+                          className="absolute right-1 top-1 rounded-full bg-rose-500 p-1 text-white opacity-0 transition group-hover:opacity-100"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-900">
-                <strong>💡 Info:</strong> Users need an active subscription or coupon code with free
+            <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4">
+              <p className="text-sm text-cyan-900">
+                <strong>Info:</strong> Users need an active subscription or coupon code with free
                 listings to create listings.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <label className="flex items-center gap-3 cursor-pointer bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <input
                   type="checkbox"
                   checked={formData.sponsored}
                   onChange={(e) => setFormData({ ...formData, sponsored: e.target.checked })}
-                  className="w-4 h-4 accent-amber-600"
+                  className="h-4 w-4 accent-amber-600"
                 />
                 <div>
                   <p className="text-sm font-semibold text-amber-900">Sponsored Tag</p>
                   <p className="text-xs text-amber-800">Show sponsored label in cards/details.</p>
                 </div>
               </label>
-              <label className="flex items-center gap-3 cursor-pointer bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4">
                 <input
                   type="checkbox"
                   checked={formData.featured}
                   onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-                  className="w-4 h-4 accent-blue-600"
+                  className="h-4 w-4 accent-blue-600"
                 />
                 <div>
                   <p className="text-sm font-semibold text-blue-900">Featured Listing</p>
-                  <p className="text-xs text-blue-800">
-                    Use featured ranking separately from sponsored.
-                  </p>
+                  <p className="text-xs text-blue-800">Use featured ranking separately from sponsored.</p>
                 </div>
               </label>
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="sticky bottom-0 flex gap-3 bg-slate-100 border-t border-slate-200 p-6">
+          <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-5 sm:flex-row sm:p-6">
             <button
               type="button"
               onClick={onClose}
               disabled={createListing.isPending}
-              className="flex-1 px-6 py-3 rounded-lg font-bold border border-slate-300 text-slate-900 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-xl border border-slate-300 bg-white px-6 py-3 font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
             >
               Cancel
             </button>
@@ -442,7 +457,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
               disabled={
                 createListing.isPending || !formData.title || !formData.price || !formData.location
               }
-              className="flex-1 bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-200 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
             >
               {createListing.isPending ? 'Creating...' : 'Create Listing'}
             </button>

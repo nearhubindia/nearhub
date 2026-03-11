@@ -30,6 +30,14 @@ function isNativeLocalUri(uri: string): boolean {
   return normalized.startsWith('file://') || normalized.startsWith('content://');
 }
 
+function getDataUriBytes(uri: string): number {
+  const commaIndex = uri.indexOf(',');
+  if (commaIndex === -1) return 0;
+  const base64 = uri.slice(commaIndex + 1);
+  const padding = (base64.match(/=+$/) || [''])[0].length;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+}
+
 function inferMimeType(uri: string, mediaType: MediaType): string {
   const lower = uri.toLowerCase();
   if (lower.endsWith('.png')) return 'image/png';
@@ -106,10 +114,27 @@ async function uploadWithNativeFileSystem(
 }
 
 async function getFileSizeBytes(uri: string): Promise<number> {
+  if (uri.startsWith('data:')) {
+    const bytes = getDataUriBytes(uri);
+    if (bytes > 0) return bytes;
+  }
+
   if (isNativeLocalUri(uri)) {
     const info = await FileSystem.getInfoAsync(uri);
     if (info.exists && typeof (info as { size?: number }).size === 'number') {
       return (info as { size: number }).size;
+    }
+
+    // Fallback for content:// URIs when size metadata is unavailable.
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const padding = (base64.match(/=+$/) || [''])[0].length;
+      const bytes = Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+      if (bytes > 0) return bytes;
+    } catch {
+      // continue to fetch fallback below
     }
   }
 
@@ -140,8 +165,7 @@ export async function uploadMediaToCloudflare(params: {
     userId: params.userId,
   });
 
-  const useNativeUpload =
-    Platform.OS !== 'web' && isNativeLocalUri(params.uri) && !params.uri.startsWith('content://');
+  const useNativeUpload = Platform.OS !== 'web' && isNativeLocalUri(params.uri);
 
   if (useNativeUpload) {
     await uploadWithNativeFileSystem(signed.uploadUrl, contentType, params.uri);

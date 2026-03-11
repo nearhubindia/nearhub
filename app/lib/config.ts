@@ -3,16 +3,24 @@
  * Centralized environment variable management for the Expo app
  */
 
+function normalizeBaseUrl(value: string): string {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return '';
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return withProtocol.replace(/\/+$/, '');
+}
+
 export function getBackendURL(): string {
   // Try to get from environment variables first
   const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
   const envDomain = process.env.EXPO_PUBLIC_DOMAIN;
 
   if (envApiUrl) {
+    const normalized = normalizeBaseUrl(envApiUrl);
     if (getDebug()) {
-      console.log('[Config] Using EXPO_PUBLIC_API_URL:', envApiUrl);
+      console.log('[Config] Using EXPO_PUBLIC_API_URL:', normalized);
     }
-    return envApiUrl;
+    return normalized;
   }
 
   if (envDomain) {
@@ -20,7 +28,7 @@ export function getBackendURL(): string {
       envDomain.includes('192.168.') || envDomain.includes('10.') || envDomain.includes('172.');
 
     const protocol = isLocalNetwork ? 'http' : 'https';
-    const url = `${protocol}://${envDomain}`;
+    const url = normalizeBaseUrl(`${protocol}://${envDomain}`);
 
     if (getDebug()) {
       console.log('[Config] Using EXPO_PUBLIC_DOMAIN:', url);
@@ -29,8 +37,8 @@ export function getBackendURL(): string {
     return url;
   }
 
-  // Fallback to development default
-  const fallback = 'http://localhost:5000';
+  // Final fallback points to production so physical Android devices don't break on localhost.
+  const fallback = 'https://nearhub.in';
   if (getDebug()) {
     console.log('[Config] Using fallback URL:', fallback);
   }

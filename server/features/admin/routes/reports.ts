@@ -1,4 +1,8 @@
 import type { Express, Response, Request } from 'express';
+import { desc, eq } from 'drizzle-orm';
+import { db } from '../../../data/db';
+import { listings } from '../models/admin-settings';
+import { users } from '../../users/models/users';
 
 /**
  * Admin Reports Routes
@@ -6,6 +10,47 @@ import type { Express, Response, Request } from 'express';
  */
 
 export function registerReportsRoutes(app: Express) {
+  app.get('/api/admin/reports/recent-activity', async (_req: Request, res: Response) => {
+    try {
+      const rows = await db
+        .select({
+          id: listings.id,
+          title: listings.title,
+          listingType: listings.listingType,
+          sellerId: listings.sellerId,
+          createdAt: listings.createdAt,
+          username: users.username,
+        })
+        .from(listings)
+        .leftJoin(users, eq(listings.sellerId, users.id))
+        .orderBy(desc(listings.createdAt))
+        .limit(10);
+
+      const activities = rows.map((row) => {
+        const type = String(row.listingType || '').toLowerCase();
+        const action =
+          type === 'video'
+            ? 'Posted video listing'
+            : type === 'image'
+              ? 'Posted image listing'
+              : 'Posted new listing';
+
+        return {
+          id: row.id,
+          user: row.username || row.sellerId || 'Unknown user',
+          action,
+          listingTitle: row.title || '',
+          timestamp: row.createdAt ? new Date(row.createdAt).toISOString() : null,
+        };
+      });
+
+      res.json({ success: true, activities });
+    } catch (error) {
+      console.error('[Reports] Error fetching recent activity:', error);
+      res.status(500).json({ success: false, error: 'Failed to fetch recent activity' });
+    }
+  });
+
   /**
    * GET /api/admin/reports/growth
    * User growth report
