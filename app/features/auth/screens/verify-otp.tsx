@@ -209,39 +209,41 @@ export default function VerifyOTPScreen() {
             ))}
           </View>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.verifyButton,
-              pressed && styles.verifyButtonPressed,
-              (isVerifying || otpCode.length !== OTP_LENGTH) && styles.verifyButtonDisabled,
-            ]}
-            onPress={handleVerify}
-            disabled={isVerifying || otpCode.length !== OTP_LENGTH}
-          >
-            <LinearGradient
-              colors={[Colors.primaryLight, Colors.primary, Colors.primaryDark]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.verifyGradient}
+          <View style={styles.actionSection}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.verifyButton,
+                pressed && styles.verifyButtonPressed,
+                (isVerifying || otpCode.length !== OTP_LENGTH) && styles.verifyButtonDisabled,
+              ]}
+              onPress={handleVerify}
+              disabled={isVerifying || otpCode.length !== OTP_LENGTH}
             >
-              {isVerifying ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Feather name="check-circle" size={20} color="#fff" />
-                  <Text style={styles.verifyText}>Verify & Continue</Text>
-                </>
-              )}
-            </LinearGradient>
-          </Pressable>
-
-          <View style={styles.resendRow}>
-            <Text style={styles.resendLabel}>Didn&apos;t receive the code? </Text>
-            <Pressable onPress={handleResend} disabled={resendTimer > 0}>
-              <Text style={[styles.resendLink, resendTimer > 0 && styles.resendLinkDisabled]}>
-                {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
-              </Text>
+              <LinearGradient
+                colors={[Colors.primaryLight, Colors.primary, Colors.primaryDark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.verifyGradient}
+              >
+                {isVerifying ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Feather name="check-circle" size={20} color="#fff" />
+                    <Text style={styles.verifyText}>Verify & Continue</Text>
+                  </>
+                )}
+              </LinearGradient>
             </Pressable>
+
+            <View style={styles.resendRow}>
+              <Text style={styles.resendLabel}>Didn&apos;t receive the code? </Text>
+              <Pressable onPress={handleResend} disabled={resendTimer > 0}>
+                <Text style={[styles.resendLink, resendTimer > 0 && styles.resendLinkDisabled]}>
+                  {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -318,10 +320,14 @@ const styles = createResponsiveStyles({
     borderColor: Colors.primary,
     backgroundColor: 'rgba(10, 102, 194, 0.05)',
   },
+  actionSection: {
+    width: '100%',
+    alignSelf: 'stretch',
+  },
   verifyButton: {
     borderRadius: 14,
     overflow: 'hidden',
-    width: '100%',
+    alignSelf: 'stretch',
     shadowColor: Colors.primaryDark,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
@@ -339,8 +345,8 @@ const styles = createResponsiveStyles({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 50,
-    paddingVertical: 15,
+    minHeight: 52,
+    paddingVertical: 14,
     gap: 10,
   },
   verifyText: {
@@ -351,6 +357,8 @@ const styles = createResponsiveStyles({
   resendRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
   },
   resendLabel: {
     fontSize: 14,

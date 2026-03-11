@@ -8,7 +8,6 @@ import {
   StyleSheet,
   Platform,
   Animated,
-  I18nManager,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -26,6 +25,7 @@ interface ProfileMenuModalProps {
 interface MenuItem {
   icon: keyof typeof Feather.glyphMap;
   label: string;
+  subtitle: string;
   route: string;
   color?: string;
 }
@@ -34,32 +34,44 @@ const MENU_ITEMS: MenuItem[] = [
   {
     icon: 'user',
     label: 'My Profile',
+    subtitle: 'View & Edit',
     route: '/profile',
+    color: '#0E5FC7',
   },
   {
     icon: 'package',
     label: 'My Listings',
+    subtitle: 'Manage items',
     route: '/my-listings',
+    color: '#2667FF',
   },
   {
     icon: 'heart',
     label: 'Favourites',
+    subtitle: 'Saved items',
     route: '/saved',
+    color: '#E11D48',
   },
   {
     icon: 'credit-card',
     label: 'Subscriptions',
+    subtitle: 'Plans & billing',
     route: '/subscriptions',
+    color: '#7C3AED',
   },
   {
     icon: 'file-text',
     label: 'Invoices',
+    subtitle: 'Payments & Bills',
     route: '/invoices',
+    color: '#0F766E',
   },
   {
     icon: 'settings',
     label: 'Settings',
+    subtitle: 'Preferences',
     route: '/settings',
+    color: '#334155',
   },
 ];
 const MENU_ACCENT = '#0B6DD8';
@@ -124,6 +136,10 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
             },
           ]}
         >
+          <View pointerEvents="none" style={styles.chromeOrbPrimary} />
+          <View pointerEvents="none" style={styles.chromeOrbSecondary} />
+          <View style={styles.topHandle} />
+
           <View style={styles.header}>
             <View>
               <Text style={styles.headerTitle}>Account</Text>
@@ -176,43 +192,50 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
             contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
           >
             <View style={styles.menuGroup}>
-              <Text style={styles.menuGroupTitle}>Quick Access</Text>
-              {MENU_ITEMS.map((item, index) => (
-                <Pressable
-                  key={index}
-                  style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
-                  onPress={() => handleMenuItemPress(item.route)}
-                >
-                  <View style={styles.menuItemMain}>
+              <View style={styles.menuGroupHeader}>
+                <Text style={styles.menuGroupTitle}>Quick Access</Text>
+                <View style={styles.swapButton}>
+                  <Feather name="repeat" size={responsiveModerateScale(16)} color={Colors.primary} />
+                </View>
+              </View>
+
+              <View style={styles.menuGrid}>
+                {MENU_ITEMS.map((item, index) => (
+                  <Pressable
+                    key={index}
+                    style={({ pressed }) => [styles.menuCard, pressed && styles.menuCardPressed]}
+                    onPress={() => handleMenuItemPress(item.route)}
+                  >
                     <View
                       style={[
-                        styles.iconContainer,
-                        item.color && { backgroundColor: item.color + '15' },
+                        styles.menuCardIcon,
+                        item.color && { backgroundColor: item.color + '20' },
                       ]}
                     >
                       <Feather
                         name={item.icon}
-                        size={responsiveModerateScale(17)}
-                        color={item.color || '#0B2545'}
+                        size={responsiveModerateScale(18)}
+                        color={item.color || '#12223A'}
                       />
                     </View>
-                    <Text style={styles.menuItemLabel} numberOfLines={1} ellipsizeMode="tail">
-                      {item.label}
-                    </Text>
-                  </View>
-                  <View pointerEvents="none" style={styles.chevronWrap}>
-                    <Feather
-                      name="chevron-right"
-                      size={responsiveModerateScale(15)}
-                      color="#7A8CA6"
-                      style={[
-                        styles.trailingChevron,
-                        I18nManager.isRTL ? styles.trailingChevronRtl : null,
-                      ]}
-                    />
-                  </View>
-                </Pressable>
-              ))}
+                    <View style={styles.menuCardBody}>
+                      <Text style={styles.menuCardTitle} numberOfLines={1}>
+                        {item.label}
+                      </Text>
+                      <Text style={styles.menuCardSubtitle} numberOfLines={1}>
+                        {item.subtitle}
+                      </Text>
+                      <View style={styles.menuCardFooter}>
+                        <Feather
+                          name="arrow-right"
+                          size={responsiveModerateScale(16)}
+                          color={item.color || Colors.primary}
+                        />
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
             </View>
 
             {/* Divider */}
@@ -221,29 +244,16 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
             {/* Logout */}
             {isAuthenticated && (
               <Pressable
-                style={({ pressed }) => [
-                  styles.menuItem,
-                  styles.logoutItem,
-                  pressed && styles.logoutItemPressed,
-                ]}
+                style={({ pressed }) => [styles.logoutPill, pressed && styles.logoutPillPressed]}
                 onPress={handleLogout}
               >
-                <View style={styles.menuItemMain}>
-                  <View style={[styles.iconContainer, { backgroundColor: Colors.accent + '15' }]}>
-                    <Feather
-                      name="log-out"
-                      size={responsiveModerateScale(18)}
-                      color={Colors.accent}
-                    />
+                <View style={styles.logoutLeft}>
+                  <View style={styles.logoutIcon}>
+                    <Feather name="log-out" size={responsiveModerateScale(19)} color={Colors.accent} />
                   </View>
-                  <Text
-                    style={[styles.menuItemLabel, styles.logoutLabel]}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
-                  >
-                    Logout
-                  </Text>
+                  <Text style={styles.logoutLabel}>Logout</Text>
                 </View>
+                <Feather name="arrow-right" size={responsiveModerateScale(18)} color={Colors.accent} />
               </Pressable>
             )}
           </ScrollView>
@@ -284,6 +294,32 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  chromeOrbPrimary: {
+    position: 'absolute',
+    top: -44,
+    right: -34,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: 'rgba(11,109,216,0.10)',
+  },
+  chromeOrbSecondary: {
+    position: 'absolute',
+    top: 110,
+    left: -52,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(42,140,242,0.08)',
+  },
+  topHandle: {
+    alignSelf: 'center',
+    width: 42,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#CFDAEB',
+    marginBottom: 10,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -321,7 +357,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
       },
       android: {
-        elevation: 3,
+        elevation: 4,
       },
     }),
   },
@@ -333,6 +369,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderRadius: 18,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
     ...Platform.select({
       ios: {
         shadowColor: '#0A4F9B',
@@ -349,9 +387,9 @@ const styles = StyleSheet.create({
     width: responsiveModerateScale(54),
     height: responsiveModerateScale(54),
     borderRadius: responsiveModerateScale(27),
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: 'rgba(255,255,255,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.38)',
+    borderColor: 'rgba(255,255,255,0.42)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -412,117 +450,134 @@ const styles = StyleSheet.create({
   },
   menuGroup: {
     marginHorizontal: 16,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E4ECF8',
-    paddingVertical: 14,
-    paddingHorizontal: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#102949',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.08,
-        shadowRadius: 14,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    marginBottom: 8,
+  },
+  menuGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
   menuGroupTitle: {
     marginTop: 2,
-    marginBottom: 12,
-    marginHorizontal: 12,
-    fontSize: responsiveFont(12),
+    marginLeft: 4,
+    fontSize: responsiveFont(17),
     fontFamily: 'Inter_700Bold',
-    color: '#7287A6',
-    textTransform: 'uppercase',
-    letterSpacing: 0.9,
+    color: '#273553',
+    letterSpacing: 0.2,
   },
-  menuItem: {
-    position: 'relative',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    width: '100%',
-    flexWrap: 'nowrap',
-    minHeight: responsiveModerateScale(60),
-    paddingVertical: responsiveModerateScale(8),
-    paddingHorizontal: responsiveModerateScale(10),
-    borderRadius: 16,
-    marginBottom: 10,
-    backgroundColor: '#F8FAFE',
-    borderWidth: 1,
-    borderColor: '#EEF3FB',
-  },
-  menuItemMain: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    minWidth: 0,
-    paddingRight: responsiveModerateScale(42),
-  },
-  menuItemPressed: {
-    backgroundColor: '#EDF3FD',
-  },
-  iconContainer: {
+  swapButton: {
     width: responsiveModerateScale(36),
     height: responsiveModerateScale(36),
     borderRadius: responsiveModerateScale(11),
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E4ECF8',
+    backgroundColor: '#EDF3FF',
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
+    borderWidth: 1,
+    borderColor: '#DEE9FF',
   },
-  menuItemLabel: {
-    flex: 1,
-    fontSize: responsiveFont(14.5),
-    lineHeight: responsiveFont(20),
-    fontFamily: 'Inter_600SemiBold',
-    color: '#12223A',
-    marginLeft: responsiveModerateScale(11),
+  menuGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
-  chevronWrap: {
-    position: 'absolute',
-    right: responsiveModerateScale(10),
-    top: '50%',
-    marginTop: responsiveModerateScale(-14),
-    width: responsiveModerateScale(28),
-    height: responsiveModerateScale(28),
+  menuCard: {
+    width: '48%',
+    minHeight: responsiveModerateScale(90),
+    borderRadius: 20,
+    backgroundColor: '#F2F6FD',
+    borderWidth: 1,
+    borderColor: '#E5ECFA',
+    paddingHorizontal: responsiveModerateScale(11),
+    paddingVertical: responsiveModerateScale(11),
+    marginBottom: 9,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0F2546',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.05,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  menuCardPressed: {
+    backgroundColor: '#EAF1FF',
+    transform: [{ scale: 0.985 }],
+  },
+  menuCardIcon: {
+    width: responsiveModerateScale(44),
+    height: responsiveModerateScale(44),
     borderRadius: responsiveModerateScale(14),
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E4ECF8',
+    borderColor: '#E0E9F7',
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
+    marginRight: responsiveModerateScale(9),
   },
-  trailingChevron: {
-    marginLeft: 1.5,
+  menuCardBody: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: responsiveModerateScale(56),
+    justifyContent: 'space-between',
   },
-  trailingChevronRtl: {
-    transform: [{ scaleX: -1 }],
+  menuCardTitle: {
+    fontSize: responsiveFont(14.5),
+    fontFamily: 'Inter_600SemiBold',
+    color: '#2A3553',
+  },
+  menuCardSubtitle: {
+    marginTop: 2,
+    fontSize: responsiveFont(11.8),
+    fontFamily: 'Inter_500Medium',
+    color: '#7484A2',
+  },
+  menuCardFooter: {
+    marginTop: responsiveModerateScale(5),
+    alignItems: 'flex-end',
   },
   divider: {
     height: 1,
     backgroundColor: '#DDE6F3',
-    marginVertical: 14,
+    marginVertical: 12,
     marginHorizontal: 16,
   },
-  logoutItem: {
+  logoutPill: {
     marginHorizontal: 16,
-    backgroundColor: '#FFF4F6',
+    minHeight: responsiveModerateScale(54),
+    borderRadius: 18,
+    backgroundColor: '#F6F9FD',
     borderWidth: 1,
-    borderColor: '#FFDCE2',
-    marginBottom: 4,
+    borderColor: '#E5ECF8',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: responsiveModerateScale(13),
+    marginBottom: 8,
   },
-  logoutItemPressed: {
-    backgroundColor: '#FFE9ED',
+  logoutPillPressed: {
+    backgroundColor: '#EEF3FB',
+  },
+  logoutLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logoutIcon: {
+    width: responsiveModerateScale(34),
+    height: responsiveModerateScale(34),
+    borderRadius: responsiveModerateScale(11),
+    backgroundColor: '#FFECEF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   logoutLabel: {
+    marginLeft: responsiveModerateScale(10),
+    fontSize: responsiveFont(15),
     color: Colors.accent,
     fontFamily: 'Inter_600SemiBold',
   },

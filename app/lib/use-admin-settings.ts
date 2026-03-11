@@ -14,6 +14,11 @@ interface AdminSettings {
 
 const DEFAULT_GEO_RADIUS = 100; // Default fallback
 let cachedSettings: AdminSettings | null = null;
+const RETRYABLE_STATUS = new Set([500, 502, 503, 504, 520, 521, 522, 523, 524]);
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * Hook to fetch and cache admin settings
@@ -33,21 +38,47 @@ export function useAdminSettings() {
     }
 
     const fetchSettings = async () => {
-      try {
-        const apiUrl = await getApiUrl();
-        const response = await fetch(`${apiUrl}/api/admin/settings`);
+      const maxRetries = 2;
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch admin settings');
+      try {
+        const apiUrl = getApiUrl();
+        let lastError: Error | null = null;
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 8000);
+
+            const response = await fetch(`${apiUrl}/api/admin/settings`, {
+              signal: controller.signal,
+            });
+            clearTimeout(timeout);
+
+            if (!response.ok) {
+              if (RETRYABLE_STATUS.has(response.status) && attempt < maxRetries) {
+                await delay(500 * Math.pow(2, attempt));
+                continue;
+              }
+              throw new Error(`Failed to fetch admin settings (${response.status})`);
+            }
+
+            const data = await response.json();
+            cachedSettings = data.settings;
+            setGeoRadiusKm(data.settings.geoRadiusKm || DEFAULT_GEO_RADIUS);
+            setError(null);
+            return;
+          } catch (err) {
+            lastError = err instanceof Error ? err : new Error(String(err));
+            if (attempt < maxRetries) {
+              await delay(500 * Math.pow(2, attempt));
+              continue;
+            }
+          }
         }
 
-        const data = await response.json();
-        cachedSettings = data.settings;
-
-        setGeoRadiusKm(data.settings.geoRadiusKm || DEFAULT_GEO_RADIUS);
-        setError(null);
+        throw lastError || new Error('Failed to fetch admin settings');
       } catch (err) {
-        console.error('[useAdminSettings] Error fetching settings:', err);
+        console.warn('[useAdminSettings] Using fallback settings:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
         setGeoRadiusKm(DEFAULT_GEO_RADIUS); // Use default on error
       } finally {
