@@ -796,7 +796,9 @@ export default function HomeScreen() {
                 ) : (
                   <>
                     <Feather name="navigation" size={16} color="#FFFFFF" />
-                    <Text style={styles.autoDetectButtonText}>Use Current Location</Text>
+                    <Text style={[styles.autoDetectButtonText, styles.autoDetectButtonTextWithIcon]}>
+                      Use Current Location
+                    </Text>
                   </>
                 )}
               </Pressable>
@@ -1511,6 +1513,9 @@ const styles = createResponsiveStyles({
     fontSize: 14.5,
     fontFamily: 'Inter_600SemiBold',
     color: '#FFFFFF',
+  },
+  autoDetectButtonTextWithIcon: {
+    marginLeft: 8,
   },
   autoDetectTextWrap: {
     alignItems: 'flex-start',
