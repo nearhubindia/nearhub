@@ -21,7 +21,6 @@ import InAppNotificationsPage from './features/admin/pages/InAppNotificationsPag
 import RevenuePage from './features/admin/pages/RevenuePage';
 import ReportsPage from './features/admin/pages/ReportsPage';
 import SettingsPage from './features/admin/pages/SettingsPage';
-import StarterKitPage from './features/admin/pages/StarterKitPage';
 import ContactSubmissionsPage from './features/admin/pages/ContactSubmissionsPage';
 import AdminLogin from './features/admin/pages/AdminLogin';
 import { ProtectedRoute } from './shared/components/ProtectedRoute';
@@ -61,7 +60,6 @@ function App() {
             <Route path="reports" element={<ReportsPage />} />
             <Route path="contact-submissions" element={<ContactSubmissionsPage />} />
             <Route path="settings" element={<SettingsPage />} />
-            <Route path="starter-kit" element={<StarterKitPage />} />
           </Route>
           <Route path="/app" element={<Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />

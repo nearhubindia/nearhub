@@ -1,12 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { getApiUrl } from '@/lib/config';
 import { getAdminToken } from '@/features/admin/constants/admin-constants';
 
-interface SettingsViewProps {
-  focusStarterKit?: boolean;
-}
-
-export default function SettingsView({ focusStarterKit = false }: SettingsViewProps) {
+export default function SettingsView() {
   const [verifiedBadgeEnabled, setVerifiedBadgeEnabled] = useState(true);
   const [priorityListingEnabled, setPriorityListingEnabled] = useState(true);
   const [featuredListingEnabled, setFeaturedListingEnabled] = useState(true);
@@ -18,7 +14,6 @@ export default function SettingsView({ focusStarterKit = false }: SettingsViewPr
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const starterKitRef = useRef<HTMLDivElement | null>(null);
 
   // Fetch current settings on load
   useEffect(() => {
@@ -56,14 +51,6 @@ export default function SettingsView({ focusStarterKit = false }: SettingsViewPr
 
     fetchSettings();
   }, []);
-
-  useEffect(() => {
-    if (!focusStarterKit || isLoading) return;
-    const timer = setTimeout(() => {
-      starterKitRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 120);
-    return () => clearTimeout(timer);
-  }, [focusStarterKit, isLoading]);
 
   const handleSaveSettings = async (): Promise<void> => {
     try {
@@ -132,11 +119,7 @@ export default function SettingsView({ focusStarterKit = false }: SettingsViewPr
         {!isLoading && (
           <>
             {/* Listing Features Settings */}
-            <div
-              id="starter-kit"
-              ref={starterKitRef}
-              className="bg-white border border-slate-200 rounded-lg p-8 scroll-mt-24"
-            >
+            <div className="bg-white border border-slate-200 rounded-lg p-8">
               <h3 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
                 <span className="text-2xl">📋</span> Listing Enhancement Features
               </h3>
