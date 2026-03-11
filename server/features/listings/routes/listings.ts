@@ -17,8 +17,31 @@ import {
 } from '../../../shared/services/auto-notifications';
 
 function parseJsonField(value: unknown): unknown[] {
-  if (typeof value === 'string') return JSON.parse(value || '[]');
-  return (value as unknown[]) || [];
+  if (Array.isArray(value)) return value;
+  if (value == null) return [];
+  if (typeof value !== 'string') return [];
+
+  const raw = value.trim();
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed == null) return [];
+    return [parsed];
+  } catch {
+    // Fallback for Postgres array literal format: {"a","b"} or {a,b}
+    if (raw.startsWith('{') && raw.endsWith('}')) {
+      const inner = raw.slice(1, -1).trim();
+      if (!inner) return [];
+      return inner
+        .split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/)
+        .map((item) => item.trim().replace(/^"(.*)"$/, '$1').replace(/\\"/g, '"'))
+        .filter(Boolean);
+    }
+
+    return [raw];
+  }
 }
 
 function normalizeOwnerId(value: unknown): string {

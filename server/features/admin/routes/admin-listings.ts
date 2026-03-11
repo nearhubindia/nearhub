@@ -13,8 +13,30 @@ import { createInAppNotification } from '../../../shared/services/in-app-notific
 
 export function registerAdminListingsRoutes(app: Express) {
   const parseJsonField = (value: unknown): unknown[] => {
-    if (typeof value === 'string') return JSON.parse(value || '[]');
-    return (value as unknown[]) || [];
+    if (Array.isArray(value)) return value;
+    if (value == null) return [];
+    if (typeof value !== 'string') return [];
+
+    const raw = value.trim();
+    if (!raw) return [];
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed == null) return [];
+      return [parsed];
+    } catch {
+      // Accept Postgres array literal format as well.
+      if (raw.startsWith('{') && raw.endsWith('}')) {
+        const inner = raw.slice(1, -1).trim();
+        if (!inner) return [];
+        return inner
+          .split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/)
+          .map((item) => item.trim().replace(/^"(.*)"$/, '$1').replace(/\\"/g, '"'))
+          .filter(Boolean);
+      }
+      return [raw];
+    }
   };
 
   const normalizeContactPhone = (value: unknown): string | null => {
@@ -82,14 +104,8 @@ export function registerAdminListingsRoutes(app: Express) {
           sponsored: listing.sponsored,
           createdAt: listing.createdAt?.toISOString(),
           expiresAt: listing.expiresAt?.toISOString(),
-          images:
-            typeof listing.images === 'string'
-              ? JSON.parse(listing.images || '[]')
-              : listing.images || [],
-          videos:
-            typeof listing.videos === 'string'
-              ? JSON.parse(listing.videos || '[]')
-              : listing.videos || [],
+          images: parseJsonField(listing.images),
+          videos: parseJsonField(listing.videos),
         })),
         total,
       });
@@ -218,14 +234,8 @@ export function registerAdminListingsRoutes(app: Express) {
           sponsored: listing.sponsored,
           createdAt: listing.createdAt?.toISOString(),
           expiresAt: listing.expiresAt?.toISOString(),
-          images:
-            typeof listing.images === 'string'
-              ? JSON.parse(listing.images || '[]')
-              : listing.images || [],
-          videos:
-            typeof listing.videos === 'string'
-              ? JSON.parse(listing.videos || '[]')
-              : listing.videos || [],
+          images: parseJsonField(listing.images),
+          videos: parseJsonField(listing.videos),
         },
       });
     } catch (error) {

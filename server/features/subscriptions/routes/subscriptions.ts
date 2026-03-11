@@ -85,6 +85,32 @@ function hasLocalDeviceUri(value: unknown): boolean {
   );
 }
 
+function parseMediaField(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (value == null) return [];
+  if (typeof value !== 'string') return [];
+
+  const raw = value.trim();
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed == null) return [];
+    return [parsed];
+  } catch {
+    if (raw.startsWith('{') && raw.endsWith('}')) {
+      const inner = raw.slice(1, -1).trim();
+      if (!inner) return [];
+      return inner
+        .split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/)
+        .map((item) => item.trim().replace(/^"(.*)"$/, '$1').replace(/\\"/g, '"'))
+        .filter(Boolean);
+    }
+    return [raw];
+  }
+}
+
 export function registerSubscriptionRoutes(app: Express) {
   /**
    * NOTE: GET /api/listings and GET /api/listings/:id endpoints
@@ -1232,14 +1258,8 @@ export function registerSubscriptionRoutes(app: Express) {
 
       const formattedListings = listings.map((listing) => ({
         ...listing,
-        images:
-          typeof listing.images === 'string'
-            ? JSON.parse(listing.images || '[]')
-            : listing.images || [],
-        videos:
-          typeof listing.videos === 'string'
-            ? JSON.parse(listing.videos || '[]')
-            : listing.videos || [],
+        images: parseMediaField(listing.images),
+        videos: parseMediaField(listing.videos),
       }));
 
       // Attach latest rejection reason for rejected listings so seller can edit + resubmit

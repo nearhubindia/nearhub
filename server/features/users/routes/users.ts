@@ -11,12 +11,23 @@ const usersStorage = new Map<string, any>();
 
 function parseJsonField(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
+  if (value == null) return [];
   if (typeof value === 'string') {
+    const raw = value.trim();
+    if (!raw) return [];
     try {
-      const parsed = JSON.parse(value);
+      const parsed = JSON.parse(raw);
       return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return [];
+      if (raw.startsWith('{') && raw.endsWith('}')) {
+        const inner = raw.slice(1, -1).trim();
+        if (!inner) return [];
+        return inner
+          .split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/)
+          .map((item) => item.trim().replace(/^"(.*)"$/, '$1').replace(/\\"/g, '"'))
+          .filter(Boolean);
+      }
+      return [raw];
     }
   }
   return [];
