@@ -59,6 +59,12 @@ import {
   consumeUserBoostCredit,
   addBoostCreditsToSubscription,
 } from '../services/subscription-tiers';
+import {
+  consumeStarterBoostCredit,
+  consumeStarterListingCredit,
+  getStarterCreditsSummary,
+  releaseStarterListingCredit,
+} from '../services/starter-credits';
 import { getActiveListingCount, getSubscriptionById } from '../services/subscription-tiers';
 import { listingCreationLimiter } from '../../../lib/rate-limiter';
 
@@ -273,9 +279,12 @@ export function registerSubscriptionRoutes(app: Express) {
         })),
       });
 
+      const starterCredits = await getStarterCreditsSummary(String(userId));
+
       return res.json({
         success: true,
         data: enriched,
+        starterCredits,
       });
     } catch (error) {
       console.error('[Subscriptions] Error fetching user subscriptions:', error);
@@ -572,6 +581,8 @@ export function registerSubscriptionRoutes(app: Express) {
         let isPaid = false;
         let isFreeFromCoupon = false;
         let couponFreeRemaining = 0;
+        let isFreeFromStarterCredits = false;
+        let starterListingsRemaining = 0;
 
         if (couponCode) {
           // User is using a coupon code for free listing
@@ -593,12 +604,19 @@ export function registerSubscriptionRoutes(app: Express) {
             isPaid = true;
           }
         } else {
-          // No coupon and no subscription - reject
-          return res.status(403).json({
-            error:
-              'A subscription or valid coupon code with free listings is required to create a listing.',
-            code: 'SUBSCRIPTION_OR_COUPON_REQUIRED',
-          });
+          // No coupon and no subscription - consume starter credit if available.
+          const starterConsume = await consumeStarterListingCredit(ownerId);
+          if (!starterConsume) {
+            return res.status(403).json({
+              error:
+                'A subscription, starter listing credit, or valid coupon code is required to create a listing.',
+              code: 'SUBSCRIPTION_STARTER_OR_COUPON_REQUIRED',
+            });
+          }
+          durationDays = 30;
+          isPaid = false;
+          isFreeFromStarterCredits = true;
+          starterListingsRemaining = starterConsume.listingsRemaining;
         }
 
         const listingData: CreateListingRequest = {
@@ -625,29 +643,42 @@ export function registerSubscriptionRoutes(app: Express) {
         console.log('[Listings] Manual review mode active - skipping AI auto-moderation checks.');
 
         // Create the listing
-        const createdListing = await createListing({
-          sellerId: ownerId,
-          title: listingData.title,
-          description: listingData.description || '',
-          category: listingData.category,
-          price: listingData.price.toString(),
-          offerPrice: listingData.offerPrice?.toString(),
-          priceUnit: listingData.priceUnit,
-          condition: listingData.condition,
-          location: listingData.location,
-          pincode: listingData.pincode,
-          latitude: listingData.latitude?.toString(),
-          longitude: listingData.longitude?.toString(),
-          images: imageItems,
-          videos: videoItems,
-          subscriptionTierId: subscriptionTierId || null,
-          userSubscriptionId: userSubscriptionId || null, // NEW: Track which subscription instance
-          featured: isFeatured,
-          isPaid,
-          durationDays,
-          status: 'pending',
-          isActive: false,
-        });
+        let createdListing: any = null;
+        try {
+          createdListing = await createListing({
+            sellerId: ownerId,
+            title: listingData.title,
+            description: listingData.description || '',
+            category: listingData.category,
+            price: listingData.price.toString(),
+            offerPrice: listingData.offerPrice?.toString(),
+            priceUnit: listingData.priceUnit,
+            condition: listingData.condition,
+            location: listingData.location,
+            pincode: listingData.pincode,
+            latitude: listingData.latitude?.toString(),
+            longitude: listingData.longitude?.toString(),
+            images: imageItems,
+            videos: videoItems,
+            subscriptionTierId: subscriptionTierId || null,
+            userSubscriptionId: userSubscriptionId || null, // NEW: Track which subscription instance
+            featured: isFeatured,
+            isPaid,
+            durationDays,
+            status: 'pending',
+            isActive: false,
+          });
+        } catch (createError) {
+          if (isFreeFromStarterCredits) {
+            await releaseStarterListingCredit(ownerId).catch((rollbackError) => {
+              console.error(
+                '[Subscriptions] Failed to rollback starter listing credit after create failure:',
+                rollbackError
+              );
+            });
+          }
+          throw createError;
+        }
 
         // Notify admins that a listing is waiting for manual review
         notifyAdminListingPendingReview({
@@ -674,10 +705,12 @@ export function registerSubscriptionRoutes(app: Express) {
 
         return res.json({
           success: true,
-          isFree: isFreeFromCoupon,
+          isFree: isFreeFromCoupon || isFreeFromStarterCredits,
           requiresApproval: true,
           message: isFreeFromCoupon
             ? `✓ Listing submitted for review with coupon! ${couponFreeRemaining} free listing${couponFreeRemaining !== 1 ? 's' : ''} remaining.`
+            : isFreeFromStarterCredits
+              ? `✓ Listing submitted for review using starter credits. ${starterListingsRemaining} starter listing credit${starterListingsRemaining !== 1 ? 's' : ''} remaining.`
             : '✓ Listing submitted for admin review. It will go live after approval.',
           listing: {
             id: createdListing.id,
@@ -693,6 +726,11 @@ export function registerSubscriptionRoutes(app: Express) {
             ? {
                 code: couponCode,
                 freeListingsRemaining: couponFreeRemaining,
+              }
+            : undefined,
+          starterCredits: isFreeFromStarterCredits
+            ? {
+                freeListingsRemaining: starterListingsRemaining,
               }
             : undefined,
         });
@@ -1686,10 +1724,15 @@ export function registerSubscriptionRoutes(app: Express) {
       }
 
       const summary = await getUserBoostCreditsSummary(String(userId));
+      const starterSummary = await getStarterCreditsSummary(String(userId));
       return res.json({
         success: true,
-        totalBoostCredits: summary.total,
+        totalBoostCredits: summary.total + starterSummary.boostsRemaining,
         bySubscription: summary.bySubscription,
+        starterCredits: {
+          boostsRemaining: starterSummary.boostsRemaining,
+          boostsTotal: starterSummary.boostsTotal,
+        },
       });
     } catch (error) {
       console.error('[Boost] Error fetching boost summary:', error);
@@ -1782,7 +1825,10 @@ export function registerSubscriptionRoutes(app: Express) {
 
       const effectiveUserId = String(userId || normalizedUserPhone || listing.sellerId);
       const consumed = await consumeUserBoostCredit(effectiveUserId);
-      if (!consumed) {
+      const starterConsumed = !consumed
+        ? await consumeStarterBoostCredit(effectiveUserId)
+        : null;
+      if (!consumed && !starterConsumed) {
         const tiers = await getActiveSubscriptionTiers();
         const plans = tiers
           .filter((tier: any) => String(tier.type || 'bundle') === 'boost')
@@ -1812,8 +1858,9 @@ export function registerSubscriptionRoutes(app: Express) {
         success: true,
         listingId,
         boostedUntil: boosted.boostedUntil,
-        boostsRemaining: consumed.boostsRemaining,
-        usedSubscriptionId: consumed.subscriptionId,
+        boostsRemaining: consumed ? consumed.boostsRemaining : starterConsumed!.boostsRemaining,
+        usedSubscriptionId: consumed?.subscriptionId || null,
+        usedStarterCredits: !consumed && !!starterConsumed,
         message: 'Listing boosted for 24 hours',
       });
     } catch (error) {

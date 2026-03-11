@@ -65,6 +65,11 @@ export const adminSettings = pgTable('admin_settings', {
   // Free tier (first N listing days are free)
   freeListingDays: integer('free_listing_days').notNull().default(15), // First 15 days are free
 
+  // Starter credits for new registrations (one-time welcome credits)
+  starterCreditsEnabled: boolean('starter_credits_enabled').notNull().default(true),
+  starterListingsCount: integer('starter_listings_count').notNull().default(2),
+  starterBoostsCount: integer('starter_boosts_count').notNull().default(2),
+
   // Free tier threshold (listings below this price are free)
   freeTierThreshold: decimal('free_tier_threshold', { precision: 10, scale: 2 }).default('3000'),
   discountEnabled: boolean('discount_enabled').default(false),
@@ -469,6 +474,31 @@ export const userSubscriptions = pgTable('user_subscriptions', {
 });
 
 /**
+ * User Starter Credits Table
+ * One-time welcome credits granted to new users (non-purchasable).
+ */
+export const userStarterCredits = pgTable('user_starter_credits', {
+  id: varchar('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+
+  userId: varchar('user_id').notNull().unique(),
+  listingsTotal: integer('listings_total').notNull().default(0),
+  listingsUsed: integer('listings_used').notNull().default(0),
+  boostsTotal: integer('boosts_total').notNull().default(0),
+  boostsUsed: integer('boosts_used').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+
+  grantedAt: timestamp('granted_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  grantedBy: varchar('granted_by', { length: 40 }).notNull().default('system'),
+  updatedAt: timestamp('updated_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+});
+
+/**
  * Listings Table
  * Replaces in-memory storage with database persistence
  */
@@ -629,6 +659,7 @@ export type InsertListingView = z.infer<typeof insertListingViewSchema>;
 
 export type UserSubscription = typeof userSubscriptions.$inferSelect;
 export type InsertUserSubscription = z.infer<typeof insertUserSubscriptionSchema>;
+export type UserStarterCredits = typeof userStarterCredits.$inferSelect;
 
 export type Listing = typeof listings.$inferSelect;
 export type InsertListing = z.infer<typeof insertListingSchema>;

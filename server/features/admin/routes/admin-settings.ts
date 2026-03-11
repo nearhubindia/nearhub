@@ -50,6 +50,9 @@ export function registerAdminSettingsRoutes(app: Express) {
             },
           },
           freeListingDays: settings.freeListingDays,
+          starterCreditsEnabled: settings.starterCreditsEnabled,
+          starterListingsCount: settings.starterListingsCount,
+          starterBoostsCount: settings.starterBoostsCount,
           discountEnabled: settings.discountEnabled,
           discountPercentage: settings.discountPercentage,
           reactivationAllowed: settings.allowReactivation,
@@ -113,6 +116,9 @@ export function registerAdminSettingsRoutes(app: Express) {
           videoDuration180,
           // Other settings
           freeListingDays,
+          starterCreditsEnabled,
+          starterListingsCount,
+          starterBoostsCount,
           discountEnabled,
           discountPercentage,
           discountMinimumDuration,
@@ -168,6 +174,14 @@ export function registerAdminSettingsRoutes(app: Express) {
           return res.status(400).json({ error: 'Geo radius must be between 1 and 500 km' });
         }
 
+        if (starterListingsCount !== undefined && starterListingsCount < 0) {
+          return res.status(400).json({ error: 'Starter listings count cannot be negative' });
+        }
+
+        if (starterBoostsCount !== undefined && starterBoostsCount < 0) {
+          return res.status(400).json({ error: 'Starter boosts count cannot be negative' });
+        }
+
         // Build update object
         const updates: Partial<AdminSettings> = {};
 
@@ -196,6 +210,10 @@ export function registerAdminSettingsRoutes(app: Express) {
           updates.videoDuration180Days = videoDuration180.toString();
 
         if (freeListingDays !== undefined) updates.freeListingDays = freeListingDays;
+        if (starterCreditsEnabled !== undefined)
+          updates.starterCreditsEnabled = starterCreditsEnabled;
+        if (starterListingsCount !== undefined) updates.starterListingsCount = starterListingsCount;
+        if (starterBoostsCount !== undefined) updates.starterBoostsCount = starterBoostsCount;
         if (discountEnabled !== undefined) updates.discountEnabled = discountEnabled;
         if (discountPercentage !== undefined) updates.discountPercentage = discountPercentage;
         if (discountMinimumDuration !== undefined)

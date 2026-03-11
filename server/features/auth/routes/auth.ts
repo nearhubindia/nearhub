@@ -2,6 +2,7 @@ import type { Express, Request, Response } from 'express';
 import { otpService } from '../../../shared/utils/otp';
 import { validateImageWithPhi2, validateVideoWithPhi2 } from '../../../shared/ai/ai';
 import { authLimiter } from '../../../lib/rate-limiter';
+import { grantStarterCreditsIfEligible } from '../../subscriptions/services/starter-credits';
 
 type AppUser = {
   id: string;
@@ -49,7 +50,7 @@ export function registerAuthRoutes(app: Express) {
    * POST /api/auth/verify-otp
    * Rate limited: 5 attempts per 15 minutes
    */
-  app.post('/api/auth/verify-otp', authLimiter, (req: Request, res: Response) => {
+  app.post('/api/auth/verify-otp', authLimiter, async (req: Request, res: Response) => {
     try {
       const { phone, otp, name, email, gender } = req.body;
       const normalizedPhone = normalizePhone(phone);
@@ -73,6 +74,11 @@ export function registerAuthRoutes(app: Express) {
         createdAt: new Date().toISOString(),
       };
       usersByPhone.set(normalizedPhone, user);
+      try {
+        await grantStarterCreditsIfEligible(user.id, { grantedBy: 'system' });
+      } catch (starterError) {
+        console.error('[Auth] Failed to grant starter credits on verify-otp:', starterError);
+      }
 
       res.json({ success: true, user, isNewUser: true });
     } catch (error) {
@@ -85,7 +91,7 @@ export function registerAuthRoutes(app: Express) {
    * POST /api/auth/complete-profile
    * Complete profile details for new users after OTP verification
    */
-  app.post('/api/auth/complete-profile', authLimiter, (req: Request, res: Response) => {
+  app.post('/api/auth/complete-profile', authLimiter, async (req: Request, res: Response) => {
     try {
       const normalizedPhone = normalizePhone(req.body?.phone);
       const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
@@ -119,6 +125,11 @@ export function registerAuthRoutes(app: Express) {
       };
 
       usersByPhone.set(normalizedPhone, updatedUser);
+      try {
+        await grantStarterCreditsIfEligible(updatedUser.id, { grantedBy: 'system' });
+      } catch (starterError) {
+        console.error('[Auth] Failed to grant starter credits on complete-profile:', starterError);
+      }
       return res.json({ success: true, user: updatedUser, isNewUser: false });
     } catch (error) {
       console.error('Error completing profile:', error);

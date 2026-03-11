@@ -28,6 +28,9 @@ const DEFAULT_SETTINGS: AdminSettings = {
   videoDuration90Days: '13410',
   videoDuration180Days: '26820',
   freeListingDays: 15,
+  starterCreditsEnabled: true,
+  starterListingsCount: 2,
+  starterBoostsCount: 2,
   freeTierThreshold: '3000',
   discountEnabled: false,
   discountPercentage: 0,
@@ -240,6 +243,11 @@ UNIFIED LISTING PRICING (5 images + 2 videos per listing):
 Free Tier Threshold: ₹${settings.freeTierThreshold}
 
 Free Tier Threshold: ₹${settings.freeTierThreshold}
+
+Starter Credits:
+  Enabled: ${settings.starterCreditsEnabled ? 'Yes' : 'No'}
+  Free listings: ${settings.starterListingsCount}
+  Free boosts: ${settings.starterBoostsCount}
 
 Discount:
   Enabled: ${settings.discountEnabled ? 'Yes' : 'No'}

@@ -26,6 +26,7 @@
     "seed:users": "tsx scripts/seed.ts",
     "seed:listings": "tsx scripts/seed-db-listings.ts",
     "location:import": "tsx scripts/import-location-index.ts",
+    "migrate:starter-credits": "tsx scripts/apply-starter-credits-migration.ts",
     "seed:expired-listing": "tsx scripts/seed-expired-listing.ts",
     "search:sync": "tsx scripts/sync-elasticsearch.ts",
     "lint": "eslint . --ext .ts,.tsx",
