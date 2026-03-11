@@ -176,15 +176,16 @@ export default function SettingsScreen() {
     },
   ];
 
-  const renderSettingItem = (item: SettingItem) => (
+  const renderSettingItem = (item: SettingItem, index: number, items: SettingItem[]) => (
     <Pressable
       key={item.label}
-      style={({ pressed }) => [styles.settingItem, pressed && styles.settingItemPressed]}
+      style={[styles.settingItem, index === items.length - 1 && styles.settingItemLast]}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         item.onPress?.();
       }}
       disabled={item.type === 'toggle'}
+      android_ripple={{ color: '#E9F0FB' }}
     >
       <View style={styles.settingLeft}>
         <View style={[styles.iconContainer, item.danger && styles.iconContainerDanger]}>
@@ -333,14 +334,15 @@ const styles = StyleSheet.create({
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingVertical: 13,
     paddingHorizontal: 14,
+    paddingRight: 62,
     borderBottomWidth: 1,
     borderBottomColor: '#E6ECF7',
+    position: 'relative',
   },
-  settingItemPressed: {
-    backgroundColor: '#EEF3FC',
+  settingItemLast: {
+    borderBottomWidth: 0,
   },
   settingLeft: {
     flexDirection: 'row',
@@ -375,9 +377,13 @@ const styles = StyleSheet.create({
     color: Colors.accent,
   },
   settingRight: {
+    position: 'absolute',
+    right: 14,
+    top: 0,
+    bottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 10,
+    justifyContent: 'flex-end',
   },
   settingValue: {
     fontSize: 12.5,
