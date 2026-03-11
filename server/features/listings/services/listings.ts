@@ -8,6 +8,27 @@ import {
 import { eq, and, desc, or, gte, lt, isNull, isNotNull } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
+function coerceMediaToArray(value: unknown): unknown {
+  if (value == null) return value;
+  if (Array.isArray(value)) return value;
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed == null) return [];
+      return [String(parsed)];
+    } catch {
+      return [trimmed];
+    }
+  }
+
+  return [String(value)];
+}
+
 /**
  * Create new listing
  */
@@ -15,14 +36,13 @@ export async function createListing(data: InsertListing): Promise<Listing> {
   // Validate schema
   const validated = insertListingSchema.parse(data);
 
-  // Stringify images if it's an array
-  const images =
+  // Keep both representations to support mixed schemas in production:
+  // some DBs store media as text (JSON string), others as text[].
+  const imagesAsJson =
     validated.images && typeof validated.images !== 'string'
       ? JSON.stringify(validated.images)
       : validated.images;
-
-  // Stringify videos if it's an array
-  const videos =
+  const videosAsJson =
     validated.videos && typeof validated.videos !== 'string'
       ? JSON.stringify(validated.videos)
       : validated.videos;
@@ -32,17 +52,37 @@ export async function createListing(data: InsertListing): Promise<Listing> {
     ? new Date(Date.now() + validated.durationDays * 24 * 60 * 60 * 1000)
     : null;
 
-  const result = await db
-    .insert(listings)
-    .values({
+  const insertValues = (imagesValue: unknown, videosValue: unknown) =>
+    ({
       ...validated,
-      images,
-      videos,
+      images: imagesValue,
+      videos: videosValue,
       expiresAt,
-    } as any)
-    .returning();
+    } as any);
 
-  return result[0];
+  try {
+    const result = await db
+      .insert(listings)
+      .values(insertValues(imagesAsJson, videosAsJson))
+      .returning();
+    return result[0];
+  } catch (error: any) {
+    // Fallback for deployments where media columns are arrays (text[]) instead of text JSON.
+    const isMalformedArray =
+      error?.code === '22P02' && String(error?.message || '').includes('malformed array literal');
+    if (!isMalformedArray) {
+      throw error;
+    }
+
+    const imagesAsArray = coerceMediaToArray(validated.images);
+    const videosAsArray = coerceMediaToArray(validated.videos);
+
+    const retry = await db
+      .insert(listings)
+      .values(insertValues(imagesAsArray, videosAsArray))
+      .returning();
+    return retry[0];
+  }
 }
 
 /**
@@ -227,18 +267,39 @@ export async function updateListing(
       ? JSON.stringify(normalizedUpdates.videos)
       : normalizedUpdates.videos;
 
-  const result = await db
-    .update(listings)
-    .set({
-      ...normalizedUpdates,
-      images,
-      videos,
-      updatedAt: new Date(),
-    } as any)
-    .where(eq(listings.id, id))
-    .returning();
+  try {
+    const result = await db
+      .update(listings)
+      .set({
+        ...normalizedUpdates,
+        images,
+        videos,
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(listings.id, id))
+      .returning();
 
-  return result.length > 0 ? result[0] : null;
+    return result.length > 0 ? result[0] : null;
+  } catch (error: any) {
+    const isMalformedArray =
+      error?.code === '22P02' && String(error?.message || '').includes('malformed array literal');
+    if (!isMalformedArray) {
+      throw error;
+    }
+
+    const result = await db
+      .update(listings)
+      .set({
+        ...normalizedUpdates,
+        images: coerceMediaToArray(normalizedUpdates.images),
+        videos: coerceMediaToArray(normalizedUpdates.videos),
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(listings.id, id))
+      .returning();
+
+    return result.length > 0 ? result[0] : null;
+  }
 }
 
 /**
