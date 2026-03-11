@@ -75,6 +75,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
 ];
 const MENU_ACCENT = '#0B6DD8';
+const UI_LAYOUT_VERSION = 'UI v03205b6';
 
 export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalProps) {
   const insets = useSafeAreaInsets();
@@ -144,6 +145,9 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
             <View>
               <Text style={styles.headerTitle}>Account</Text>
               <Text style={styles.headerSubtitle}>Manage your NearHub profile</Text>
+              <View style={styles.versionPill}>
+                <Text style={styles.versionPillText}>{UI_LAYOUT_VERSION}</Text>
+              </View>
             </View>
             <Pressable onPress={onClose} style={styles.closeButton} hitSlop={10}>
               <Feather name="x" size={responsiveModerateScale(20)} color="#0B2545" />
@@ -200,41 +204,52 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
               </View>
 
               <View style={styles.menuGrid}>
-                {MENU_ITEMS.map((item, index) => (
-                  <Pressable
-                    key={index}
-                    style={({ pressed }) => [styles.menuCard, pressed && styles.menuCardPressed]}
-                    onPress={() => handleMenuItemPress(item.route)}
-                  >
-                    <View
-                      style={[
-                        styles.menuCardIcon,
-                        item.color && { backgroundColor: item.color + '20' },
-                      ]}
-                    >
-                      <Feather
-                        name={item.icon}
-                        size={responsiveModerateScale(18)}
-                        color={item.color || '#12223A'}
-                      />
+                {Array.from({ length: Math.ceil(MENU_ITEMS.length / 2) }).map((_, rowIndex) => {
+                  const rowItems = MENU_ITEMS.slice(rowIndex * 2, rowIndex * 2 + 2);
+
+                  return (
+                    <View key={`row-${rowIndex}`} style={styles.menuGridRow}>
+                      {rowItems.map((item) => (
+                        <Pressable
+                          key={item.route}
+                          style={({ pressed }) => [
+                            styles.menuCard,
+                            rowItems.length === 1 && styles.menuCardFull,
+                            pressed && styles.menuCardPressed,
+                          ]}
+                          onPress={() => handleMenuItemPress(item.route)}
+                          >
+                          <View
+                            style={[
+                              styles.menuCardIcon,
+                              item.color && { backgroundColor: item.color + '20' },
+                            ]}
+                          >
+                            <Feather
+                              name={item.icon}
+                              size={responsiveModerateScale(18)}
+                              color={item.color || '#12223A'}
+                            />
+                          </View>
+                          <View style={styles.menuCardBody}>
+                            <Text style={styles.menuCardTitle} numberOfLines={1}>
+                              {item.label}
+                            </Text>
+                            <Text style={styles.menuCardSubtitle} numberOfLines={1}>
+                              {item.subtitle}
+                            </Text>
+                          </View>
+                          <Feather
+                            name="arrow-right"
+                            size={responsiveModerateScale(16)}
+                            color={item.color || Colors.primary}
+                            style={styles.menuCardArrow}
+                          />
+                        </Pressable>
+                      ))}
                     </View>
-                    <View style={styles.menuCardBody}>
-                      <Text style={styles.menuCardTitle} numberOfLines={1}>
-                        {item.label}
-                      </Text>
-                      <Text style={styles.menuCardSubtitle} numberOfLines={1}>
-                        {item.subtitle}
-                      </Text>
-                      <View style={styles.menuCardFooter}>
-                        <Feather
-                          name="arrow-right"
-                          size={responsiveModerateScale(16)}
-                          color={item.color || Colors.primary}
-                        />
-                      </View>
-                    </View>
-                  </Pressable>
-                ))}
+                  );
+                })}
               </View>
             </View>
 
@@ -339,6 +354,22 @@ const styles = StyleSheet.create({
     fontSize: responsiveFont(11),
     fontFamily: 'Inter_500Medium',
     color: '#7084A3',
+  },
+  versionPill: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingHorizontal: responsiveModerateScale(8),
+    paddingVertical: responsiveModerateScale(3),
+    borderRadius: 999,
+    backgroundColor: '#EAF1FF',
+    borderWidth: 1,
+    borderColor: '#D7E5FF',
+  },
+  versionPillText: {
+    fontSize: responsiveFont(10),
+    fontFamily: 'Inter_700Bold',
+    color: '#0B5FD3',
+    letterSpacing: 0.3,
   },
   closeButton: {
     width: responsiveModerateScale(44),
@@ -477,12 +508,14 @@ const styles = StyleSheet.create({
     borderColor: '#DEE9FF',
   },
   menuGrid: {
+    marginHorizontal: -5,
+  },
+  menuGridRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    marginHorizontal: 5,
   },
   menuCard: {
-    width: '48%',
+    flex: 1,
     minHeight: responsiveModerateScale(90),
     borderRadius: 20,
     backgroundColor: '#F2F6FD',
@@ -490,9 +523,10 @@ const styles = StyleSheet.create({
     borderColor: '#E5ECFA',
     paddingHorizontal: responsiveModerateScale(11),
     paddingVertical: responsiveModerateScale(11),
-    marginBottom: 9,
+    marginBottom: 10,
+    marginHorizontal: 5,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     ...Platform.select({
       ios: {
         shadowColor: '#0F2546',
@@ -504,6 +538,9 @@ const styles = StyleSheet.create({
         elevation: 1,
       },
     }),
+  },
+  menuCardFull: {
+    flex: 0.5,
   },
   menuCardPressed: {
     backgroundColor: '#EAF1FF',
@@ -523,8 +560,6 @@ const styles = StyleSheet.create({
   menuCardBody: {
     flex: 1,
     minWidth: 0,
-    minHeight: responsiveModerateScale(56),
-    justifyContent: 'space-between',
   },
   menuCardTitle: {
     fontSize: responsiveFont(14.5),
@@ -532,14 +567,13 @@ const styles = StyleSheet.create({
     color: '#2A3553',
   },
   menuCardSubtitle: {
-    marginTop: 2,
+    marginTop: 3,
     fontSize: responsiveFont(11.8),
     fontFamily: 'Inter_500Medium',
     color: '#7484A2',
   },
-  menuCardFooter: {
-    marginTop: responsiveModerateScale(5),
-    alignItems: 'flex-end',
+  menuCardArrow: {
+    marginLeft: responsiveModerateScale(8),
   },
   divider: {
     height: 1,
