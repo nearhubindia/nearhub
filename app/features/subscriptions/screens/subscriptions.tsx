@@ -399,6 +399,11 @@ export default function SubscriptionsScreen(): React.JSX.Element {
     (selectedTierId && displayTiers.find((tier) => tier.id === selectedTierId)) ||
     (selectedTierId && tiers.find((tier) => tier.id === selectedTierId)) ||
     null;
+  const hasStarterCredits = Boolean(
+    starterCredits &&
+      starterCredits.isActive &&
+      (starterCredits.listingsTotal > 0 || starterCredits.boostsTotal > 0)
+  );
 
   const consolidatedActiveSubscriptions = useMemo((): ConsolidatedActiveSubscription[] => {
     if (!activeSubscriptions.length) return [];
@@ -915,35 +920,45 @@ export default function SubscriptionsScreen(): React.JSX.Element {
           </View>
         )}
 
-        {starterCredits && starterCredits.isActive && (
+        {hasStarterCredits && starterCredits && (
           <View style={styles.starterCreditsCard}>
             <View style={styles.starterCreditsHeader}>
-              <Feather name="gift" size={16} color={Colors.primary} />
-              <Text style={styles.starterCreditsTitle}>Starter Credits</Text>
+              <Feather name="gift" size={14} color={Colors.primary} />
+              <Text style={styles.starterCreditsTitle}>Starter Credits Available</Text>
+              {consolidatedActiveSubscriptions.length === 0 && (
+                <View style={styles.starterCreditsBadge}>
+                  <Text style={styles.starterCreditsBadgeText}>Use Now</Text>
+                </View>
+              )}
             </View>
-            <Text style={styles.starterCreditsText}>
-              Listings left: {starterCredits.listingsRemaining} of {starterCredits.listingsTotal}
-            </Text>
-            <Text style={styles.starterCreditsText}>
-              Boosts left: {starterCredits.boostsRemaining} of {starterCredits.boostsTotal}
-            </Text>
+            <View style={styles.starterCreditsStatsRow}>
+              <View style={styles.starterCreditsStat}>
+                <Text style={styles.starterCreditsStatValue}>{starterCredits.listingsRemaining}</Text>
+                <Text style={styles.starterCreditsStatLabel}>Listings Left</Text>
+              </View>
+              <View style={styles.starterCreditsStatDivider} />
+              <View style={styles.starterCreditsStat}>
+                <Text style={styles.starterCreditsStatValue}>{starterCredits.boostsRemaining}</Text>
+                <Text style={styles.starterCreditsStatLabel}>Boosts Left</Text>
+              </View>
+            </View>
+            {consolidatedActiveSubscriptions.length === 0 && (
+              <Text style={styles.starterCreditsHint}>
+                No active paid plan. Starter credits can be used immediately.
+              </Text>
+            )}
           </View>
         )}
 
         {/* Info Banner */}
-        {consolidatedActiveSubscriptions.length === 0 && (
+        {consolidatedActiveSubscriptions.length === 0 && !hasStarterCredits && (
           <View style={styles.infoBanner}>
             <Feather name="shopping-bag" size={20} color={Colors.primary} />
             <View style={styles.infoBannerContent}>
-              <Text style={styles.infoBannerTitle}>
-                {starterCredits?.isActive && starterCredits.listingsRemaining > 0
-                  ? 'Starter Listings Available'
-                  : 'Subscribe to List'}
-              </Text>
+              <Text style={styles.infoBannerTitle}>Subscribe to List</Text>
               <Text style={styles.infoBannerText}>
-                {starterCredits?.isActive && starterCredits.listingsRemaining > 0
-                  ? `You can create ${starterCredits.listingsRemaining} listing${starterCredits.listingsRemaining === 1 ? '' : 's'} with starter credits. Subscribe anytime for higher recurring limits.`
-                  : 'Choose a plan to create listings and get boost visibility. Or use a coupon code for free listings.'}
+                Choose a plan to create listings and get boost visibility. Or use a coupon code for
+                free listings.
               </Text>
             </View>
           </View>
@@ -1353,29 +1368,70 @@ const styles = StyleSheet.create({
 
   // Info Banner
   starterCreditsCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F0F7FF',
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: '#BFDBFE',
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 14,
-    gap: 4,
+    padding: 12,
+    marginBottom: 12,
   },
   starterCreditsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 2,
+    gap: 6,
+    marginBottom: 8,
   },
   starterCreditsTitle: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
     color: Colors.text,
   },
-  starterCreditsText: {
-    fontSize: 12,
+  starterCreditsBadge: {
+    marginLeft: 'auto',
+    backgroundColor: '#DBEAFE',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  starterCreditsBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    color: '#1D4ED8',
+  },
+  starterCreditsStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    paddingVertical: 8,
+  },
+  starterCreditsStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  starterCreditsStatValue: {
+    fontSize: 16,
+    fontFamily: 'Inter_700Bold',
+    color: Colors.primary,
+  },
+  starterCreditsStatLabel: {
+    fontSize: 10,
     fontFamily: 'Inter_500Medium',
     color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  starterCreditsStatDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: '#DBEAFE',
+  },
+  starterCreditsHint: {
+    marginTop: 7,
+    fontSize: 10,
+    fontFamily: 'Inter_500Medium',
+    color: '#1D4ED8',
   },
   infoBanner: {
     flexDirection: 'row',

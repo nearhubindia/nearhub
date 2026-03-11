@@ -14,6 +14,7 @@ import {
   BackHandler,
   ActivityIndicator,
   Alert,
+  StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -445,6 +446,7 @@ export default function HomeScreen() {
   );
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const statusStripHeight = Platform.OS === 'web' ? webTopInset : Math.max(insets.top, 12);
   const alignedResultCardWidth = useMemo(() => (SCREEN_WIDTH - 24 - 3) / 2, []);
 
   const renderItem = useCallback(
@@ -473,6 +475,12 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
+      <View pointerEvents="none" style={styles.topEdgeCover} />
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#0F172A"
+        translucent={false}
+      />
       <FlatList
         data={filteredListingsByLocation}
         renderItem={renderItem}
@@ -491,7 +499,8 @@ export default function HomeScreen() {
         }
         ListHeaderComponent={
           <>
-            <View style={[styles.homeHeader, { paddingTop: insets.top || webTopInset }]}>
+            <View style={styles.homeHeader}>
+              <View style={[styles.statusBarTopStrip, { height: statusStripHeight }]} />
               <View style={styles.homeHeaderTopRow}>
                 <Pressable style={styles.logoWrap} onPress={() => router.replace('/(tabs)')}>
                   <Logo size="md" showText={true} />
@@ -878,6 +887,16 @@ const styles = createResponsiveStyles({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  topEdgeCover: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: '#0F172A',
+    zIndex: 200,
+    elevation: 200,
+  },
   header: {
     backgroundColor: Colors.surface,
     paddingBottom: 12,
@@ -925,6 +944,11 @@ const styles = createResponsiveStyles({
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
     marginBottom: 6,
+    marginHorizontal: -12,
+  },
+  statusBarTopStrip: {
+    backgroundColor: '#0F172A',
+    marginTop: -1,
   },
   homeHeaderTopRow: {
     flexDirection: 'row',
@@ -932,6 +956,7 @@ const styles = createResponsiveStyles({
     justifyContent: 'space-between',
     paddingHorizontal: 12,
     gap: 10,
+    paddingTop: 8,
     paddingBottom: 8,
   },
   logoWrap: {

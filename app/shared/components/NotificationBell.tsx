@@ -14,11 +14,16 @@ import { useNotifications } from '@/shared/contexts/notifications-context';
 import Colors from '@/constants/colors';
 import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
 
-export function NotificationBell() {
+interface NotificationBellProps {
+  tone?: 'light' | 'dark';
+}
+
+export function NotificationBell({ tone = 'light' }: NotificationBellProps) {
   const { notifications, removeNotification, clearAll } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const isDarkTone = tone === 'dark';
 
   const getIconColor = (type: string) => {
     switch (type) {
@@ -37,13 +42,17 @@ export function NotificationBell() {
   return (
     <>
       <TouchableOpacity
-        style={styles.bellButton}
+        style={[styles.bellButton, isDarkTone && styles.bellButtonDark]}
         onPress={() => setIsOpen(true)}
         activeOpacity={0.7}
       >
-        <Feather name="bell" size={responsiveModerateScale(20)} color={Colors.light.tint} />
+        <Feather
+          name="bell"
+          size={responsiveModerateScale(20)}
+          color={isDarkTone ? '#E2E8F0' : Colors.light.tint}
+        />
         {notifications.length > 0 && (
-          <View style={styles.badge}>
+          <View style={[styles.badge, isDarkTone && styles.badgeDark]}>
             <Text style={styles.badgeText}>
               {notifications.length > 99 ? '99+' : notifications.length}
             </Text>
@@ -177,6 +186,12 @@ const styles = StyleSheet.create({
     position: 'relative',
     padding: responsiveModerateScale(6),
   },
+  bellButtonDark: {
+    borderRadius: 12,
+    backgroundColor: 'rgba(30, 41, 59, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.28)',
+  },
   badge: {
     position: 'absolute',
     top: 2,
@@ -189,6 +204,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#fff',
+  },
+  badgeDark: {
+    borderColor: '#0F172A',
   },
   badgeText: {
     color: '#fff',

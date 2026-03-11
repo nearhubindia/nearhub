@@ -392,21 +392,6 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           errorData
         );
 
-        // Check if it's an AI validation error
-        if (
-          errorData.code === 'INAPPROPRIATE_CONTENT' ||
-          errorData.code === 'PRODUCT_IMAGE_MISMATCH' ||
-          errorData.code === 'INAPPROPRIATE_VIDEO_CONTENT' ||
-          errorData.code === 'VIDEO_MODERATION_UNAVAILABLE' ||
-          errorData.code === 'VIDEO_SOURCE_UNSUPPORTED'
-        ) {
-          // Throw a detailed error for AI validation failures
-          const error = new Error(errorData.message || 'Content validation failed');
-          (error as any).code = errorData.code;
-          (error as any).details = errorData.details;
-          throw error;
-        }
-
         // Surface limiter/subscription quota errors to UI (do not silently fallback)
         if (
           response.status === 429 ||
@@ -427,17 +412,6 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         throw new Error(errorData.error || errorData.message || 'Failed to create listing');
       }
     } catch (apiError: any) {
-      // Re-throw AI validation errors so UI can display them
-      if (
-        apiError.code === 'INAPPROPRIATE_CONTENT' ||
-        apiError.code === 'PRODUCT_IMAGE_MISMATCH' ||
-        apiError.code === 'INAPPROPRIATE_VIDEO_CONTENT' ||
-        apiError.code === 'VIDEO_MODERATION_UNAVAILABLE' ||
-        apiError.code === 'VIDEO_SOURCE_UNSUPPORTED'
-      ) {
-        throw apiError;
-      }
-
       if (
         apiError.code === 'DAILY_LISTING_LIMIT_REACHED' ||
         apiError.code === 'RATE_LIMIT_EXCEEDED' ||

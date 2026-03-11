@@ -2135,32 +2135,68 @@ export default function CreateScreen() {
               >
                 <View style={styles.noSubscriptionHeader}>
                   <View style={styles.noSubscriptionIconWrap}>
-                    <Feather name="shopping-bag" size={14} color="#F57C00" />
+                    <Feather
+                      name={hasStarterListingsAvailable ? 'gift' : 'shopping-bag'}
+                      size={14}
+                      color="#F57C00"
+                    />
                   </View>
                   <View style={styles.noSubscriptionTextWrap}>
                     <Text style={styles.noSubscriptionTitle}>
-                      {hasStarterListingsAvailable
-                        ? 'Starter Credits Available'
-                        : 'Subscription Required'}
+                      {hasStarterListingsAvailable ? 'Starter Pack Active' : 'Plan Needed'}
                     </Text>
                     <Text style={styles.noSubscriptionSubtitle}>
                       {hasStarterListingsAvailable
-                        ? `${starterCredits?.listingsRemaining || 0} free listing${(starterCredits?.listingsRemaining || 0) === 1 ? '' : 's'} remaining. You can post now or subscribe for higher limits.`
-                        : 'Subscribe to a plan to start creating listings'}
+                        ? 'You can post now using welcome credits.'
+                        : 'Subscribe to unlock recurring listing quota.'}
                     </Text>
                   </View>
-                  <Feather name="chevron-right" size={18} color="#F57C00" />
+                  <View style={styles.noSubscriptionActionPill}>
+                    <Text style={styles.noSubscriptionActionPillText}>
+                      {hasStarterListingsAvailable ? 'View Plans' : 'Choose Plan'}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.noSubscriptionInfoBox}>
-                  <Feather name="star" size={12} color={Colors.primary} />
-                  <Text style={styles.noSubscriptionInfoText}>
+
+                {hasStarterListingsAvailable ? (
+                  <View style={styles.noSubscriptionStatsRow}>
+                    <View style={styles.noSubscriptionStatItem}>
+                      <Text style={styles.noSubscriptionStatValue}>
+                        {starterCredits?.listingsRemaining || 0}
+                      </Text>
+                      <Text style={styles.noSubscriptionStatLabel}>Listings Left</Text>
+                    </View>
+                    <View style={styles.noSubscriptionStatDivider} />
+                    <View style={styles.noSubscriptionStatItem}>
+                      <Text style={styles.noSubscriptionStatValue}>
+                        {starterCredits?.boostsRemaining || 0}
+                      </Text>
+                      <Text style={styles.noSubscriptionStatLabel}>Boosts Left</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.noSubscriptionFeatureRow}>
+                    <View style={styles.noSubscriptionFeaturePill}>
+                      <Feather name="star" size={11} color="#0369A1" />
+                      <Text style={styles.noSubscriptionFeatureText}>Boost visibility</Text>
+                    </View>
+                    <View style={styles.noSubscriptionFeaturePill}>
+                      <Feather name="video" size={11} color="#0369A1" />
+                      <Text style={styles.noSubscriptionFeatureText}>Video listings</Text>
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.noSubscriptionFooter}>
+                  <Text style={styles.noSubscriptionFooterText}>
                     {hasStarterListingsAvailable
-                      ? `Starter boosts left: ${starterCredits?.boostsRemaining || 0}. Paid plans unlock recurring quota and premium features.`
-                      : 'Plans start at affordable prices with features like featured listings, video uploads & more'}
+                      ? 'Subscribe anytime for higher limits and premium boosts.'
+                      : 'Tap to compare plans and get started.'}
                   </Text>
                 </View>
               </Pressable>
             )}
+
           </View>
 
           {user && (
@@ -3811,7 +3847,7 @@ const styles = createResponsiveStyles({
   noSubscriptionCard: {
     backgroundColor: '#FFFBEB',
     borderRadius: 14,
-    padding: 12,
+    padding: 10,
     borderWidth: 1.5,
     borderColor: '#FCD34D',
     borderStyle: 'dashed' as const,
@@ -3823,7 +3859,7 @@ const styles = createResponsiveStyles({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   noSubscriptionIconWrap: {
     backgroundColor: '#FDE68A',
@@ -3842,24 +3878,82 @@ const styles = createResponsiveStyles({
     color: '#0F172A',
   },
   noSubscriptionSubtitle: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: 'Inter_400Regular',
     color: '#6B7280',
     marginTop: 1,
   },
-  noSubscriptionInfoBox: {
+  noSubscriptionActionPill: {
+    backgroundColor: '#F59E0B',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  noSubscriptionActionPillText: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    color: '#FFFFFF',
+  },
+  noSubscriptionStatsRow: {
+    flexDirection: 'row',
     backgroundColor: '#FFFFFF',
     borderRadius: 10,
-    padding: 10,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingVertical: 7,
+    alignItems: 'center',
+  },
+  noSubscriptionStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  noSubscriptionStatValue: {
+    fontSize: 15,
+    fontFamily: 'Inter_700Bold',
+    color: '#B45309',
+  },
+  noSubscriptionStatLabel: {
+    marginTop: 1,
+    fontSize: 10,
+    fontFamily: 'Inter_500Medium',
+    color: '#92400E',
+  },
+  noSubscriptionStatDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: '#FDE68A',
+  },
+  noSubscriptionFeatureRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  noSubscriptionFeaturePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  noSubscriptionInfoText: {
-    fontSize: 12,
+  noSubscriptionFeatureText: {
+    fontSize: 11,
     fontFamily: 'Inter_500Medium',
     color: '#0F172A',
-    flex: 1,
+  },
+  noSubscriptionFooter: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  noSubscriptionFooterText: {
+    fontSize: 10,
+    fontFamily: 'Inter_500Medium',
+    color: '#475569',
   },
   submitButton: {
     borderRadius: 14,

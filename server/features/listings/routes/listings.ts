@@ -15,6 +15,7 @@ import {
   notifyViewMilestone,
   notifyAdminListingPendingReview,
 } from '../../../shared/services/auto-notifications';
+import { SERVER_CONFIG } from '../../../lib/config';
 
 function parseJsonField(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
@@ -58,6 +59,47 @@ function hasLocalDeviceUri(value: unknown): boolean {
     uri.startsWith('ph://') ||
     uri.startsWith('assets-library://')
   );
+}
+
+function getAllowedRemoteMediaHosts(): Set<string> {
+  const hosts = new Set<string>();
+  const baseUrl = String(SERVER_CONFIG.CLOUDFLARE_R2_PUBLIC_BASE_URL || '').trim();
+  if (!baseUrl) return hosts;
+  try {
+    const parsed = new URL(baseUrl);
+    if (parsed.hostname) {
+      hosts.add(parsed.hostname.toLowerCase());
+    }
+  } catch {
+    // Ignore invalid config URL and skip strict host checks.
+  }
+  return hosts;
+}
+
+function isHttpMediaUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim().toLowerCase();
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+}
+
+function findInvalidRemoteMediaUrls(values: unknown[], allowedHosts: Set<string>): string[] {
+  if (allowedHosts.size === 0 || !SERVER_CONFIG.CLOUDFLARE_R2_ENABLED) {
+    return [];
+  }
+
+  const invalid: string[] = [];
+  for (const item of values) {
+    if (!isHttpMediaUrl(item)) continue;
+    try {
+      const parsed = new URL(item);
+      if (!allowedHosts.has(parsed.hostname.toLowerCase())) {
+        invalid.push(item);
+      }
+    } catch {
+      invalid.push(String(item));
+    }
+  }
+  return invalid;
 }
 
 function normalizeStatus(value: unknown): string {
@@ -289,6 +331,38 @@ export function registerListingRoutes(app: Express) {
             'One or more videos are local device paths. Please re-upload videos and try again.',
           code: 'INVALID_VIDEO_URI',
         });
+      }
+
+      const allowedRemoteMediaHosts = getAllowedRemoteMediaHosts();
+
+      if (Array.isArray(sanitizedUpdates.images)) {
+        const invalidImageUrls = findInvalidRemoteMediaUrls(
+          sanitizedUpdates.images,
+          allowedRemoteMediaHosts
+        );
+        if (invalidImageUrls.length > 0) {
+          return res.status(400).json({
+            success: false,
+            error:
+              'One or more image URLs are not from the approved Cloudflare R2 media domain.',
+            code: 'INVALID_REMOTE_IMAGE_URL',
+          });
+        }
+      }
+
+      if (Array.isArray(sanitizedUpdates.videos)) {
+        const invalidVideoUrls = findInvalidRemoteMediaUrls(
+          sanitizedUpdates.videos,
+          allowedRemoteMediaHosts
+        );
+        if (invalidVideoUrls.length > 0) {
+          return res.status(400).json({
+            success: false,
+            error:
+              'One or more video URLs are not from the approved Cloudflare R2 media domain.',
+            code: 'INVALID_REMOTE_VIDEO_URL',
+          });
+        }
       }
 
       if (sanitizedUpdates.status === 'sold') {
