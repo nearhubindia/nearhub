@@ -796,12 +796,7 @@ export default function HomeScreen() {
                 ) : (
                   <>
                     <Feather name="navigation" size={16} color="#FFFFFF" />
-                    <View style={styles.autoDetectTextWrap}>
-                      <Text style={styles.autoDetectButtonText}>Use Current Location</Text>
-                      <Text style={styles.autoDetectCoverageText}>
-                        Search coverage: {selectedSearchRadiusKm} km
-                      </Text>
-                    </View>
+                    <Text style={styles.autoDetectButtonText}>Use Current Location</Text>
                   </>
                 )}
               </Pressable>
