@@ -75,7 +75,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
 ];
 const MENU_ACCENT = '#0B6DD8';
-const UI_LAYOUT_VERSION = 'UI v03205b6';
+const UI_LAYOUT_VERSION = 'UI v5c1823e';
 
 export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalProps) {
   const insets = useSafeAreaInsets();
@@ -212,13 +212,10 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
                       {rowItems.map((item) => (
                         <Pressable
                           key={item.route}
-                          style={({ pressed }) => [
-                            styles.menuCard,
-                            rowItems.length === 1 && styles.menuCardFull,
-                            pressed && styles.menuCardPressed,
-                          ]}
+                          style={[styles.menuCard, rowItems.length === 1 && styles.menuCardFull]}
+                          android_ripple={{ color: '#E6EEFC' }}
                           onPress={() => handleMenuItemPress(item.route)}
-                          >
+                        >
                           <View
                             style={[
                               styles.menuCardIcon,
@@ -258,10 +255,7 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
 
             {/* Logout */}
             {isAuthenticated && (
-              <Pressable
-                style={({ pressed }) => [styles.logoutPill, pressed && styles.logoutPillPressed]}
-                onPress={handleLogout}
-              >
+              <Pressable style={styles.logoutPill} android_ripple={{ color: '#F4E5E8' }} onPress={handleLogout}>
                 <View style={styles.logoutLeft}>
                   <View style={styles.logoutIcon}>
                     <Feather name="log-out" size={responsiveModerateScale(19)} color={Colors.accent} />
@@ -542,10 +536,6 @@ const styles = StyleSheet.create({
   menuCardFull: {
     flex: 0.5,
   },
-  menuCardPressed: {
-    backgroundColor: '#EAF1FF',
-    transform: [{ scale: 0.985 }],
-  },
   menuCardIcon: {
     width: responsiveModerateScale(44),
     height: responsiveModerateScale(44),
@@ -593,9 +583,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: responsiveModerateScale(13),
     marginBottom: 8,
-  },
-  logoutPillPressed: {
-    backgroundColor: '#EEF3FB',
   },
   logoutLeft: {
     flexDirection: 'row',
