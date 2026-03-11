@@ -25,9 +25,23 @@ export interface UploadedMedia {
   objectKey: string;
 }
 
+interface DataUriMeta {
+  mimeType: string;
+  base64Data: string;
+}
+
 function isNativeLocalUri(uri: string): boolean {
   const normalized = uri.toLowerCase();
   return normalized.startsWith('file://') || normalized.startsWith('content://');
+}
+
+function parseDataUri(uri: string): DataUriMeta | null {
+  const match = uri.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  const mimeType = String(match[1] || '').trim() || 'application/octet-stream';
+  const base64Data = String(match[2] || '').trim();
+  if (!base64Data) return null;
+  return { mimeType, base64Data };
 }
 
 function getDataUriBytes(uri: string): number {
@@ -39,6 +53,8 @@ function getDataUriBytes(uri: string): number {
 }
 
 function inferMimeType(uri: string, mediaType: MediaType): string {
+  const dataUri = parseDataUri(uri);
+  if (dataUri?.mimeType) return dataUri.mimeType;
   const lower = uri.toLowerCase();
   if (lower.endsWith('.png')) return 'image/png';
   if (lower.endsWith('.webp')) return 'image/webp';
@@ -113,6 +129,35 @@ async function uploadWithNativeFileSystem(
   }
 }
 
+async function dataUriToTempFile(uri: string, mediaType: MediaType): Promise<string> {
+  const parsed = parseDataUri(uri);
+  if (!parsed) throw new Error('Invalid data URI payload');
+
+  const extension =
+    mediaType === 'video'
+      ? parsed.mimeType.includes('quicktime')
+        ? 'mov'
+        : parsed.mimeType.includes('webm')
+          ? 'webm'
+          : 'mp4'
+      : parsed.mimeType.includes('png')
+        ? 'png'
+        : parsed.mimeType.includes('webp')
+          ? 'webp'
+          : 'jpg';
+
+  const cacheDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+  if (!cacheDir) {
+    throw new Error('No writable filesystem directory available for upload staging');
+  }
+
+  const fileUri = `${cacheDir}nearhub_upload_${Date.now()}_${Math.random().toString(36).slice(2)}.${extension}`;
+  await FileSystem.writeAsStringAsync(fileUri, parsed.base64Data, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  return fileUri;
+}
+
 async function getFileSizeBytes(uri: string): Promise<number> {
   if (uri.startsWith('data:')) {
     const bytes = getDataUriBytes(uri);
@@ -153,30 +198,45 @@ export async function uploadMediaToCloudflare(params: {
   mimeType?: string;
   userId?: string;
 }): Promise<UploadedMedia> {
-  const fileName = params.fileName || buildFileName(params.uri, params.mediaType);
+  let sourceUri = params.uri;
+  let stagedTempUri: string | null = null;
+  const parsedDataUri = parseDataUri(params.uri);
+
+  if (Platform.OS !== 'web' && parsedDataUri) {
+    stagedTempUri = await dataUriToTempFile(params.uri, params.mediaType);
+    sourceUri = stagedTempUri;
+  }
+
+  const fileName = params.fileName || buildFileName(sourceUri, params.mediaType);
   const contentType = params.mimeType || inferMimeType(params.uri, params.mediaType);
   const fileSizeBytes = await getFileSizeBytes(params.uri);
 
-  const signed = await requestPresignedUpload({
-    mediaType: params.mediaType,
-    fileName,
-    contentType,
-    fileSizeBytes,
-    userId: params.userId,
-  });
+  try {
+    const signed = await requestPresignedUpload({
+      mediaType: params.mediaType,
+      fileName,
+      contentType,
+      fileSizeBytes,
+      userId: params.userId,
+    });
 
-  const useNativeUpload = Platform.OS !== 'web' && isNativeLocalUri(params.uri);
+    const useNativeUpload = Platform.OS !== 'web' && isNativeLocalUri(sourceUri);
 
-  if (useNativeUpload) {
-    await uploadWithNativeFileSystem(signed.uploadUrl, contentType, params.uri);
-  } else {
-    await uploadWithFetch(signed.uploadUrl, contentType, params.uri);
+    if (useNativeUpload) {
+      await uploadWithNativeFileSystem(signed.uploadUrl, contentType, sourceUri);
+    } else {
+      await uploadWithFetch(signed.uploadUrl, contentType, sourceUri);
+    }
+
+    return {
+      url: signed.publicUrl,
+      objectKey: signed.objectKey,
+    };
+  } finally {
+    if (stagedTempUri) {
+      FileSystem.deleteAsync(stagedTempUri, { idempotent: true }).catch(() => {});
+    }
   }
-
-  return {
-    url: signed.publicUrl,
-    objectKey: signed.objectKey,
-  };
 }
 
 export async function deleteCloudflareMedia(urls: string[]): Promise<void> {
