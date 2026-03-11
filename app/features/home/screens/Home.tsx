@@ -791,7 +791,7 @@ export default function HomeScreen() {
                 {isAutoDetectingLocation ? (
                   <>
                     <ActivityIndicator
-                      color={Colors.primary}
+                      color="#FFFFFF"
                       size="small"
                       style={{ marginRight: 8 }}
                     />
@@ -1495,34 +1495,41 @@ const styles = createResponsiveStyles({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surface,
-    borderWidth: 2,
-    borderColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 12,
+    backgroundColor: Colors.primary,
+    borderWidth: 1,
+    borderColor: Colors.primaryDark,
+    borderRadius: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
     marginBottom: 20,
-    gap: 8,
+    gap: 9,
+    shadowColor: Colors.primaryDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.24,
+    shadowRadius: 10,
+    elevation: 4,
   },
   autoDetectButtonPressed: {
-    opacity: 0.7,
+    opacity: 0.9,
+    transform: [{ scale: 0.99 }],
   },
   autoDetectButtonDisabled: {
-    opacity: 0.5,
+    opacity: 0.7,
   },
   autoDetectButtonText: {
-    fontSize: 14,
+    fontSize: 14.5,
     fontFamily: 'Inter_600SemiBold',
-    color: Colors.primary,
+    color: '#FFFFFF',
   },
   autoDetectTextWrap: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center',
     gap: 2,
   },
   autoDetectCoverageText: {
     fontSize: 11,
-    fontFamily: 'Inter_500Medium',
-    color: Colors.textSecondary,
+    fontFamily: 'Inter_600SemiBold',
+    color: 'rgba(255,255,255,0.86)',
   },
   errorBanner: {
     flexDirection: 'row',
