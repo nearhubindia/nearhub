@@ -8,24 +8,19 @@ import {
   TextInput,
   Platform,
   Alert,
-  ActivityIndicator,
-  Modal,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import * as Location from 'expo-location';
 import Colors from '@/constants/colors';
 import AppScreenBanners from '@/shared/components/AppScreenBanners';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
-import { getCityFromCoordinates } from '@/lib/location-data';
-import { getApiUrl } from '@/lib/query-client';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, updateUser, setUserLocation } = useAuth();
+  const { user, updateUser } = useAuth();
   const { banners: profileBanners, isLoading: isProfileBannersLoading } =
     useAppScreenBanners('profile');
   const [name, setName] = useState(user?.name || '');
@@ -34,21 +29,10 @@ export default function ProfileScreen() {
   const [bio, setBio] = useState(user?.bio || '');
   const [gstin, setGstin] = useState(user?.gstin || '');
   const [saving, setSaving] = useState(false);
-  const [detectingLocation, setDetectingLocation] = useState(false);
-  const [showPincodeModal, setShowPincodeModal] = useState(false);
-  const [pincode, setPincode] = useState('');
-  const [pincodeLoading, setPincodeLoading] = useState(false);
   const lastSyncedUserIdRef = useRef<string | null>(null);
   const lastSavedPayloadRef = useRef<string>('');
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
-
-  // Auto-detect location on mount if not already set
-  useEffect(() => {
-    if (!user?.location?.city && Platform.OS !== 'web') {
-      handleAutoDetectLocation();
-    }
-  }, []);
 
   // Sync profile form when user changes (initial load / account switch)
   useEffect(() => {
@@ -111,172 +95,6 @@ export default function ProfileScreen() {
     return () => clearTimeout(saveTimer);
   }, [user?.id, name, email, address, bio, gstin, updateUser]);
 
-  const reverseGeocodeCoordinates = async (latitude: number, longitude: number) => {
-    try {
-      console.log('[Profile] Reverse geocoding coordinates:', { latitude, longitude });
-      const baseUrl = getApiUrl();
-      const url = new URL(
-        `/api/location/reverse-geocode?latitude=${latitude}&longitude=${longitude}`,
-        baseUrl
-      );
-
-      const response = await fetch(url.toString());
-      const json = await response.json();
-
-      if (!json.success || !json.data) {
-        console.warn('[Profile] Reverse geocode failed, falling back to local data:', json.error);
-        // Fallback to local function if API fails
-        return getCityFromCoordinates(latitude, longitude);
-      }
-
-      console.log('[Profile] Reverse geocode successful:', {
-        pincode: json.data.pincode,
-        city: json.data.city,
-        state: json.data.state,
-        matchType: json.data.matchType,
-      });
-
-      return {
-        city: json.data.city,
-        state: json.data.state,
-        pincode: json.data.pincode,
-        matchType: json.data.matchType,
-      };
-    } catch (error) {
-      console.error('[Profile] Reverse geocode error:', error);
-      // Fallback to local function if network error
-      return getCityFromCoordinates(latitude, longitude);
-    }
-  };
-
-  const handleAutoDetectLocation = async () => {
-    setDetectingLocation(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      console.log('[Profile] Location permission status:', status);
-
-      if (status !== 'granted') {
-        console.log('[Profile] Location permission not granted');
-        setDetectingLocation(false);
-        return;
-      }
-
-      console.log('[Profile] Requesting GPS location...');
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      console.log('[Profile] GPS location received:', currentLocation.coords);
-      const { latitude, longitude } = currentLocation.coords;
-      const location = await reverseGeocodeCoordinates(latitude, longitude);
-
-      console.log('[Profile] Location resolved:', { city: location.city, state: location.state });
-      await setUserLocation(latitude, longitude, location.city, location.state);
-      console.log('[Profile] Location saved to user profile');
-    } catch (error) {
-      console.error('[Profile] Location auto-detection error:', error);
-    } finally {
-      setDetectingLocation(false);
-    }
-  };
-
-  const handleDetectLocation = async () => {
-    setDetectingLocation(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    try {
-      if (Platform.OS === 'web') {
-        Alert.alert('Error', 'Location detection not available on web');
-        setDetectingLocation(false);
-        return;
-      }
-
-      console.log('[Profile] Manual location detection started');
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      console.log('[Profile] Permission status:', status);
-
-      if (status !== 'granted') {
-        Alert.alert('Error', 'Location permission denied. Please enable it in settings.');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        setDetectingLocation(false);
-        return;
-      }
-
-      // Get current location
-      console.log('[Profile] Getting device location...');
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      console.log('[Profile] Got coordinates:', currentLocation.coords);
-      const { latitude, longitude } = currentLocation.coords;
-
-      // Get city from coordinates using reverse geocoding API
-      const location = await reverseGeocodeCoordinates(latitude, longitude);
-      console.log('[Profile] Resolved location:', location);
-
-      // Save location to user profile
-      await setUserLocation(latitude, longitude, location.city, location.state);
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Success', `Location set to ${location.city}, ${location.state}`);
-    } catch (error: any) {
-      console.error('[Profile] Location error:', error);
-      const errorMsg = error?.message || String(error);
-      Alert.alert('Error', `Failed to detect location: ${errorMsg}`);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    } finally {
-      setDetectingLocation(false);
-    }
-  };
-
-  const handlePincodeChange = async () => {
-    if (!pincode.trim() || pincode.length !== 6) {
-      Alert.alert('Error', 'Please enter a valid 6-digit pincode');
-      return;
-    }
-
-    setPincodeLoading(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    try {
-      console.log('[Profile] Looking up pincode:', pincode);
-      const baseUrl = getApiUrl();
-      const url = new URL(`/api/location/pincode/${pincode}`, baseUrl);
-
-      const response = await fetch(url.toString());
-      const json = await response.json();
-
-      console.log('[Profile] Pincode lookup response:', json);
-
-      if (!json.success || !json.data) {
-        Alert.alert('Not Found', json.error || 'Pincode not found in our database.');
-        setPincodeLoading(false);
-        return;
-      }
-
-      const locationData = json.data;
-      // Save location to user profile
-      await setUserLocation(
-        locationData.latitude,
-        locationData.longitude,
-        locationData.city,
-        locationData.state
-      );
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setPincode('');
-      setShowPincodeModal(false);
-      Alert.alert('Success', `Location set to ${locationData.city}, ${locationData.state}`);
-    } catch (error) {
-      console.error('[Profile] Pincode lookup error:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to lookup pincode';
-      Alert.alert('Error', `${errorMsg}. Make sure backend is running.`);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    } finally {
-      setPincodeLoading(false);
-    }
-  };
 
   return (
     <View style={styles.container}>
@@ -412,43 +230,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Location */}
-        <View style={styles.section}>
-          <View style={styles.locationHeader}>
-            <Text style={styles.label}>Location</Text>
-            <Pressable onPress={() => setShowPincodeModal(true)} style={styles.changeButton}>
-              <Feather name="edit-2" size={16} color={Colors.primary} />
-              <Text style={styles.changeButtonText}>Change</Text>
-            </Pressable>
-          </View>
-          {detectingLocation ? (
-            <View style={[styles.input, styles.inputDisabled, styles.loadingLocationContainer]}>
-              <ActivityIndicator size="small" color={Colors.primary} />
-              <Text style={styles.detectingLocationText}>Detecting location...</Text>
-            </View>
-          ) : user?.location?.city ? (
-            <View style={[styles.input, styles.inputDisabled, styles.locationContainer]}>
-              <Feather name="map-pin" size={18} color={Colors.textSecondary} />
-              <View style={styles.locationInfo}>
-                <Text style={styles.inputTextDisabled}>
-                  {user.location.city}
-                  {user.location.state && `, ${user.location.state}`}
-                </Text>
-                {user.location.latitude && user.location.longitude && (
-                  <Text style={styles.coordinatesText}>
-                    {user.location.latitude.toFixed(4)}° N, {user.location.longitude.toFixed(4)}° E
-                  </Text>
-                )}
-              </View>
-            </View>
-          ) : (
-            <View style={[styles.input, styles.inputDisabled, styles.locationContainer]}>
-              <Feather name="map-pin" size={18} color={Colors.textSecondary} />
-              <Text style={styles.inputTextDisabled}>Detecting location...</Text>
-            </View>
-          )}
-        </View>
-
         {/* Stats */}
         <View style={styles.statsSection}>
           <View style={styles.statCard}>
@@ -466,83 +247,6 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
 
-      {/* Pincode Modal */}
-      <Modal
-        visible={showPincodeModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowPincodeModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 12 }]}>
-            <View style={styles.modalHandle} />
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowPincodeModal(false);
-                }}
-                style={styles.modalBackButton}
-                hitSlop={8}
-              >
-                <Feather name="x" size={24} color={Colors.text} />
-              </Pressable>
-              <Text style={styles.modalTitle}>Change Location</Text>
-              <View style={{ width: 40 }} />
-            </View>
-
-            <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={styles.modalScrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <Text style={styles.modalDescription}>
-                Enter your pincode to auto-fill location details
-              </Text>
-
-              <View style={styles.modalSection}>
-                <Text style={styles.label}>Pincode</Text>
-                <View style={styles.input}>
-                  <Feather name="map-pin" size={18} color={Colors.textSecondary} />
-                  <TextInput
-                    style={styles.inputText}
-                    value={pincode}
-                    onChangeText={setPincode}
-                    placeholder="Enter 6-digit pincode"
-                    placeholderTextColor={Colors.textTertiary}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                  />
-                </View>
-              </View>
-
-              <Pressable
-                style={[styles.submitButton, pincodeLoading && styles.submitButtonDisabled]}
-                onPress={handlePincodeChange}
-                disabled={pincodeLoading}
-              >
-                {pincodeLoading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.submitButtonText}>Update Location</Text>
-                )}
-              </Pressable>
-
-              <Pressable
-                style={styles.detectButton}
-                onPress={() => {
-                  setShowPincodeModal(false);
-                  handleDetectLocation();
-                }}
-              >
-                <Feather name="navigation" size={18} color={Colors.primary} />
-                <Text style={styles.detectButtonText}>Use GPS Instead</Text>
-              </Pressable>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -641,28 +345,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  locationContainer: {
-    alignItems: 'flex-start',
-  },
-  locationInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  coordinatesText: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: Colors.textTertiary,
-  },
-  detectLocationButton: {
-    backgroundColor: Colors.primary + '15',
-    borderColor: Colors.primary,
-  },
-  detectLocationText: {
-    fontSize: 15,
-    fontFamily: 'Inter_500Medium',
-    color: Colors.primary,
-    flex: 1,
-  },
   inputDisabled: {
     backgroundColor: Colors.background,
   },
@@ -706,124 +388,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Inter_500Medium',
     color: Colors.textSecondary,
-  },
-  locationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  changeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: Colors.primary + '15',
-    borderRadius: 6,
-  },
-  changeButtonText: {
-    fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
-    color: Colors.primary,
-  },
-  loadingLocationContainer: {
-    justifyContent: 'center',
-  },
-  detectingLocationText: {
-    fontSize: 15,
-    fontFamily: 'Inter_400Regular',
-    color: Colors.textSecondary,
-    marginLeft: 12,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    minHeight: '72%',
-    maxHeight: '92%',
-  },
-  modalHandle: {
-    alignSelf: 'center',
-    width: 46,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: '#CCD8E8',
-    marginTop: 10,
-    marginBottom: 6,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  modalBackButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontFamily: 'Inter_600SemiBold',
-    color: Colors.text,
-  },
-  modalScroll: {
-    flex: 1,
-  },
-  modalScrollContent: {
-    padding: 16,
-  },
-  modalDescription: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    color: Colors.textSecondary,
-    marginBottom: 20,
-  },
-  modalSection: {
-    marginBottom: 24,
-  },
-  submitButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#fff',
-  },
-  detectButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 20,
-  },
-  detectButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
-    color: Colors.primary,
   },
 });
