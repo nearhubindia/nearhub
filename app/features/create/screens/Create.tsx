@@ -40,18 +40,16 @@ import {
   Listing,
 } from '@/lib/types';
 import { getApiUrl } from '@/lib/query-client';
-import { compressVideoWithProgress, formatBytes } from '@/lib/video-compressor';
+import { compressVideoWithProgress } from '@/lib/video-compressor';
 import {
   analyzeVideoForS3,
   recommendCompressionForS3,
   compressVideoForS3,
 } from '@/lib/video-compressor-s3';
-import { uploadVideoInChunks, type UploadProgress } from '@/lib/chunked-video-upload';
+import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 import { VideoRecorderModal } from '@/shared/components/VideoRecorderModal';
 import {
   compressImagesWithProgress,
-  getImageSummary,
-  formatBytes as formatImageBytes,
   QUALITY_PRESETS,
 } from '@/lib/image-compressor';
 import * as ImageStorage from '@/lib/image-storage';
@@ -68,6 +66,14 @@ interface LocationSuggestion {
   latitude: number;
   longitude: number;
   region: string;
+}
+
+interface UploadProgressState {
+  uploadId: string;
+  chunksUploaded: number;
+  totalChunks: number;
+  progress: number;
+  isComplete: boolean;
 }
 
 const JOB_CATEGORIES: Category[] = [
@@ -113,7 +119,7 @@ export default function CreateScreen() {
   const [videoThumbnail, setVideoThumbnail] = useState<string | null>(null);
   const [videoDuration, setVideoDuration] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressState | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -937,6 +943,35 @@ export default function CreateScreen() {
     }
   };
 
+  const isRemoteMediaUrl = (uri: string): boolean =>
+    uri.startsWith('http://') || uri.startsWith('https://');
+
+  const uploadImagesToCloudflare = async (uris: string[]): Promise<string[]> => {
+    const uploaded: string[] = [];
+
+    for (let index = 0; index < uris.length; index++) {
+      const uri = uris[index] || '';
+      if (!uri) continue;
+
+      if (isRemoteMediaUrl(uri)) {
+        uploaded.push(uri);
+        continue;
+      }
+
+      const fileName = `listing_image_${Date.now()}_${index}.jpg`;
+      const media = await uploadMediaToCloudflare({
+        uri,
+        mediaType: 'image',
+        fileName,
+        userId: user?.id || user?.phone || undefined,
+      });
+
+      uploaded.push(media.url);
+    }
+
+    return uploaded;
+  };
+
   const pickImage = useCallback(
     async (useCamera: boolean) => {
       try {
@@ -977,7 +1012,7 @@ export default function CreateScreen() {
           setImageCompressionProgress({ current: 0, total: 1 });
 
           try {
-            Alert.alert('Processing Image', 'Optimizing image for faster upload...');
+            setValidationMessage('Optimizing image for faster upload...');
 
             const compressedResults = await compressImagesWithProgress(
               [asset.uri],
@@ -1032,11 +1067,9 @@ export default function CreateScreen() {
                 finalImageData.substring(0, 30)
               );
               setImages((prev) => [...prev, finalImageData]);
-
-              // Show compression summary with dedup info
-              const summary = getImageSummary(compressedResults[0]);
-              const dedupMsg = duplicateHash ? '\n✓ Duplicate detected - storage optimized!' : '';
-              Alert.alert('Image Optimized', summary + dedupMsg, [{ text: 'OK' }]);
+              if (duplicateHash) {
+                setValidationMessage('Duplicate image detected. Reusing optimized storage.');
+              }
 
               // Validate the image using base64
               if (asset.base64) {
@@ -1057,7 +1090,7 @@ export default function CreateScreen() {
               return;
             }
 
-            Alert.alert('Processing Info', 'Using original image.', [{ text: 'OK' }]);
+            setValidationMessage('Using original image quality.');
             setImages((prev) => [...prev, finalImageData]);
             if (asset.base64) {
               validateImage(asset.base64);
@@ -1065,6 +1098,7 @@ export default function CreateScreen() {
           } finally {
             setIsCompressingImages(false);
             setImageCompressionProgress(null);
+            setValidationMessage('');
           }
         }
       } catch (e) {
@@ -1309,11 +1343,7 @@ export default function CreateScreen() {
       // Compress the recorded video
       setIsCompressing(true);
       setCompressionProgress(0);
-
-      Alert.alert(
-        'Compressing Video',
-        'Processing your recorded video for optimal quality and faster upload...'
-      );
+      setValidationMessage('Optimizing video for faster upload...');
 
       const compressedResult = await compressVideoWithProgress(
         recordedUri,
@@ -1343,17 +1373,11 @@ export default function CreateScreen() {
         console.warn('[Create] Could not generate video thumbnail:', thumbError);
       }
 
-      Alert.alert(
-        'Video Ready',
-        `Original: ${formatBytes(compressedResult.originalSize)}\nCompressed: ${formatBytes(compressedResult.compressedSize)}\nSaved: ${formatBytes(compressedResult.originalSize - compressedResult.compressedSize)}`,
-        [{ text: 'OK' }]
-      );
-
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       validateVideoFrame(compressedResult.uri);
     } catch (compressionError) {
       console.error('[Create] Video compression error:', compressionError);
-      Alert.alert('Compression Info', 'Using original video quality.', [{ text: 'OK' }]);
+      setValidationMessage('Using original video quality.');
       setVideoUri(recordedUri);
 
       // Generate thumbnail for fallback
@@ -1371,6 +1395,7 @@ export default function CreateScreen() {
     } finally {
       setIsCompressing(false);
       setCompressionProgress(0);
+      setValidationMessage('');
     }
   }, []);
 
@@ -1395,10 +1420,7 @@ export default function CreateScreen() {
         setCompressionProgress(0);
 
         try {
-          Alert.alert(
-            'Compressing Video',
-            'Processing your video for optimal quality and faster upload...'
-          );
+          setValidationMessage('Optimizing video for faster upload...');
 
           const compressedResult = await compressVideoWithProgress(
             uri,
@@ -1425,19 +1447,12 @@ export default function CreateScreen() {
             console.warn('[Create] Could not generate video thumbnail:', thumbError);
           }
 
-          // Show compression summary
-          Alert.alert(
-            'Video Ready',
-            `Original: ${formatBytes(compressedResult.originalSize)}\nCompressed: ${formatBytes(compressedResult.compressedSize)}\nSaved: ${formatBytes(compressedResult.originalSize - compressedResult.compressedSize)}`,
-            [{ text: 'OK' }]
-          );
-
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           validateVideoFrame(compressedResult.uri);
         } catch (compressionError) {
           console.error('Video compression error:', compressionError);
           // Fall back to original video if compression fails
-          Alert.alert('Compression Info', 'Using original video quality.', [{ text: 'OK' }]);
+          setValidationMessage('Using original video quality.');
           setVideoUri(uri);
 
           // Generate thumbnail for fallback
@@ -1455,6 +1470,7 @@ export default function CreateScreen() {
         } finally {
           setIsCompressing(false);
           setCompressionProgress(0);
+          setValidationMessage('');
         }
       }
     } catch (e) {
@@ -1558,8 +1574,8 @@ export default function CreateScreen() {
         ];
       }
 
-      // Ensure images are portable across devices (avoid file:// or content:// in DB)
-      listingImages = await Promise.all(listingImages.map((uri) => toPortableImageUri(uri)));
+      // Upload all new images directly to Cloudflare, keep existing remote URLs as-is.
+      listingImages = await uploadImagesToCloudflare(listingImages);
 
       console.log(
         '[Create] Submitting listing with images count:',
@@ -1582,31 +1598,35 @@ export default function CreateScreen() {
         setValidationMessage('📹 Uploading your video... This may take a moment.');
 
         const fileName = `video_${Date.now()}.mp4`;
-        const uploadResult = await uploadVideoInChunks(
-          videoUri,
+        setUploadProgress({
+          uploadId: fileName,
+          chunksUploaded: 0,
+          totalChunks: 1,
+          progress: 10,
+          isComplete: false,
+        });
+        const uploadResult = await uploadMediaToCloudflare({
+          uri: videoUri,
+          mediaType: 'video',
           fileName,
-          (progress) => {
-            console.log(
-              `Upload progress: ${progress.progress}% (${progress.chunksUploaded}/${progress.totalChunks})`
-            );
-            setUploadProgress(progress);
-            // Map video upload progress to 20-70% of overall progress
-            setOverallProgress(20 + Math.floor(progress.progress * 0.5));
-          },
-          (error) => {
-            console.error('Upload error:', error);
-            setValidationMessage('⚠️ Video upload failed. Please try again.');
-          }
-        );
+          userId: user?.id || user?.phone || undefined,
+        });
 
-        finalVideoUrl = uploadResult.videoUrl;
+        finalVideoUrl = uploadResult.url;
+        setUploadProgress({
+          uploadId: fileName,
+          chunksUploaded: 1,
+          totalChunks: 1,
+          progress: 100,
+          isComplete: true,
+        });
+        setOverallProgress(70);
         console.log(
           '[Create] Video upload result:',
-          JSON.stringify({ success: !!uploadResult, videoUrl: uploadResult.videoUrl }, null, 2)
+          JSON.stringify({ success: !!uploadResult, videoUrl: uploadResult.url }, null, 2)
         );
         console.log('[Create] finalVideoUrl set to:', finalVideoUrl);
         setIsUploading(false);
-        setOverallProgress(70);
         setValidationMessage('✅ Video uploaded! Creating your listing...');
       } else {
         setOverallProgress(30); // No video, skip to next stage
@@ -1707,25 +1727,25 @@ export default function CreateScreen() {
         'Submitted!',
         'Your listing was submitted successfully and is pending admin approval.',
         [
-        {
-          text: 'OK',
-          onPress: () => {
-            setTitle('');
-            setDescription('');
-            setPrice('');
-            setOfferPrice('');
-            setMediaType('photo');
-            setImages([]);
-            setImageHashes([]);
-            setImageDeduplicationInfo(null);
-            setVideoUri(null);
-            setVideoThumbnail(null);
-            setValidationResult(null);
-            // Navigate to home page
-            router.replace('/(tabs)');
+          {
+            text: 'OK',
+            onPress: () => {
+              setTitle('');
+              setDescription('');
+              setPrice('');
+              setOfferPrice('');
+              setMediaType('photo');
+              setImages([]);
+              setImageHashes([]);
+              setImageDeduplicationInfo(null);
+              setVideoUri(null);
+              setVideoThumbnail(null);
+              setValidationResult(null);
+              // Navigate to home page
+              router.replace('/(tabs)');
+            },
           },
-        },
-      ]
+        ]
       );
     } catch (e) {
       const error = e as any;

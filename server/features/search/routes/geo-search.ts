@@ -116,7 +116,7 @@ export function registerGeoSearchRoutes(app: Express) {
         limit: limitParam,
       });
 
-      const listings = searchListingsByCategory(categoryFilter, limitParam);
+      const listings = await searchListingsByCategory(categoryFilter, limitParam);
 
       return res.json({
         success: true,

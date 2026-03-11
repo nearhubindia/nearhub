@@ -53,10 +53,7 @@ export interface CreateListingInput {
 class ListingsStorage {
   private listings: Map<string, Listing> = new Map();
 
-  constructor() {
-    // Add some sample listings for testing
-    this.seedSampleData();
-  }
+  constructor() {}
 
   private seedSampleData() {
     // Load 1000+ sample listings from seed data JSON

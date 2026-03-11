@@ -147,10 +147,7 @@ export async function getActiveListing(
 /**
  * Boost a listing for a fixed number of hours.
  */
-export async function boostListingForHours(
-  id: string,
-  hours: number
-): Promise<Listing | null> {
+export async function boostListingForHours(id: string, hours: number): Promise<Listing | null> {
   const safeHours = Number.isFinite(hours) && hours > 0 ? Math.floor(hours) : 24;
   const boostedUntil = new Date(Date.now() + safeHours * 60 * 60 * 1000);
 

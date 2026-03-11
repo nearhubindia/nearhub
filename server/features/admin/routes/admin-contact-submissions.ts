@@ -33,7 +33,7 @@ export function registerAdminContactSubmissionRoutes(app: Express) {
                 .orderBy(asc(contactSubmissionComments.createdAt))
             : [];
 
-        const commentsBySubmission = new Map<string, Array<typeof comments[number]>>();
+        const commentsBySubmission = new Map<string, Array<(typeof comments)[number]>>();
         for (const comment of comments) {
           const list = commentsBySubmission.get(comment.submissionId) || [];
           list.push(comment);
@@ -74,8 +74,7 @@ export function registerAdminContactSubmissionRoutes(app: Express) {
     async (req: Request, res: Response) => {
       try {
         const id = String(req.params.id || '').trim();
-        const contacted =
-          typeof req.body?.contacted === 'boolean' ? req.body.contacted : undefined;
+        const contacted = typeof req.body?.contacted === 'boolean' ? req.body.contacted : undefined;
         const adminComments =
           typeof req.body?.adminComments === 'string' ? req.body.adminComments.trim() : undefined;
 

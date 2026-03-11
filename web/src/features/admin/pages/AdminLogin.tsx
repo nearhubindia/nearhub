@@ -135,20 +135,6 @@ export default function AdminLogin() {
             </button>
           </form>
 
-          {/* Demo Credentials */}
-          <div className="mt-8 pt-6 border-t border-slate-700/50">
-            <p className="text-xs text-slate-500 text-center mb-3">Demo Credentials</p>
-            <div className="bg-slate-900/50 rounded p-3 space-y-1">
-              <p className="text-xs text-slate-400">
-                <span className="text-slate-500">Email:</span>{' '}
-                <span className="text-[#ff9933] font-mono">admin@nearhub.local</span>
-              </p>
-              <p className="text-xs text-slate-400">
-                <span className="text-slate-500">Password:</span>{' '}
-                <span className="text-[#ff9933] font-mono">admin123</span>
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

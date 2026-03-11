@@ -4,10 +4,23 @@
  */
 
 import type { Express, Request, Response } from 'express';
-import { listingsStorage } from '../../listings/services/listings-storage';
+import { getListingsByUser } from '../../listings/services/listings';
 
 // Mock user storage (replace with database in production)
 const usersStorage = new Map<string, any>();
+
+function parseJsonField(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
 
 export function registerUserRoutes(app: Express) {
   /**
@@ -188,11 +201,7 @@ export function registerUserRoutes(app: Express) {
       const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
       const { status } = req.query; // 'active', 'sold', 'expired'
 
-      // Get all listings from storage
-      const allListings = listingsStorage.getAllListings();
-
-      // Filter by user
-      let userListings = allListings.filter((listing) => listing.userId === userId);
+      let userListings = await getListingsByUser(userId);
 
       // Filter by status if provided
       if (status) {
@@ -202,7 +211,7 @@ export function registerUserRoutes(app: Express) {
             return new Date(listing.expiresAt) < new Date();
           });
         } else {
-          userListings = userListings.filter((listing) => listing.status === status);
+          userListings = userListings.filter((listing) => listing.status === String(status));
         }
       }
 
@@ -212,7 +221,17 @@ export function registerUserRoutes(app: Express) {
       );
 
       return res.json({
-        listings: userListings,
+        listings: userListings.map((listing) => ({
+          ...listing,
+          userId: listing.sellerId,
+          price: Number(listing.price),
+          offerPrice:
+            listing.offerPrice !== undefined && listing.offerPrice !== null
+              ? Number(listing.offerPrice)
+              : undefined,
+          images: parseJsonField(listing.images),
+          videos: parseJsonField(listing.videos),
+        })),
         total: userListings.length,
       });
     } catch (error) {
@@ -229,17 +248,14 @@ export function registerUserRoutes(app: Express) {
     try {
       const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
 
-      // Get all listings from storage
-      const allListings = listingsStorage.getAllListings();
-
-      // Filter paid listings by user
-      const userSubscriptions = allListings
-        .filter((listing) => listing.userId === userId && listing.isPaid)
+      const userListings = await getListingsByUser(userId);
+      const userSubscriptions = userListings
+        .filter((listing) => listing.isPaid)
         .map((listing) => ({
           id: `sub-${listing.id}`,
           listingId: listing.id,
           listingTitle: listing.title,
-          price: listing.price,
+          price: Number(listing.price),
           duration: listing.durationDays || 0,
           status:
             listing.expiresAt && new Date(listing.expiresAt) < new Date()
@@ -276,11 +292,7 @@ export function registerUserRoutes(app: Express) {
     try {
       const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
 
-      // Get all listings from storage
-      const allListings = listingsStorage.getAllListings();
-
-      // Filter by user
-      const userListings = allListings.filter((listing) => listing.userId === userId);
+      const userListings = await getListingsByUser(userId);
 
       const stats = {
         totalListings: userListings.length,
@@ -289,7 +301,7 @@ export function registerUserRoutes(app: Express) {
         totalSubscriptions: userListings.filter((l) => l.isPaid).length,
         totalRevenue: userListings
           .filter((l) => l.status === 'sold')
-          .reduce((sum, l) => sum + l.price, 0),
+          .reduce((sum, l) => sum + Number(l.price), 0),
       };
 
       return res.json({ stats });

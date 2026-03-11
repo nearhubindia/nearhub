@@ -4,9 +4,10 @@
  * Uses Haversine formula to calculate distances
  */
 
-import { listingsStorage } from '../../listings/services/listings-storage';
 import { getAdminSettings } from '../../admin/services/admin-settings';
-import type { Listing } from '../../listings/services/listings-storage';
+import { getActiveListing } from '../../listings/services/listings';
+
+type DBListing = Awaited<ReturnType<typeof getActiveListing>>[number];
 
 /**
  * Calculate distance between two coordinates using Haversine formula
@@ -47,8 +48,37 @@ export interface GeoSearchOptions {
   limit?: number;
 }
 
-export interface SearchResult extends Listing {
+export interface SearchResult extends DBListing {
   distanceKm?: number;
+}
+
+function parseJsonField(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function mapListing(listing: DBListing): SearchResult {
+  return {
+    ...(listing as any),
+    userId: listing.sellerId,
+    price: Number(listing.price),
+    offerPrice:
+      listing.offerPrice !== undefined && listing.offerPrice !== null
+        ? Number(listing.offerPrice)
+        : undefined,
+    latitude: listing.latitude ? Number(listing.latitude) : undefined,
+    longitude: listing.longitude ? Number(listing.longitude) : undefined,
+    images: parseJsonField(listing.images) as any,
+    videos: parseJsonField(listing.videos) as any,
+  };
 }
 
 /**
@@ -76,8 +106,12 @@ export async function searchListingsByGeo(options: GeoSearchOptions): Promise<Se
     `[GeoSearch] Searching listings within ${radiusKm}km of (${userLatitude}, ${userLongitude})`
   );
 
-  // Get all active listings
-  const allListings = listingsStorage.getAllListings().filter((listing) => listing.isActive);
+  // Get all active listings from database only
+  const allListings = (await getActiveListing({
+    limit: 5000,
+    offset: 0,
+    category,
+  })).map(mapListing);
 
   // Filter and calculate distances
   const resultsWithDistance: SearchResult[] = [];
@@ -93,8 +127,8 @@ export async function searchListingsByGeo(options: GeoSearchOptions): Promise<Se
     const distance = calculateDistance(
       userLatitude,
       userLongitude,
-      listing.latitude,
-      listing.longitude
+      Number(listing.latitude),
+      Number(listing.longitude)
     );
 
     // Filter by radius
@@ -123,12 +157,12 @@ export async function searchListingsByGeo(options: GeoSearchOptions): Promise<Se
     resultsWithDistance.sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
   } else if (sortBy === 'date') {
     resultsWithDistance.sort((a, b) => {
-      const dateA = new Date(b.createdAt).getTime();
-      const dateB = new Date(a.createdAt).getTime();
-      return dateA - dateB; // Newest first
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return dateB - dateA; // Newest first
     });
   } else if (sortBy === 'price') {
-    resultsWithDistance.sort((a, b) => a.price - b.price);
+    resultsWithDistance.sort((a, b) => Number(a.price) - Number(b.price));
   }
 
   // Apply limit
@@ -136,19 +170,18 @@ export async function searchListingsByGeo(options: GeoSearchOptions): Promise<Se
 }
 
 /**
- * Search listings by category (for users without location/location disabled)
- * Falls back to showing all listings when geo-filtering not available
+ * Search listings by category (DB-only)
  */
-export function searchListingsByCategory(category?: string, limit: number = 100): SearchResult[] {
-  const allListings = listingsStorage.getAllListings().filter((listing) => listing.isActive);
-
-  let results = allListings;
-
-  if (category) {
-    results = results.filter((listing) => listing.category === category);
-  }
-
-  return results.slice(0, limit) as SearchResult[];
+export async function searchListingsByCategory(
+  category?: string,
+  limit: number = 100
+): Promise<SearchResult[]> {
+  const results = await getActiveListing({
+    limit,
+    offset: 0,
+    category,
+  });
+  return results.map(mapListing);
 }
 
 /**

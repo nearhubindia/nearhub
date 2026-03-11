@@ -3,6 +3,7 @@
  */
 
 import type { Listing } from '../types/admin-types';
+import { getApiUrl as getSharedApiUrl } from '@/lib/config';
 
 export const chartData = [
   { name: 'Jan', users: 400, listings: 240 },
@@ -40,7 +41,7 @@ export const CATEGORY_MAP: Record<string, { id: number; icon: string }> = {
 };
 
 export function getApiUrl(): string {
-  return import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  return getSharedApiUrl();
 }
 
 export function getAdminToken(): string | null {

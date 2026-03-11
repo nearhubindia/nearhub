@@ -24,7 +24,7 @@ import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
 import { Category, CATEGORIES, CONDITIONS, PriceUnit, PRICE_UNITS } from '@/lib/types';
 import UploadProgressBar from '@/shared/components/UploadProgressBar';
-import { uploadVideoInChunks, type UploadProgress } from '@/lib/chunked-video-upload';
+import { deleteCloudflareMedia, uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 import { VideoRecorderModal } from '@/shared/components/VideoRecorderModal';
 import RichTextEditor from '@/shared/components/RichTextEditor';
 import { getApiUrl } from '@/lib/query-client';
@@ -62,6 +62,14 @@ interface LocationSuggestion {
   region: string;
 }
 
+interface UploadProgressState {
+  uploadId: string;
+  chunksUploaded: number;
+  totalChunks: number;
+  progress: number;
+  isComplete: boolean;
+}
+
 export default function EditListingScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -94,7 +102,7 @@ export default function EditListingScreen() {
   const [videos, setVideos] = useState<string[]>(listing?.videos || []);
   const [videoThumbnail, setVideoThumbnail] = useState<string | null>(null);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
-  const [videoUploadProgress, setVideoUploadProgress] = useState<UploadProgress | null>(null);
+  const [videoUploadProgress, setVideoUploadProgress] = useState<UploadProgressState | null>(null);
   const [showRecorder, setShowRecorder] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
@@ -146,6 +154,32 @@ export default function EditListingScreen() {
       encoding: FileSystem.EncodingType.Base64,
     });
     return `data:${getMimeTypeFromUri(uri)};base64,${base64}`;
+  };
+
+  const isRemoteMediaUrl = (uri: string): boolean =>
+    uri.startsWith('http://') || uri.startsWith('https://');
+
+  const uploadImagesToCloudflare = async (uris: string[]): Promise<string[]> => {
+    const uploaded: string[] = [];
+
+    for (let index = 0; index < uris.length; index++) {
+      const uri = uris[index] || '';
+      if (!uri) continue;
+      if (isRemoteMediaUrl(uri)) {
+        uploaded.push(uri);
+        continue;
+      }
+
+      const fileName = `listing_edit_image_${Date.now()}_${index}.jpg`;
+      const result = await uploadMediaToCloudflare({
+        uri,
+        mediaType: 'image',
+        fileName,
+      });
+      uploaded.push(result.url);
+    }
+
+    return uploaded;
   };
 
   useEffect(() => {
@@ -339,11 +373,27 @@ export default function EditListingScreen() {
       setVideoThumbnail(thumbUri);
 
       const fileName = `listing_edit_video_${Date.now()}.mp4`;
-      const uploadResult = await uploadVideoInChunks(videoUri, fileName, (progress) => {
-        setVideoUploadProgress(progress);
+      setVideoUploadProgress({
+        uploadId: fileName,
+        chunksUploaded: 0,
+        totalChunks: 1,
+        progress: 20,
+        isComplete: false,
+      });
+      const uploadResult = await uploadMediaToCloudflare({
+        uri: videoUri,
+        mediaType: 'video',
+        fileName,
+      });
+      setVideoUploadProgress({
+        uploadId: fileName,
+        chunksUploaded: 1,
+        totalChunks: 1,
+        progress: 100,
+        isComplete: true,
       });
 
-      setVideos([uploadResult.videoUrl]);
+      setVideos([uploadResult.url]);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Video Ready', 'Video uploaded successfully.');
     } catch (error) {
@@ -439,18 +489,7 @@ export default function EditListingScreen() {
     setIsSubmitting(true);
 
     try {
-      const portableImages = (
-        await Promise.all(
-          images.map(async (uri) => {
-            try {
-              return await toPortableImageUri(uri);
-            } catch (error) {
-              console.error('Error converting image before submit:', error);
-              return null;
-            }
-          })
-        )
-      ).filter(Boolean) as string[];
+      const portableImages = await uploadImagesToCloudflare(images);
 
       if (portableImages.length === 0) {
         Alert.alert('Error', 'Images could not be processed. Please re-add images and try again.');
@@ -476,6 +515,17 @@ export default function EditListingScreen() {
         images: portableImages,
         videos,
       });
+
+      const previousMedia = [...(listing.images || []), ...(listing.videos || [])];
+      const currentMedia = new Set([...portableImages, ...videos]);
+      const removedRemoteMedia = previousMedia.filter(
+        (url) => isRemoteMediaUrl(url) && !currentMedia.has(url)
+      );
+      if (removedRemoteMedia.length > 0) {
+        deleteCloudflareMedia(removedRemoteMedia).catch((cleanupError) => {
+          console.warn('[EditListing] Failed to delete old Cloudflare media:', cleanupError);
+        });
+      }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Success', 'Listing updated successfully', [
@@ -543,9 +593,7 @@ export default function EditListingScreen() {
                 style={[styles.typeButton, listingType === 'service' && styles.typeButtonActive]}
                 onPress={() => setListingType('service')}
               >
-                <Text
-                  style={[styles.typeText, listingType === 'service' && styles.typeTextActive]}
-                >
+                <Text style={[styles.typeText, listingType === 'service' && styles.typeTextActive]}>
                   Service
                 </Text>
               </Pressable>
@@ -633,7 +681,11 @@ export default function EditListingScreen() {
               <View style={styles.videoCard}>
                 <View style={styles.videoPreview}>
                   {videoThumbnail ? (
-                    <Image source={{ uri: videoThumbnail }} style={styles.videoThumbImage} contentFit="cover" />
+                    <Image
+                      source={{ uri: videoThumbnail }}
+                      style={styles.videoThumbImage}
+                      contentFit="cover"
+                    />
                   ) : (
                     <View style={styles.videoPlaceholder}>
                       <Feather name="play-circle" size={28} color={Colors.textSecondary} />
@@ -834,9 +886,7 @@ export default function EditListingScreen() {
               <View style={styles.locationCardMain}>
                 <Feather name="map-pin" size={16} color={Colors.primary} />
                 <View style={styles.locationCardTextWrap}>
-                  <Text style={styles.locationTitleText}>
-                    {locationCity || 'Choose location'}
-                  </Text>
+                  <Text style={styles.locationTitleText}>{locationCity || 'Choose location'}</Text>
                   <Text style={styles.locationMetaText}>
                     {pincode ? `Pincode ${pincode}` : 'Search by city or pincode'}
                   </Text>
@@ -931,7 +981,8 @@ export default function EditListingScreen() {
                     <Text style={styles.locationResultTitle}>{item.locationName || item.city}</Text>
                     <Text style={styles.locationResultMeta}>
                       {item.city}
-                      {item.state ? `, ${item.state}` : ''} {item.pincode ? `- ${item.pincode}` : ''}
+                      {item.state ? `, ${item.state}` : ''}{' '}
+                      {item.pincode ? `- ${item.pincode}` : ''}
                     </Text>
                   </View>
                 </Pressable>

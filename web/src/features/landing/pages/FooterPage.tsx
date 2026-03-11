@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { LandingFooter, Logo } from '@/shared/components';
+import { LandingFooter, LandingHeader } from '@/shared/components';
 
 interface FooterPageSection {
   heading: string;
@@ -375,31 +375,14 @@ export default function FooterPage(): ReactElement {
     <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-[#fff7ef] text-slate-900">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_8%_15%,rgba(30,93,168,0.12),transparent_45%),radial-gradient(circle_at_90%_20%,rgba(255,153,51,0.14),transparent_40%)]" />
 
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-20 items-center justify-between">
-            <Link to="/">
-              <Logo size="lg" showText={true} />
-            </Link>
-            <div className="flex items-center gap-6 text-sm font-semibold sm:text-base">
-              <Link to="/" className="text-slate-600 transition hover:text-[#ff9933]">
-                Home
-              </Link>
-              <Link to="/features" className="text-slate-600 transition hover:text-[#ff9933]">
-                Features
-              </Link>
-              <Link to="/contact" className="text-slate-600 transition hover:text-[#ff9933]">
-                Contact
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <LandingHeader active="home" />
 
       <main className="px-4 pb-20 pt-28 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl space-y-8">
           <section className="rounded-3xl border border-[#1e5da8]/10 bg-gradient-to-br from-[#1e5da8]/8 via-white to-[#ff9933]/12 p-6 shadow-sm sm:p-10">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ff9933]">{config.tag}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ff9933]">
+              {config.tag}
+            </p>
             <h1 className="mt-3 text-4xl font-black sm:text-5xl">{config.title}</h1>
             <p className="mt-3 max-w-3xl text-slate-600">{config.subtitle}</p>
           </section>

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Search, RefreshCcw, Mail, Clock, Pencil, Trash2, Plus, Check, X } from 'lucide-react';
+import type { ContactSubmission } from '@/features/admin/api';
 import {
   useAddContactSubmissionComment,
   useContactSubmissions,
@@ -7,6 +8,8 @@ import {
   useUpdateContactSubmission,
   useUpdateContactSubmissionComment,
 } from '@/features/admin/hooks';
+
+const EMPTY_SUBMISSIONS: ContactSubmission[] = [];
 
 function formatDateTime(value: string | null): string {
   if (!value) return '-';
@@ -27,24 +30,17 @@ export default function ContactSubmissionsView() {
   const updateComment = useUpdateContactSubmissionComment();
   const deleteComment = useDeleteContactSubmissionComment();
 
-  const submissions = data?.submissions || [];
-
-  useEffect(() => {
-    const nextContacted: Record<string, boolean> = {};
-
-    for (const item of submissions) {
-      nextContacted[item.id] = item.contacted || false;
-    }
-
-    setContactedDrafts(nextContacted);
-  }, [submissions]);
+  const submissions = data?.submissions ?? EMPTY_SUBMISSIONS;
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return submissions;
 
     return submissions.filter((item) => {
-      const allComments = (item.comments || []).map((c) => c.comment).join(' ').toLowerCase();
+      const allComments = (item.comments || [])
+        .map((c) => c.comment)
+        .join(' ')
+        .toLowerCase();
       return (
         item.name.toLowerCase().includes(query) ||
         item.email.toLowerCase().includes(query) ||
@@ -95,11 +91,15 @@ export default function ContactSubmissionsView() {
               <table className="w-full min-w-[1100px]">
                 <thead className="bg-slate-100 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">Subject</th>
+                    <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">
+                      Subject
+                    </th>
                     <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">
                       Contact
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">Message</th>
+                    <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">
+                      Message
+                    </th>
                     <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">Status</th>
                     <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">
                       Admin Comments
@@ -113,72 +113,79 @@ export default function ContactSubmissionsView() {
                     return (
                       <tr key={item.id} className="border-b border-slate-200 align-top">
                         <td className="px-4 py-4">
-                        <p className="font-bold text-slate-900">{item.subject}</p>
-                        <p className="mt-1 text-xs uppercase font-semibold text-slate-500">
-                          {item.source || 'web'}
-                        </p>
-                        </td>
-                        <td className="px-4 py-4">
-                        <div className="space-y-1 text-sm text-slate-700">
-                          <p className="inline-flex items-center gap-1">
-                            <Mail size={14} />
-                            {item.name}
+                          <p className="font-bold text-slate-900">{item.subject}</p>
+                          <p className="mt-1 text-xs uppercase font-semibold text-slate-500">
+                            {item.source || 'web'}
                           </p>
-                          <p>{item.email}</p>
-                          <p>{item.phone || '-'}</p>
-                          <p className="inline-flex items-center gap-1 text-slate-500">
-                            <Clock size={14} />
-                            {formatDateTime(item.createdAt)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="space-y-1 text-sm text-slate-700">
+                            <p className="inline-flex items-center gap-1">
+                              <Mail size={14} />
+                              {item.name}
+                            </p>
+                            <p>{item.email}</p>
+                            <p>{item.phone || '-'}</p>
+                            <p className="inline-flex items-center gap-1 text-slate-500">
+                              <Clock size={14} />
+                              {formatDateTime(item.createdAt)}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                            {item.message}
                           </p>
-                        </div>
                         </td>
                         <td className="px-4 py-4">
-                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{item.message}</p>
-                        </td>
-                        <td className="px-4 py-4">
-                        <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 mb-2">
-                          <input
-                            type="checkbox"
-                            checked={contactedDrafts[item.id] ?? item.contacted}
-                            onChange={(e) =>
-                              setContactedDrafts((prev) => ({ ...prev, [item.id]: e.target.checked }))
+                          <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 mb-2">
+                            <input
+                              type="checkbox"
+                              checked={contactedDrafts[item.id] ?? item.contacted}
+                              onChange={(e) =>
+                                setContactedDrafts((prev) => ({
+                                  ...prev,
+                                  [item.id]: e.target.checked,
+                                }))
+                              }
+                              className="w-4 h-4 accent-teal-600"
+                            />
+                            Contacted
+                          </label>
+                          <div>
+                            <span
+                              className={`inline-flex px-3 py-1 rounded-full text-xs font-bold ${
+                                (contactedDrafts[item.id] ?? item.contacted)
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-amber-100 text-amber-700'
+                              }`}
+                            >
+                              {(contactedDrafts[item.id] ?? item.contacted)
+                                ? 'Contacted'
+                                : 'Pending'}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs text-slate-500">
+                            {item.contactedAt
+                              ? `At: ${formatDateTime(item.contactedAt)}`
+                              : 'Not contacted yet'}
+                          </p>
+                          <button
+                            onClick={() =>
+                              updateContactSubmission.mutate({
+                                id: item.id,
+                                data: {
+                                  contacted: contactedDrafts[item.id] ?? false,
+                                },
+                              })
                             }
-                            className="w-4 h-4 accent-teal-600"
-                          />
-                          Contacted
-                        </label>
-                        <div>
-                          <span
-                            className={`inline-flex px-3 py-1 rounded-full text-xs font-bold ${
-                              (contactedDrafts[item.id] ?? item.contacted)
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-amber-100 text-amber-700'
-                            }`}
+                            disabled={updateContactSubmission.isPending}
+                            className="mt-3 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold disabled:opacity-50"
                           >
-                            {(contactedDrafts[item.id] ?? item.contacted) ? 'Contacted' : 'Pending'}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-xs text-slate-500">
-                          {item.contactedAt
-                            ? `At: ${formatDateTime(item.contactedAt)}`
-                            : 'Not contacted yet'}
-                        </p>
-                        <button
-                          onClick={() =>
-                            updateContactSubmission.mutate({
-                              id: item.id,
-                              data: {
-                                contacted: contactedDrafts[item.id] ?? false,
-                              },
-                            })
-                          }
-                          disabled={updateContactSubmission.isPending}
-                          className="mt-3 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold disabled:opacity-50"
-                        >
-                          {updateContactSubmission.isPending ? 'Saving...' : 'Save Status'}
-                        </button>
-                      </td>
-                      <td className="px-4 py-4">
+                            {updateContactSubmission.isPending ? 'Saving...' : 'Save Status'}
+                          </button>
+                        </td>
+                        <td className="px-4 py-4">
                           <div className="space-y-3 min-w-[300px]">
                             {comments.map((commentItem) => {
                               const isEditing = editingCommentIds[commentItem.id] || false;
@@ -190,7 +197,10 @@ export default function ContactSubmissionsView() {
                                   {isEditing ? (
                                     <div className="space-y-2">
                                       <textarea
-                                        value={editingCommentDrafts[commentItem.id] ?? commentItem.comment}
+                                        value={
+                                          editingCommentDrafts[commentItem.id] ??
+                                          commentItem.comment
+                                        }
                                         onChange={(e) =>
                                           setEditingCommentDrafts((prev) => ({
                                             ...prev,
@@ -314,7 +324,7 @@ export default function ContactSubmissionsView() {
                                     }
                                   )
                                 }
-                                disabled={!((newCommentDrafts[item.id] ?? '').trim())}
+                                disabled={!(newCommentDrafts[item.id] ?? '').trim()}
                                 className="p-2 rounded bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50"
                                 title="Add comment"
                               >

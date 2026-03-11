@@ -492,7 +492,12 @@ export async function deleteSubscriptionTier(tierId: string): Promise<boolean> {
     db
       .select({ count: sql<number>`count(*)` })
       .from(userSubscriptions)
-      .where(and(eq(userSubscriptions.subscriptionTierId, tierId), eq(userSubscriptions.status, 'active'))),
+      .where(
+        and(
+          eq(userSubscriptions.subscriptionTierId, tierId),
+          eq(userSubscriptions.status, 'active')
+        )
+      ),
     db
       .select({ count: sql<number>`count(*)` })
       .from(userSubscriptions)

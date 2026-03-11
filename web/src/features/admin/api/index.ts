@@ -94,7 +94,7 @@ export class ApiError extends Error {
 }
 
 const handleResponse = async <T = unknown>(response: Response): Promise<T> => {
-  let payload: any = null;
+  let payload: unknown = null;
   try {
     payload = await response.json();
   } catch {
@@ -102,9 +102,10 @@ const handleResponse = async <T = unknown>(response: Response): Promise<T> => {
   }
 
   if (!response.ok) {
+    const payloadData = payload as { error?: string; message?: string } | null;
     const message =
-      payload?.error ||
-      payload?.message ||
+      payloadData?.error ||
+      payloadData?.message ||
       `API Error (${response.status}): ${response.statusText || 'Request failed'}`;
     throw new ApiError(response.status, message, payload);
   }
@@ -166,11 +167,7 @@ export const listingsApi = {
     return handleResponse(response);
   },
 
-  async reviewListing(
-    id: string,
-    action: 'approve' | 'reject',
-    reason?: string
-  ): Promise<unknown> {
+  async reviewListing(id: string, action: 'approve' | 'reject', reason?: string): Promise<unknown> {
     const response = await fetch(`${API_BASE_URL}/api/admin/listings/${id}/review`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
@@ -577,11 +574,14 @@ export const contactSubmissionsApi = {
     submissionId: string,
     comment: string
   ): Promise<ContactSubmissionCommentResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/contact-submissions/${submissionId}/comments`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ comment }),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/api/admin/contact-submissions/${submissionId}/comments`,
+      {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ comment }),
+      }
+    );
     return handleResponse<ContactSubmissionCommentResponse>(response);
   },
 

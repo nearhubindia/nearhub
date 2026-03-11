@@ -118,7 +118,10 @@ export function LandingFooter(): ReactElement {
                 </Link>
               </li>
               <li>
-                <Link to="/contact" className="text-slate-300 hover:text-[#ff9933] transition text-sm">
+                <Link
+                  to="/contact"
+                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
+                >
                   Contact Us
                 </Link>
               </li>
@@ -179,16 +182,28 @@ export function LandingFooter(): ReactElement {
               reserved.
             </p>
             <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm md:justify-end">
-              <Link to="/footer/terms-of-service" className="text-slate-100 hover:text-[#ff9933] transition font-medium">
+              <Link
+                to="/footer/terms-of-service"
+                className="text-slate-100 hover:text-[#ff9933] transition font-medium"
+              >
                 Terms
               </Link>
-              <Link to="/footer/privacy-policy" className="text-slate-100 hover:text-[#ff9933] transition font-medium">
+              <Link
+                to="/footer/privacy-policy"
+                className="text-slate-100 hover:text-[#ff9933] transition font-medium"
+              >
                 Privacy
               </Link>
-              <Link to="/footer/cookies" className="text-slate-100 hover:text-[#ff9933] transition font-medium">
+              <Link
+                to="/footer/cookies"
+                className="text-slate-100 hover:text-[#ff9933] transition font-medium"
+              >
                 Cookies
               </Link>
-              <Link to="/footer/sitemap" className="text-slate-100 hover:text-[#ff9933] transition font-medium">
+              <Link
+                to="/footer/sitemap"
+                className="text-slate-100 hover:text-[#ff9933] transition font-medium"
+              >
                 Sitemap
               </Link>
             </div>

@@ -25,6 +25,7 @@
     "seed": "tsx scripts/seed-subscription-tiers.ts",
     "seed:users": "tsx scripts/seed.ts",
     "seed:listings": "tsx scripts/seed-db-listings.ts",
+    "location:import": "tsx scripts/import-location-index.ts",
     "seed:expired-listing": "tsx scripts/seed-expired-listing.ts",
     "search:sync": "tsx scripts/sync-elasticsearch.ts",
     "lint": "eslint . --ext .ts,.tsx",
@@ -34,6 +35,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1005.0",
+    "@aws-sdk/s3-request-presigner": "^3.1005.0",
     "@elastic/elasticsearch": "^9.3.1",
     "@google/genai": "^1.42.0",
     "axios": "^1.13.5",

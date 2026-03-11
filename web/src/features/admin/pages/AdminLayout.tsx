@@ -64,7 +64,7 @@ export default function AdminLayout() {
       <div
         className={`${
           sidebarOpen ? 'w-64' : 'w-20'
-        } bg-gradient-to-b from-slate-900 to-slate-950 text-white transition-all duration-300 flex flex-col shadow-2xl`}
+        } bg-gradient-to-b from-slate-900 to-slate-950 text-white transition-all duration-300 flex flex-col shadow-2xl overflow-hidden`}
       >
         <div className="p-4 flex items-center justify-between border-b border-slate-700">
           {sidebarOpen && (
@@ -80,7 +80,7 @@ export default function AdminLayout() {
           </button>
         </div>
 
-        <nav className="flex-1 px-4 py-6 space-y-2">
+        <nav className="admin-sidebar-scrollbar flex-1 overflow-y-auto px-4 py-6 space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -116,7 +116,7 @@ export default function AdminLayout() {
           })}
         </nav>
 
-        <div className="border-t border-slate-700 p-4">
+        <div className="shrink-0 border-t border-slate-700 p-4">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-red-600/20 hover:text-red-400 transition font-semibold cursor-pointer"

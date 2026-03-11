@@ -5,10 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { Send, Trash2, TrendingUp, AlertCircle } from 'lucide-react';
-
-function getApiUrl() {
-  return import.meta.env.VITE_API_URL || 'http://localhost:5000';
-}
+import { getApiUrl } from '@/lib/config';
 
 function getAdminToken() {
   return localStorage.getItem('adminToken') || '';

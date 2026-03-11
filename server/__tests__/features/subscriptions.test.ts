@@ -573,9 +573,8 @@ describe('Subscriptions API - GWT Tests', () => {
 
       const expressModule = await import('express');
       const express = expressModule.default;
-      const { registerSubscriptionRoutes } = await import(
-        '../../features/subscriptions/routes/subscriptions'
-      );
+      const { registerSubscriptionRoutes } =
+        await import('../../features/subscriptions/routes/subscriptions');
 
       const app = express();
       app.use(express.json());

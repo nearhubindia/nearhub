@@ -27,12 +27,22 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
     return (
       listing.title.toLowerCase().includes(query) ||
       String(listing.price).toLowerCase().includes(query) ||
-      String(listing.offerPrice ?? '').toLowerCase().includes(query) ||
+      String(listing.offerPrice ?? '')
+        .toLowerCase()
+        .includes(query) ||
       listing.status.toLowerCase().includes(query) ||
-      String(listing.category || '').toLowerCase().includes(query) ||
-      String(listing.location || '').toLowerCase().includes(query) ||
-      String(listing.contactPhone || '').toLowerCase().includes(query) ||
-      String(listing.userId || '').toLowerCase().includes(query)
+      String(listing.category || '')
+        .toLowerCase()
+        .includes(query) ||
+      String(listing.location || '')
+        .toLowerCase()
+        .includes(query) ||
+      String(listing.contactPhone || '')
+        .toLowerCase()
+        .includes(query) ||
+      String(listing.userId || '')
+        .toLowerCase()
+        .includes(query)
     );
   });
 
@@ -166,7 +176,9 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
                                     <span className="line-through text-slate-500">
                                       ₹{listing.price}
                                     </span>
-                                    <span className="text-red-600 font-bold">₹{listing.offerPrice}</span>
+                                    <span className="text-red-600 font-bold">
+                                      ₹{listing.offerPrice}
+                                    </span>
                                   </>
                                 ) : (
                                   <span className="text-slate-600">₹{listing.price}</span>

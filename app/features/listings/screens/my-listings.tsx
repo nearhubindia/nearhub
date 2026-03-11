@@ -160,8 +160,9 @@ export default function MyListingsScreen() {
           duration,
           price: effectivePrice,
           label: `${duration} Days`,
-          subtitle: (String(tier?.description || '').trim() || `${tier?.name || 'Premium'} plan`)
-            .slice(0, 80),
+          subtitle: (
+            String(tier?.description || '').trim() || `${tier?.name || 'Premium'} plan`
+          ).slice(0, 80),
         };
 
         const currentPlan = bestPlanByDuration.get(duration);
@@ -402,7 +403,11 @@ export default function MyListingsScreen() {
     const duration = getCurrentPlanDuration(item);
     const amount = PLAN_AMOUNT_BY_DURATION[duration];
     const planName =
-      duration === 30 ? 'Basic 30 Days' : duration === 15 ? 'Free 15 Days' : `Premium ${duration} Days`;
+      duration === 30
+        ? 'Basic 30 Days'
+        : duration === 15
+          ? 'Free 15 Days'
+          : `Premium ${duration} Days`;
     const amountLabel =
       typeof amount === 'number'
         ? `₹${amount.toLocaleString('en-IN')}`
@@ -555,8 +560,7 @@ export default function MyListingsScreen() {
         typeof errMsg === 'string' &&
         (errMsg.toLowerCase().includes('cancelled') || errMsg.toLowerCase().includes('dismissed'));
       const isKnownListingMissing =
-        typeof errMsg === 'string' &&
-        errMsg.toLowerCase().includes('not available on server yet');
+        typeof errMsg === 'string' && errMsg.toLowerCase().includes('not available on server yet');
 
       if (!wasCancelled && !isKnownListingMissing && !isPaymentAuthFailure) {
         console.error('Error upgrading listing:', error);
@@ -630,7 +634,9 @@ export default function MyListingsScreen() {
         featured: true,
         boostedUntil: data?.boostedUntil || undefined,
         boostCount:
-          item?.boostCount !== undefined && item?.boostCount !== null ? Number(item.boostCount) + 1 : 1,
+          item?.boostCount !== undefined && item?.boostCount !== null
+            ? Number(item.boostCount) + 1
+            : 1,
         status: 'active',
       });
 
@@ -704,283 +710,285 @@ export default function MyListingsScreen() {
                     router.push({ pathname: '/listing/[id]', params: { id: item.id } })
                   }
                 >
-                <View style={styles.imageContainer}>
-                  <Image
-                    source={item.images?.[0] ? { uri: item.images[0] } : undefined}
-                    style={styles.listingImage}
-                    contentFit="cover"
-                    transition={200}
-                  />
+                  <View style={styles.imageContainer}>
+                    <Image
+                      source={item.images?.[0] ? { uri: item.images[0] } : undefined}
+                      style={styles.listingImage}
+                      contentFit="cover"
+                      transition={200}
+                    />
 
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      item.status === 'pending'
-                        ? styles.pendingStatusBadge
-                        : item.status === 'rejected'
-                          ? styles.rejectedStatusBadge
-                        : item.isPaid
-                          ? styles.premiumStatusBadge
-                          : styles.activeStatusBadge,
-                    ]}
-                  >
-                    <Text style={styles.statusBadgeText}>
-                      {item.status === 'pending'
-                        ? 'APPROVAL PENDING'
-                        : item.status === 'rejected'
-                          ? 'REJECTED'
-                        : item.isPaid
-                          ? 'PREMIUM'
-                          : 'ACTIVE'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.conditionBadge}>
-                    <Text style={styles.conditionBadgeText}>{formatCondition(item.condition)}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.detailsSection}>
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceText}>
-                      ₹
-                      {Number(
-                        item.offerPrice && item.offerPrice > 0 && item.offerPrice < item.price
-                          ? item.offerPrice
-                          : item.price || 0
-                      ).toLocaleString('en-IN')}
-                    </Text>
-                    {item.priceUnit ? (
-                      <Text style={styles.priceUnitText}> / {item.priceUnit}</Text>
-                    ) : null}
-                    {item.offerPrice && item.offerPrice > 0 && item.offerPrice < item.price ? (
-                      <Text style={styles.originalPriceText}>
-                        ₹{Number(item.price || 0).toLocaleString('en-IN')}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Text style={styles.titleText} numberOfLines={2}>
-                    {item.title}
-                  </Text>
-
-                  <View style={styles.metaRow}>
-                    <Feather name="map-pin" size={13} color={Colors.textTertiary} />
-                    <Text style={styles.metaText} numberOfLines={1}>
-                      {item.location?.city || 'Location unavailable'}
-                    </Text>
-                    <Text style={styles.metaDot}>•</Text>
-                    <Text style={styles.metaText}>{getTimeAgo(item.createdAt)}</Text>
-                  </View>
-
-                  {isCurrentlyBoosted && (
-                    <View style={styles.boostedTimerBanner}>
-                      <Feather name="zap" size={13} color="#166534" />
-                      <Text style={styles.boostedTimerText}>
-                        Boost active • ends in {formatBoostRemaining(boostRemainingMs)}
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        item.status === 'pending'
+                          ? styles.pendingStatusBadge
+                          : item.status === 'rejected'
+                            ? styles.rejectedStatusBadge
+                            : item.isPaid
+                              ? styles.premiumStatusBadge
+                              : styles.activeStatusBadge,
+                      ]}
+                    >
+                      <Text style={styles.statusBadgeText}>
+                        {item.status === 'pending'
+                          ? 'APPROVAL PENDING'
+                          : item.status === 'rejected'
+                            ? 'REJECTED'
+                            : item.isPaid
+                              ? 'PREMIUM'
+                              : 'ACTIVE'}
                       </Text>
                     </View>
-                  )}
 
-                  <View style={styles.planInfoContainer}>
-                    <View style={styles.planInfoRow}>
-                      <Text style={styles.planInfoLabel}>Plan</Text>
-                      <Text style={styles.planInfoValue}>{listingPlanInfo.planName}</Text>
-                    </View>
-                    <View style={styles.planInfoRow}>
-                      <Text style={styles.planInfoLabel}>Amount</Text>
-                      <Text style={styles.planInfoValue}>{listingPlanInfo.amountLabel}</Text>
-                    </View>
-                    <View style={styles.planInfoRow}>
-                      <Text style={styles.planInfoLabel}>Expiry</Text>
-                      <Text style={styles.planInfoValue}>{listingPlanInfo.expiryLabel}</Text>
-                    </View>
-                  </View>
-
-                  {item.status === 'rejected' ? (
-                    <View style={styles.rejectionReasonContainer}>
-                      <Text style={styles.rejectionReasonLabel}>Admin Message</Text>
-                      <Text style={styles.rejectionReasonText}>
-                        {item.rejectionReason ||
-                          'Your listing was rejected by admin. Edit and resubmit to continue.'}
+                    <View style={styles.conditionBadge}>
+                      <Text style={styles.conditionBadgeText}>
+                        {formatCondition(item.condition)}
                       </Text>
                     </View>
-                  ) : null}
-                </View>
-
-                {/* Analytics Stats Row */}
-                <View style={styles.analyticsRow}>
-                  <View style={styles.analyticsItem}>
-                    <Feather name="eye" size={18} color="#6b7280" />
-                    <Text style={styles.analyticsValue}>{item.viewCount || 0}</Text>
-                    <Text style={styles.analyticsLabel}>Views</Text>
                   </View>
-                  <View style={styles.analyticsDivider} />
-                  <View style={styles.analyticsItem}>
-                    <Feather name="heart" size={18} color="#6b7280" />
-                    <Text style={styles.analyticsValue}>3</Text>
-                    <Text style={styles.analyticsLabel}>Likes</Text>
-                  </View>
-                  <View style={styles.analyticsDivider} />
-                  <Pressable
-                    style={styles.analyticsItem}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      router.push('/chat/');
-                    }}
-                  >
-                    <Feather name="message-circle" size={18} color="#6b7280" />
-                    <Text style={styles.analyticsValue}>2</Text>
-                    <Text style={styles.analyticsLabel}>Chats</Text>
-                  </Pressable>
-                </View>
-              </Pressable>
 
-              {/* Action Buttons Grid */}
-              {item.status === 'active' && !isExpiredItem && (
-                <View style={styles.actionButtonsGrid}>
-                  <Pressable
-                    style={[styles.actionButton, styles.editButton]}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      router.push({ pathname: '/listings/edit', params: { id: item.id } });
-                    }}
-                  >
-                    <Feather name="edit-2" size={18} color="#374151" />
-                    <Text style={styles.editButtonText}>Edit</Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.actionButton,
-                      styles.boostButton,
-                      isCurrentlyBoosted && styles.actionButtonDisabled,
-                    ]}
-                    onPress={(e) => handleBoostNow(item, e)}
-                    disabled={boostingId === item.id || isCurrentlyBoosted}
-                  >
-                    {boostingId === item.id ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <>
-                        <Feather name="trending-up" size={18} color="#fff" />
-                        <Text style={styles.boostButtonText}>
-                          {isCurrentlyBoosted ? 'Boosted' : 'Boost'}
+                  <View style={styles.detailsSection}>
+                    <View style={styles.priceRow}>
+                      <Text style={styles.priceText}>
+                        ₹
+                        {Number(
+                          item.offerPrice && item.offerPrice > 0 && item.offerPrice < item.price
+                            ? item.offerPrice
+                            : item.price || 0
+                        ).toLocaleString('en-IN')}
+                      </Text>
+                      {item.priceUnit ? (
+                        <Text style={styles.priceUnitText}> / {item.priceUnit}</Text>
+                      ) : null}
+                      {item.offerPrice && item.offerPrice > 0 && item.offerPrice < item.price ? (
+                        <Text style={styles.originalPriceText}>
+                          ₹{Number(item.price || 0).toLocaleString('en-IN')}
                         </Text>
-                      </>
-                    )}
-                  </Pressable>
+                      ) : null}
+                    </View>
+                    <Text style={styles.titleText} numberOfLines={2}>
+                      {item.title}
+                    </Text>
 
-                  <Pressable
-                    style={[styles.actionButton, styles.soldButton]}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      handleMarkAsSold(item.id, item.title);
-                    }}
-                    disabled={markingSoldId === item.id}
-                  >
-                    {markingSoldId === item.id ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <>
-                        <Feather name="check-circle" size={18} color="#fff" />
-                        <Text style={styles.soldButtonText}>Mark Sold</Text>
-                      </>
-                    )}
-                  </Pressable>
+                    <View style={styles.metaRow}>
+                      <Feather name="map-pin" size={13} color={Colors.textTertiary} />
+                      <Text style={styles.metaText} numberOfLines={1}>
+                        {item.location?.city || 'Location unavailable'}
+                      </Text>
+                      <Text style={styles.metaDot}>•</Text>
+                      <Text style={styles.metaText}>{getTimeAgo(item.createdAt)}</Text>
+                    </View>
 
-                  <Pressable
-                    style={[styles.actionButton, styles.deleteButton]}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      handleDelete(item.id, item.title);
-                    }}
-                    disabled={deletingId === item.id}
-                  >
-                    {deletingId === item.id ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <>
-                        <Feather name="trash-2" size={18} color="#fff" />
-                        <Text style={styles.deleteButtonText}>Delete</Text>
-                      </>
+                    {isCurrentlyBoosted && (
+                      <View style={styles.boostedTimerBanner}>
+                        <Feather name="zap" size={13} color="#166534" />
+                        <Text style={styles.boostedTimerText}>
+                          Boost active • ends in {formatBoostRemaining(boostRemainingMs)}
+                        </Text>
+                      </View>
                     )}
-                  </Pressable>
-                </View>
-              )}
 
-              {isExpiredItem && (
-                <View style={styles.actionButtonsGrid}>
-                  <Pressable
-                    style={[styles.actionButton, styles.actionButtonFull, styles.boostButton]}
-                    onPress={(e) => handleUpgradeButton(item, e)}
-                  >
-                    <Feather name="refresh-cw" size={18} color="#fff" />
-                    <Text style={styles.boostButtonText}>Renew</Text>
-                  </Pressable>
-                </View>
-              )}
+                    <View style={styles.planInfoContainer}>
+                      <View style={styles.planInfoRow}>
+                        <Text style={styles.planInfoLabel}>Plan</Text>
+                        <Text style={styles.planInfoValue}>{listingPlanInfo.planName}</Text>
+                      </View>
+                      <View style={styles.planInfoRow}>
+                        <Text style={styles.planInfoLabel}>Amount</Text>
+                        <Text style={styles.planInfoValue}>{listingPlanInfo.amountLabel}</Text>
+                      </View>
+                      <View style={styles.planInfoRow}>
+                        <Text style={styles.planInfoLabel}>Expiry</Text>
+                        <Text style={styles.planInfoValue}>{listingPlanInfo.expiryLabel}</Text>
+                      </View>
+                    </View>
 
-              {item.status === 'rejected' && (
-                <View style={styles.actionButtonsGrid}>
-                  <Pressable
-                    style={[styles.actionButton, styles.editButton]}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      router.push({ pathname: '/listings/edit', params: { id: item.id } });
-                    }}
-                  >
-                    <Feather name="edit-2" size={18} color="#374151" />
-                    <Text style={styles.editButtonText}>Edit</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.actionButton, styles.actionButtonFull, styles.resubmitButton]}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      handleResubmit(item.id, item.title);
-                    }}
-                    disabled={resubmittingId === item.id}
-                  >
-                    {resubmittingId === item.id ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <>
-                        <Feather name="refresh-cw" size={18} color="#fff" />
-                        <Text style={styles.resubmitButtonText}>Resubmit</Text>
-                      </>
-                    )}
-                  </Pressable>
-                </View>
-              )}
+                    {item.status === 'rejected' ? (
+                      <View style={styles.rejectionReasonContainer}>
+                        <Text style={styles.rejectionReasonLabel}>Admin Message</Text>
+                        <Text style={styles.rejectionReasonText}>
+                          {item.rejectionReason ||
+                            'Your listing was rejected by admin. Edit and resubmit to continue.'}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {/* Analytics Stats Row */}
+                  <View style={styles.analyticsRow}>
+                    <View style={styles.analyticsItem}>
+                      <Feather name="eye" size={18} color="#6b7280" />
+                      <Text style={styles.analyticsValue}>{item.viewCount || 0}</Text>
+                      <Text style={styles.analyticsLabel}>Views</Text>
+                    </View>
+                    <View style={styles.analyticsDivider} />
+                    <View style={styles.analyticsItem}>
+                      <Feather name="heart" size={18} color="#6b7280" />
+                      <Text style={styles.analyticsValue}>3</Text>
+                      <Text style={styles.analyticsLabel}>Likes</Text>
+                    </View>
+                    <View style={styles.analyticsDivider} />
+                    <Pressable
+                      style={styles.analyticsItem}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push('/chat/');
+                      }}
+                    >
+                      <Feather name="message-circle" size={18} color="#6b7280" />
+                      <Text style={styles.analyticsValue}>2</Text>
+                      <Text style={styles.analyticsLabel}>Chats</Text>
+                    </Pressable>
+                  </View>
+                </Pressable>
+
+                {/* Action Buttons Grid */}
+                {item.status === 'active' && !isExpiredItem && (
+                  <View style={styles.actionButtonsGrid}>
+                    <Pressable
+                      style={[styles.actionButton, styles.editButton]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push({ pathname: '/listings/edit', params: { id: item.id } });
+                      }}
+                    >
+                      <Feather name="edit-2" size={18} color="#374151" />
+                      <Text style={styles.editButtonText}>Edit</Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={[
+                        styles.actionButton,
+                        styles.boostButton,
+                        isCurrentlyBoosted && styles.actionButtonDisabled,
+                      ]}
+                      onPress={(e) => handleBoostNow(item, e)}
+                      disabled={boostingId === item.id || isCurrentlyBoosted}
+                    >
+                      {boostingId === item.id ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Feather name="trending-up" size={18} color="#fff" />
+                          <Text style={styles.boostButtonText}>
+                            {isCurrentlyBoosted ? 'Boosted' : 'Boost'}
+                          </Text>
+                        </>
+                      )}
+                    </Pressable>
+
+                    <Pressable
+                      style={[styles.actionButton, styles.soldButton]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        handleMarkAsSold(item.id, item.title);
+                      }}
+                      disabled={markingSoldId === item.id}
+                    >
+                      {markingSoldId === item.id ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Feather name="check-circle" size={18} color="#fff" />
+                          <Text style={styles.soldButtonText}>Mark Sold</Text>
+                        </>
+                      )}
+                    </Pressable>
+
+                    <Pressable
+                      style={[styles.actionButton, styles.deleteButton]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        handleDelete(item.id, item.title);
+                      }}
+                      disabled={deletingId === item.id}
+                    >
+                      {deletingId === item.id ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Feather name="trash-2" size={18} color="#fff" />
+                          <Text style={styles.deleteButtonText}>Delete</Text>
+                        </>
+                      )}
+                    </Pressable>
+                  </View>
+                )}
+
+                {isExpiredItem && (
+                  <View style={styles.actionButtonsGrid}>
+                    <Pressable
+                      style={[styles.actionButton, styles.actionButtonFull, styles.boostButton]}
+                      onPress={(e) => handleUpgradeButton(item, e)}
+                    >
+                      <Feather name="refresh-cw" size={18} color="#fff" />
+                      <Text style={styles.boostButtonText}>Renew</Text>
+                    </Pressable>
+                  </View>
+                )}
+
+                {item.status === 'rejected' && (
+                  <View style={styles.actionButtonsGrid}>
+                    <Pressable
+                      style={[styles.actionButton, styles.editButton]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push({ pathname: '/listings/edit', params: { id: item.id } });
+                      }}
+                    >
+                      <Feather name="edit-2" size={18} color="#374151" />
+                      <Text style={styles.editButtonText}>Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.actionButton, styles.actionButtonFull, styles.resubmitButton]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        handleResubmit(item.id, item.title);
+                      }}
+                      disabled={resubmittingId === item.id}
+                    >
+                      {resubmittingId === item.id ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Feather name="refresh-cw" size={18} color="#fff" />
+                          <Text style={styles.resubmitButtonText}>Resubmit</Text>
+                        </>
+                      )}
+                    </Pressable>
+                  </View>
+                )}
 
                 {item.status === 'sold' && (
-                <View style={styles.actionButtonsGrid}>
-                  <Pressable
-                    style={[styles.actionButton, styles.actionButtonFull, styles.restoreButton]}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      handleMarkAsActive(item.id, item.title);
-                    }}
-                    disabled={markingActiveId === item.id}
-                  >
-                    {markingActiveId === item.id ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <>
-                        <Feather name="rotate-ccw" size={18} color="#fff" />
-                        <Text style={styles.restoreButtonText}>Mark Active</Text>
-                      </>
-                    )}
-                  </Pressable>
-                </View>
-              )}
-            </View>
+                  <View style={styles.actionButtonsGrid}>
+                    <Pressable
+                      style={[styles.actionButton, styles.actionButtonFull, styles.restoreButton]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        handleMarkAsActive(item.id, item.title);
+                      }}
+                      disabled={markingActiveId === item.id}
+                    >
+                      {markingActiveId === item.id ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Feather name="rotate-ccw" size={18} color="#fff" />
+                          <Text style={styles.restoreButtonText}>Mark Active</Text>
+                        </>
+                      )}
+                    </Pressable>
+                  </View>
+                )}
+              </View>
             </View>
           );
         }}
@@ -998,20 +1006,20 @@ export default function MyListingsScreen() {
           <AppScreenBanners banners={listingsBanners} isLoading={isListingsBannersLoading} />
         }
         ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Feather name="package" size={48} color={Colors.textTertiary} />
-              <Text style={styles.emptyTitle}>No listings yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Create your first listing to get started. Pending approvals and status badges will
-                appear here.
-              </Text>
-              <Pressable style={styles.createButton} onPress={() => router.push('/(tabs)/create')}>
-                <Feather name="plus" size={20} color="#fff" />
-                <Text style={styles.createButtonText}>Create Listing</Text>
-              </Pressable>
-            </View>
-          }
-        />
+          <View style={styles.emptyState}>
+            <Feather name="package" size={48} color={Colors.textTertiary} />
+            <Text style={styles.emptyTitle}>No listings yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Create your first listing to get started. Pending approvals and status badges will
+              appear here.
+            </Text>
+            <Pressable style={styles.createButton} onPress={() => router.push('/(tabs)/create')}>
+              <Feather name="plus" size={20} color="#fff" />
+              <Text style={styles.createButtonText}>Create Listing</Text>
+            </Pressable>
+          </View>
+        }
+      />
 
       <Modal
         visible={upgradeModalVisible}
@@ -1438,7 +1446,9 @@ const styles = createResponsiveStyles({
     borderTopColor: Colors.borderLight,
   },
   actionButton: {
-    width: '48.5%',
+    flexBasis: '48%',
+    maxWidth: '49%',
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1450,7 +1460,8 @@ const styles = createResponsiveStyles({
     opacity: 0.6,
   },
   actionButtonFull: {
-    width: '100%',
+    flexBasis: '100%',
+    maxWidth: '100%',
   },
   editButton: {
     backgroundColor: Colors.borderLight,

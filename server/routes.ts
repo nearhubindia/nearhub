@@ -21,6 +21,7 @@ import { registerListingRoutes } from './features/listings/routes/listings';
 import { registerListingExpirationRoutes } from './features/listings/routes/listing-expiration';
 // Media feature routes
 import { registerMediaCleanupRoutes } from './features/media/routes/media-cleanup';
+import { registerCloudflareMediaRoutes } from './features/media/routes/cloudflare-media';
 import { registerVideoUploadRoutes } from './features/media/routes/video-upload';
 // Payments feature routes
 import { registerDynamicPricingRoutes } from './features/payments/routes/dynamic-pricing';
@@ -69,7 +70,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerListingRoutes(app);
 
   // Location
-  registerLocationRoutes(app);
+  await registerLocationRoutes(app);
 
   // Admin auth + protected settings middleware (only for POST/update)
   registerAdminAuthRoutes(app);
@@ -80,6 +81,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerListingExpirationRoutes(app);
   registerVideoUploadRoutes(app);
   registerMediaCleanupRoutes(app);
+  registerCloudflareMediaRoutes(app);
   registerDynamicPricingRoutes(app);
   registerUserRoutes(app);
   registerGeoSearchRoutes(app);

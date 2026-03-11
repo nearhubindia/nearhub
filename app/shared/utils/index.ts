@@ -60,7 +60,10 @@ export {
   analyzeVideo,
   VIDEO_RECORDING_PRESETS,
 } from '../utils/video-compressor';
-export type { CompressionResult, CompressionOptions as VideoCompressionOptions } from '../utils/video-compressor';
+export type {
+  CompressionResult,
+  CompressionOptions as VideoCompressionOptions,
+} from '../utils/video-compressor';
 export {
   formatBytes as formatVideoBytes,
   getCompressionSummary as getVideoCompressionSummary,

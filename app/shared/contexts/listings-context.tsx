@@ -10,7 +10,6 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Listing, Category } from '@/lib/types';
-import * as ImageStorage from '@/lib/image-storage';
 import { getBackendURL } from '@/lib/config';
 
 const LISTINGS_KEY = '@marketlocal_listings';
@@ -72,241 +71,230 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     }
 
     const run = (async () => {
-    try {
-      console.log('[Listings] loadData: Fetching listings from backend...');
-      setIsLoading(true);
-
-      const backendURL = getBackendURL();
-      const stored = await AsyncStorage.getItem(LISTINGS_KEY);
-      let existingListings: Listing[] = stored ? JSON.parse(stored) : [];
-      const dataVersion = await AsyncStorage.getItem(DATA_VERSION_KEY);
-      const needsCacheReset = dataVersion !== CURRENT_DATA_VERSION;
-      let currentUserId = '';
-      let currentUserPhone = '';
-      let normalizedCurrentUserPhone = '';
-
-      if (needsCacheReset) {
-        existingListings = [];
-        await AsyncStorage.removeItem(LISTINGS_KEY);
-      }
-
-      const normalizeMediaUrl = (url: unknown): string => {
-        if (typeof url !== 'string') return '';
-        const value = url.trim();
-        if (!value) return value;
-
-        if (value.startsWith('/')) {
-          return `${backendURL}${value}`;
-        }
-
-        if (value.startsWith('http://') || value.startsWith('https://')) {
-          try {
-            const parsed = new URL(value);
-            if (
-              parsed.hostname === 'localhost' ||
-              parsed.hostname === '127.0.0.1' ||
-              parsed.hostname === '0.0.0.0'
-            ) {
-              const apiBase = new URL(backendURL);
-              parsed.protocol = apiBase.protocol;
-              parsed.host = apiBase.host;
-              return parsed.toString();
-            }
-          } catch {
-            return value;
-          }
-        }
-
-        return value;
-      };
-
-      // Get user location and radius from AsyncStorage (set by auth context)
-      let url = `${backendURL}/api/listings?limit=100&offset=0`;
       try {
-        const userDataStr = await AsyncStorage.getItem('@nearhub_auth_user');
-        if (userDataStr) {
-          const userData = JSON.parse(userDataStr);
-          currentUserId = String(userData?.id || '');
-          currentUserPhone = String(userData?.phone || '');
-          normalizedCurrentUserPhone = currentUserPhone.replace(/[\s+-]/g, '');
-          const latitude = userData?.location?.latitude;
-          const longitude = userData?.location?.longitude;
-          const radiusKm = userData?.preferences?.searchRadiusKm || 50; // Default 50km
+        console.log('[Listings] loadData: Fetching listings from backend...');
+        setIsLoading(true);
 
-          if (latitude !== undefined && longitude !== undefined) {
-            url += `&latitude=${latitude}&longitude=${longitude}&radius=${radiusKm}`;
-            console.log(
-              `[Listings] Geo-filtering: lat=${latitude}, lon=${longitude}, radius=${radiusKm}km`
-            );
-          }
+        const backendURL = getBackendURL();
+        const dataVersion = await AsyncStorage.getItem(DATA_VERSION_KEY);
+        const needsCacheReset = dataVersion !== CURRENT_DATA_VERSION;
+        let currentUserId = '';
+        let currentUserPhone = '';
+        let normalizedCurrentUserPhone = '';
+
+        if (needsCacheReset) {
+          await AsyncStorage.removeItem(LISTINGS_KEY);
         }
-      } catch (userError) {
-        console.warn('[Listings] Could not load user location for geo-filtering:', userError);
-      }
 
-      try {
-        // Try to fetch from backend API first
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
+        const normalizeMediaUrl = (url: unknown): string => {
+          if (typeof url !== 'string') return '';
+          const value = url.trim();
+          if (!value) return value;
 
-        if (response.ok) {
-          const data = await response.json();
-          console.log('[Listings] API response received, listings count:', data.data?.length || 0);
+          if (value.startsWith('/')) {
+            return `${backendURL}${value}`;
+          }
 
-          if (data.success && data.data) {
-            const mapApiListing = (listing: any): Listing => {
-              // Parse JSON fields if they're strings
-              const images =
-                typeof listing.images === 'string'
-                  ? JSON.parse(listing.images || '[]')
-                  : listing.images || [];
-              const videos =
-                typeof listing.videos === 'string'
-                  ? JSON.parse(listing.videos || '[]')
-                  : listing.videos || [];
-
-              return {
-                id: listing.id,
-                userId: listing.userId || '',
-                title: listing.title,
-                description: listing.description || '',
-                price:
-                  typeof listing.price === 'string' ? parseFloat(listing.price) : listing.price,
-                offerPrice:
-                  listing.offerPrice !== undefined && listing.offerPrice !== null
-                    ? typeof listing.offerPrice === 'string'
-                      ? parseFloat(listing.offerPrice)
-                      : listing.offerPrice
-                    : undefined,
-                category: listing.category as Category,
-                condition: listing.condition || 'good',
-                images: (images || []).map(normalizeMediaUrl).filter(Boolean),
-                videos: (videos || []).map(normalizeMediaUrl).filter(Boolean),
-                location: {
-                  city: listing.location || 'Unknown',
-                  latitude: listing.latitude ? parseFloat(listing.latitude) : 0,
-                  longitude: listing.longitude ? parseFloat(listing.longitude) : 0,
-                },
-                sellerName: 'Seller',
-                sellerPhone: listing.contactPhone || listing.sellerPhone || '',
-                contactPhone: listing.contactPhone || listing.sellerPhone || '',
-                sellerAvatar: 'https://i.pravatar.cc/150?img=1',
-                createdAt: listing.createdAt || new Date().toISOString(),
-                expiresAt: listing.expiresAt || undefined,
-                isPaid: listing.isPaid || false,
-                featured: Boolean(listing.featured),
-                sponsored: Boolean((listing as any).sponsored),
-                boostedUntil: listing.boostedUntil || undefined,
-                boostCount:
-                  listing.boostCount !== undefined && listing.boostCount !== null
-                    ? Number(listing.boostCount)
-                    : undefined,
-                duration: Number(listing.durationDays || listing.duration || 0) || undefined,
-                durationDays: Number(listing.durationDays || listing.duration || 0) || undefined,
-                status: listing.status || 'active',
-                rejectionReason:
-                  typeof listing.rejectionReason === 'string' && listing.rejectionReason.trim()
-                    ? listing.rejectionReason.trim()
-                    : undefined,
-                listingType: (listing.listingType as Listing['listingType']) || 'sell',
-              };
-            };
-
-            const apiListings: Listing[] = (data.data || []).map((listing: any) =>
-              mapApiListing(listing)
-            );
-
-            let userListings: Listing[] = [];
-            const userLookupId = currentUserId || normalizedCurrentUserPhone;
-            if (userLookupId) {
-              try {
-                const userRes = await fetch(
-                  `${backendURL}/api/subscriptions/user/${encodeURIComponent(userLookupId)}/listings`,
-                  {
-                    method: 'GET',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      ...(currentUserId ? { 'x-user-id': currentUserId } : {}),
-                      ...(currentUserPhone ? { 'x-user-phone': currentUserPhone } : {}),
-                    },
-                  }
-                );
-
-                if (userRes.ok) {
-                  const userData = await userRes.json();
-                  const rawUserListings = Array.isArray(userData?.listings)
-                    ? userData.listings
-                    : Array.isArray(userData?.activeListings)
-                      ? userData.activeListings
-                      : [];
-                  userListings = rawUserListings.map((listing: any) => mapApiListing(listing));
-                }
-              } catch (userErr) {
-                console.warn('[Listings] Failed to fetch user listings:', userErr);
+          if (value.startsWith('http://') || value.startsWith('https://')) {
+            try {
+              const parsed = new URL(value);
+              if (
+                parsed.hostname === 'localhost' ||
+                parsed.hostname === '127.0.0.1' ||
+                parsed.hostname === '0.0.0.0'
+              ) {
+                const apiBase = new URL(backendURL);
+                parsed.protocol = apiBase.protocol;
+                parsed.host = apiBase.host;
+                return parsed.toString();
               }
+            } catch {
+              return value;
             }
+          }
 
-            const mergedServerListingsMap = new Map<string, Listing>();
-            [...apiListings, ...userListings].forEach((listing) => {
-              mergedServerListingsMap.set(listing.id, listing);
-            });
-            const mergedServerListings = [...mergedServerListingsMap.values()];
+          return value;
+        };
 
-            // Merge with existing local listings to preserve unsync'd ones
-            // Get IDs from API for deduplication
-            const apiIds = new Set(mergedServerListings.map((l) => l.id));
+        // Get user location and radius from AsyncStorage (set by auth context)
+        let url = `${backendURL}/api/listings?limit=100&offset=0`;
+        try {
+          const userDataStr = await AsyncStorage.getItem('@nearhub_auth_user');
+          if (userDataStr) {
+            const userData = JSON.parse(userDataStr);
+            currentUserId = String(userData?.id || '');
+            currentUserPhone = String(userData?.phone || '');
+            normalizedCurrentUserPhone = currentUserPhone.replace(/[\s+-]/g, '');
+            const latitude = userData?.location?.latitude;
+            const longitude = userData?.location?.longitude;
+            const radiusKm = userData?.preferences?.searchRadiusKm || 50; // Default 50km
 
-            // Keep local listings that aren't on the server yet
-            const localOnlyListings = existingListings.filter((l) => !apiIds.has(l.id));
+            if (latitude !== undefined && longitude !== undefined) {
+              url += `&latitude=${latitude}&longitude=${longitude}&radius=${radiusKm}`;
+              console.log(
+                `[Listings] Geo-filtering: lat=${latitude}, lon=${longitude}, radius=${radiusKm}km`
+              );
+            }
+          }
+        } catch (userError) {
+          console.warn('[Listings] Could not load user location for geo-filtering:', userError);
+        }
 
-            // Merge: API listings first (latest), then local-only listings
-            const merged = [...mergedServerListings, ...localOnlyListings];
+        try {
+          // Try to fetch from backend API first
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
 
+          if (response.ok) {
+            const data = await response.json();
             console.log(
-              '[Listings] Merged listings: API=',
-              apiListings.length,
-              'user=',
-              userListings.length,
-              'localOnly=',
-              localOnlyListings.length,
-              'total=',
-              merged.length
+              '[Listings] API response received, listings count:',
+              data.data?.length || 0
             );
 
-            setListings(merged);
-            await AsyncStorage.setItem(LISTINGS_KEY, JSON.stringify(merged));
-            await AsyncStorage.setItem(INITIALIZED_KEY, 'true');
-            await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
-            setHasMore(true);
-            setOffset(0);
-            return;
+            if (data.success && data.data) {
+              const mapApiListing = (listing: any): Listing => {
+                // Parse JSON fields if they're strings
+                const images =
+                  typeof listing.images === 'string'
+                    ? JSON.parse(listing.images || '[]')
+                    : listing.images || [];
+                const videos =
+                  typeof listing.videos === 'string'
+                    ? JSON.parse(listing.videos || '[]')
+                    : listing.videos || [];
+
+                return {
+                  id: listing.id,
+                  userId: listing.userId || '',
+                  title: listing.title,
+                  description: listing.description || '',
+                  price:
+                    typeof listing.price === 'string' ? parseFloat(listing.price) : listing.price,
+                  offerPrice:
+                    listing.offerPrice !== undefined && listing.offerPrice !== null
+                      ? typeof listing.offerPrice === 'string'
+                        ? parseFloat(listing.offerPrice)
+                        : listing.offerPrice
+                      : undefined,
+                  category: listing.category as Category,
+                  condition: listing.condition || 'good',
+                  images: (images || []).map(normalizeMediaUrl).filter(Boolean),
+                  videos: (videos || []).map(normalizeMediaUrl).filter(Boolean),
+                  location: {
+                    city: listing.location || 'Unknown',
+                    latitude: listing.latitude ? parseFloat(listing.latitude) : 0,
+                    longitude: listing.longitude ? parseFloat(listing.longitude) : 0,
+                  },
+                  sellerName: 'Seller',
+                  sellerPhone: listing.contactPhone || listing.sellerPhone || '',
+                  contactPhone: listing.contactPhone || listing.sellerPhone || '',
+                  sellerAvatar: 'https://i.pravatar.cc/150?img=1',
+                  createdAt: listing.createdAt || new Date().toISOString(),
+                  expiresAt: listing.expiresAt || undefined,
+                  isPaid: listing.isPaid || false,
+                  featured: Boolean(listing.featured),
+                  sponsored: Boolean((listing as any).sponsored),
+                  boostedUntil: listing.boostedUntil || undefined,
+                  boostCount:
+                    listing.boostCount !== undefined && listing.boostCount !== null
+                      ? Number(listing.boostCount)
+                      : undefined,
+                  duration: Number(listing.durationDays || listing.duration || 0) || undefined,
+                  durationDays: Number(listing.durationDays || listing.duration || 0) || undefined,
+                  status: listing.status || 'active',
+                  rejectionReason:
+                    typeof listing.rejectionReason === 'string' && listing.rejectionReason.trim()
+                      ? listing.rejectionReason.trim()
+                      : undefined,
+                  listingType: (listing.listingType as Listing['listingType']) || 'sell',
+                };
+              };
+
+              const apiListings: Listing[] = (data.data || []).map((listing: any) =>
+                mapApiListing(listing)
+              );
+
+              let userListings: Listing[] = [];
+              const userLookupId = currentUserId || normalizedCurrentUserPhone;
+              if (userLookupId) {
+                try {
+                  const userRes = await fetch(
+                    `${backendURL}/api/subscriptions/user/${encodeURIComponent(userLookupId)}/listings`,
+                    {
+                      method: 'GET',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        ...(currentUserId ? { 'x-user-id': currentUserId } : {}),
+                        ...(currentUserPhone ? { 'x-user-phone': currentUserPhone } : {}),
+                      },
+                    }
+                  );
+
+                  if (userRes.ok) {
+                    const userData = await userRes.json();
+                    const rawUserListings = Array.isArray(userData?.listings)
+                      ? userData.listings
+                      : Array.isArray(userData?.activeListings)
+                        ? userData.activeListings
+                        : [];
+                    userListings = rawUserListings.map((listing: any) => mapApiListing(listing));
+                  }
+                } catch (userErr) {
+                  console.warn('[Listings] Failed to fetch user listings:', userErr);
+                }
+              }
+
+              const mergedServerListingsMap = new Map<string, Listing>();
+              [...apiListings, ...userListings].forEach((listing) => {
+                mergedServerListingsMap.set(listing.id, listing);
+              });
+              const mergedServerListings = [...mergedServerListingsMap.values()];
+
+              console.log(
+                '[Listings] Merged listings: API=',
+                apiListings.length,
+                'user=',
+                userListings.length,
+                'total=',
+                mergedServerListings.length
+              );
+
+              setListings(mergedServerListings);
+              await AsyncStorage.setItem(LISTINGS_KEY, JSON.stringify(mergedServerListings));
+              await AsyncStorage.setItem(INITIALIZED_KEY, 'true');
+              await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
+              setHasMore(true);
+              setOffset(0);
+              return;
+            }
           }
+        } catch (apiError) {
+          console.warn('[Listings] API fetch failed, falling back to local storage:', apiError);
         }
-      } catch (apiError) {
-        console.warn('[Listings] API fetch failed, falling back to local storage:', apiError);
-      }
 
-      // Fallback: Load from cache if API fails
-      setListings(existingListings);
-      await AsyncStorage.setItem(INITIALIZED_KEY, 'true');
-      await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
+        // No local listings fallback: enforce DB/API as the single source of truth
+        setListings([]);
+        await AsyncStorage.removeItem(LISTINGS_KEY);
+        await AsyncStorage.setItem(INITIALIZED_KEY, 'true');
+        await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
 
-      const savedStr = await AsyncStorage.getItem(SAVED_KEY);
-      if (savedStr) {
-        setSavedIds(new Set(JSON.parse(savedStr)));
+        const savedStr = await AsyncStorage.getItem(SAVED_KEY);
+        if (savedStr) {
+          setSavedIds(new Set(JSON.parse(savedStr)));
+        }
+      } catch (e) {
+        console.error('[Listings] Failed to load data:', e);
+        setListings([]);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (e) {
-      console.error('[Listings] Failed to load data:', e);
-      setListings([]);
-    } finally {
-      setIsLoading(false);
-    }
-    hasLoadedOnceRef.current = true;
-    lastLoadAtRef.current = Date.now();
+      hasLoadedOnceRef.current = true;
+      lastLoadAtRef.current = Date.now();
     })();
 
     loadInFlightRef.current = run.finally(() => {
@@ -337,35 +325,6 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       'userSubscriptionId:',
       userSubscriptionId
     );
-    const listingId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-    const createdAt = new Date().toISOString();
-
-    // Hash and store images (deduplication)
-    const imageHashes: string[] = [];
-    for (const imageUri of listing.images) {
-      try {
-        // This will return existing hash if duplicate, create new if unique
-        const hash = await ImageStorage.saveImageByHash(
-          imageUri,
-          0, // width unknown from URI
-          0, // height unknown from URI
-          0.4, // ultraLight quality
-          0 // size unknown from URI
-        );
-        imageHashes.push(hash);
-      } catch (error) {
-        console.error(`Failed to hash image: ${error}`);
-        // Fallback: use original URI if hashing fails
-      }
-    }
-
-    const newListing: Listing = {
-      ...listing,
-      id: listingId,
-      createdAt,
-      imageHashes: imageHashes.length > 0 ? imageHashes : undefined,
-    };
-
     // Try to POST to backend API first
     try {
       const backendURL = getBackendURL();
@@ -421,11 +380,6 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
         console.log('[Listings] API creation response:', data);
 
-        // Update the listing with the server-generated ID if provided
-        if (data.listing?.id) {
-          newListing.id = data.listing.id;
-        }
-
         // Refresh listings from API to get the latest data
         await loadData({ force: true });
         return;
@@ -470,8 +424,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           throw error;
         }
 
-        // For other errors, fall back to local storage
-        console.warn('[Listings] API creation failed, falling back to local storage');
+        throw new Error(errorData.error || errorData.message || 'Failed to create listing');
       }
     } catch (apiError: any) {
       // Re-throw AI validation errors so UI can display them
@@ -495,13 +448,8 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       }
 
       console.error('[Listings] API creation error:', apiError);
-      console.warn('[Listings] API creation error, falling back to local storage:', apiError);
+      throw apiError;
     }
-
-    // Fallback: Save locally if API fails
-    const updated = [newListing, ...listings];
-    setListings(updated);
-    await AsyncStorage.setItem(LISTINGS_KEY, JSON.stringify(updated));
   };
 
   const updateListing = async (id: string, updates: Partial<Listing>) => {
@@ -557,15 +505,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       }
     } catch (apiError) {
       console.error('[Listings] API update error:', apiError);
-
-      // Fallback: Update locally if API fails
-      const updatedListings = listings.map((listing) =>
-        listing.id === id ? { ...listing, ...updates } : listing
-      );
-      setListings(updatedListings);
-      await AsyncStorage.setItem(LISTINGS_KEY, JSON.stringify(updatedListings));
-
-      throw apiError; // Re-throw to let UI handle error
+      throw apiError;
     }
   };
 
@@ -737,7 +677,8 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                         ? Number(listing.boostCount)
                         : undefined,
                     duration: Number(listing.durationDays || listing.duration || 0) || undefined,
-                    durationDays: Number(listing.durationDays || listing.duration || 0) || undefined,
+                    durationDays:
+                      Number(listing.durationDays || listing.duration || 0) || undefined,
                     status: listing.status || 'active',
                     rejectionReason:
                       typeof listing.rejectionReason === 'string' && listing.rejectionReason.trim()

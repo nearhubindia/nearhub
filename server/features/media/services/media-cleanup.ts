@@ -6,6 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { deleteMediaByKeys } from './cloudflare-media';
 
 // Types for cleanup operations
 export interface MediaCleanupResult {
@@ -28,6 +29,11 @@ export interface CleanupSummary {
  */
 export async function deleteVideoFile(videoUrl: string): Promise<boolean> {
   try {
+    if (videoUrl.startsWith('http://') || videoUrl.startsWith('https://')) {
+      const result = await deleteMediaByKeys([videoUrl]);
+      return result.deleted.length > 0;
+    }
+
     // Extract file path from URL (e.g., /videos/abc123_video.mp4 -> abc123_video.mp4)
     const fileName = videoUrl.replace(/^\/videos\//, '');
     const uploadDir = process.env.UPLOAD_DIR || '/tmp/video-uploads';
@@ -53,6 +59,11 @@ export async function deleteVideoFile(videoUrl: string): Promise<boolean> {
  */
 export async function deleteImageFile(imageUrl: string): Promise<boolean> {
   try {
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      const result = await deleteMediaByKeys([imageUrl]);
+      return result.deleted.length > 0;
+    }
+
     // If using local file storage
     if (imageUrl.startsWith('/uploads/') || imageUrl.startsWith('file://')) {
       const fileName = imageUrl.replace(/^(\/uploads\/|file:\/\/)/, '');

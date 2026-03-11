@@ -21,7 +21,11 @@ import {
 import { verifyAdminToken } from '../../admin/services/admin-auth';
 import { isListingFree, getPricingForDuration, type DurationOption } from '../services/pricing';
 import { getRazorpayService } from '../../payments/services/razorpay';
-import { createListing, updateListing, boostListingForHours } from '../../listings/services/listings';
+import {
+  createListing,
+  updateListing,
+  boostListingForHours,
+} from '../../listings/services/listings';
 import {
   applyCouponDiscount,
   recordCouponUsage,
@@ -1055,9 +1059,8 @@ export function registerSubscriptionRoutes(app: Express) {
         const amount = Number(invoiceItems && invoiceItems[0] ? invoiceItems[0].amount : 0);
         const listingTitle =
           invoiceItems && invoiceItems[0] ? invoiceItems[0].description : undefined;
-        notifyPaymentSuccess(customerId, amount, razorpay_payment_id, listingTitle).catch(
-          (err) =>
-            console.error('[Subscriptions] Failed to send payment success notification:', err)
+        notifyPaymentSuccess(customerId, amount, razorpay_payment_id, listingTitle).catch((err) =>
+          console.error('[Subscriptions] Failed to send payment success notification:', err)
         );
       }
 
@@ -1244,12 +1247,14 @@ export function registerSubscriptionRoutes(app: Express) {
         .filter((l) => l.status === 'rejected')
         .map((l) => l.id)
         .filter(Boolean);
-      const rejectedUserIds = [...new Set(
-        formattedListings
-          .filter((l) => l.status === 'rejected')
-          .map((l) => String(l.sellerId || '').trim())
-          .filter(Boolean)
-      )];
+      const rejectedUserIds = [
+        ...new Set(
+          formattedListings
+            .filter((l) => l.status === 'rejected')
+            .map((l) => String(l.sellerId || '').trim())
+            .filter(Boolean)
+        ),
+      ];
 
       const rejectionReasonByListingId = new Map<string, string>();
       if (rejectedListingIds.length > 0) {
@@ -1291,7 +1296,9 @@ export function registerSubscriptionRoutes(app: Express) {
           ...listingWithoutSellerId,
           userId: listing.sellerId,
           rejectionReason:
-            listing.status === 'rejected' ? rejectionReasonByListingId.get(listing.id) || null : null,
+            listing.status === 'rejected'
+              ? rejectionReasonByListingId.get(listing.id) || null
+              : null,
         };
       });
 
@@ -1438,7 +1445,10 @@ export function registerSubscriptionRoutes(app: Express) {
           ? parseFloat(finalOfferPrice)
           : undefined;
 
-      if (numericOfferPrice !== undefined && (numericOfferPrice <= 0 || numericOfferPrice >= numericPrice)) {
+      if (
+        numericOfferPrice !== undefined &&
+        (numericOfferPrice <= 0 || numericOfferPrice >= numericPrice)
+      ) {
         return res.status(400).json({
           success: false,
           error: 'offerPrice must be greater than 0 and less than price',
@@ -1555,7 +1565,11 @@ export function registerSubscriptionRoutes(app: Express) {
       if (
         updateData.offerPrice !== undefined &&
         updateData.offerPrice !== null &&
-        !(updateData.offerPrice > 0 && effectivePrice !== undefined && updateData.offerPrice < Number(effectivePrice))
+        !(
+          updateData.offerPrice > 0 &&
+          effectivePrice !== undefined &&
+          updateData.offerPrice < Number(effectivePrice)
+        )
       ) {
         return res.status(400).json({
           success: false,
@@ -1713,7 +1727,9 @@ export function registerSubscriptionRoutes(app: Express) {
         (!!normalizedUserPhone && normalizedOwnerId === normalizedUserPhone);
 
       if (!isOwner) {
-        return res.status(403).json({ success: false, error: 'You can only boost your own listing' });
+        return res
+          .status(403)
+          .json({ success: false, error: 'You can only boost your own listing' });
       }
 
       if (listing.status !== 'active' || listing.isActive !== true) {
@@ -1727,7 +1743,8 @@ export function registerSubscriptionRoutes(app: Express) {
         return res.status(409).json({
           success: false,
           code: 'LISTING_ALREADY_BOOSTED',
-          error: 'This listing is already boosted. You can boost again after current boost expires.',
+          error:
+            'This listing is already boosted. You can boost again after current boost expires.',
           boostedUntil: listing.boostedUntil,
         });
       }
@@ -1876,7 +1893,9 @@ export function registerSubscriptionRoutes(app: Express) {
         !razorpay_payment_id ||
         !razorpay_signature
       ) {
-        return res.status(400).json({ success: false, error: 'Missing payment verification fields' });
+        return res
+          .status(400)
+          .json({ success: false, error: 'Missing payment verification fields' });
       }
 
       const isValidPayment = verifyPayment(

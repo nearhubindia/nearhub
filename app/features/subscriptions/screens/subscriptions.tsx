@@ -475,11 +475,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
     if (!defaultActiveSubscriptionId || !visibleIds.has(defaultActiveSubscriptionId)) {
       setDefaultActiveSubscriptionId(firstVisibleId);
     }
-  }, [
-    consolidatedActiveSubscriptions,
-    selectedActiveSubscriptionId,
-    defaultActiveSubscriptionId,
-  ]);
+  }, [consolidatedActiveSubscriptions, selectedActiveSubscriptionId, defaultActiveSubscriptionId]);
 
   const handleSubscribe = useCallback(async (): Promise<void> => {
     if (!selectedTierId) {
@@ -761,7 +757,9 @@ export default function SubscriptionsScreen(): React.JSX.Element {
               const isSelected =
                 !!representativeId &&
                 group.subscriptions.some((sub) => sub.id === selectedActiveSubscriptionId);
-              const isDefault = group.subscriptions.some((sub) => sub.id === defaultActiveSubscriptionId);
+              const isDefault = group.subscriptions.some(
+                (sub) => sub.id === defaultActiveSubscriptionId
+              );
               const usagePercent =
                 group.hasUnlimited || group.totalLimit <= 0
                   ? 0
@@ -1612,12 +1610,13 @@ const styles = StyleSheet.create({
   },
   applyButton: {
     backgroundColor: Colors.primary,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    minWidth: 80,
+    minWidth: 92,
+    minHeight: 44,
   },
   applyButtonDisabled: {
     opacity: 0.5,
@@ -1720,11 +1719,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
     flex: 1,
+    minHeight: 50,
   },
   subscribeGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 50,
     paddingVertical: 16,
     paddingHorizontal: 20,
     gap: 8,

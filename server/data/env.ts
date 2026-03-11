@@ -13,7 +13,8 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
 const cwd = process.cwd();
-const envPath = path.basename(cwd) === 'server' ? path.resolve(cwd, '.env') : path.resolve(cwd, 'server/.env');
+const envPath =
+  path.basename(cwd) === 'server' ? path.resolve(cwd, '.env') : path.resolve(cwd, 'server/.env');
 let loaded = false;
 
 if (fs.existsSync(envPath)) {

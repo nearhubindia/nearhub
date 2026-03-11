@@ -4,17 +4,41 @@
  */
 
 export const getApiUrl = (): string => {
-  const configuredUrl = import.meta.env.VITE_API_URL;
-  if (configuredUrl) {
-    return configuredUrl;
-  }
+  const configuredUrl = (import.meta.env.VITE_API_URL || '').trim();
 
   if (typeof window !== 'undefined') {
+    const currentHost = window.location.hostname.toLowerCase();
+    const isCurrentLocal =
+      currentHost === 'localhost' || currentHost === '127.0.0.1' || currentHost.endsWith('.local');
+
+    if (configuredUrl) {
+      try {
+        const parsed = new URL(configuredUrl, window.location.origin);
+        const configuredHost = parsed.hostname.toLowerCase();
+        const isConfiguredLocal =
+          configuredHost === 'localhost' ||
+          configuredHost === '127.0.0.1' ||
+          configuredHost.endsWith('.local');
+
+        // In production domains, ignore localhost API values and use same-origin /api routing.
+        if (!isCurrentLocal && isConfiguredLocal) {
+          return window.location.origin;
+        }
+      } catch {
+        // Keep fallback behavior below for invalid URLs.
+      }
+      return configuredUrl;
+    }
+
+    if (!isCurrentLocal) {
+      return window.location.origin;
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
     return `${protocol}//${window.location.hostname}:5000`;
   }
 
-  return 'http://localhost:5000';
+  return configuredUrl || 'http://localhost:5000';
 };
 
 export const getApiTimeout = (): number => {

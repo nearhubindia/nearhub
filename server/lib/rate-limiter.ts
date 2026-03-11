@@ -11,6 +11,10 @@ function getRequestPath(req: { originalUrl?: string; url?: string; path?: string
   return req.originalUrl || req.url || req.path || '';
 }
 
+function getIpRateLimitKey(req: { ip?: string }): string {
+  return ipKeyGenerator(req['ip'] || '');
+}
+
 /**
  * General API rate limiter
  * 500 requests per 15 minutes per IP
@@ -26,7 +30,7 @@ export const generalLimiter = rateLimit({
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  keyGenerator: (req) => req.get('x-user-id') || ipKeyGenerator(req.ip || ''),
+  keyGenerator: (req) => req.get('x-user-id') || getIpRateLimitKey(req),
   skip: (req) => {
     const requestPath = getRequestPath(req);
 
@@ -131,12 +135,7 @@ export const listingCreationLimiter = rateLimit({
   keyGenerator: (req) => {
     const requestWithUser = req as typeof req & { userId?: string };
     const userId = typeof req.body?.userId === 'string' ? req.body.userId : undefined;
-    return (
-      requestWithUser.userId ||
-      req.get('x-user-id') ||
-      userId ||
-      ipKeyGenerator(req.ip || '')
-    );
+    return requestWithUser.userId || req.get('x-user-id') || userId || getIpRateLimitKey(req);
   },
   skip: (req) => {
     // Do not apply listing/day limits to admin-created listings

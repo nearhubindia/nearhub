@@ -48,7 +48,9 @@ export default function ListingDetailScreen() {
   const listingPhone = (listing?.contactPhone || listing?.sellerPhone || '').trim();
   const normalizedSellerPhone = listingPhone.replace(/[\s+-]/g, '');
   const normalizedListingUserId = (listing?.userId || '').replace(/[\s+-]/g, '');
-  const listingUserIdLower = String(listing?.userId || '').trim().toLowerCase();
+  const listingUserIdLower = String(listing?.userId || '')
+    .trim()
+    .toLowerCase();
   const isAdminListing =
     listingUserIdLower === 'admin' ||
     listingUserIdLower.startsWith('admin-') ||
@@ -315,7 +317,10 @@ export default function ListingDetailScreen() {
             </Pressable>
           )}
           {canShowCall && (
-            <Pressable style={[styles.callButton, !canShowMessage && { flex: 1 }]} onPress={handleCall}>
+            <Pressable
+              style={[styles.callButton, !canShowMessage && { flex: 1 }]}
+              onPress={handleCall}
+            >
               <Feather name="phone" size={20} color="#fff" />
               <Text style={styles.callText}>Call Seller</Text>
             </Pressable>

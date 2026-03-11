@@ -1,7 +1,6 @@
 import { type ReactElement, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Mail, Phone, MapPin, Send, Clock3 } from 'lucide-react';
-import { LandingFooter, Logo } from '@/shared/components';
+import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 
 export default function Contact(): ReactElement {
@@ -61,26 +60,7 @@ export default function Contact(): ReactElement {
     <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-[#fff7ef] text-slate-900">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_8%_12%,rgba(30,93,168,0.12),transparent_45%),radial-gradient(circle_at_90%_18%,rgba(255,153,51,0.16),transparent_40%)]" />
 
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-20 items-center justify-between">
-            <Link to="/">
-              <Logo size="lg" showText={true} />
-            </Link>
-            <div className="flex items-center gap-6 text-sm font-semibold sm:text-base">
-              <Link to="/" className="text-slate-600 transition hover:text-[#ff9933]">
-                Home
-              </Link>
-              <Link to="/features" className="text-slate-600 transition hover:text-[#ff9933]">
-                Features
-              </Link>
-              <Link to="/contact" className="text-[#1e5da8]">
-                Contact
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <LandingHeader active="contact" />
 
       <main className="px-4 pb-20 pt-28 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
@@ -137,7 +117,10 @@ export default function Contact(): ReactElement {
               <form onSubmit={handleSubmit} className="mt-6 space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="name" className="mb-1 block text-sm font-semibold text-slate-700">
+                    <label
+                      htmlFor="name"
+                      className="mb-1 block text-sm font-semibold text-slate-700"
+                    >
                       Name *
                     </label>
                     <input
@@ -152,7 +135,10 @@ export default function Contact(): ReactElement {
                     />
                   </div>
                   <div>
-                    <label htmlFor="email" className="mb-1 block text-sm font-semibold text-slate-700">
+                    <label
+                      htmlFor="email"
+                      className="mb-1 block text-sm font-semibold text-slate-700"
+                    >
                       Email *
                     </label>
                     <input
@@ -170,7 +156,10 @@ export default function Contact(): ReactElement {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="phone" className="mb-1 block text-sm font-semibold text-slate-700">
+                    <label
+                      htmlFor="phone"
+                      className="mb-1 block text-sm font-semibold text-slate-700"
+                    >
                       Phone Number *
                     </label>
                     <input
@@ -210,7 +199,10 @@ export default function Contact(): ReactElement {
                 </div>
 
                 <div>
-                  <label htmlFor="message" className="mb-1 block text-sm font-semibold text-slate-700">
+                  <label
+                    htmlFor="message"
+                    className="mb-1 block text-sm font-semibold text-slate-700"
+                  >
                     Message *
                   </label>
                   <textarea

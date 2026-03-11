@@ -24,6 +24,14 @@ interface TierRow {
   isActive: boolean;
 }
 
+interface TierDeleteConflictPayload {
+  details?: {
+    activeSubscriptions?: number;
+    totalSubscriptions?: number;
+    linkedListings?: number;
+  };
+}
+
 interface TierFormData {
   name: string;
   type: 'bundle' | 'boost';
@@ -118,7 +126,7 @@ export default function SubscriptionPlansView() {
     } catch (error) {
       console.error('Error deleting tier:', error);
       if (error instanceof ApiError && error.status === 409) {
-        const details = (error.data as any)?.details || {};
+        const details = (error.data as TierDeleteConflictPayload | null)?.details ?? {};
         const activeSubscriptions = Number(details.activeSubscriptions || 0);
         const totalSubscriptions = Number(details.totalSubscriptions || 0);
         const linkedListings = Number(details.linkedListings || 0);
@@ -168,7 +176,7 @@ export default function SubscriptionPlansView() {
           : [];
     setFormData({
       name: tier.name as string,
-      type: ((tier.type as any) || 'bundle') as 'bundle' | 'boost',
+      type: tier.type === 'boost' ? 'boost' : 'bundle',
       description: (tier.description as string) || '',
       price: Number(tier.price ?? 0),
       offerPrice:
@@ -177,7 +185,7 @@ export default function SubscriptionPlansView() {
       features: features as string[],
       maxListings: Number(tier.maxListings ?? 5),
       featuredListingsPerMonth: Number(tier.featuredListingsPerMonth ?? 0),
-      boostCredits: Number((tier as any).boostCredits ?? 0),
+      boostCredits: Number(tier.boostCredits ?? 0),
       highlight: tier.highlight as boolean,
       isActive: tier.isActive as boolean,
     });
@@ -199,8 +207,8 @@ export default function SubscriptionPlansView() {
     const normalized = (features as string[]).filter((f) => f !== 'image' && f !== 'video');
     const labels: string[] = [];
 
-    if (Number((tier as any).boostCredits || 0) > 0) {
-      labels.push(`Boost Credits: ${Number((tier as any).boostCredits || 0)}`);
+    if (Number(tier.boostCredits || 0) > 0) {
+      labels.push(`Boost Credits: ${Number(tier.boostCredits || 0)}`);
     }
 
     normalized
@@ -286,11 +294,7 @@ export default function SubscriptionPlansView() {
                             {String(tier.type || 'bundle') === 'boost' ? 'Boost Pack' : 'Bundle'}
                           </td>
                           <td className="px-6 py-4 text-sm font-bold text-teal-600">
-                            {(tier.price as number) === 0 ? (
-                              'Free'
-                            ) : (
-                              `₹${tier.price as number}`
-                            )}
+                            {(tier.price as number) === 0 ? 'Free' : `₹${tier.price as number}`}
                           </td>
                           <td className="px-6 py-4 text-sm text-slate-600 font-semibold">
                             {tier.offerPrice && Number(tier.offerPrice) > 0
@@ -301,9 +305,7 @@ export default function SubscriptionPlansView() {
                             {tier.durationDays as number} days
                           </td>
                           <td className="px-6 py-4 text-sm text-slate-600">
-                            {Number((tier as any).boostCredits || 0) > 0
-                              ? Number((tier as any).boostCredits)
-                              : '-'}
+                            {Number(tier.boostCredits || 0) > 0 ? Number(tier.boostCredits) : '-'}
                           </td>
                           <td className="px-6 py-4 text-sm text-slate-600">
                             <div className="text-xs text-slate-500 max-w-xs line-clamp-2">

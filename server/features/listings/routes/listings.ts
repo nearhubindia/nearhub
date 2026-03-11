@@ -233,7 +233,9 @@ export function registerListingRoutes(app: Express) {
       );
       const currentStatus = normalizeStatus(existingListing.status);
       const isApprovedLiveListing =
-        Boolean(existingListing.isActive) && currentStatus !== 'pending' && currentStatus !== 'rejected';
+        Boolean(existingListing.isActive) &&
+        currentStatus !== 'pending' &&
+        currentStatus !== 'rejected';
       const shouldReapproveAfterEdit =
         isApprovedLiveListing && !(req as any).isAdmin && hasModerationSensitiveChanges;
 
@@ -439,5 +441,4 @@ export function registerListingRoutes(app: Express) {
   app.get('/api/users/:userId/analytics', async (req: Request, res: Response) => {
     return getUserAnalyticsHandler(req, res, String(req.params.userId));
   });
-
 }

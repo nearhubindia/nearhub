@@ -292,7 +292,8 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-900 mb-2">
-                  Contact Number <span className="text-xs font-normal text-slate-500">Optional</span>
+                  Contact Number{' '}
+                  <span className="text-xs font-normal text-slate-500">Optional</span>
                 </label>
                 <input
                   type="tel"
@@ -326,7 +327,9 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                       <Star size={18} className="text-amber-500" />
                       Sponsored Tag
                     </div>
-                    <p className="text-xs text-slate-600 mt-1">Separate from featured boost ranking</p>
+                    <p className="text-xs text-slate-600 mt-1">
+                      Separate from featured boost ranking
+                    </p>
                   </div>
                 </label>
               </div>

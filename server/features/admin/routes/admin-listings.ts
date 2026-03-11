@@ -143,10 +143,7 @@ export function registerAdminListingsRoutes(app: Express) {
         });
       }
 
-      const ownerId =
-        typeof userId === 'string' && userId.trim()
-          ? userId.trim()
-          : 'admin';
+      const ownerId = typeof userId === 'string' && userId.trim() ? userId.trim() : 'admin';
 
       const created = await createListing({
         sellerId: ownerId,
@@ -342,7 +339,7 @@ export function registerAdminListingsRoutes(app: Express) {
         return notFound(res, 'Listing');
       }
 
-      const nextIsActive = !Boolean(existing.isActive);
+      const nextIsActive = !existing.isActive;
       const nextStatus = nextIsActive ? 'active' : 'inactive';
 
       const result = await db

@@ -10,14 +10,17 @@ export default function PendingListingsView() {
   const reviewListing = useReviewListing();
   const [searchTerm, setSearchTerm] = useState('');
   const [detailsListingId, setDetailsListingId] = useState<string | null>(null);
-  const { data: listingDetailsData, isLoading: isDetailsLoading } = useListingById(detailsListingId || '');
+  const { data: listingDetailsData, isLoading: isDetailsLoading } = useListingById(
+    detailsListingId || ''
+  );
 
   const listings: Listing[] = Array.isArray(listingsData?.data)
     ? (listingsData.data as Listing[])
     : Array.isArray(listingsData?.listings)
       ? (listingsData.listings as Listing[])
       : [];
-  const detailsListing = ((listingDetailsData as any)?.data || null) as Listing | null;
+  const detailsListingResponse = listingDetailsData as { data?: Listing } | undefined;
+  const detailsListing = detailsListingResponse?.data ?? null;
   const selectedListing = listings.find((listing) => listing.id === detailsListingId) || null;
   const detailsPhone = detailsListing?.contactPhone || selectedListing?.contactPhone || '-';
   const normalizeMediaUrl = (url: unknown): string => {
@@ -67,10 +70,18 @@ export default function PendingListingsView() {
     if (!query) return true;
     return (
       listing.title.toLowerCase().includes(query) ||
-      String(listing.category || '').toLowerCase().includes(query) ||
-      String(listing.location || '').toLowerCase().includes(query) ||
-      String(listing.userId || '').toLowerCase().includes(query) ||
-      String(listing.contactPhone || '').toLowerCase().includes(query)
+      String(listing.category || '')
+        .toLowerCase()
+        .includes(query) ||
+      String(listing.location || '')
+        .toLowerCase()
+        .includes(query) ||
+      String(listing.userId || '')
+        .toLowerCase()
+        .includes(query) ||
+      String(listing.contactPhone || '')
+        .toLowerCase()
+        .includes(query)
     );
   });
 
@@ -139,11 +150,15 @@ export default function PendingListingsView() {
                 <table className="w-full">
                   <thead className="bg-slate-100 border-b border-slate-200">
                     <tr>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">Title</th>
+                      <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
+                        Title
+                      </th>
                       <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
                         Category
                       </th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">Price</th>
+                      <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
+                        Price
+                      </th>
                       <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
                         Location
                       </th>
@@ -153,7 +168,9 @@ export default function PendingListingsView() {
                       <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
                         Phone
                       </th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">Actions</th>
+                      <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -165,9 +182,13 @@ export default function PendingListingsView() {
                         <td className="px-6 py-4 text-sm text-slate-900 font-medium">
                           {listing.title}
                         </td>
-                        <td className="px-6 py-4 text-sm text-slate-600">{listing.category || '-'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">
+                          {listing.category || '-'}
+                        </td>
                         <td className="px-6 py-4 text-sm text-slate-600">₹{listing.price}</td>
-                        <td className="px-6 py-4 text-sm text-slate-600">{listing.location || '-'}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">
+                          {listing.location || '-'}
+                        </td>
                         <td className="px-6 py-4 text-sm text-slate-600">
                           {listing.userId || '-'}
                         </td>
@@ -217,7 +238,9 @@ export default function PendingListingsView() {
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
                 <h2 className="text-xl font-black text-slate-900">Listing Details</h2>
-                <p className="text-sm text-slate-600">Compact review with complete listing information</p>
+                <p className="text-sm text-slate-600">
+                  Compact review with complete listing information
+                </p>
               </div>
               <button
                 onClick={() => setDetailsListingId(null)}
@@ -246,13 +269,17 @@ export default function PendingListingsView() {
                       <p className="text-slate-500">Listing ID</p>
                       <p className="font-medium text-slate-900 break-all">{detailsListing.id}</p>
                       <p className="text-slate-500">User ID</p>
-                      <p className="font-medium text-slate-900 break-all">{detailsListing.userId || '-'}</p>
+                      <p className="font-medium text-slate-900 break-all">
+                        {detailsListing.userId || '-'}
+                      </p>
                       <p className="text-slate-500">Phone</p>
                       <p className="font-medium text-slate-900">{detailsPhone}</p>
                       <p className="text-slate-500">Category</p>
                       <p className="font-medium text-slate-900">{detailsListing.category || '-'}</p>
                       <p className="text-slate-500">Condition</p>
-                      <p className="font-medium text-slate-900">{detailsListing.condition || '-'}</p>
+                      <p className="font-medium text-slate-900">
+                        {detailsListing.condition || '-'}
+                      </p>
                       <p className="text-slate-500">Location</p>
                       <p className="font-medium text-slate-900">{detailsListing.location || '-'}</p>
                       <p className="text-slate-500">Price</p>
@@ -262,7 +289,9 @@ export default function PendingListingsView() {
                         {detailsListing.offerPrice ? `₹${detailsListing.offerPrice}` : '-'}
                       </p>
                       <p className="text-slate-500">Created</p>
-                      <p className="font-medium text-slate-900">{formatDateTime(detailsListing.createdAt)}</p>
+                      <p className="font-medium text-slate-900">
+                        {formatDateTime(detailsListing.createdAt)}
+                      </p>
                     </div>
                   </div>
 

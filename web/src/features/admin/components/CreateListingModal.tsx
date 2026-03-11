@@ -280,7 +280,8 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-900 mb-2">
-                  Contact Number <span className="text-xs font-normal text-slate-500">Optional</span>
+                  Contact Number{' '}
+                  <span className="text-xs font-normal text-slate-500">Optional</span>
                 </label>
                 <input
                   type="tel"
@@ -418,7 +419,9 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                 />
                 <div>
                   <p className="text-sm font-semibold text-blue-900">Featured Listing</p>
-                  <p className="text-xs text-blue-800">Use featured ranking separately from sponsored.</p>
+                  <p className="text-xs text-blue-800">
+                    Use featured ranking separately from sponsored.
+                  </p>
                 </div>
               </label>
             </div>

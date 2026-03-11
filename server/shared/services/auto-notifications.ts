@@ -793,7 +793,9 @@ export async function notifyAdminListingPendingReview({
       createdBy: 'system',
     });
 
-    console.log(`[Auto-Notify] Admin pending-review notification created for listing: ${listingId}`);
+    console.log(
+      `[Auto-Notify] Admin pending-review notification created for listing: ${listingId}`
+    );
   } catch (error) {
     console.error('[Auto-Notify] Failed to create admin pending-review notification:', error);
   }

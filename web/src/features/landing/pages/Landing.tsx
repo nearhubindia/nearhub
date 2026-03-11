@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactElement } from 'react';
-import { Link } from 'react-router-dom';
 import { BadgeCheck, ChevronLeft, ChevronRight, Globe, Video, Zap } from 'lucide-react';
-import { LandingFooter, Logo } from '@/shared/components';
+import { LandingFooter, LandingHeader } from '@/shared/components';
 
 const cards = [
   {
@@ -51,29 +50,12 @@ export default function Landing(): ReactElement {
         <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(30,93,168,0.03)_1px,transparent_1px),linear-gradient(0deg,rgba(255,153,51,0.03)_1px,transparent_1px)] bg-[size:46px_46px]" />
       </div>
 
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-20 items-center justify-between">
-            <Logo size="lg" showText={true} />
-            <div className="flex items-center gap-6 text-sm font-semibold sm:text-base">
-              <Link to="/" className="text-[#1e5da8]">
-                Home
-              </Link>
-              <Link to="/features" className="text-slate-600 transition hover:text-[#ff9933]">
-                Features
-              </Link>
-              <Link to="/contact" className="text-slate-600 transition hover:text-[#ff9933]">
-                Contact
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <LandingHeader active="home" />
 
-      <main className="pt-24">
+      <main className="pt-24 md:pt-26">
         <section className="pb-8">
           <div className="relative mx-auto max-w-[1920px] overflow-hidden">
-            <div className="relative aspect-[1920/550] w-full">
+            <div className="relative aspect-[4/5] w-full sm:aspect-[16/8] lg:aspect-[1920/550]">
               {banners.map((image, index) => (
                 <div
                   key={image}
@@ -91,14 +73,16 @@ export default function Landing(): ReactElement {
             </div>
 
             <button
-              onClick={() => setCurrentBanner((prev) => (prev - 1 + banners.length) % banners.length)}
-              className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full border border-white/30 bg-black/35 p-2 text-white backdrop-blur hover:bg-black/55"
+              onClick={() =>
+                setCurrentBanner((prev) => (prev - 1 + banners.length) % banners.length)
+              }
+              className="absolute left-2 top-1/2 hidden -translate-y-1/2 rounded-full border border-white/30 bg-black/35 p-2 text-white backdrop-blur hover:bg-black/55 sm:block"
             >
               <ChevronLeft size={18} />
             </button>
             <button
               onClick={() => setCurrentBanner((prev) => (prev + 1) % banners.length)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-white/30 bg-black/35 p-2 text-white backdrop-blur hover:bg-black/55"
+              className="absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-full border border-white/30 bg-black/35 p-2 text-white backdrop-blur hover:bg-black/55 sm:block"
             >
               <ChevronRight size={18} />
             </button>
@@ -120,14 +104,17 @@ export default function Landing(): ReactElement {
                     </span>
                   </h2>
                   <p className="mt-4 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-                    NearHub is engineered for high-intent commerce with a calm, trust-first experience
-                    that helps buyers decide faster and helps sellers convert better.
+                    NearHub is engineered for high-intent commerce with a calm, trust-first
+                    experience that helps buyers decide faster and helps sellers convert better.
                   </p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
                   {advantageStats.map((stat) => (
-                    <div key={stat.label} className="rounded-2xl border border-[#1e5da8]/10 bg-white p-4">
+                    <div
+                      key={stat.label}
+                      className="rounded-2xl border border-[#1e5da8]/10 bg-white p-4"
+                    >
                       <p className="text-2xl font-black text-[#1e5da8]">{stat.value}</p>
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
                         {stat.label}
