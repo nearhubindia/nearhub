@@ -34,7 +34,9 @@ function mergeListings(existing: Listing | undefined, incoming: Listing): Listin
     sellerAvatar: isNonEmptyString(incoming.sellerAvatar)
       ? incoming.sellerAvatar
       : existing.sellerAvatar,
-    sellerPhone: isNonEmptyString(incoming.sellerPhone) ? incoming.sellerPhone : existing.sellerPhone,
+    sellerPhone: isNonEmptyString(incoming.sellerPhone)
+      ? incoming.sellerPhone
+      : existing.sellerPhone,
     contactPhone: isNonEmptyString(incoming.contactPhone)
       ? incoming.contactPhone
       : existing.contactPhone,
