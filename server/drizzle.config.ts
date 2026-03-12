@@ -22,7 +22,6 @@ const config: Config = {
   schema: [
     './features/admin/models/admin-settings.ts',
     './features/users/models/users.ts',
-    './features/subscriptions/models/subscription.ts',
   ],
   dialect: 'postgresql',
   dbCredentials: {
