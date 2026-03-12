@@ -58,7 +58,7 @@ export function registerUserRoutes(app: Express) {
   const syncDbUserProfile = async (
     userId: string,
     avatarUrl: string | undefined,
-    profile: { name?: string; address?: string; gstin?: string }
+    profile: { name?: string; email?: string; address?: string; gstin?: string }
   ) => {
     if (!isUuid(userId)) {
       throw new Error('Invalid user id format');
@@ -69,6 +69,8 @@ export function registerUserRoutes(app: Express) {
       typeof profile.name === 'string' && profile.name.trim() ? profile.name.trim() : '';
     const profileAddress =
       typeof profile.address === 'string' && profile.address.trim() ? profile.address.trim() : '';
+    const profileEmail =
+      typeof profile.email === 'string' && profile.email.trim() ? profile.email.trim() : '';
     const profileGstin =
       typeof profile.gstin === 'string' && profile.gstin.trim() ? profile.gstin.trim() : '';
     const isPhoneLikeUsername = (value: string): boolean => /^\d{10,15}$/.test(value.trim());
@@ -89,6 +91,7 @@ export function registerUserRoutes(app: Express) {
         .update(users)
         .set({
           displayName: nextDisplayName,
+          email: profileEmail || dbUser.email || null,
           address: profileAddress || dbUser.address || null,
           gstin: profileGstin || dbUser.gstin || null,
           avatarUrl: normalizedAvatarUrl || dbUser.avatarUrl || null,
@@ -109,6 +112,7 @@ export function registerUserRoutes(app: Express) {
             : null,
         password: 'otp-auth',
         mobile: null,
+        email: profileEmail || null,
         address: profileAddress || null,
         gstin: profileGstin || null,
         avatarUrl: normalizedAvatarUrl || null,
@@ -161,6 +165,7 @@ export function registerUserRoutes(app: Express) {
         const seedUser = getUserById(userId);
         await syncDbUserProfile(userId, seedUser?.avatarUrl, {
           name: seedUser?.name,
+          email: seedUser?.email,
           address: seedUser?.address,
           gstin: seedUser?.gstin,
         });
@@ -176,7 +181,7 @@ export function registerUserRoutes(app: Express) {
         id: userId,
         phone: normalizePhone(dbUser.mobile || existing?.phone || ''),
         name: dbDisplayName || existing?.name || fallbackName,
-        email: existing?.email || '',
+        email: String(dbUser.email || existing?.email || '').trim(),
         gender: existing?.gender || 'other',
         avatarUrl: dbUser.avatarUrl || existing?.avatarUrl || '',
         bio: existing?.bio || '',
@@ -240,7 +245,7 @@ export function registerUserRoutes(app: Express) {
           id: String(dbUser.id),
           phone: normalizePhone(dbUser.mobile || dbUser.id),
           name: dbDisplayName || fallbackName || `User ${String(dbUser.id).slice(-4)}`,
-          email: '',
+          email: String(dbUser.email || '').trim(),
           gender: 'other',
           avatarUrl: dbUser.avatarUrl || '',
           bio: '',
@@ -264,6 +269,7 @@ export function registerUserRoutes(app: Express) {
         user = upsertUser({
           ...user,
           name: dbDisplayName || user.name || fallbackName,
+          email: String(dbUser.email || user.email || '').trim(),
           avatarUrl: dbUser.avatarUrl || user.avatarUrl,
           address: String(dbUser.address || user.address || '').trim(),
           gstin: String(dbUser.gstin || user.gstin || '').trim(),
@@ -340,6 +346,7 @@ export function registerUserRoutes(app: Express) {
       upsertUser(user);
       await syncDbUserProfile(String(userId), user.avatarUrl, {
         name: user.name,
+        email: user.email,
         address: user.address,
         gstin: user.gstin,
       });

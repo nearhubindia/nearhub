@@ -18,6 +18,7 @@ import { touchUserActivity } from '../../users/services/user-lifecycle';
 
 async function upsertAuthUserRecord(input: {
   phone: string;
+  email?: string;
   avatarUrl?: string;
   name?: string;
   preferredId?: string;
@@ -43,6 +44,7 @@ async function upsertAuthUserRecord(input: {
       .update(users)
       .set({
         mobile: normalizedPhone,
+        email: input.email ? String(input.email).trim() : undefined,
       })
       .where(eq(users.id, match.id));
     return;
@@ -55,6 +57,7 @@ async function upsertAuthUserRecord(input: {
       username: normalizedPhone,
       password: 'otp-auth',
       mobile: normalizedPhone,
+      email: input.email ? String(input.email).trim() : null,
       createdAt: new Date(),
     })
     .onConflictDoNothing({ target: users.username });
@@ -63,32 +66,9 @@ async function upsertAuthUserRecord(input: {
 async function getDbUserByPhone(phone: string) {
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) return null;
-  const stableUserId = getStableUserIdFromPhone(normalizedPhone);
-
-  const directMatch = await db.query.users.findFirst({
-    where: or(
-      eq(users.mobile, normalizedPhone),
-      eq(users.username, normalizedPhone),
-      eq(users.id, stableUserId)
-    ),
-    columns: { id: true },
-  });
-  if (directMatch?.id) return directMatch;
-
-  // Legacy recovery: infer user from historical listing records when mobile wasn't persisted.
-  const listingMatches = await db
-    .select({ sellerId: listings.sellerId })
-    .from(listings)
-    .where(eq(listings.contactPhone, normalizedPhone))
-    .limit(2);
-
-  const sellerIds = [
-    ...new Set(listingMatches.map((row) => String(row.sellerId || '').trim())),
-  ].filter((value) => value && isUuid(value));
-  if (sellerIds.length !== 1) return null;
 
   return db.query.users.findFirst({
-    where: eq(users.id, sellerIds[0]),
+    where: or(eq(users.mobile, normalizedPhone), eq(users.username, normalizedPhone)),
     columns: { id: true },
   });
 }
@@ -132,60 +112,21 @@ async function hydrateAuthUserFromDb(userId: string, seed: AppUser): Promise<App
   const normalizedId = String(userId || '').trim();
   if (!normalizedId || !isUuid(normalizedId)) return seed;
 
-  let dbUser:
-    | {
-        id: string;
-        mobile: string | null;
-        username: string;
-        displayName?: string | null;
-        avatarUrl?: string | null;
-        address?: string | null;
-        gstin?: string | null;
-        isVerified: boolean;
-        createdAt: Date | null;
-      }
-    | undefined;
-
-  try {
-    dbUser = await db.query.users.findFirst({
-      where: eq(users.id, normalizedId),
-      columns: {
-        id: true,
-        mobile: true,
-        username: true,
-        displayName: true,
-        avatarUrl: true,
-        address: true,
-        gstin: true,
-        isVerified: true,
-        createdAt: true,
-      },
-    });
-  } catch (error) {
-    // Backward compatibility for environments where profile columns are not migrated yet.
-    const fallbackUser = await db.query.users.findFirst({
-      where: eq(users.id, normalizedId),
-      columns: {
-        id: true,
-        mobile: true,
-        username: true,
-        createdAt: true,
-      },
-    });
-    if (!fallbackUser?.id) return seed;
-    dbUser = {
-      ...fallbackUser,
-      isVerified: Boolean(seed.isVerified),
-      displayName: null,
-      avatarUrl: null,
-      address: null,
-      gstin: null,
-    };
-    console.warn(
-      '[Auth] Profile columns unavailable during auth hydration, using fallback:',
-      error
-    );
-  }
+  const dbUser = await db.query.users.findFirst({
+    where: eq(users.id, normalizedId),
+    columns: {
+      id: true,
+      mobile: true,
+      username: true,
+      displayName: true,
+      email: true,
+      avatarUrl: true,
+      address: true,
+      gstin: true,
+      isVerified: true,
+      createdAt: true,
+    },
+  });
   if (!dbUser?.id) return seed;
 
   const dbName = String(dbUser.displayName || '').trim();
@@ -196,6 +137,7 @@ async function hydrateAuthUserFromDb(userId: string, seed: AppUser): Promise<App
     id: String(dbUser.id),
     phone: normalizePhone(dbUser.mobile || seed.phone || ''),
     name: nextName || seed.name,
+    email: String(dbUser.email || seed.email || '').trim(),
     avatarUrl: String(dbUser.avatarUrl || seed.avatarUrl || '').trim(),
     address: String(dbUser.address || seed.address || '').trim(),
     gstin: String(dbUser.gstin || seed.gstin || '').trim(),
@@ -252,8 +194,7 @@ export function registerAuthRoutes(app: Express) {
 
       const dbUser = await getDbUserByPhone(normalizedPhone);
       const existingUser = getUserByPhone(normalizedPhone);
-      let canonicalUserId =
-        dbUser?.id || existingUser?.id || getStableUserIdFromPhone(normalizedPhone);
+      let canonicalUserId = dbUser?.id || getStableUserIdFromPhone(normalizedPhone);
 
       let authUser = upsertUserFromAuth({
         preferredId: canonicalUserId,
@@ -268,6 +209,7 @@ export function registerAuthRoutes(app: Express) {
       });
       await upsertAuthUserRecord({
         phone: normalizedPhone,
+        email: authUser.email,
         name: authUser.name,
         avatarUrl: authUser.avatarUrl,
         preferredId: canonicalUserId,
@@ -349,8 +291,7 @@ export function registerAuthRoutes(app: Express) {
       const existingUser = getUserByPhone(normalizedPhone);
       const dbUser = await getDbUserByPhone(normalizedPhone);
       const nowIso = new Date().toISOString();
-      let canonicalUserId =
-        dbUser?.id || existingUser?.id || getStableUserIdFromPhone(normalizedPhone);
+      let canonicalUserId = dbUser?.id || getStableUserIdFromPhone(normalizedPhone);
 
       let updatedAuthUser = upsertUserFromAuth({
         preferredId: canonicalUserId,
@@ -364,6 +305,7 @@ export function registerAuthRoutes(app: Express) {
       });
       await upsertAuthUserRecord({
         phone: normalizedPhone,
+        email,
         name,
         avatarUrl,
         preferredId: canonicalUserId,

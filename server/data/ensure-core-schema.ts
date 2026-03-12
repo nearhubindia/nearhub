@@ -7,6 +7,7 @@ async function applyCoreSchemaPatches(): Promise<void> {
   // Users profile columns required by auth/profile/listings flows.
   await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS mobile varchar(20)`);
   await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name text`);
+  await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email text`);
   await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS address text`);
   await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS gstin text`);
   await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url text`);

@@ -31,6 +31,7 @@ export class MemStorage implements IStorage {
       ...insertUser,
       id,
       displayName: null,
+      email: null,
       mobile: null,
       address: null,
       gstin: null,
