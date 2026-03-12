@@ -20,6 +20,29 @@ const DATA_VERSION_KEY = '@marketlocal_data_version';
 const CURRENT_DATA_VERSION = '8'; // Remove sample fallback and reset stale sample cache
 const NETWORK_TIMEOUT_MS = 12000;
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function mergeListings(existing: Listing | undefined, incoming: Listing): Listing {
+  if (!existing) return incoming;
+
+  return {
+    ...existing,
+    ...incoming,
+    sellerName: isNonEmptyString(incoming.sellerName) ? incoming.sellerName : existing.sellerName,
+    sellerAvatar: isNonEmptyString(incoming.sellerAvatar)
+      ? incoming.sellerAvatar
+      : existing.sellerAvatar,
+    sellerPhone: isNonEmptyString(incoming.sellerPhone) ? incoming.sellerPhone : existing.sellerPhone,
+    contactPhone: isNonEmptyString(incoming.contactPhone)
+      ? incoming.contactPhone
+      : existing.contactPhone,
+    images: incoming.images?.length ? incoming.images : existing.images,
+    videos: incoming.videos?.length ? incoming.videos : existing.videos,
+  };
+}
+
 function resolveSellerName(listing: any): string {
   const isPlaceholderName = (value: string): boolean => {
     const normalized = value.trim().toLowerCase();
@@ -310,7 +333,10 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
               const mergedServerListingsMap = new Map<string, Listing>();
               [...apiListings, ...userListings].forEach((listing) => {
-                mergedServerListingsMap.set(listing.id, listing);
+                mergedServerListingsMap.set(
+                  listing.id,
+                  mergeListings(mergedServerListingsMap.get(listing.id), listing)
+                );
               });
               const mergedServerListings = [...mergedServerListingsMap.values()];
 
@@ -711,7 +737,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           setListings((prev) => {
             const listingMap = new Map<string, Listing>();
             [...prev, ...newListings].forEach((listing) => {
-              listingMap.set(listing.id, listing);
+              listingMap.set(listing.id, mergeListings(listingMap.get(listing.id), listing));
             });
             return [...listingMap.values()];
           });
