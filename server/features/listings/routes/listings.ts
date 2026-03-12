@@ -160,6 +160,20 @@ type SellerMeta = {
   displayName: string;
 };
 
+function selectPreferredSellerMeta(
+  current: SellerMeta | undefined,
+  incoming: SellerMeta
+): SellerMeta {
+  if (!current) return incoming;
+
+  const currentScore =
+    (current.avatarUrl ? 4 : 0) + (current.displayName ? 2 : 0) + (current.isVerified ? 1 : 0);
+  const incomingScore =
+    (incoming.avatarUrl ? 4 : 0) + (incoming.displayName ? 2 : 0) + (incoming.isVerified ? 1 : 0);
+
+  return incomingScore > currentScore ? incoming : current;
+}
+
 async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, SellerMeta>> {
   const uniqueSellerIds = [
     ...new Set(sellerIds.map((id) => String(id || '').trim()).filter(Boolean)),
@@ -182,13 +196,19 @@ async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, Seller
 
   const metaMap = new Map<string, SellerMeta>();
   for (const row of metaRows) {
-    const meta = {
+    const meta: SellerMeta = {
       isVerified: Boolean(row.isVerified),
       avatarUrl: String(row.avatarUrl || ''),
       displayName: String(row.displayName || row.username || '').trim(),
     };
-    if (row.id) metaMap.set(String(row.id).trim(), meta);
-    if (row.mobile) metaMap.set(String(row.mobile).trim(), meta);
+    if (row.id) {
+      const key = String(row.id).trim();
+      metaMap.set(key, selectPreferredSellerMeta(metaMap.get(key), meta));
+    }
+    if (row.mobile) {
+      const key = String(row.mobile).trim();
+      metaMap.set(key, selectPreferredSellerMeta(metaMap.get(key), meta));
+    }
   }
   return metaMap;
 }
