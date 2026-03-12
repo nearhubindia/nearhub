@@ -111,6 +111,89 @@ async function hasExistingAccountFootprint(userId: string): Promise<boolean> {
   return starterRow.length > 0 || listingRow.length > 0 || subscriptionRow.length > 0;
 }
 
+function isPlaceholderName(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return (
+    !normalized || normalized === 'user' || normalized === 'seller' || normalized === 'unknown'
+  );
+}
+
+async function hydrateAuthUserFromDb(userId: string, seed: AppUser): Promise<AppUser> {
+  const normalizedId = String(userId || '').trim();
+  if (!normalizedId || !isUuid(normalizedId)) return seed;
+
+  let dbUser:
+    | {
+        id: string;
+        mobile: string | null;
+        username: string;
+        displayName?: string | null;
+        avatarUrl?: string | null;
+        address?: string | null;
+        gstin?: string | null;
+        isVerified: boolean;
+        createdAt: Date | null;
+      }
+    | undefined;
+
+  try {
+    dbUser = await db.query.users.findFirst({
+      where: eq(users.id, normalizedId),
+      columns: {
+        id: true,
+        mobile: true,
+        username: true,
+        displayName: true,
+        avatarUrl: true,
+        address: true,
+        gstin: true,
+        isVerified: true,
+        createdAt: true,
+      },
+    });
+  } catch (error) {
+    // Backward compatibility for environments where profile columns are not migrated yet.
+    const fallbackUser = await db.query.users.findFirst({
+      where: eq(users.id, normalizedId),
+      columns: {
+        id: true,
+        mobile: true,
+        username: true,
+        createdAt: true,
+      },
+    });
+    if (!fallbackUser?.id) return seed;
+    dbUser = {
+      ...fallbackUser,
+      isVerified: Boolean(seed.isVerified),
+      displayName: null,
+      avatarUrl: null,
+      address: null,
+      gstin: null,
+    };
+    console.warn(
+      '[Auth] Profile columns unavailable during auth hydration, using fallback:',
+      error
+    );
+  }
+  if (!dbUser?.id) return seed;
+
+  const dbName = String(dbUser.displayName || '').trim();
+  const nextName = dbName && !isPlaceholderName(dbName) ? dbName : seed.name;
+
+  return {
+    ...seed,
+    id: String(dbUser.id),
+    phone: normalizePhone(dbUser.mobile || seed.phone || ''),
+    name: nextName || seed.name,
+    avatarUrl: String(dbUser.avatarUrl || seed.avatarUrl || '').trim(),
+    address: String(dbUser.address || seed.address || '').trim(),
+    gstin: String(dbUser.gstin || seed.gstin || '').trim(),
+    isVerified: Boolean(dbUser.isVerified || seed.isVerified),
+    createdAt: dbUser.createdAt ? new Date(dbUser.createdAt).toISOString() : seed.createdAt,
+  };
+}
+
 function hasCompletedOnboarding(user: AppUser | undefined): boolean {
   if (!user) return false;
   const name = String(user.name || '').trim();
@@ -162,7 +245,7 @@ export function registerAuthRoutes(app: Express) {
       const canonicalUserId =
         dbUser?.id || existingUser?.id || getStableUserIdFromPhone(normalizedPhone);
 
-      const user = upsertUserFromAuth({
+      const authUser = upsertUserFromAuth({
         preferredId: canonicalUserId,
         phone: normalizedPhone,
         name:
@@ -175,10 +258,11 @@ export function registerAuthRoutes(app: Express) {
       });
       await upsertAuthUserRecord({
         phone: normalizedPhone,
-        name: user.name,
-        avatarUrl: user.avatarUrl,
+        name: authUser.name,
+        avatarUrl: authUser.avatarUrl,
         preferredId: canonicalUserId,
       }).catch((error) => console.error('[Auth] Failed to persist new user to DB:', error));
+      const user = await hydrateAuthUserFromDb(canonicalUserId, authUser);
       await touchUserActivity({
         userId: canonicalUserId,
         ip: (req.ip || req.socket.remoteAddress || '').replace('::ffff:', ''),
@@ -240,7 +324,7 @@ export function registerAuthRoutes(app: Express) {
       const canonicalUserId =
         dbUser?.id || existingUser?.id || getStableUserIdFromPhone(normalizedPhone);
 
-      const updatedUser = upsertUserFromAuth({
+      const updatedAuthUser = upsertUserFromAuth({
         preferredId: canonicalUserId,
         phone: normalizedPhone,
         name,
@@ -256,6 +340,7 @@ export function registerAuthRoutes(app: Express) {
         avatarUrl,
         preferredId: canonicalUserId,
       }).catch((error) => console.error('[Auth] Failed to persist user profile to DB:', error));
+      const updatedUser = await hydrateAuthUserFromDb(canonicalUserId, updatedAuthUser);
       try {
         await grantStarterCreditsIfEligible(canonicalUserId, { grantedBy: 'system' });
       } catch (starterError) {
