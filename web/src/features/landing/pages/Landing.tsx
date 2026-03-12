@@ -143,7 +143,10 @@ export default function Landing(): ReactElement {
 
               <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {marketHighlights.map((item) => (
-                  <div key={item.label} className="rounded-xl border border-white/22 bg-white/14 p-4">
+                  <div
+                    key={item.label}
+                    className="rounded-xl border border-white/22 bg-white/14 p-4"
+                  >
                     <p className="text-2xl font-bold text-white">{item.value}</p>
                     <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-blue-50/85">
                       {item.label}
@@ -170,7 +173,9 @@ export default function Landing(): ReactElement {
             </div>
 
             <div className="rounded-[2rem] border border-[#1e5da8]/18 bg-white/90 p-6 shadow-[0_28px_62px_-42px_rgba(30,93,168,0.75)] backdrop-blur-sm sm:p-8">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ff9933]">Why Businesses Choose NearHub</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ff9933]">
+                Why Businesses Choose NearHub
+              </p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {trustPoints.map(({ Icon, title, text }) => (
                   <article
@@ -214,13 +219,15 @@ export default function Landing(): ReactElement {
         <section className="w-full px-4 pb-16 sm:px-8 lg:px-12">
           <div className="overflow-hidden rounded-[2rem] border border-[#1e5da8]/18 bg-[linear-gradient(120deg,#0f3f78_0%,#1e5da8_58%,#ff9933_165%)] px-6 py-8 text-white shadow-[0_30px_62px_-38px_rgba(15,63,120,0.8)] sm:px-9 lg:grid lg:grid-cols-[1.1fr,0.9fr] lg:items-center lg:gap-12">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffe2bf]">Get The App</p>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffe2bf]">
+                Get The App
+              </p>
               <h2 className="mt-2 text-3xl font-bold leading-tight sm:text-4xl">
                 Download NearHub from Google Play.
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-blue-50/95 sm:text-base">
-                Post listings in minutes, manage conversations on the move, and respond to high-intent
-                buyers instantly from your phone.
+                Post listings in minutes, manage conversations on the move, and respond to
+                high-intent buyers instantly from your phone.
               </p>
 
               <a

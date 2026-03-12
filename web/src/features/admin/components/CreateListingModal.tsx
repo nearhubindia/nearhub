@@ -304,7 +304,8 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
 
                   <div>
                     <label className={labelClass}>
-                      Contact Number <span className="text-xs font-normal text-slate-500">Optional</span>
+                      Contact Number{' '}
+                      <span className="text-xs font-normal text-slate-500">Optional</span>
                     </label>
                     <input
                       type="tel"
@@ -330,7 +331,10 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                     className="hidden"
                     id="image-upload"
                   />
-                  <label htmlFor="image-upload" className="flex cursor-pointer flex-col items-center justify-center">
+                  <label
+                    htmlFor="image-upload"
+                    className="flex cursor-pointer flex-col items-center justify-center"
+                  >
                     <Plus className="mb-2 text-slate-400" size={30} />
                     <p className="text-center text-sm text-slate-600">
                       Click to upload images
@@ -374,7 +378,10 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                     className="hidden"
                     id="video-upload"
                   />
-                  <label htmlFor="video-upload" className="flex cursor-pointer flex-col items-center justify-center">
+                  <label
+                    htmlFor="video-upload"
+                    className="flex cursor-pointer flex-col items-center justify-center"
+                  >
                     <Plus className="mb-2 text-slate-400" size={30} />
                     <p className="text-center text-sm text-slate-600">
                       Click to upload videos
@@ -437,7 +444,9 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                 />
                 <div>
                   <p className="text-sm font-semibold text-blue-900">Featured Listing</p>
-                  <p className="text-xs text-blue-800">Use featured ranking separately from sponsored.</p>
+                  <p className="text-xs text-blue-800">
+                    Use featured ranking separately from sponsored.
+                  </p>
                 </div>
               </label>
             </div>

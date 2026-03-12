@@ -130,7 +130,9 @@ export default function Features(): ReactElement {
 
         <section className="w-full px-4 pb-9 sm:px-8 lg:px-12">
           <div className="rounded-[2rem] border border-[#1e5da8]/18 bg-white/92 p-6 shadow-[0_26px_56px_-36px_rgba(30,93,168,0.68)] backdrop-blur-sm sm:p-8">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ff9933]">Feature Flow</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ff9933]">
+              Feature Flow
+            </p>
             <h3 className="mt-2 text-2xl font-bold text-[#113965] sm:text-3xl">
               How NearHub Turns Features Into Growth
             </h3>
@@ -154,7 +156,9 @@ export default function Features(): ReactElement {
         <section className="w-full px-4 pb-16 sm:px-8 lg:px-12">
           <div className="overflow-hidden rounded-[2rem] border border-[#1e5da8]/18 bg-[linear-gradient(120deg,#0f3f78_0%,#1e5da8_58%,#ff9933_165%)] px-6 py-8 text-white shadow-[0_30px_62px_-38px_rgba(15,63,120,0.8)] sm:px-9 lg:flex lg:items-center lg:justify-between lg:gap-10">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffe2bf]">Deployment Support</p>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffe2bf]">
+                Deployment Support
+              </p>
               <h3 className="mt-2 text-3xl font-bold leading-tight sm:text-4xl">
                 Need a Custom Rollout Plan?
               </h3>

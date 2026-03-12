@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { CircleDollarSign, FileText, Sparkles, Star, Tag, Target, X, Zap, Check } from 'lucide-react';
+import {
+  CircleDollarSign,
+  FileText,
+  Sparkles,
+  Star,
+  Tag,
+  Target,
+  X,
+  Zap,
+  Check,
+} from 'lucide-react';
 import type { Listing, Enhancements } from '@/features/admin/types/admin-types';
 import { useUpdateListing } from '@/features/admin/hooks';
 import { validators } from '@/features/admin/utils';
@@ -150,7 +160,9 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
             <Sparkles size={14} />
             Listing Editor
           </p>
-          <h2 className="relative text-2xl font-extrabold tracking-tight sm:text-3xl">Edit Listing</h2>
+          <h2 className="relative text-2xl font-extrabold tracking-tight sm:text-3xl">
+            Edit Listing
+          </h2>
           {listing && (
             <p className="relative mt-1 text-sm text-cyan-50/95">
               ID: {listing.id} • {listing.title}
@@ -308,7 +320,8 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                   </div>
                   <div>
                     <label className={labelClass}>
-                      Contact Number <span className="text-xs font-normal text-slate-500">Optional</span>
+                      Contact Number{' '}
+                      <span className="text-xs font-normal text-slate-500">Optional</span>
                     </label>
                     <input
                       type="tel"
@@ -340,7 +353,9 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                       <Star size={18} className="text-amber-500" />
                       Sponsored Tag
                     </div>
-                    <p className="mt-1 text-xs text-slate-600">Separate from featured boost ranking</p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Separate from featured boost ranking
+                    </p>
                   </div>
                 </label>
 
@@ -356,7 +371,9 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                       <Star size={18} className="text-amber-500" />
                       Featured Listing
                     </div>
-                    <p className="mt-1 text-xs text-slate-600">Highlight listing with featured ranking</p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Highlight listing with featured ranking
+                    </p>
                   </div>
                 </label>
 
@@ -404,7 +421,9 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                       <Target size={18} className="text-red-500" />
                       Top Search Placement
                     </div>
-                    <p className="mt-1 text-xs text-slate-600">Appear at top of relevant searches</p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Appear at top of relevant searches
+                    </p>
                   </div>
                 </label>
               </div>

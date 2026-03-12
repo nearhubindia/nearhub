@@ -166,10 +166,7 @@ const compliancePages: Record<CompliancePageKey, CompliancePageConfig> = {
       },
       {
         heading: 'Support Contact',
-        points: [
-          'Email: support@nearhub.com',
-          'Phone: +91 1800-123-4567',
-        ],
+        points: ['Email: support@nearhub.com', 'Phone: +91 1800-123-4567'],
       },
     ],
   },

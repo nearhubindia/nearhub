@@ -159,7 +159,10 @@ export default function Contact(): ReactElement {
                   />
                 </div>
                 <div>
-                  <label htmlFor="email" className="mb-1 block text-sm font-semibold text-slate-700">
+                  <label
+                    htmlFor="email"
+                    className="mb-1 block text-sm font-semibold text-slate-700"
+                  >
                     Email *
                   </label>
                   <input
@@ -177,7 +180,10 @@ export default function Contact(): ReactElement {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="phone" className="mb-1 block text-sm font-semibold text-slate-700">
+                  <label
+                    htmlFor="phone"
+                    className="mb-1 block text-sm font-semibold text-slate-700"
+                  >
                     Phone Number *
                   </label>
                   <input
@@ -197,7 +203,10 @@ export default function Contact(): ReactElement {
                   />
                 </div>
                 <div>
-                  <label htmlFor="subject" className="mb-1 block text-sm font-semibold text-slate-700">
+                  <label
+                    htmlFor="subject"
+                    className="mb-1 block text-sm font-semibold text-slate-700"
+                  >
                     Subject *
                   </label>
                   <input
@@ -214,7 +223,10 @@ export default function Contact(): ReactElement {
               </div>
 
               <div>
-                <label htmlFor="message" className="mb-1 block text-sm font-semibold text-slate-700">
+                <label
+                  htmlFor="message"
+                  className="mb-1 block text-sm font-semibold text-slate-700"
+                >
                   Message *
                 </label>
                 <textarea

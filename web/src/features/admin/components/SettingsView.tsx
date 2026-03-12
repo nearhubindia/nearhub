@@ -338,7 +338,9 @@ export default function SettingsView() {
                       max={100}
                       value={starterListingsCount}
                       onChange={(e) =>
-                        setStarterListingsCount(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
+                        setStarterListingsCount(
+                          Math.max(0, Math.min(100, Number(e.target.value) || 0))
+                        )
                       }
                       disabled={!starterCreditsEnabled}
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500 disabled:bg-slate-100 disabled:text-slate-400"
@@ -357,7 +359,9 @@ export default function SettingsView() {
                       max={100}
                       value={starterBoostsCount}
                       onChange={(e) =>
-                        setStarterBoostsCount(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
+                        setStarterBoostsCount(
+                          Math.max(0, Math.min(100, Number(e.target.value) || 0))
+                        )
                       }
                       disabled={!starterCreditsEnabled}
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500 disabled:bg-slate-100 disabled:text-slate-400"

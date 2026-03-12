@@ -50,4 +50,3 @@ run('npx', [
   '--project-name=nearhub',
   `--branch=${targetBranch}`,
 ]);
-

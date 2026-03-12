@@ -160,7 +160,8 @@ function resolveMeta(pathname: string): RouteMeta {
   if (pathname === '/refund-policy') {
     return {
       title: 'Refund And Cancellation Policy | NearHub',
-      description: 'Learn NearHub refund eligibility, cancellation terms, and processing timelines.',
+      description:
+        'Learn NearHub refund eligibility, cancellation terms, and processing timelines.',
     };
   }
 
@@ -195,7 +196,11 @@ function resolveMeta(pathname: string): RouteMeta {
   };
 }
 
-function buildJsonLd(pathname: string, canonicalUrl: string, meta: RouteMeta): Record<string, unknown> {
+function buildJsonLd(
+  pathname: string,
+  canonicalUrl: string,
+  meta: RouteMeta
+): Record<string, unknown> {
   const graph: Record<string, unknown>[] = [
     {
       '@type': 'Organization',
