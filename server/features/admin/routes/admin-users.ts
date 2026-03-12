@@ -1,5 +1,6 @@
 import type { Express, Response } from 'express';
 import { desc, eq, inArray, or } from 'drizzle-orm';
+import crypto from 'node:crypto';
 import { db } from '../../../data/db';
 import { users } from '../../users/models/users';
 import type { AuthRequest } from '../../../lib/types';
@@ -16,6 +17,12 @@ import { deleteUserDataByAdmin } from '../../users/services/user-lifecycle';
 function normalizeMobile(value: unknown): string {
   const digits = String(value || '').replace(/\D/g, '');
   return digits.length === 10 ? digits : '';
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim()
+  );
 }
 
 function resolveDisplayName(input: {
@@ -297,34 +304,80 @@ export function registerAdminUsersRoutes(app: Express) {
       const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
       const { username, mobile, location, isVerified } = req.body;
       const normalizedMobile = normalizeMobile(mobile || id);
+      const normalizedLocation = String(location || '').trim();
+      const normalizedUsername = String(username || '').trim();
 
-      if (!normalizedMobile || !location) {
+      if (!normalizedMobile || !normalizedLocation) {
         return res.status(400).json({
           success: false,
           message: 'Valid mobile number and location are required',
         });
       }
 
-      const upserted = await db
-        .insert(users)
-        .values({
-          id: normalizedMobile,
-          username: normalizedMobile,
-          password: 'admin-managed',
-          mobile: normalizedMobile,
-          location,
-          isVerified: Boolean(isVerified),
-        })
-        .onConflictDoUpdate({
-          target: users.id,
-          set: {
-            username: normalizedMobile,
+      const candidateIds = [id, normalizedMobile, normalizedUsername].filter(Boolean);
+      const candidateMobiles = [normalizeMobile(id), normalizedMobile].filter(Boolean);
+      const candidateUsernames = [id, normalizedUsername, normalizedMobile].filter(Boolean);
+
+      const existingRows = await db
+        .select()
+        .from(users)
+        .where(
+          or(
+            inArray(users.id, [...new Set(candidateIds)]),
+            inArray(users.mobile, [...new Set(candidateMobiles)]),
+            inArray(users.username, [...new Set(candidateUsernames)])
+          )!
+        )
+        .limit(10);
+
+      const existingById = existingRows.find((row) => row.id === id);
+      const existingByMobile = existingRows.find(
+        (row) =>
+          row.mobile === normalizedMobile ||
+          (normalizeMobile(id) && row.mobile === normalizeMobile(id))
+      );
+      const existingByUsername = existingRows.find(
+        (row) =>
+          row.username === id ||
+          row.username === normalizedUsername ||
+          row.username === normalizedMobile
+      );
+      const existing = existingById || existingByMobile || existingByUsername;
+
+      let upserted: typeof existingRows = [];
+      if (existing) {
+        upserted = await db
+          .update(users)
+          .set({
             mobile: normalizedMobile,
-            location,
+            location: normalizedLocation,
             isVerified: Boolean(isVerified),
-          },
-        })
-        .returning();
+          })
+          .where(eq(users.id, existing.id))
+          .returning();
+      } else {
+        const nextId = isUuid(id) ? id : crypto.randomUUID();
+        const nextUsername = normalizedUsername || normalizedMobile || nextId;
+        upserted = await db
+          .insert(users)
+          .values({
+            id: nextId,
+            username: nextUsername,
+            password: 'admin-managed',
+            mobile: normalizedMobile,
+            location: normalizedLocation,
+            isVerified: Boolean(isVerified),
+          })
+          .onConflictDoUpdate({
+            target: users.username,
+            set: {
+              mobile: normalizedMobile,
+              location: normalizedLocation,
+              isVerified: Boolean(isVerified),
+            },
+          })
+          .returning();
+      }
 
       const updatedUser = upserted[0];
       const safeUser = {
