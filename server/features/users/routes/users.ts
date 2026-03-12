@@ -17,6 +17,18 @@ function isUuid(value: string): boolean {
   return UUID_REGEX.test(String(value || '').trim());
 }
 
+function isLikelyPhone(value: string): boolean {
+  return /^\d{10,15}$/.test(String(value || '').trim());
+}
+
+function isSafeDisplayName(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (isUuid(trimmed) || isLikelyPhone(trimmed)) return false;
+  return true;
+}
+
 function parseJsonField(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   if (value == null) return [];
@@ -243,8 +255,11 @@ export function registerUserRoutes(app: Express) {
         const fallbackName = String(dbUser.username || '').trim();
         user = upsertUser({
           id: String(dbUser.id),
-          phone: normalizePhone(dbUser.mobile || dbUser.id),
-          name: dbDisplayName || fallbackName || `User ${String(dbUser.id).slice(-4)}`,
+          phone: normalizePhone(dbUser.mobile || ''),
+          name:
+            (isSafeDisplayName(dbDisplayName) && dbDisplayName) ||
+            (isSafeDisplayName(fallbackName) && fallbackName) ||
+            'User',
           email: String(dbUser.email || '').trim(),
           gender: 'other',
           avatarUrl: dbUser.avatarUrl || '',
@@ -268,7 +283,11 @@ export function registerUserRoutes(app: Express) {
         const fallbackName = String(dbUser.username || '').trim();
         user = upsertUser({
           ...user,
-          name: dbDisplayName || user.name || fallbackName,
+          name:
+            (isSafeDisplayName(dbDisplayName) && dbDisplayName) ||
+            (isSafeDisplayName(user.name) && user.name) ||
+            (isSafeDisplayName(fallbackName) && fallbackName) ||
+            'User',
           email: String(dbUser.email || user.email || '').trim(),
           avatarUrl: dbUser.avatarUrl || user.avatarUrl,
           address: String(dbUser.address || user.address || '').trim(),

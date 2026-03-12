@@ -35,6 +35,27 @@ type UserListing = {
   images?: string[];
 };
 
+function isLikelyUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || '').trim()
+  );
+}
+
+function isLikelyPhone(value: string): boolean {
+  return /^\d{10,15}$/.test(String(value || '').trim());
+}
+
+function sanitizeDisplayName(...values: Array<unknown>): string {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    if (isLikelyUuid(trimmed) || isLikelyPhone(trimmed)) continue;
+    return trimmed;
+  }
+  return 'User';
+}
+
 export default function UserProfileScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -43,9 +64,9 @@ export default function UserProfileScreen() {
     userName?: string | string[];
   }>();
   const userId = Array.isArray(params.userId) ? params.userId[0] : params.userId || '';
-  const fallbackName = Array.isArray(params.userName)
-    ? params.userName[0]
-    : params.userName || 'User';
+  const fallbackName = sanitizeDisplayName(
+    Array.isArray(params.userName) ? params.userName[0] : params.userName || ''
+  );
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const [isLoading, setIsLoading] = useState(true);
@@ -80,8 +101,9 @@ export default function UserProfileScreen() {
       const listingsPayload = await listingsRes.json().catch(() => null);
 
       const profileData = profilePayload?.user;
-      const resolvedName = String(profileData?.name || '').trim() || fallbackName;
-      const resolvedPhone = String(profileData?.phone || userId || '').trim();
+      const resolvedName = sanitizeDisplayName(profileData?.name, fallbackName);
+      const resolvedPhoneRaw = String(profileData?.phone || '').trim();
+      const resolvedPhone = isLikelyPhone(resolvedPhoneRaw) ? resolvedPhoneRaw : '';
       setProfile({
         id: userId,
         name: resolvedName,
@@ -105,7 +127,7 @@ export default function UserProfileScreen() {
       setProfile({
         id: userId,
         name: fallbackName,
-        phone: String(userId || '').trim(),
+        phone: '',
         avatarUrl: '',
         location: '',
         isVerified: false,
