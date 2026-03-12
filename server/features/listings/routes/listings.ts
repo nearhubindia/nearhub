@@ -297,26 +297,20 @@ function toPublicListing(
 
 async function resolveTrustedRequestUserId(req: Request): Promise<string> {
   const claimedUserId = getRequestUserId(req);
-  if (!claimedUserId) return '';
-
-  const claimedPhone =
-    typeof req.get('x-user-phone') === 'string' ? String(req.get('x-user-phone') || '').trim() : '';
-  const normalizedPhone = claimedPhone.replace(/\D/g, '').slice(-10);
+  if (
+    !claimedUserId ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      claimedUserId
+    )
+  ) {
+    return '';
+  }
 
   const matchedUser = await db.query.users.findFirst({
     where: eq(users.id, claimedUserId),
-    columns: { id: true, mobile: true },
+    columns: { id: true },
   });
-  if (!matchedUser?.id) return '';
-
-  if (normalizedPhone) {
-    const matchedMobile = String(matchedUser.mobile || '')
-      .replace(/\D/g, '')
-      .slice(-10);
-    if (!matchedMobile || matchedMobile !== normalizedPhone) return '';
-  }
-
-  return matchedUser.id;
+  return matchedUser?.id || '';
 }
 
 export function registerListingRoutes(app: Express) {

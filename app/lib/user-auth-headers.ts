@@ -21,15 +21,10 @@ export function buildUserAuthHeaders(
   }
 
   const userId = typeof user?.id === 'string' ? user.id.trim() : '';
-  const userPhone = typeof user?.phone === 'string' ? user.phone.trim() : '';
   const userName = typeof user?.name === 'string' ? user.name.trim() : '';
 
   if (userId) {
     headers['x-user-id'] = userId;
-  }
-
-  if (userPhone) {
-    headers['x-user-phone'] = userPhone;
   }
 
   if (includeName && userName) {

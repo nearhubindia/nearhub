@@ -15,7 +15,7 @@ import {
   userSubscriptions,
 } from '../../admin/models/admin-settings';
 import { users } from '../models/users';
-import { normalizePhone, removeUserProfile } from './user-profiles';
+import { removeUserProfile } from './user-profiles';
 
 export type UserDeletionReviewStatus = 'pending' | 'approved' | 'rejected' | 'deleted' | 'failed';
 
@@ -46,101 +46,16 @@ export async function resolveUserIdFromRequest(req: {
   path?: string;
 }): Promise<string> {
   const rawUserId = req.get('x-user-id');
-  if (typeof rawUserId === 'string' && rawUserId.trim()) {
-    const candidate = rawUserId.trim();
-    const byId = await db.query.users.findFirst({
-      where: eq(users.id, candidate),
-      columns: { id: true },
-    });
-    if (byId?.id) return byId.id;
+  if (typeof rawUserId !== 'string' || !rawUserId.trim()) return '';
 
-    const byAlias = await db.query.users.findFirst({
-      where: or(eq(users.mobile, candidate), eq(users.username, candidate)),
-      columns: { id: true },
-    });
-    if (byAlias?.id) return byAlias.id;
+  const candidate = rawUserId.trim();
+  if (!isUuid(candidate)) return '';
 
-    const normalized = normalizePhone(candidate);
-    if (normalized) {
-      const byPhone = await db.query.users.findFirst({
-        where: or(
-          eq(users.mobile, normalized),
-          eq(users.username, normalized),
-          eq(users.id, normalized)
-        ),
-        columns: { id: true },
-      });
-      if (byPhone?.id) return byPhone.id;
-    }
-
-    if (isUuid(candidate)) {
-      await db
-        .insert(users)
-        .values({
-          id: candidate,
-          username: normalized || candidate,
-          password: 'otp-auth',
-          mobile: normalized || null,
-          createdAt: new Date(),
-        })
-        .onConflictDoNothing({ target: users.id });
-      return candidate;
-    }
-
-    const created = await db
-      .insert(users)
-      .values({
-        id: sql`gen_random_uuid()`,
-        username: candidate,
-        password: 'otp-auth',
-        mobile: normalized || null,
-        createdAt: new Date(),
-      })
-      .onConflictDoNothing({ target: users.username })
-      .returning({ id: users.id });
-    if (created[0]?.id) return created[0].id;
-
-    const byUsername = await db.query.users.findFirst({
-      where: eq(users.username, candidate),
-      columns: { id: true },
-    });
-    if (byUsername?.id) return byUsername.id;
-
-    return '';
-  }
-
-  const rawPhone = req.get('x-user-phone');
-  const normalized = normalizePhone(typeof rawPhone === 'string' ? rawPhone : '');
-  if (!normalized) return '';
-
-  const byPhone = await db.query.users.findFirst({
-    where: or(
-      eq(users.mobile, normalized),
-      eq(users.username, normalized),
-      eq(users.id, normalized)
-    ),
+  const byId = await db.query.users.findFirst({
+    where: eq(users.id, candidate),
     columns: { id: true },
   });
-  if (byPhone?.id) return byPhone.id;
-
-  const created = await db
-    .insert(users)
-    .values({
-      id: sql`gen_random_uuid()`,
-      username: normalized,
-      password: 'otp-auth',
-      mobile: normalized,
-      createdAt: new Date(),
-    })
-    .onConflictDoNothing({ target: users.username })
-    .returning({ id: users.id });
-  if (created[0]?.id) return created[0].id;
-
-  const byAlias = await db.query.users.findFirst({
-    where: or(eq(users.mobile, normalized), eq(users.username, normalized)),
-    columns: { id: true },
-  });
-  return byAlias?.id || '';
+  return byId?.id || '';
 }
 
 export async function touchUserActivity(input: {
