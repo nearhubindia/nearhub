@@ -156,9 +156,18 @@ export function registerUserRoutes(app: Express) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const dbUser = await getDbUser(userId);
+      let dbUser = await getDbUser(userId);
       if (!dbUser) {
-        return res.status(404).json({ error: 'User not found' });
+        const seedUser = getUserById(userId);
+        await syncDbUserProfile(userId, seedUser?.avatarUrl, {
+          name: seedUser?.name,
+          address: seedUser?.address,
+          gstin: seedUser?.gstin,
+        });
+        dbUser = await getDbUser(userId);
+        if (!dbUser) {
+          return res.status(404).json({ error: 'User not found' });
+        }
       }
       const existing = getUserById(userId);
       const dbDisplayName = String(dbUser.displayName || '').trim();
