@@ -1466,8 +1466,7 @@ export default function CreateScreen() {
   const progressCircleStroke = 14;
   const progressCircleSize = 220;
   const progressCircleCircumference = 2 * Math.PI * progressCircleRadius;
-  const progressCircleStrokeOffset =
-    progressCircleCircumference * (1 - submissionProgress / 100);
+  const progressCircleStrokeOffset = progressCircleCircumference * (1 - submissionProgress / 100);
 
   return (
     <>
@@ -2231,7 +2230,6 @@ export default function CreateScreen() {
               </LinearGradient>
             </Pressable>
           </View>
-
         </ScrollView>
 
         {/* Subscription Picker Modal */}
@@ -2662,7 +2660,8 @@ export default function CreateScreen() {
               </View>
             </View>
             <Text style={styles.submitOverlayMessage}>
-              {validationMessage || (isUploading ? 'Uploading media...' : 'Creating your listing...')}
+              {validationMessage ||
+                (isUploading ? 'Uploading media...' : 'Creating your listing...')}
             </Text>
           </View>
         </View>
