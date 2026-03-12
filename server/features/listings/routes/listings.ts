@@ -211,7 +211,6 @@ function resolveContactPhone(rest: any, sellerId: string): string {
 function toPublicListing(listing: any, sellerMetaMap?: Map<string, SellerMeta>) {
   const { sellerId: rawSellerId, ...rest } = listing || {};
   const sellerId = typeof rawSellerId === 'string' ? rawSellerId : '';
-  const contactPhone = resolveContactPhone(rest, sellerId);
   const sellerMeta = sellerMetaMap?.get(sellerId);
 
   return {
@@ -221,8 +220,9 @@ function toPublicListing(listing: any, sellerMetaMap?: Map<string, SellerMeta>) 
     sellerName: getSellerDisplayName(listing, sellerMeta),
     sellerVerified: Boolean(sellerMeta?.isVerified),
     sellerAvatar: sellerMeta?.avatarUrl || '',
-    contactPhone,
-    sellerPhone: contactPhone,
+    // Never expose raw phone numbers in public listing payloads.
+    contactPhone: '',
+    sellerPhone: '',
     images: parseJsonField(listing?.images),
     videos: parseJsonField(listing?.videos),
   };
@@ -406,6 +406,51 @@ export function registerListingRoutes(app: Express) {
     } catch (error) {
       console.error('[Listings] Error searching listings:', error);
       return res.status(500).json({ success: false, error: 'Failed to search listings' });
+    }
+  });
+
+  /**
+   * GET /api/listings/:id/contact
+   * Returns seller contact phone only for authenticated users.
+   */
+  app.get('/api/listings/:id/contact', async (req: Request, res: Response, next: NextFunction) => {
+    if (req.params.id === 'search') {
+      return next();
+    }
+
+    try {
+      const requesterId = getRequestUserId(req);
+      if (!requesterId) {
+        return res.status(401).json({ success: false, error: 'Authentication required' });
+      }
+
+      const listing = await getListingById(req.params.id as string);
+      if (!listing) {
+        return res.status(404).json({ success: false, error: 'Listing not found' });
+      }
+
+      const isOwner =
+        normalizeOwnerId(requesterId) === normalizeOwnerId(String(listing.sellerId || ''));
+      if (isOwner) {
+        return res.status(400).json({
+          success: false,
+          error: 'Owner contact is not available for your own listing',
+        });
+      }
+
+      const contactPhone = resolveContactPhone(listing, String(listing.sellerId || ''));
+      if (!contactPhone) {
+        return res.status(404).json({ success: false, error: 'Seller phone number not available' });
+      }
+
+      return res.json({
+        success: true,
+        contactPhone,
+        sellerPhone: contactPhone,
+      });
+    } catch (error) {
+      console.error('[Listings] Error fetching seller contact:', error);
+      return res.status(500).json({ success: false, error: 'Failed to fetch seller contact' });
     }
   });
 

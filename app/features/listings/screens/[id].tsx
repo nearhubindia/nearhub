@@ -20,6 +20,7 @@ import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { getTimeAgo, formatCondition } from '@/lib/utils';
 import { getBackendURL } from '@/lib/config';
+import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 import MediaCarousel from '@/shared/components/MediaCarousel';
 import { createResponsiveStyles } from '@/lib/responsive';
 
@@ -31,6 +32,7 @@ export default function ListingDetailScreen() {
   const { getListingById, savedIds, toggleSaved } = useListings();
   const { isAuthenticated, user } = useAuth();
   const [isFocused, setIsFocused] = useState(true);
+  const [resolvedContactPhone, setResolvedContactPhone] = useState('');
 
   // Pause videos when screen loses focus
   useFocusEffect(
@@ -46,9 +48,10 @@ export default function ListingDetailScreen() {
   const isSaved = savedIds.has(id);
   const normalizedUserId = (user?.id || '').replace(/[\s+-]/g, '');
   const listingPhoneRaw = (
+    resolvedContactPhone ||
     listing?.contactPhone ||
     listing?.sellerPhone ||
-    String(listing?.userId || '')
+    ''
   ).trim();
   const normalizedSellerPhone = listingPhoneRaw.replace(/\D/g, '').slice(-10);
   const listingPhone = normalizedSellerPhone;
@@ -84,6 +87,10 @@ export default function ListingDetailScreen() {
       });
     }
   }, [listing?.id]);
+
+  useEffect(() => {
+    setResolvedContactPhone('');
+  }, [id]);
 
   // Track view when screen loads
   useEffect(() => {
@@ -156,19 +163,50 @@ export default function ListingDetailScreen() {
         Alert.alert('Not Allowed', 'You cannot call your own listing.');
         return;
       }
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      if (!normalizedSellerPhone) {
-        Alert.alert('Contact Seller', 'Seller phone number is not available.');
-        return;
-      }
-      if (Platform.OS === 'web') {
-        Alert.alert('Contact Seller', `Call ${listing.sellerName} at ${listingPhone}`);
-      } else {
-        Alert.alert('Contact Seller', `Would you like to call ${listing.sellerName}?`, [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Call', onPress: () => Linking.openURL(`tel:${listingPhone}`) },
-        ]);
-      }
+      void (async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        let phone = normalizedSellerPhone;
+
+        if (!phone) {
+          try {
+            const apiUrl = getBackendURL();
+            const response = await fetch(`${apiUrl}/api/listings/${listing.id}/contact`, {
+              method: 'GET',
+              headers: buildUserAuthHeaders({
+                id: user?.id || '',
+                phone: user?.phone || '',
+              }),
+            });
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data?.success) {
+              throw new Error(data?.error || 'Seller phone number is not available.');
+            }
+            const fetchedPhone = String(data.contactPhone || data.sellerPhone || '')
+              .replace(/\D/g, '')
+              .slice(-10);
+            if (!fetchedPhone) {
+              throw new Error('Seller phone number is not available.');
+            }
+            setResolvedContactPhone(fetchedPhone);
+            phone = fetchedPhone;
+          } catch (error: any) {
+            Alert.alert(
+              'Contact Seller',
+              error?.message || 'Seller phone number is not available.'
+            );
+            return;
+          }
+        }
+
+        if (Platform.OS === 'web') {
+          Alert.alert('Contact Seller', `Call ${listing.sellerName} at ${phone}`);
+        } else {
+          Alert.alert('Contact Seller', `Would you like to call ${listing.sellerName}?`, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Call', onPress: () => Linking.openURL(`tel:${phone}`) },
+          ]);
+        }
+      })();
     });
   };
 
