@@ -185,7 +185,8 @@ async function sendTokenToServer(token: string, userId: string): Promise<void> {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to register push token');
+      const errorText = await response.text();
+      throw new Error(`Failed to register push token (${response.status}): ${errorText}`);
     }
 
     console.log('[Push] Token registered successfully');

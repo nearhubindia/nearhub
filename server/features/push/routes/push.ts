@@ -17,6 +17,8 @@ import { db } from '../../../data/db';
 import { notificationLogs, pushTokens } from '../../admin/models/admin-settings';
 import { desc, eq } from 'drizzle-orm';
 import { getRequestUserId } from '../../../lib/request-user';
+import { users } from '../../users/models/users';
+import { getStableUserIdFromPhone, normalizePhone } from '../../users/services/user-profiles';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -27,6 +29,59 @@ function normalizeUuid(value: unknown): string {
   return UUID_REGEX.test(trimmed) ? trimmed : '';
 }
 
+function normalizeRawId(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.trim();
+}
+
+async function resolveUserIdFromCandidate(candidate: string): Promise<string> {
+  const normalized = normalizeRawId(candidate);
+  if (!normalized) return '';
+
+  if (UUID_REGEX.test(normalized)) {
+    const byId = await db.query.users.findFirst({
+      where: eq(users.id, normalized),
+      columns: { id: true },
+    });
+    return byId?.id || '';
+  }
+
+  const mobile = normalizePhone(normalized);
+  if (mobile) {
+    const byMobile = await db.query.users.findFirst({
+      where: eq(users.mobile, mobile),
+      columns: { id: true },
+    });
+    if (byMobile?.id) return byMobile.id;
+
+    const stableId = getStableUserIdFromPhone(mobile);
+    if (!stableId) return '';
+
+    await db
+      .insert(users)
+      .values({
+        id: stableId,
+        username: mobile,
+        password: 'otp-auth',
+        mobile,
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing({ target: users.username });
+
+    const created = await db.query.users.findFirst({
+      where: eq(users.mobile, mobile),
+      columns: { id: true },
+    });
+    return created?.id || '';
+  }
+
+  const byUsername = await db.query.users.findFirst({
+    where: eq(users.username, normalized),
+    columns: { id: true },
+  });
+  return byUsername?.id || '';
+}
+
 export function registerPushNotificationRoutes(app: Express) {
   /**
    * POST /api/push/register
@@ -35,9 +90,17 @@ export function registerPushNotificationRoutes(app: Express) {
   app.post('/api/push/register', async (req: Request, res: Response) => {
     try {
       const { userId: rawUserId, token, platform, deviceId } = req.body;
-      const headerUserId = getRequestUserId(req);
-      const bodyUserId = normalizeUuid(rawUserId);
-      const userId = headerUserId || bodyUserId;
+      const strictHeaderUserId = getRequestUserId(req);
+      const rawHeaderUserId = normalizeRawId(req.get('x-user-id'));
+      const rawBodyUserId = normalizeRawId(rawUserId);
+      const bodyUuidUserId = normalizeUuid(rawUserId);
+
+      const headerResolvedUserId =
+        strictHeaderUserId ||
+        (rawHeaderUserId ? await resolveUserIdFromCandidate(rawHeaderUserId) : '');
+      const bodyResolvedUserId =
+        bodyUuidUserId || (rawBodyUserId ? await resolveUserIdFromCandidate(rawBodyUserId) : '');
+      const userId = headerResolvedUserId || bodyResolvedUserId;
 
       if (!userId || !token || !platform) {
         return res.status(400).json({
@@ -46,7 +109,11 @@ export function registerPushNotificationRoutes(app: Express) {
         });
       }
 
-      if (headerUserId && bodyUserId && headerUserId !== bodyUserId) {
+      if (
+        headerResolvedUserId &&
+        bodyResolvedUserId &&
+        headerResolvedUserId !== bodyResolvedUserId
+      ) {
         return res.status(403).json({
           success: false,
           message: 'Token registration user mismatch',
