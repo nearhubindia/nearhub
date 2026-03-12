@@ -16,6 +16,7 @@ export interface ChatMessage {
 export interface ChatThread {
   conversationId: string;
   listingId: string;
+  otherUserId?: string;
   sellerName: string;
   listingTitle: string;
   listingImage: string;
@@ -45,6 +46,7 @@ const MessagesContext = createContext<MessagesContextValue | null>(null);
 interface ApiThread {
   conversationId: string;
   listingId: string;
+  otherUserId?: string;
   listingTitle: string;
   listingImage: string;
   otherUserLabel: string;
@@ -100,6 +102,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         return {
           conversationId: data.conversationId,
           listingId: data.listingId,
+          otherUserId: typeof data.otherUserId === 'string' ? data.otherUserId : '',
           sellerName: data.otherUserName || data.otherUserLabel || 'Seller',
           listingTitle: data.listingTitle || 'Listing',
           listingImage: data.listingImage || '',
@@ -146,6 +149,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           return {
             conversationId: item.conversationId,
             listingId: item.listingId,
+            otherUserId: item.otherUserId || existing?.otherUserId || '',
             sellerName:
               item.otherUserName || item.otherUserLabel || existing?.sellerName || 'Seller',
             listingTitle: item.listingTitle || existing?.listingTitle || 'Listing',
@@ -290,6 +294,12 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       const result = payload?.data;
       const resolvedConversationId: string | undefined = result?.conversationId || conversationId;
       const message = result?.message;
+      const inferredOtherUserId =
+        typeof result?.otherUserId === 'string'
+          ? result.otherUserId
+          : typeof result?.message?.recipientId === 'string'
+            ? result.message.recipientId
+            : '';
 
       if (!resolvedConversationId || !message) {
         await refreshThreads();
@@ -314,6 +324,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           updated[existingIndex] = {
             ...existing,
             listingId: result.listingId || existing.listingId || listingId,
+            otherUserId: existing.otherUserId || inferredOtherUserId,
             messages: [...existing.messages, localMessage],
             lastMessage: localMessage.text,
             lastTimestamp: localMessage.timestamp,
@@ -327,6 +338,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           {
             conversationId: resolvedConversationId,
             listingId: result.listingId || listingId,
+            otherUserId: inferredOtherUserId,
             sellerName: sellerName || 'Seller',
             listingTitle: listingTitle || 'Listing',
             listingImage: listingImage || '',

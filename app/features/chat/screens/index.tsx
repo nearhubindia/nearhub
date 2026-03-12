@@ -18,12 +18,25 @@ import { useMessages, ChatThread } from '@/shared/contexts/messages-context';
 import { getTimeAgo } from '@/lib/utils';
 
 function ChatThreadItem({ thread }: { thread: ChatThread }) {
+  const handleOpenProfile = () => {
+    const otherUserId = String(thread.otherUserId || '').trim();
+    if (!otherUserId) return;
+    router.push({
+      pathname: '/user/[userId]',
+      params: {
+        userId: otherUserId,
+        userName: thread.sellerName,
+      },
+    });
+  };
+
   const handlePress = () => {
     router.push({
       pathname: '/chat/[listingId]',
       params: {
         listingId: thread.listingId,
         conversationId: thread.conversationId,
+        otherUserId: thread.otherUserId || '',
         sellerName: thread.sellerName,
         listingTitle: thread.listingTitle,
         listingImage: thread.listingImage,
@@ -42,28 +55,44 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
       onPress={handlePress}
     >
       <View style={styles.threadContent}>
-        <View style={styles.mediaWrap}>
-          {thread.listingImage ? (
-            <Image
-              source={{ uri: thread.listingImage }}
-              style={styles.listingImage}
-              contentFit="cover"
-            />
-          ) : (
-            <View style={[styles.listingImage, styles.noImage]}>
-              <Feather name="image" size={20} color={Colors.textTertiary} />
+        <Pressable
+          style={styles.personPress}
+          onPress={(event) => {
+            event.stopPropagation?.();
+            handleOpenProfile();
+          }}
+        >
+          <View style={styles.mediaWrap}>
+            {thread.listingImage ? (
+              <Image
+                source={{ uri: thread.listingImage }}
+                style={styles.listingImage}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={[styles.listingImage, styles.noImage]}>
+                <Feather name="image" size={20} color={Colors.textTertiary} />
+              </View>
+            )}
+            <View style={styles.avatarBadge}>
+              <Text style={styles.avatarBadgeText}>{initial}</Text>
             </View>
-          )}
-          <View style={styles.avatarBadge}>
-            <Text style={styles.avatarBadgeText}>{initial}</Text>
           </View>
-        </View>
+        </Pressable>
 
         <View style={styles.chatInfo}>
           <View style={styles.headerRow}>
-            <Text style={styles.sellerName} numberOfLines={1}>
-              {thread.sellerName}
-            </Text>
+            <Pressable
+              onPress={(event) => {
+                event.stopPropagation?.();
+                handleOpenProfile();
+              }}
+              style={styles.namePress}
+            >
+              <Text style={styles.sellerName} numberOfLines={1}>
+                {thread.sellerName}
+              </Text>
+            </Pressable>
             <Text style={styles.timestamp}>{timeAgo}</Text>
           </View>
           <Text style={styles.listingTitle} numberOfLines={1}>
@@ -219,6 +248,12 @@ const styles = StyleSheet.create({
   },
   mediaWrap: {
     position: 'relative',
+  },
+  personPress: {
+    borderRadius: 12,
+  },
+  namePress: {
+    flex: 1,
   },
   listingImage: {
     width: 58,

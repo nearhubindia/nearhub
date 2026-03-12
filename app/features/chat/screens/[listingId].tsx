@@ -44,6 +44,7 @@ export default function ChatScreen() {
   const params = useLocalSearchParams<{
     listingId?: string | string[];
     conversationId?: string | string[];
+    otherUserId?: string | string[];
     sellerName?: string | string[];
     listingTitle?: string | string[];
     listingImage?: string | string[];
@@ -57,6 +58,9 @@ export default function ChatScreen() {
   const conversationId = Array.isArray(params.conversationId)
     ? params.conversationId[0]
     : params.conversationId;
+  const otherUserIdParam = Array.isArray(params.otherUserId)
+    ? params.otherUserId[0]
+    : params.otherUserId;
   const sellerName = Array.isArray(params.sellerName) ? params.sellerName[0] : params.sellerName;
   const listingTitle = Array.isArray(params.listingTitle)
     ? params.listingTitle[0]
@@ -72,6 +76,8 @@ export default function ChatScreen() {
   const listing = getListingById(listingId);
   const thread = getThread(resolvedConversationId || listingId);
   const messages = thread?.messages || [];
+  const profileTargetId =
+    String(thread?.otherUserId || otherUserIdParam || listing?.userId || '').trim() || '';
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -141,6 +147,22 @@ export default function ChatScreen() {
 
   const reversedMessages = [...messages].reverse();
 
+  const openUserProfile = useCallback(() => {
+    if (!profileTargetId) return;
+    const normalizedCurrentUserId = String(user?.id || '').trim();
+    if (normalizedCurrentUserId && normalizedCurrentUserId === profileTargetId) {
+      router.push('/profile');
+      return;
+    }
+    router.push({
+      pathname: '/user/[userId]',
+      params: {
+        userId: profileTargetId,
+        userName: sellerName || listing?.sellerName || 'Seller',
+      },
+    });
+  }, [listing?.sellerName, profileTargetId, sellerName, user?.id]);
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -151,7 +173,7 @@ export default function ChatScreen() {
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Feather name="arrow-left" size={22} color={Colors.text} />
         </Pressable>
-        <View style={styles.headerInfo}>
+        <Pressable style={styles.headerInfo} onPress={openUserProfile}>
           {listingImage || listing?.images[0] ? (
             <Image
               source={{ uri: listingImage || listing?.images[0] }}
@@ -167,7 +189,7 @@ export default function ChatScreen() {
               {listingTitle || listing?.title || 'Item'}
             </Text>
           </View>
-        </View>
+        </Pressable>
         {listing && (
           <View style={styles.headerPrice}>
             <Text style={styles.priceText}>₹{listing.price.toLocaleString('en-IN')}</Text>

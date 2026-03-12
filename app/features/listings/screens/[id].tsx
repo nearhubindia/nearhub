@@ -141,6 +141,7 @@ export default function ListingDetailScreen() {
         pathname: '/chat/[listingId]',
         params: {
           listingId: listing.id,
+          otherUserId: listing.userId || '',
           sellerName: listing.sellerName,
           listingTitle: listing.title,
           listingImage: listing.images[0],

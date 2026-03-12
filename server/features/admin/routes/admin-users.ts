@@ -1,5 +1,5 @@
 import type { Express, Response } from 'express';
-import { eq, inArray, or } from 'drizzle-orm';
+import { desc, eq, inArray, or } from 'drizzle-orm';
 import { db } from '../../../data/db';
 import { users } from '../../users/models/users';
 import type { AuthRequest } from '../../../lib/types';
@@ -16,6 +16,23 @@ function normalizeMobile(value: unknown): string {
   const digits = String(value || '').replace(/\D/g, '');
   return digits.length === 10 ? digits : '';
 }
+
+function resolveDisplayName(input: { mobile: string; username?: string | null }): string {
+  const rawUsername = String(input.username || '').trim();
+  if (rawUsername && !/^\d{10}$/.test(rawUsername)) {
+    return rawUsername;
+  }
+  const suffix = input.mobile.slice(-4) || input.mobile || 'User';
+  return `User ${suffix}`;
+}
+
+type ListingAggregate = {
+  count: number;
+  latestCreatedAt: Date | null;
+  latestLocation: string | null;
+  latestContactPhone: string | null;
+  locations: Set<string>;
+};
 
 export function registerAdminUsersRoutes(app: Express) {
   /**
@@ -63,34 +80,50 @@ export function registerAdminUsersRoutes(app: Express) {
       }
 
       const activityById = new Map(activityRows.map((row) => [row.userId, row]));
-      const latestListingById = new Map<
-        string,
-        { location: string | null; createdAt: Date | null; contactPhone: string | null }
-      >();
+      const listingAggregateById = new Map<string, ListingAggregate>();
       for (const row of listingRows) {
-        const existing = latestListingById.get(row.userId);
-        if (!existing) {
-          latestListingById.set(row.userId, {
-            location: row.location || null,
-            createdAt: row.createdAt || null,
-            contactPhone: row.contactPhone || null,
-          });
-        } else if (row.createdAt && existing.createdAt && row.createdAt > existing.createdAt) {
-          latestListingById.set(row.userId, {
-            location: row.location || null,
-            createdAt: row.createdAt || null,
-            contactPhone: row.contactPhone || null,
-          });
+        const key = String(row.userId || '').trim();
+        if (!key) continue;
+        const existing = listingAggregateById.get(key) || {
+          count: 0,
+          latestCreatedAt: null,
+          latestLocation: null,
+          latestContactPhone: null,
+          locations: new Set<string>(),
+        };
+
+        const createdAt = row.createdAt || null;
+        const location = String(row.location || '').trim();
+        const contactPhone = String(row.contactPhone || '').trim();
+
+        existing.count += 1;
+        if (location) {
+          existing.locations.add(location);
         }
+
+        if (
+          !existing.latestCreatedAt ||
+          (createdAt && createdAt.getTime() > existing.latestCreatedAt.getTime())
+        ) {
+          existing.latestCreatedAt = createdAt;
+          existing.latestLocation = location || null;
+          existing.latestContactPhone = contactPhone || null;
+        }
+        listingAggregateById.set(key, existing);
       }
 
       const deduped = new Map<
         string,
         {
           id: string;
+          displayName: string;
           username: string;
           mobile: string;
+          autoDetectedLocation: string;
           location: string;
+          listingsCount: number;
+          listings: number;
+          listingLocations: string[];
           isVerified: boolean;
           createdAt: string;
         }
@@ -98,21 +131,36 @@ export function registerAdminUsersRoutes(app: Express) {
       idList.forEach((id) => {
         const meta = metaById.get(id);
         const activity = activityById.get(id);
-        const latestListing = latestListingById.get(id);
-        const mobile = normalizeMobile(meta?.mobile || latestListing?.contactPhone || id);
+        const listingAggregateForId = listingAggregateById.get(id);
+        const mobile = normalizeMobile(
+          meta?.mobile || listingAggregateForId?.latestContactPhone || id
+        );
         if (!mobile) {
           return;
         }
+        const listingAggregate =
+          listingAggregateForId || listingAggregateById.get(mobile) || undefined;
+
+        const listingLocations = listingAggregate
+          ? [...listingAggregate.locations].sort((a, b) => a.localeCompare(b))
+          : [];
+        const autoDetectedLocation = listingAggregate?.latestLocation || meta?.location || '-';
+        const displayName = resolveDisplayName({ mobile, username: meta?.username });
         const existing = deduped.get(mobile);
         const candidate = {
           id: mobile,
           username: mobile, // Canonical: username == mobile to avoid identity duplication.
+          displayName,
           mobile,
-          location: latestListing?.location || meta?.location || '-',
+          autoDetectedLocation,
+          location: autoDetectedLocation, // Backward compatibility for old admin UI.
+          listingsCount: listingAggregate?.count || 0,
+          listings: listingAggregate?.count || 0, // Backward compatibility alias.
+          listingLocations,
           isVerified: Boolean(meta?.isVerified),
           createdAt:
             activity?.firstSeenAt?.toISOString() ||
-            latestListing?.createdAt?.toISOString() ||
+            listingAggregate?.latestCreatedAt?.toISOString() ||
             meta?.createdAt?.toISOString() ||
             new Date().toISOString(),
         };
@@ -157,7 +205,7 @@ export function registerAdminUsersRoutes(app: Express) {
           .select({ location: listings.location, createdAt: listings.createdAt })
           .from(listings)
           .where(eq(listings.sellerId, id))
-          .orderBy(listings.createdAt)
+          .orderBy(desc(listings.createdAt))
           .limit(1),
       ]);
 
@@ -168,11 +216,18 @@ export function registerAdminUsersRoutes(app: Express) {
       const userMeta = meta[0];
       const userActivityRow = activity[0];
       const latestListingRow = latestListing[0];
+      const mobile = normalizeMobile(userMeta?.mobile || id) || '-';
+      const autoDetectedLocation = latestListingRow?.location || userMeta?.location || '-';
       const safeUser = {
         id,
-        username: normalizeMobile(userMeta?.mobile || id) || id,
-        mobile: normalizeMobile(userMeta?.mobile || id) || '-',
-        location: latestListingRow?.location || userMeta?.location || '-',
+        username: mobile,
+        displayName: resolveDisplayName({ mobile, username: userMeta?.username }),
+        mobile,
+        autoDetectedLocation,
+        location: autoDetectedLocation,
+        listingsCount: latestListingRow ? 1 : 0,
+        listings: latestListingRow ? 1 : 0,
+        listingLocations: latestListingRow?.location ? [latestListingRow.location] : [],
         isVerified: Boolean(userMeta?.isVerified),
         createdAt:
           userActivityRow?.firstSeenAt?.toISOString() ||

@@ -151,6 +151,7 @@ export default function ShortsScreen() {
         pathname: '/chat/[listingId]',
         params: {
           listingId: item.id,
+          otherUserId: item.userId || '',
           sellerName: item.sellerName,
           listingTitle: item.title,
           listingImage: item.images[0],

@@ -115,6 +115,13 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="user/[userId]"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
         name="my-listings"
         options={{
           headerShown: false,

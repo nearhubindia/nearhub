@@ -1,12 +1,17 @@
-import { useState } from 'react';
-import { Edit2, Trash2, Search, X } from 'lucide-react';
-import { useUsers, useDeleteUser, useUpdateUser } from '@/features/admin/hooks';
+import { useMemo, useState } from 'react';
+import { BadgeCheck, Edit2, MapPin, Search, Trash2, X } from 'lucide-react';
+import { useDeleteUser, useUpdateUser, useUsers } from '@/features/admin/hooks';
 
 interface UserRow {
   id: string;
   username: string;
+  displayName?: string;
   mobile?: string;
+  autoDetectedLocation?: string;
   location?: string;
+  listingsCount?: number;
+  listings?: number;
+  listingLocations?: string[];
   isVerified?: boolean;
 }
 
@@ -26,23 +31,39 @@ export default function UsersView() {
   });
   const [saveError, setSaveError] = useState('');
 
-  // Handle the API response structure: { success, data, total }
   const allUsers: UserRow[] = Array.isArray(usersData?.data) ? (usersData.data as UserRow[]) : [];
 
-  // Filter users based on search term
-  const filteredUsers = allUsers.filter(
-    (user) =>
-      user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.mobile?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.location?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = useMemo(
+    () =>
+      allUsers.filter((user) => {
+        const listingLocations = Array.isArray(user.listingLocations)
+          ? user.listingLocations.join(' ')
+          : '';
+        return (
+          String(user.displayName || '')
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          String(user.username || '')
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          String(user.mobile || '')
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          String(user.autoDetectedLocation || user.location || '')
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          listingLocations.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }),
+    [allUsers, searchTerm]
   );
 
   const handleEditClick = (user: UserRow): void => {
     setSelectedUser(user);
     setFormData({
-      username: user.username,
-      mobile: user.mobile || '',
-      location: user.location || '',
+      username: user.username || '',
+      mobile: user.mobile || user.username || '',
+      location: user.autoDetectedLocation || user.location || '',
       isVerified: Boolean(user.isVerified),
     });
     setSaveError('');
@@ -67,12 +88,12 @@ export default function UsersView() {
 
   const handleSaveEdit = async () => {
     if (!formData.username.trim() || !formData.mobile.trim() || !formData.location.trim()) {
-      setSaveError('All fields are required');
+      setSaveError('Mobile and location are required.');
       return;
     }
 
     if (!selectedUser) {
-      setSaveError('No user selected');
+      setSaveError('No user selected.');
       return;
     }
 
@@ -85,21 +106,20 @@ export default function UsersView() {
       setSelectedUser(null);
       refetch();
     } catch (error) {
-      setSaveError('Failed to update user');
+      setSaveError('Failed to update user.');
       console.error('Failed to update user:', error);
     }
   };
 
   const handleConfirmDelete = async () => {
-    if (selectedUser) {
-      try {
-        await deleteUser.mutateAsync(selectedUser.id);
-        setDeleteModalOpen(false);
-        setSelectedUser(null);
-        refetch();
-      } catch (error) {
-        console.error('Failed to delete user:', error);
-      }
+    if (!selectedUser) return;
+    try {
+      await deleteUser.mutateAsync(selectedUser.id);
+      setDeleteModalOpen(false);
+      setSelectedUser(null);
+      refetch();
+    } catch (error) {
+      console.error('Failed to delete user:', error);
     }
   };
 
@@ -116,34 +136,34 @@ export default function UsersView() {
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">Users Management</h1>
-        <p className="text-slate-300">Manage platform users and permissions</p>
+      <div className="border-b border-slate-700 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 text-white">
+        <h1 className="mb-2 text-4xl font-black">Users Management</h1>
+        <p className="text-slate-300">
+          User name, auto-detected location, listing footprint, and trust controls.
+        </p>
       </div>
 
       <div className="p-6">
-        {/* Search Section */}
         <div className="mb-6 flex items-center gap-3">
-          <div className="flex-1 relative">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-3 text-slate-400" size={18} />
             <input
               type="text"
-              placeholder="Search by mobile (username) or location..."
+              placeholder="Search by name, mobile, auto location, listing locations..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
           </div>
           <button
             onClick={() => setSearchTerm('')}
-            className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-900 rounded-lg font-medium transition"
+            className="rounded-lg bg-slate-200 px-4 py-2 font-medium text-slate-900 transition hover:bg-slate-300"
           >
             Clear
           </button>
         </div>
 
-        {/* Table Section */}
-        <div className="bg-white rounded-lg border border-slate-200 overflow-x-auto">
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
           {isLoading ? (
             <div className="p-12 text-center text-slate-600">Loading users...</div>
           ) : allUsers.length === 0 ? (
@@ -152,15 +172,21 @@ export default function UsersView() {
             <div className="p-12 text-center text-slate-600">No users match your search</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-100 border-b border-slate-200 sticky top-0">
+              <table className="w-full min-w-[1100px]">
+                <thead className="sticky top-0 border-b border-slate-200 bg-slate-100">
                   <tr>
                     <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">
-                      Mobile (Username)
+                      User Name
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">Mobile</th>
                     <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">
-                      Location
+                      Auto Location
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">
+                      Listings
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">
+                      Listings Location
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">
                       Verified
@@ -171,52 +197,97 @@ export default function UsersView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user) => (
-                    <tr
-                      key={user.id}
-                      className="border-b border-slate-200 hover:bg-slate-50 transition"
-                    >
-                      <td className="px-6 py-4 text-sm font-medium text-slate-900">
-                        {user.username}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{user.mobile || '-'}</td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{user.location || '-'}</td>
-                      <td className="px-6 py-4 text-sm">
-                        {user.isVerified ? (
-                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
-                            Verified
+                  {filteredUsers.map((user) => {
+                    const listingCount = Number(user.listingsCount ?? user.listings ?? 0);
+                    const listingLocations = Array.isArray(user.listingLocations)
+                      ? user.listingLocations
+                      : [];
+                    return (
+                      <tr
+                        key={user.id}
+                        className="border-b border-slate-200 transition hover:bg-slate-50"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-semibold text-slate-900">
+                            {user.displayName || user.username}
+                          </div>
+                          <div className="text-xs text-slate-500">ID: {user.id}</div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-700">
+                          {user.mobile || user.username}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700">
+                            <MapPin size={12} />
+                            {user.autoDetectedLocation || user.location || '-'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-700">
+                            {listingCount}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
-                            Unverified
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-sm flex gap-2">
-                        <button
-                          onClick={() => handleEditClick(user)}
-                          className="p-2 hover:bg-teal-100 rounded transition cursor-pointer"
-                          title="Edit User"
-                        >
-                          <Edit2 size={16} className="text-teal-600" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClick(user)}
-                          className="p-2 hover:bg-red-100 rounded transition cursor-pointer"
-                          title="Delete User"
-                          disabled={deleteUser.isPending}
-                        >
-                          <Trash2
-                            size={16}
-                            className={deleteUser.isPending ? 'text-slate-400' : 'text-red-600'}
-                          />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-6 py-4">
+                          {listingLocations.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {listingLocations.slice(0, 3).map((loc) => (
+                                <span
+                                  key={`${user.id}-${loc}`}
+                                  className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700"
+                                >
+                                  {loc}
+                                </span>
+                              ))}
+                              {listingLocations.length > 3 && (
+                                <span className="inline-flex rounded-full bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-700">
+                                  +{listingLocations.length - 3}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-slate-500">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          {user.isVerified ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                              <BadgeCheck size={12} />
+                              Verified
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                              Unverified
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditClick(user)}
+                              className="cursor-pointer rounded-lg p-2 transition hover:bg-teal-100"
+                              title="Edit User"
+                            >
+                              <Edit2 size={16} className="text-teal-600" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteClick(user)}
+                              className="cursor-pointer rounded-lg p-2 transition hover:bg-red-100"
+                              title="Delete User"
+                              disabled={deleteUser.isPending}
+                            >
+                              <Trash2
+                                size={16}
+                                className={deleteUser.isPending ? 'text-slate-400' : 'text-red-600'}
+                              />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 text-sm text-slate-600">
+              <div className="border-t border-slate-200 bg-slate-50 px-6 py-4 text-sm text-slate-600">
                 Showing {filteredUsers.length} of {allUsers.length} users
               </div>
             </div>
@@ -224,88 +295,106 @@ export default function UsersView() {
         </div>
       </div>
 
-      {/* Edit Modal */}
       {editModalOpen && selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg max-w-md w-full mx-4 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-slate-900">Edit User</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between bg-gradient-to-r from-teal-600 via-cyan-600 to-sky-600 px-6 py-4 text-white">
+              <div>
+                <h2 className="text-xl font-black">Edit User</h2>
+                <p className="text-sm text-cyan-100">Trust and profile controls</p>
+              </div>
               <button
                 onClick={closeEditModal}
-                className="p-1 hover:bg-slate-100 rounded transition"
+                className="rounded-lg p-1 text-white/90 transition hover:bg-white/20"
                 disabled={updateUser.isPending}
               >
-                <X size={20} className="text-slate-600" />
+                <X size={20} />
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => handleFormChange('username', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                  placeholder="Enter username"
-                  disabled={updateUser.isPending}
-                />
+            <div className="space-y-5 p-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="mb-1 text-xs uppercase tracking-wide text-slate-500">
+                    Display Name
+                  </p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {selectedUser.displayName || selectedUser.username}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="mb-1 text-xs uppercase tracking-wide text-slate-500">Listings</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {Number(selectedUser.listingsCount ?? selectedUser.listings ?? 0)}
+                  </p>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Mobile</label>
-                <input
-                  type="tel"
-                  value={formData.mobile}
-                  onChange={(e) => handleFormChange('mobile', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                  placeholder="Enter mobile number"
-                  disabled={updateUser.isPending}
-                />
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-slate-700">Mobile</label>
+                  <input
+                    type="tel"
+                    value={formData.mobile}
+                    onChange={(e) => handleFormChange('mobile', e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    placeholder="Enter mobile number"
+                    disabled={updateUser.isPending}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-semibold text-slate-700">
+                    Auto Detected Location
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => handleFormChange('location', e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    placeholder="Enter location"
+                    disabled={updateUser.isPending}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => handleFormChange('location', e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                  placeholder="Enter location"
-                  disabled={updateUser.isPending}
-                />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
-                <label className="text-sm font-medium text-slate-700" htmlFor="is-verified">
-                  Verified Seller
-                </label>
-                <input
-                  id="is-verified"
-                  type="checkbox"
-                  checked={formData.isVerified}
-                  onChange={(e) => handleFormChange('isVerified', String(e.target.checked))}
-                  disabled={updateUser.isPending}
-                  className="h-4 w-4 cursor-pointer accent-teal-600"
-                />
+
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-emerald-900" htmlFor="is-verified">
+                    Verified Seller
+                  </label>
+                  <input
+                    id="is-verified"
+                    type="checkbox"
+                    checked={formData.isVerified}
+                    onChange={(e) => handleFormChange('isVerified', String(e.target.checked))}
+                    disabled={updateUser.isPending}
+                    className="h-4 w-4 cursor-pointer accent-emerald-600"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-emerald-700">
+                  Verified badge appears across user listings and marketplace cards.
+                </p>
               </div>
 
               {saveError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
                   <p className="text-sm text-red-700">{saveError}</p>
                 </div>
               )}
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-6 py-4">
               <button
                 onClick={closeEditModal}
                 disabled={updateUser.isPending}
-                className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition font-medium disabled:opacity-50"
+                className="rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveEdit}
                 disabled={updateUser.isPending}
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition font-medium disabled:opacity-50"
+                className="rounded-lg bg-cyan-600 px-4 py-2 font-medium text-white transition hover:bg-cyan-700 disabled:opacity-50"
               >
                 {updateUser.isPending ? 'Saving...' : 'Save Changes'}
               </button>
@@ -314,29 +403,28 @@ export default function UsersView() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {deleteModalOpen && selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg max-w-md w-full mx-4 p-6">
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Delete User</h2>
-            <p className="text-slate-600 mb-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6">
+            <h2 className="mb-2 text-xl font-bold text-slate-900">Delete User</h2>
+            <p className="mb-6 text-slate-600">
               Are you sure you want to delete user{' '}
-              <span className="font-bold">{selectedUser.username}</span>? This action cannot be
-              undone.
+              <span className="font-bold">{selectedUser.displayName || selectedUser.username}</span>
+              ? This action cannot be undone.
             </p>
 
             <div className="flex justify-end gap-2">
               <button
                 onClick={closeDeleteModal}
                 disabled={deleteUser.isPending}
-                className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition font-medium disabled:opacity-50"
+                className="rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmDelete}
                 disabled={deleteUser.isPending}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-medium disabled:opacity-50"
+                className="rounded-lg bg-red-600 px-4 py-2 font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
               >
                 {deleteUser.isPending ? 'Deleting...' : 'Delete'}
               </button>

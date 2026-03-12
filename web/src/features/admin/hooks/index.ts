@@ -129,8 +129,14 @@ interface UsersQueryData {
   data?: Array<{
     id: string;
     username: string;
+    displayName?: string;
     mobile?: string;
+    autoDetectedLocation?: string;
     location?: string;
+    listingsCount?: number;
+    listings?: number;
+    listingLocations?: string[];
+    isVerified?: boolean;
   }>;
 }
 
