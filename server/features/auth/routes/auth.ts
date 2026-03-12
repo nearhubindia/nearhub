@@ -19,20 +19,29 @@ import { touchUserActivity } from '../../users/services/user-lifecycle';
 async function upsertAuthUserRecord(input: {
   phone: string;
   avatarUrl?: string;
+  name?: string;
   preferredId?: string;
 }): Promise<void> {
   const normalizedPhone = normalizePhone(input.phone);
   if (!normalizedPhone) return;
+  const profileName = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : '';
+  const isPhoneLikeUsername = (value: string): boolean => /^\d{10,15}$/.test(value.trim());
 
   const match = await db.query.users.findFirst({
     where: eq(users.mobile, normalizedPhone),
-    columns: { id: true, avatarUrl: true },
+    columns: { id: true, avatarUrl: true, username: true },
   });
 
   if (match?.id) {
+    const nextUsername =
+      profileName && (!match.username || isPhoneLikeUsername(String(match.username || '')))
+        ? profileName
+        : match.username;
+
     await db
       .update(users)
       .set({
+        username: nextUsername,
         mobile: normalizedPhone,
         avatarUrl:
           typeof input.avatarUrl === 'string' && input.avatarUrl.trim()
@@ -47,7 +56,7 @@ async function upsertAuthUserRecord(input: {
     .insert(users)
     .values({
       id: input.preferredId || normalizedPhone,
-      username: normalizedPhone,
+      username: profileName || normalizedPhone,
       password: 'otp-auth',
       mobile: normalizedPhone,
       avatarUrl: typeof input.avatarUrl === 'string' ? input.avatarUrl.trim() || null : null,
@@ -144,6 +153,7 @@ export function registerAuthRoutes(app: Express) {
         }
         await upsertAuthUserRecord({
           phone: normalizedPhone,
+          name: existingUser.name,
           avatarUrl: dbUser?.avatarUrl || existingUser.avatarUrl,
           preferredId: existingUser.id,
         }).catch((error) => console.error('[Auth] Failed to persist existing user to DB:', error));
@@ -197,6 +207,7 @@ export function registerAuthRoutes(app: Express) {
         });
         await upsertAuthUserRecord({
           phone: normalizedPhone,
+          name: user.name,
           avatarUrl: user.avatarUrl,
           preferredId: user.id,
         }).catch((error) => console.error('[Auth] Failed to persist recovered user to DB:', error));
@@ -221,6 +232,7 @@ export function registerAuthRoutes(app: Express) {
       });
       await upsertAuthUserRecord({
         phone: normalizedPhone,
+        name: user.name,
         avatarUrl: user.avatarUrl,
         preferredId: user.id,
       }).catch((error) => console.error('[Auth] Failed to persist new user to DB:', error));
@@ -281,6 +293,7 @@ export function registerAuthRoutes(app: Express) {
       });
       await upsertAuthUserRecord({
         phone: normalizedPhone,
+        name,
         avatarUrl,
         preferredId: updatedUser.id,
       }).catch((error) => console.error('[Auth] Failed to persist user profile to DB:', error));

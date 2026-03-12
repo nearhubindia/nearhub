@@ -7,7 +7,7 @@
 import type { Express, NextFunction, Request, Response } from 'express';
 import { db } from '../../../data/db';
 import { users } from '../../users/models/users';
-import { inArray, or } from 'drizzle-orm';
+import { eq, inArray, or } from 'drizzle-orm';
 import {
   calculateCheckout,
   getListingCheckoutSummary,
@@ -223,7 +223,7 @@ function getSellerDisplayName(listing: any, sellerMeta?: SellerMeta): string {
   }
 
   const userName = typeof sellerMeta?.displayName === 'string' ? sellerMeta.displayName.trim() : '';
-  if (userName) return userName;
+  if (userName && !/^\d{10,15}$/.test(userName)) return userName;
 
   return listingName || 'Seller';
 }
@@ -570,6 +570,7 @@ export function registerSubscriptionRoutes(app: Express) {
           couponCode,
           priceUnit,
           listingType,
+          sellerName,
           pincode,
           latitude,
           longitude,
@@ -593,6 +594,23 @@ export function registerSubscriptionRoutes(app: Express) {
           return res.status(400).json({
             error: 'Missing required fields: userId, title, price, category, condition, location',
           });
+        }
+
+        const normalizedSellerName =
+          typeof sellerName === 'string' && sellerName.trim() ? sellerName.trim() : '';
+        if (normalizedSellerName) {
+          const owner = await db.query.users.findFirst({
+            where: eq(users.id, ownerId),
+            columns: { id: true, username: true },
+          });
+          const existingUsername = String(owner?.username || '').trim();
+          if (!existingUsername || /^\d{10,15}$/.test(existingUsername)) {
+            await db
+              .update(users)
+              .set({ username: normalizedSellerName })
+              .where(eq(users.id, ownerId))
+              .catch(() => undefined);
+          }
         }
 
         // Check if user can create a listing (subscription limit check)

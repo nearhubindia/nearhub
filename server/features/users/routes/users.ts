@@ -53,12 +53,24 @@ export function registerUserRoutes(app: Express) {
     });
   };
 
-  const syncDbAvatar = async (userId: string, avatarUrl: string) => {
+  const syncDbUserProfile = async (userId: string, avatarUrl: string, name?: string) => {
     const dbUser = await getDbUser(userId);
+    const profileName = typeof name === 'string' && name.trim() ? name.trim() : '';
+    const isPhoneLikeUsername = (value: string): boolean => /^\d{10,15}$/.test(value.trim());
+
     if (dbUser?.id) {
+      const nextUsername =
+        profileName && (!dbUser.username || isPhoneLikeUsername(String(dbUser.username || '')))
+          ? profileName
+          : dbUser.username;
+
       await db
         .update(users)
-        .set({ avatarUrl: avatarUrl || null, mobile: normalizePhone(userId) || dbUser.mobile })
+        .set({
+          username: nextUsername,
+          avatarUrl: avatarUrl || null,
+          mobile: normalizePhone(userId) || dbUser.mobile,
+        })
         .where(eq(users.id, dbUser.id));
       return;
     }
@@ -68,7 +80,7 @@ export function registerUserRoutes(app: Express) {
       .insert(users)
       .values({
         id: String(userId || '').trim() || normalizedPhone,
-        username: normalizedPhone || String(userId || '').trim(),
+        username: profileName || normalizedPhone || String(userId || '').trim(),
         password: 'otp-auth',
         mobile: normalizedPhone || null,
         avatarUrl: avatarUrl || null,
@@ -249,7 +261,7 @@ export function registerUserRoutes(app: Express) {
       };
 
       upsertUser(user);
-      await syncDbAvatar(String(userId), user.avatarUrl || '');
+      await syncDbUserProfile(String(userId), user.avatarUrl || '', user.name);
 
       return res.json({
         success: true,

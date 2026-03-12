@@ -23,7 +23,13 @@ const NETWORK_TIMEOUT_MS = 12000;
 function resolveSellerName(listing: any): string {
   const isPlaceholderName = (value: string): boolean => {
     const normalized = value.trim().toLowerCase();
-    return normalized === 'seller' || normalized === 'unknown' || normalized === 'anonymous';
+    const digitsOnly = value.replace(/\D/g, '');
+    return (
+      normalized === 'seller' ||
+      normalized === 'unknown' ||
+      normalized === 'anonymous' ||
+      digitsOnly.length >= 10
+    );
   };
 
   const candidates = [
@@ -396,6 +402,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       }
       const requestBody = {
         userId: ownerId,
+        sellerName: listing.sellerName,
         title: listing.title,
         description: listing.description,
         category: listing.category,

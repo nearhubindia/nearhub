@@ -160,7 +160,7 @@ function getSellerDisplayName(listing: any, sellerMeta?: SellerMeta): string {
   }
 
   const userName = typeof sellerMeta?.displayName === 'string' ? sellerMeta.displayName.trim() : '';
-  if (userName) return userName;
+  if (userName && !/^\d{10,15}$/.test(userName)) return userName;
 
   return listingName || 'Seller';
 }
