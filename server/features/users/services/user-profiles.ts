@@ -136,8 +136,7 @@ export function resolveUserDisplayName(userId: string, fallbackPrefix: 'Buyer' |
   const byPhone = getUserByPhone(normalizedId);
   if (byPhone?.name?.trim()) return byPhone.name.trim();
 
-  const suffix = normalizedId.slice(-4) || normalizedId;
-  return `${fallbackPrefix} ${suffix}`;
+  return fallbackPrefix;
 }
 
 export function removeUserProfile(userId: string): void {
