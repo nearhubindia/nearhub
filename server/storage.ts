@@ -30,7 +30,10 @@ export class MemStorage implements IStorage {
     const user: User = {
       ...insertUser,
       id,
+      displayName: null,
       mobile: null,
+      address: null,
+      gstin: null,
       location: null,
       avatarUrl: null,
       isVerified: false,

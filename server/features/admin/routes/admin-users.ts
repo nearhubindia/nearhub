@@ -18,7 +18,15 @@ function normalizeMobile(value: unknown): string {
   return digits.length === 10 ? digits : '';
 }
 
-function resolveDisplayName(input: { mobile: string; username?: string | null }): string {
+function resolveDisplayName(input: {
+  mobile: string;
+  username?: string | null;
+  displayName?: string | null;
+}): string {
+  const rawDisplayName = String(input.displayName || '').trim();
+  if (rawDisplayName && !/^\d{10}$/.test(rawDisplayName)) {
+    return rawDisplayName;
+  }
   const rawUsername = String(input.username || '').trim();
   if (rawUsername && !/^\d{10}$/.test(rawUsername)) {
     return rawUsername;
@@ -146,7 +154,11 @@ export function registerAdminUsersRoutes(app: Express) {
           ? [...listingAggregate.locations].sort((a, b) => a.localeCompare(b))
           : [];
         const autoDetectedLocation = listingAggregate?.latestLocation || meta?.location || '-';
-        const displayName = resolveDisplayName({ mobile, username: meta?.username });
+        const displayName = resolveDisplayName({
+          mobile,
+          username: meta?.username,
+          displayName: meta?.displayName,
+        });
         const existing = deduped.get(mobile);
         const candidate = {
           id: mobile,
@@ -222,7 +234,11 @@ export function registerAdminUsersRoutes(app: Express) {
       const safeUser = {
         id,
         username: mobile,
-        displayName: resolveDisplayName({ mobile, username: userMeta?.username }),
+        displayName: resolveDisplayName({
+          mobile,
+          username: userMeta?.username,
+          displayName: userMeta?.displayName,
+        }),
         mobile,
         autoDetectedLocation,
         location: autoDetectedLocation,

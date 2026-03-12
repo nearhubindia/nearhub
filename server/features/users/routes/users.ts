@@ -53,9 +53,18 @@ export function registerUserRoutes(app: Express) {
     });
   };
 
-  const syncDbUserProfile = async (userId: string, avatarUrl: string, name?: string) => {
+  const syncDbUserProfile = async (
+    userId: string,
+    avatarUrl: string,
+    profile: { name?: string; address?: string; gstin?: string }
+  ) => {
     const dbUser = await getDbUser(userId);
-    const profileName = typeof name === 'string' && name.trim() ? name.trim() : '';
+    const profileName =
+      typeof profile.name === 'string' && profile.name.trim() ? profile.name.trim() : '';
+    const profileAddress =
+      typeof profile.address === 'string' && profile.address.trim() ? profile.address.trim() : '';
+    const profileGstin =
+      typeof profile.gstin === 'string' && profile.gstin.trim() ? profile.gstin.trim() : '';
     const isPhoneLikeUsername = (value: string): boolean => /^\d{10,15}$/.test(value.trim());
     const isPlaceholderName = (value: string): boolean => {
       const normalized = value.trim().toLowerCase();
@@ -63,15 +72,17 @@ export function registerUserRoutes(app: Express) {
     };
 
     if (dbUser?.id) {
-      const nextUsername =
+      const nextDisplayName =
         profileName && !isPhoneLikeUsername(profileName) && !isPlaceholderName(profileName)
           ? profileName
-          : dbUser.username;
+          : dbUser.displayName;
 
       await db
         .update(users)
         .set({
-          username: nextUsername,
+          displayName: nextDisplayName,
+          address: profileAddress || dbUser.address || null,
+          gstin: profileGstin || dbUser.gstin || null,
           avatarUrl: avatarUrl || null,
           mobile: normalizePhone(userId) || dbUser.mobile,
         })
@@ -84,9 +95,15 @@ export function registerUserRoutes(app: Express) {
       .insert(users)
       .values({
         id: String(userId || '').trim() || normalizedPhone,
-        username: profileName || normalizedPhone || String(userId || '').trim(),
+        username: normalizedPhone || String(userId || '').trim(),
+        displayName:
+          profileName && !isPhoneLikeUsername(profileName) && !isPlaceholderName(profileName)
+            ? profileName
+            : null,
         password: 'otp-auth',
         mobile: normalizedPhone || null,
+        address: profileAddress || null,
+        gstin: profileGstin || null,
         avatarUrl: avatarUrl || null,
         createdAt: new Date(),
       })
@@ -132,13 +149,18 @@ export function registerUserRoutes(app: Express) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      // Get user from in-memory storage, then hydrate avatar from DB for persistence across sessions.
+      // Get user from in-memory storage, then hydrate persisted profile fields from DB.
       let user = ensureUser(String(userId));
       const dbUser = await getDbUser(String(userId));
-      if (dbUser && dbUser.avatarUrl && dbUser.avatarUrl !== user.avatarUrl) {
+      if (dbUser) {
+        const dbDisplayName = String(dbUser.displayName || '').trim();
+        const fallbackName = String(dbUser.username || '').trim();
         user = upsertUser({
           ...user,
-          avatarUrl: dbUser.avatarUrl,
+          name: dbDisplayName || (user.name ? user.name : fallbackName),
+          avatarUrl: dbUser.avatarUrl || user.avatarUrl,
+          address: String(dbUser.address || user.address || '').trim(),
+          gstin: String(dbUser.gstin || user.gstin || '').trim(),
           phone: normalizePhone(dbUser.mobile || user.phone || user.id),
           updatedAt: new Date().toISOString(),
         });
@@ -177,16 +199,18 @@ export function registerUserRoutes(app: Express) {
       let user = getUserById(String(userId));
       const dbUser = await getDbUser(String(userId));
       if (!user && dbUser) {
+        const dbDisplayName = String(dbUser.displayName || '').trim();
+        const fallbackName = String(dbUser.username || '').trim();
         user = upsertUser({
           id: String(dbUser.id),
           phone: normalizePhone(dbUser.mobile || dbUser.id),
-          name: String(dbUser.username || '').trim() || `User ${String(dbUser.id).slice(-4)}`,
+          name: dbDisplayName || fallbackName || `User ${String(dbUser.id).slice(-4)}`,
           email: '',
           gender: 'other',
           avatarUrl: dbUser.avatarUrl || '',
           bio: '',
-          address: '',
-          gstin: '',
+          address: String(dbUser.address || '').trim(),
+          gstin: String(dbUser.gstin || '').trim(),
           location: dbUser.location || null,
           isVerified: Boolean(dbUser.isVerified),
           createdAt: dbUser.createdAt
@@ -199,10 +223,15 @@ export function registerUserRoutes(app: Express) {
             autoLocalizeListings: true,
           },
         });
-      } else if (user && dbUser && dbUser.avatarUrl && dbUser.avatarUrl !== user.avatarUrl) {
+      } else if (user && dbUser) {
+        const dbDisplayName = String(dbUser.displayName || '').trim();
+        const fallbackName = String(dbUser.username || '').trim();
         user = upsertUser({
           ...user,
-          avatarUrl: dbUser.avatarUrl,
+          name: dbDisplayName || user.name || fallbackName,
+          avatarUrl: dbUser.avatarUrl || user.avatarUrl,
+          address: String(dbUser.address || user.address || '').trim(),
+          gstin: String(dbUser.gstin || user.gstin || '').trim(),
           updatedAt: new Date().toISOString(),
         });
       }
@@ -265,7 +294,11 @@ export function registerUserRoutes(app: Express) {
       };
 
       upsertUser(user);
-      await syncDbUserProfile(String(userId), user.avatarUrl || '', user.name);
+      await syncDbUserProfile(String(userId), user.avatarUrl || '', {
+        name: user.name,
+        address: user.address,
+        gstin: user.gstin,
+      });
 
       return res.json({
         success: true,

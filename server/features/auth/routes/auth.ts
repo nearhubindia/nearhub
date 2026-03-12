@@ -33,19 +33,19 @@ async function upsertAuthUserRecord(input: {
 
   const match = await db.query.users.findFirst({
     where: eq(users.mobile, normalizedPhone),
-    columns: { id: true, avatarUrl: true, username: true },
+    columns: { id: true, avatarUrl: true, username: true, displayName: true },
   });
 
   if (match?.id) {
-    const nextUsername =
+    const nextDisplayName =
       profileName && !isPhoneLikeUsername(profileName) && !isPlaceholderName(profileName)
         ? profileName
-        : match.username;
+        : match.displayName;
 
     await db
       .update(users)
       .set({
-        username: nextUsername,
+        displayName: nextDisplayName,
         mobile: normalizedPhone,
         avatarUrl:
           typeof input.avatarUrl === 'string' && input.avatarUrl.trim()
@@ -60,7 +60,11 @@ async function upsertAuthUserRecord(input: {
     .insert(users)
     .values({
       id: input.preferredId || normalizedPhone,
-      username: profileName || normalizedPhone,
+      username: normalizedPhone,
+      displayName:
+        profileName && !isPhoneLikeUsername(profileName) && !isPlaceholderName(profileName)
+          ? profileName
+          : null,
       password: 'otp-auth',
       mobile: normalizedPhone,
       avatarUrl: typeof input.avatarUrl === 'string' ? input.avatarUrl.trim() || null : null,
@@ -74,7 +78,7 @@ async function getDbUserByPhone(phone: string) {
   if (!normalizedPhone) return null;
   return db.query.users.findFirst({
     where: eq(users.mobile, normalizedPhone),
-    columns: { id: true, avatarUrl: true },
+    columns: { id: true, avatarUrl: true, displayName: true, address: true, gstin: true },
   });
 }
 
@@ -184,7 +188,10 @@ export function registerAuthRoutes(app: Express) {
         const recoveredUser = upsertUserFromAuth({
           phone: normalizedPhone,
           avatarUrl: dbUser.avatarUrl || '',
-          name: typeof name === 'string' ? name.trim() : '',
+          name:
+            typeof name === 'string' && name.trim()
+              ? name.trim()
+              : String(dbUser.displayName || '').trim(),
           email: typeof email === 'string' ? email.trim() : '',
           gender: gender === 'male' || gender === 'female' || gender === 'other' ? gender : 'other',
         });

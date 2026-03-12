@@ -134,6 +134,7 @@ async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, Seller
     .select({
       id: users.id,
       mobile: users.mobile,
+      displayName: users.displayName,
       username: users.username,
       isVerified: users.isVerified,
       avatarUrl: users.avatarUrl,
@@ -146,7 +147,7 @@ async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, Seller
     const meta = {
       isVerified: Boolean(row.isVerified),
       avatarUrl: String(row.avatarUrl || ''),
-      displayName: String(row.username || '').trim(),
+      displayName: String(row.displayName || row.username || '').trim(),
     };
     if (row.id) metaMap.set(String(row.id).trim(), meta);
     if (row.mobile) metaMap.set(String(row.mobile).trim(), meta);

@@ -197,6 +197,7 @@ async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, Seller
     .select({
       id: users.id,
       mobile: users.mobile,
+      displayName: users.displayName,
       username: users.username,
       avatarUrl: users.avatarUrl,
       isVerified: users.isVerified,
@@ -209,7 +210,7 @@ async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, Seller
     const meta = {
       avatarUrl: String(row.avatarUrl || ''),
       isVerified: Boolean(row.isVerified),
-      displayName: String(row.username || '').trim(),
+      displayName: String(row.displayName || row.username || '').trim(),
     };
     if (row.id) metaMap.set(String(row.id).trim(), meta);
     if (row.mobile) metaMap.set(String(row.mobile).trim(), meta);
@@ -633,12 +634,12 @@ export function registerSubscriptionRoutes(app: Express) {
         if (normalizedSellerName && !isPhoneLikeName && !isPlaceholderName) {
           const owner = await db.query.users.findFirst({
             where: eq(users.id, ownerId),
-            columns: { id: true, username: true },
+            columns: { id: true, displayName: true },
           });
           if (owner?.id) {
             await db
               .update(users)
-              .set({ username: normalizedSellerName })
+              .set({ displayName: normalizedSellerName })
               .where(eq(users.id, ownerId))
               .catch(() => undefined);
           }
