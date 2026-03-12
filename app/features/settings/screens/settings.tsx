@@ -179,7 +179,9 @@ export default function SettingsScreen() {
           <Feather name={item.icon} size={17} color={item.danger ? Colors.accent : '#0F2748'} />
         </View>
         <View style={styles.settingCopy}>
-          <Text style={[styles.settingLabel, item.danger && styles.settingLabelDanger]}>{item.label}</Text>
+          <Text style={[styles.settingLabel, item.danger && styles.settingLabelDanger]}>
+            {item.label}
+          </Text>
         </View>
       </View>
       <View style={styles.settingRight}>

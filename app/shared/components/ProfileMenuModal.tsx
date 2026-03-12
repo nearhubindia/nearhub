@@ -207,7 +207,11 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
               <View style={styles.menuGroupHeader}>
                 <Text style={styles.menuGroupTitle}>Quick Access</Text>
                 <View style={styles.swapButton}>
-                  <Feather name="repeat" size={responsiveModerateScale(16)} color={Colors.primary} />
+                  <Feather
+                    name="repeat"
+                    size={responsiveModerateScale(16)}
+                    color={Colors.primary}
+                  />
                 </View>
               </View>
 
@@ -232,12 +236,8 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
                       />
                     </View>
                     <View style={styles.menuCardBody}>
-                      <Text style={styles.menuCardTitle}>
-                        {item.label}
-                      </Text>
-                      <Text style={styles.menuCardSubtitle}>
-                        {item.subtitle}
-                      </Text>
+                      <Text style={styles.menuCardTitle}>{item.label}</Text>
+                      <Text style={styles.menuCardSubtitle}>{item.subtitle}</Text>
                     </View>
                   </Pressable>
                 ))}
@@ -249,10 +249,18 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
 
             {/* Logout */}
             {isAuthenticated && (
-              <Pressable style={styles.logoutPill} android_ripple={{ color: '#F4E5E8' }} onPress={handleLogout}>
+              <Pressable
+                style={styles.logoutPill}
+                android_ripple={{ color: '#F4E5E8' }}
+                onPress={handleLogout}
+              >
                 <View style={styles.logoutLeft}>
                   <View style={styles.logoutIcon}>
-                    <Feather name="log-out" size={responsiveModerateScale(19)} color={Colors.accent} />
+                    <Feather
+                      name="log-out"
+                      size={responsiveModerateScale(19)}
+                      color={Colors.accent}
+                    />
                   </View>
                   <Text style={styles.logoutLabel}>Logout</Text>
                 </View>

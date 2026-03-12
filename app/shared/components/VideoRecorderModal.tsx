@@ -319,9 +319,7 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
           <View style={styles.permissionContainer}>
             <MaterialCommunityIcons name="shield-sync" size={64} color="#3B82F6" />
             <Text style={styles.permissionTitle}>Checking Permissions...</Text>
-            <Text style={styles.permissionText}>
-              Verifying camera and microphone access.
-            </Text>
+            <Text style={styles.permissionText}>Verifying camera and microphone access.</Text>
           </View>
         </SafeAreaView>
       </Modal>

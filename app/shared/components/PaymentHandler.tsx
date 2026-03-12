@@ -27,12 +27,7 @@ interface PaymentHandlerProps {
  * await processPayment(paymentData, customerData, listingData);
  */
 export function usePaymentHandler() {
-  const {
-    isLoading,
-    error,
-    initiatePayment,
-    verifyPaymentAndGenerateInvoice,
-  } = usePayment();
+  const { isLoading, error, initiatePayment, verifyPaymentAndGenerateInvoice } = usePayment();
 
   /**
    * Main payment processing function
@@ -67,14 +62,18 @@ export function usePaymentHandler() {
           subscriptionData
         );
 
-        Alert.alert('Subscription Updated Successfully', 'Your subscription is active. You can download invoices from the Invoices screen.', [
-          {
-            text: 'OK',
-            onPress: () => {
-              onSuccess?.(result);
+        Alert.alert(
+          'Subscription Updated Successfully',
+          'Your subscription is active. You can download invoices from the Invoices screen.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                onSuccess?.(result);
+              },
             },
-          },
-        ]);
+          ]
+        );
         return result;
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Payment initialization failed';

@@ -30,14 +30,7 @@ import {
   isProfileComplete,
   getMissingProfileFields,
 } from '@/shared/contexts/auth-context';
-import {
-  Category,
-  CATEGORIES,
-  CONDITIONS,
-  PriceUnit,
-  PRICE_UNITS,
-  Listing,
-} from '@/lib/types';
+import { Category, CATEGORIES, CONDITIONS, PriceUnit, PRICE_UNITS, Listing } from '@/lib/types';
 import { getApiUrl } from '@/lib/query-client';
 import { compressVideoWithProgress } from '@/lib/video-compressor';
 import {
@@ -47,10 +40,7 @@ import {
 } from '@/lib/video-compressor-s3';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 import { VideoRecorderModal } from '@/shared/components/VideoRecorderModal';
-import {
-  compressImagesWithProgress,
-  QUALITY_PRESETS,
-} from '@/lib/image-compressor';
+import { compressImagesWithProgress, QUALITY_PRESETS } from '@/lib/image-compressor';
 import * as ImageStorage from '@/lib/image-storage';
 import * as ImageHasher from '@/lib/image-hasher';
 import RichTextEditor from '@/shared/components/RichTextEditor';
@@ -766,134 +756,131 @@ export default function CreateScreen() {
     return uploaded;
   };
 
-  const pickImage = useCallback(
-    async (useCamera: boolean) => {
-      try {
-        let result;
-        if (useCamera) {
-          const { status } = await ImagePicker.requestCameraPermissionsAsync();
-          if (status !== 'granted') {
-            Alert.alert('Permission needed', 'Camera access is required to take photos.');
-            return;
-          }
-          result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ['images'],
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 0.7,
-            base64: true,
-          });
-        } else {
-          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-          if (status !== 'granted') {
-            Alert.alert('Permission needed', 'Gallery access is required to select photos.');
-            return;
-          }
-          result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 0.7,
-            base64: true,
-          });
+  const pickImage = useCallback(async (useCamera: boolean) => {
+    try {
+      let result;
+      if (useCamera) {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission needed', 'Camera access is required to take photos.');
+          return;
         }
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.7,
+          base64: true,
+        });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission needed', 'Gallery access is required to select photos.');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.7,
+          base64: true,
+        });
+      }
 
-        if (!result.canceled && result.assets[0]) {
-          const asset = result.assets[0];
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
 
-          // Start image compression
-          setIsCompressingImages(true);
-          setImageCompressionProgress({ current: 0, total: 1 });
+        // Start image compression
+        setIsCompressingImages(true);
+        setImageCompressionProgress({ current: 0, total: 1 });
 
-          try {
-            setValidationMessage('Optimizing image for faster upload...');
+        try {
+          setValidationMessage('Optimizing image for faster upload...');
 
-            const compressedResults = await compressImagesWithProgress(
-              [asset.uri],
-              (progress, current, total) => {
-                setImageCompressionProgress({ current, total });
-              },
-              {
-                maxWidth: QUALITY_PRESETS.ultraLight.maxWidth,
-                maxHeight: QUALITY_PRESETS.ultraLight.maxHeight,
-                quality: QUALITY_PRESETS.ultraLight.quality,
-              }
-            );
-
-            if (compressedResults.length > 0) {
-              const compressedUri = compressedResults[0].uri;
-
-              let finalImageData = compressedUri;
-              try {
-                finalImageData = await toPortableImageUri(compressedUri);
-              } catch (conversionError) {
-                console.error('[Create] Image portability conversion failed:', conversionError);
-                Alert.alert('Image Error', 'Failed to process image. Please try again.');
-                setIsCompressingImages(false);
-                setImageCompressionProgress(null);
-                return;
-              }
-
-              // Check for duplicate using hash
-              const duplicateHash = await ImageStorage.findDuplicateHash(finalImageData);
-              if (duplicateHash) {
-                setImageDeduplicationInfo(
-                  `✓ Image already in use (hash: ${ImageHasher.getShortHash(duplicateHash)})`
-                );
-              }
-
-              // Store image hash and increment usage
-              try {
-                const hash = await ImageStorage.saveImageByHash(
-                  finalImageData,
-                  compressedResults[0].width,
-                  compressedResults[0].height,
-                  QUALITY_PRESETS.ultraLight.quality,
-                  compressedResults[0].compressedSize
-                );
-                setImageHashes((prev) => [...prev, hash]);
-              } catch (hashError) {
-                console.error('Failed to hash image:', hashError);
-              }
-
-              console.log(
-                '[Create] Adding image to array, starts with:',
-                finalImageData.substring(0, 30)
-              );
-              setImages((prev) => [...prev, finalImageData]);
-              if (duplicateHash) {
-                setValidationMessage('Duplicate image detected. Reusing optimized storage.');
-              }
+          const compressedResults = await compressImagesWithProgress(
+            [asset.uri],
+            (progress, current, total) => {
+              setImageCompressionProgress({ current, total });
+            },
+            {
+              maxWidth: QUALITY_PRESETS.ultraLight.maxWidth,
+              maxHeight: QUALITY_PRESETS.ultraLight.maxHeight,
+              quality: QUALITY_PRESETS.ultraLight.quality,
             }
-          } catch (compressionError) {
-            console.error('Image compression error:', compressionError);
-            // Fallback: use original image if compression fails
-            let finalImageData = asset.uri;
+          );
+
+          if (compressedResults.length > 0) {
+            const compressedUri = compressedResults[0].uri;
+
+            let finalImageData = compressedUri;
             try {
-              finalImageData = await toPortableImageUri(asset.uri);
+              finalImageData = await toPortableImageUri(compressedUri);
             } catch (conversionError) {
-              console.error('[Create] Fallback conversion failed:', conversionError);
+              console.error('[Create] Image portability conversion failed:', conversionError);
               Alert.alert('Image Error', 'Failed to process image. Please try again.');
               setIsCompressingImages(false);
               setImageCompressionProgress(null);
               return;
             }
 
-            setValidationMessage('Using original image quality.');
+            // Check for duplicate using hash
+            const duplicateHash = await ImageStorage.findDuplicateHash(finalImageData);
+            if (duplicateHash) {
+              setImageDeduplicationInfo(
+                `✓ Image already in use (hash: ${ImageHasher.getShortHash(duplicateHash)})`
+              );
+            }
+
+            // Store image hash and increment usage
+            try {
+              const hash = await ImageStorage.saveImageByHash(
+                finalImageData,
+                compressedResults[0].width,
+                compressedResults[0].height,
+                QUALITY_PRESETS.ultraLight.quality,
+                compressedResults[0].compressedSize
+              );
+              setImageHashes((prev) => [...prev, hash]);
+            } catch (hashError) {
+              console.error('Failed to hash image:', hashError);
+            }
+
+            console.log(
+              '[Create] Adding image to array, starts with:',
+              finalImageData.substring(0, 30)
+            );
             setImages((prev) => [...prev, finalImageData]);
-          } finally {
+            if (duplicateHash) {
+              setValidationMessage('Duplicate image detected. Reusing optimized storage.');
+            }
+          }
+        } catch (compressionError) {
+          console.error('Image compression error:', compressionError);
+          // Fallback: use original image if compression fails
+          let finalImageData = asset.uri;
+          try {
+            finalImageData = await toPortableImageUri(asset.uri);
+          } catch (conversionError) {
+            console.error('[Create] Fallback conversion failed:', conversionError);
+            Alert.alert('Image Error', 'Failed to process image. Please try again.');
             setIsCompressingImages(false);
             setImageCompressionProgress(null);
-            setValidationMessage('');
+            return;
           }
+
+          setValidationMessage('Using original image quality.');
+          setImages((prev) => [...prev, finalImageData]);
+        } finally {
+          setIsCompressingImages(false);
+          setImageCompressionProgress(null);
+          setValidationMessage('');
         }
-      } catch (e) {
-        console.error('Image picker error:', e);
-        setIsCompressingImages(false);
       }
-    },
-    []
-  );
+    } catch (e) {
+      console.error('Image picker error:', e);
+      setIsCompressingImages(false);
+    }
+  }, []);
 
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
@@ -962,7 +949,6 @@ export default function CreateScreen() {
       } catch (thumbError) {
         console.warn('[Create] Could not generate video thumbnail:', thumbError);
       }
-
     } finally {
       setIsCompressing(false);
       setCompressionProgress(0);
@@ -1035,7 +1021,6 @@ export default function CreateScreen() {
           } catch (thumbError) {
             console.warn('[Create] Could not generate video thumbnail:', thumbError);
           }
-
         } finally {
           setIsCompressing(false);
           setCompressionProgress(0);
@@ -1526,7 +1511,10 @@ export default function CreateScreen() {
               <View style={styles.heroProgressRow}>
                 <View style={styles.heroProgressTrack}>
                   <View
-                    style={[styles.heroProgressFill, { width: `${Math.max(completionPercentage, 8)}%` }]}
+                    style={[
+                      styles.heroProgressFill,
+                      { width: `${Math.max(completionPercentage, 8)}%` },
+                    ]}
                   />
                 </View>
                 <Text style={styles.heroProgressText}>
@@ -1730,17 +1718,11 @@ export default function CreateScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.imageRow}
               >
-                <Pressable
-                  style={styles.addVideoButton}
-                  onPress={() => setShowRecorder(true)}
-                >
+                <Pressable style={styles.addVideoButton} onPress={() => setShowRecorder(true)}>
                   <Feather name="camera" size={18} color="#fff" />
                   <Text style={styles.addImageText}>Record</Text>
                 </Pressable>
-                <Pressable
-                  style={styles.addVideoButton}
-                  onPress={pickVideo}
-                >
+                <Pressable style={styles.addVideoButton} onPress={pickVideo}>
                   <Feather name="video" size={18} color="#fff" />
                   <Text style={styles.addImageText}>Select</Text>
                 </Pressable>
@@ -1889,7 +1871,9 @@ export default function CreateScreen() {
                   ]}
                 >
                   {Number(offerPrice) >= Number(price) ? (
-                    <Text style={[styles.offerPriceFeedbackText, styles.offerPriceFeedbackTextInvalid]}>
+                    <Text
+                      style={[styles.offerPriceFeedbackText, styles.offerPriceFeedbackTextInvalid]}
+                    >
                       {listingType === 'job'
                         ? '⚠️ Incentives must be less than or equal to salary'
                         : '⚠️ Offer price must be less than listed price'}
@@ -2069,7 +2053,9 @@ export default function CreateScreen() {
                   </View>
                   <View style={styles.subscriptionStatDivider} />
                   <View style={styles.subscriptionStatItem}>
-                    <Text style={[styles.subscriptionStatValue, styles.subscriptionStatValueSuccess]}>
+                    <Text
+                      style={[styles.subscriptionStatValue, styles.subscriptionStatValueSuccess]}
+                    >
                       {subscriptionStats.isUnlimited ? '∞' : subscriptionStats.totalAvailable}
                     </Text>
                     <Text style={styles.subscriptionStatLabel}>
@@ -2123,7 +2109,10 @@ export default function CreateScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   router.push('/subscriptions');
                 }}
-                style={({ pressed }) => [styles.noSubscriptionCard, pressed && styles.noSubscriptionCardPressed]}
+                style={({ pressed }) => [
+                  styles.noSubscriptionCard,
+                  pressed && styles.noSubscriptionCardPressed,
+                ]}
               >
                 <View style={styles.noSubscriptionHeader}>
                   <View style={styles.noSubscriptionIconWrap}>
@@ -2188,7 +2177,6 @@ export default function CreateScreen() {
                 </View>
               </Pressable>
             )}
-
           </View>
 
           {user && (
@@ -2279,8 +2267,8 @@ export default function CreateScreen() {
                         {overallProgress === 100
                           ? '✅ Listing Posted Successfully!'
                           : isUploading
-                              ? '⬆️ Uploading Content'
-                              : '✨ Creating Your Listing'}
+                            ? '⬆️ Uploading Content'
+                            : '✨ Creating Your Listing'}
                       </Text>
                       <Text style={styles.percentageText}>{overallProgress}%</Text>
                     </View>

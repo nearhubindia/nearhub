@@ -1,0 +1,8 @@
+android/app/.cxx/
+android/.gradle/
+android/build/
+ios/build/
+ios/Pods/
+node_modules/
+dist/
+.expo/

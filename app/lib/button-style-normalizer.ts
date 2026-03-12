@@ -1,7 +1,8 @@
 import { StyleSheet } from 'react-native';
 
 const STANDARD_BUTTON_RADIUS = 12;
-const BUTTON_STYLE_KEY = /(button|btn|cta|action|submit|continue|apply|send|save|post|buy|pay|message)/i;
+const BUTTON_STYLE_KEY =
+  /(button|btn|cta|action|submit|continue|apply|send|save|post|buy|pay|message)/i;
 const NON_BUTTON_STYLE_KEY =
   /(container|wrapper|row|column|card|pill|chip|badge|avatar|image|thumb|dot|indicator|progress|track|bar|backdrop|overlay|sheet|modal|header|footer|tab|item|content)/i;
 

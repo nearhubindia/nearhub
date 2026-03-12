@@ -74,7 +74,6 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
           </Text>
         </View>
       </View>
-
     </Pressable>
   );
 }

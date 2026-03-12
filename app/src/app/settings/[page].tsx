@@ -70,7 +70,11 @@ const PAGE_CONFIG: Record<PageKey, DetailConfig> = {
   about: {
     title: 'About NearHub',
     subtitle: 'Local marketplace for buying and selling nearby.',
-    points: ['Version 1.0.0', 'Built with React Native and Expo', 'Focused on trusted local discovery'],
+    points: [
+      'Version 1.0.0',
+      'Built with React Native and Expo',
+      'Focused on trusted local discovery',
+    ],
   },
   'delete-account': {
     title: 'Delete Account',
@@ -84,7 +88,10 @@ const PAGE_CONFIG: Record<PageKey, DetailConfig> = {
   language: {
     title: 'Language',
     subtitle: 'Select your preferred app language.',
-    points: ['English is currently the default language.', 'More language packs will be added in upcoming releases.'],
+    points: [
+      'English is currently the default language.',
+      'More language packs will be added in upcoming releases.',
+    ],
   },
   'dark-mode': {
     title: 'Dark Mode',
@@ -135,18 +142,14 @@ export default function SettingDetailScreen() {
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'Are you sure you want to permanently delete your account?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => Alert.alert('Request Submitted', 'Your deletion request has been recorded.'),
-        },
-      ]
-    );
+    Alert.alert('Delete Account', 'Are you sure you want to permanently delete your account?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => Alert.alert('Request Submitted', 'Your deletion request has been recorded.'),
+      },
+    ]);
   };
 
   return (
@@ -173,7 +176,7 @@ export default function SettingDetailScreen() {
         </View>
 
         <View style={styles.group}>
-        {config.points.map((point) => (
+          {config.points.map((point) => (
             <View key={point} style={styles.pointRow}>
               <Feather name="check-circle" size={16} color="#0B6DD8" style={styles.pointIcon} />
               <Text style={styles.pointText}>{point}</Text>
@@ -182,7 +185,11 @@ export default function SettingDetailScreen() {
         </View>
 
         {key === 'help-support' ? (
-          <Pressable style={styles.ctaButton} onPress={handleHelpAction} android_ripple={{ color: '#0A66CA' }}>
+          <Pressable
+            style={styles.ctaButton}
+            onPress={handleHelpAction}
+            android_ripple={{ color: '#0A66CA' }}
+          >
             <Feather name="mail" size={17} color="#FFFFFF" />
             <Text style={styles.ctaTextWithIcon}>Email Support</Text>
           </Pressable>
@@ -199,8 +206,14 @@ export default function SettingDetailScreen() {
                   onPress={() => setSelectedLanguage(option)}
                   android_ripple={{ color: '#E9F0FB' }}
                 >
-                  <Text style={[styles.optionText, active && styles.optionTextActive]}>{option}</Text>
-                  <Feather name={active ? 'check-circle' : 'circle'} size={18} color={active ? '#0B6DD8' : '#A0AFC6'} />
+                  <Text style={[styles.optionText, active && styles.optionTextActive]}>
+                    {option}
+                  </Text>
+                  <Feather
+                    name={active ? 'check-circle' : 'circle'}
+                    size={18}
+                    color={active ? '#0B6DD8' : '#A0AFC6'}
+                  />
                 </Pressable>
               );
             })}
@@ -218,8 +231,14 @@ export default function SettingDetailScreen() {
                   onPress={() => setSelectedTheme(option)}
                   android_ripple={{ color: '#E9F0FB' }}
                 >
-                  <Text style={[styles.optionText, active && styles.optionTextActive]}>{option}</Text>
-                  <Feather name={active ? 'check-circle' : 'circle'} size={18} color={active ? '#0B6DD8' : '#A0AFC6'} />
+                  <Text style={[styles.optionText, active && styles.optionTextActive]}>
+                    {option}
+                  </Text>
+                  <Feather
+                    name={active ? 'check-circle' : 'circle'}
+                    size={18}
+                    color={active ? '#0B6DD8' : '#A0AFC6'}
+                  />
                 </Pressable>
               );
             })}

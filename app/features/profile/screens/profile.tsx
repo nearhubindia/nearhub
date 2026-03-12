@@ -95,7 +95,6 @@ export default function ProfileScreen() {
     return () => clearTimeout(saveTimer);
   }, [user?.id, name, email, address, bio, gstin, updateUser]);
 
-
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -246,7 +245,6 @@ export default function ProfileScreen() {
           </View>
         </View>
       </ScrollView>
-
     </View>
   );
 }

@@ -61,7 +61,8 @@ export default function ListingDetailScreen() {
     listingUserIdLower.startsWith('admin_') ||
     normalizedListingUserId.toLowerCase().startsWith('admin');
   const isOwner = !!normalizedUserId && normalizedUserId === normalizedListingUserId;
-  const canShowCall = (!isAdminListing || (isAdminListing && normalizedSellerPhone.length > 0)) && !isOwner;
+  const canShowCall =
+    (!isAdminListing || (isAdminListing && normalizedSellerPhone.length > 0)) && !isOwner;
   const canShowMessage = !isAdminListing && !isOwner;
   const listingStatus = String((listing as any)?.status || '').toLowerCase();
   const isExpired =

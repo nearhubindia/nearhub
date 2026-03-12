@@ -483,11 +483,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <View pointerEvents="none" style={styles.topEdgeCover} />
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="#0F172A"
-        translucent={false}
-      />
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" translucent={false} />
       <FlatList
         data={filteredListingsByLocation}
         renderItem={renderItem}
@@ -791,7 +787,10 @@ export default function HomeScreen() {
 
               {/* Auto-detect Current Location Button */}
               <Pressable
-                style={[styles.autoDetectButton, isAutoDetectingLocation && styles.autoDetectButtonDisabled]}
+                style={[
+                  styles.autoDetectButton,
+                  isAutoDetectingLocation && styles.autoDetectButtonDisabled,
+                ]}
                 onPress={() =>
                   autoDetectLocation(setIsAutoDetectingLocation, () => {
                     setShowLocationModal(false);
@@ -802,17 +801,15 @@ export default function HomeScreen() {
               >
                 {isAutoDetectingLocation ? (
                   <>
-                    <ActivityIndicator
-                      color="#FFFFFF"
-                      size="small"
-                      style={{ marginRight: 8 }}
-                    />
+                    <ActivityIndicator color="#FFFFFF" size="small" style={{ marginRight: 8 }} />
                     <Text style={styles.autoDetectButtonText}>Detecting...</Text>
                   </>
                 ) : (
                   <>
                     <Feather name="navigation" size={16} color="#FFFFFF" />
-                    <Text style={[styles.autoDetectButtonText, styles.autoDetectButtonTextWithIcon]}>
+                    <Text
+                      style={[styles.autoDetectButtonText, styles.autoDetectButtonTextWithIcon]}
+                    >
                       Use Current Location
                     </Text>
                   </>
@@ -884,7 +881,6 @@ export default function HomeScreen() {
           </View>
         </View>
       )}
-
     </View>
   );
 }

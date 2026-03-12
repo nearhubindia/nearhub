@@ -146,7 +146,8 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           return {
             conversationId: item.conversationId,
             listingId: item.listingId,
-            sellerName: item.otherUserName || item.otherUserLabel || existing?.sellerName || 'Seller',
+            sellerName:
+              item.otherUserName || item.otherUserLabel || existing?.sellerName || 'Seller',
             listingTitle: item.listingTitle || existing?.listingTitle || 'Listing',
             listingImage: item.listingImage || existing?.listingImage || '',
             messages: existing?.messages || [],
@@ -198,8 +199,8 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
 
         const payload = await response.json();
         const apiMessages: ApiMessage[] = Array.isArray(payload?.data)
-          ? payload.data.filter(
-              (item: unknown): item is ApiMessage => Boolean(item && typeof item === 'object')
+          ? payload.data.filter((item: unknown): item is ApiMessage =>
+              Boolean(item && typeof item === 'object')
             )
           : [];
 

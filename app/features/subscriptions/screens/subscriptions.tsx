@@ -398,8 +398,8 @@ export default function SubscriptionsScreen(): React.JSX.Element {
     null;
   const hasStarterCredits = Boolean(
     starterCredits &&
-      starterCredits.isActive &&
-      (starterCredits.listingsTotal > 0 || starterCredits.boostsTotal > 0)
+    starterCredits.isActive &&
+    (starterCredits.listingsTotal > 0 || starterCredits.boostsTotal > 0)
   );
 
   const consolidatedActiveSubscriptions = useMemo((): ConsolidatedActiveSubscription[] => {
@@ -921,7 +921,9 @@ export default function SubscriptionsScreen(): React.JSX.Element {
             </View>
             <View style={styles.starterCreditsStatsRow}>
               <View style={styles.starterCreditsStat}>
-                <Text style={styles.starterCreditsStatValue}>{starterCredits.listingsRemaining}</Text>
+                <Text style={styles.starterCreditsStatValue}>
+                  {starterCredits.listingsRemaining}
+                </Text>
                 <Text style={styles.starterCreditsStatLabel}>Listings Left</Text>
               </View>
               <View style={styles.starterCreditsStatDivider} />
