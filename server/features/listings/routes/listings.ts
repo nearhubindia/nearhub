@@ -20,7 +20,7 @@ import { getRequestUserId } from '../../../lib/request-user';
 import { db } from '../../../data/db';
 import { users } from '../../users/models/users';
 import { resolveUserDisplayName } from '../../users/services/user-profiles';
-import { inArray, or } from 'drizzle-orm';
+import { eq, inArray, or } from 'drizzle-orm';
 
 function parseJsonField(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
@@ -208,15 +208,20 @@ function resolveContactPhone(rest: any, sellerId: string): string {
   return '';
 }
 
-function toPublicListing(listing: any, sellerMetaMap?: Map<string, SellerMeta>) {
+function toPublicListing(
+  listing: any,
+  sellerMetaMap?: Map<string, SellerMeta>,
+  options?: { includeSellerIdentity?: boolean }
+) {
   const { sellerId: rawSellerId, ...rest } = listing || {};
   const sellerId = typeof rawSellerId === 'string' ? rawSellerId : '';
   const sellerMeta = sellerMetaMap?.get(sellerId);
+  const includeSellerIdentity = Boolean(options?.includeSellerIdentity);
 
   return {
     ...rest,
-    sellerId,
-    userId: sellerId, // Backward compatibility for mobile clients still reading userId.
+    sellerId: includeSellerIdentity ? sellerId : '',
+    userId: includeSellerIdentity ? sellerId : '',
     sellerName: getSellerDisplayName(listing, sellerMeta),
     sellerVerified: Boolean(sellerMeta?.isVerified),
     sellerAvatar: sellerMeta?.avatarUrl || '',
@@ -228,6 +233,30 @@ function toPublicListing(listing: any, sellerMetaMap?: Map<string, SellerMeta>) 
   };
 }
 
+async function resolveTrustedRequestUserId(req: Request): Promise<string> {
+  const claimedUserId = getRequestUserId(req);
+  if (!claimedUserId) return '';
+
+  const claimedPhone =
+    typeof req.get('x-user-phone') === 'string' ? String(req.get('x-user-phone') || '').trim() : '';
+  const normalizedPhone = claimedPhone.replace(/\D/g, '').slice(-10);
+
+  const matchedUser = await db.query.users.findFirst({
+    where: eq(users.id, claimedUserId),
+    columns: { id: true, mobile: true },
+  });
+  if (!matchedUser?.id) return '';
+
+  if (normalizedPhone) {
+    const matchedMobile = String(matchedUser.mobile || '')
+      .replace(/\D/g, '')
+      .slice(-10);
+    if (!matchedMobile || matchedMobile !== normalizedPhone) return '';
+  }
+
+  return matchedUser.id;
+}
+
 export function registerListingRoutes(app: Express) {
   /**
    * GET /api/listings
@@ -235,6 +264,7 @@ export function registerListingRoutes(app: Express) {
    */
   app.get('/api/listings', async (req: Request, res: Response) => {
     try {
+      const requesterId = await resolveTrustedRequestUserId(req);
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 500);
       const offset = parseInt(req.query.offset as string) || 0;
       const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined;
@@ -274,7 +304,9 @@ export function registerListingRoutes(app: Express) {
 
       return res.json({
         success: true,
-        data: priceFilteredListings.map((l) => toPublicListing(l, sellerMetaMap)),
+        data: priceFilteredListings.map((l) =>
+          toPublicListing(l, sellerMetaMap, { includeSellerIdentity: Boolean(requesterId) })
+        ),
         limit,
         offset,
       });
@@ -297,6 +329,7 @@ export function registerListingRoutes(app: Express) {
    */
   app.get('/api/listings/category/:category', async (req: Request, res: Response) => {
     try {
+      const requesterId = await resolveTrustedRequestUserId(req);
       const category = req.params.category as string;
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 500);
       const offset = parseInt(req.query.offset as string) || 0;
@@ -307,7 +340,9 @@ export function registerListingRoutes(app: Express) {
       return res.json({
         success: true,
         category,
-        listings: listings.map((l) => toPublicListing(l, sellerMetaMap)),
+        listings: listings.map((l) =>
+          toPublicListing(l, sellerMetaMap, { includeSellerIdentity: Boolean(requesterId) })
+        ),
         pagination: { limit, offset, total: listings.length },
       });
     } catch (error) {
@@ -343,6 +378,7 @@ export function registerListingRoutes(app: Express) {
    */
   app.get('/api/listings/search', async (req: Request, res: Response) => {
     try {
+      const requesterId = await resolveTrustedRequestUserId(req);
       const query = String(req.query.q || '')
         .trim()
         .toLowerCase();
@@ -390,7 +426,9 @@ export function registerListingRoutes(app: Express) {
 
       const page = filtered.slice(offset, offset + limit);
       const sellerMetaMap = await getSellerMetaMap(page.map((listing) => listing.sellerId));
-      const results = page.map((listing) => toPublicListing(listing, sellerMetaMap));
+      const results = page.map((listing) =>
+        toPublicListing(listing, sellerMetaMap, { includeSellerIdentity: Boolean(requesterId) })
+      );
 
       return res.json({
         success: true,
@@ -419,7 +457,7 @@ export function registerListingRoutes(app: Express) {
     }
 
     try {
-      const requesterId = getRequestUserId(req);
+      const requesterId = await resolveTrustedRequestUserId(req);
       if (!requesterId) {
         return res.status(401).json({ success: false, error: 'Authentication required' });
       }
@@ -463,6 +501,7 @@ export function registerListingRoutes(app: Express) {
     }
 
     try {
+      const requesterId = await resolveTrustedRequestUserId(req);
       const listing = await getListingById(req.params.id as string);
       if (!listing) {
         return res.status(404).json({ success: false, error: 'Listing not found' });
@@ -470,7 +509,9 @@ export function registerListingRoutes(app: Express) {
       const sellerMetaMap = await getSellerMetaMap([listing.sellerId]);
       return res.json({
         success: true,
-        listing: toPublicListing(listing, sellerMetaMap),
+        listing: toPublicListing(listing, sellerMetaMap, {
+          includeSellerIdentity: Boolean(requesterId),
+        }),
       });
     } catch (error) {
       console.error('[Listings] Error fetching listing:', error);

@@ -142,6 +142,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         const dataVersion = await AsyncStorage.getItem(DATA_VERSION_KEY);
         const needsCacheReset = dataVersion !== CURRENT_DATA_VERSION;
         let currentUserId = '';
+        let currentUserPhone = '';
 
         if (needsCacheReset) {
           await AsyncStorage.removeItem(LISTINGS_KEY);
@@ -184,6 +185,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           if (userDataStr) {
             const userData = JSON.parse(userDataStr);
             currentUserId = String(userData?.id || '');
+            currentUserPhone = String(userData?.phone || '');
             const latitude = userData?.location?.latitude;
             const longitude = userData?.location?.longitude;
             const radiusKm = userData?.preferences?.searchRadiusKm || 50; // Default 50km
@@ -203,9 +205,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           // Try to fetch from backend API first
           const response = await fetchWithTimeout(url, {
             method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: buildUserAuthHeaders({ id: currentUserId, phone: currentUserPhone }),
           });
 
           if (response.ok) {
@@ -625,12 +625,22 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     try {
       const backendURL = getBackendURL();
       const url = `${backendURL}/api/listings?limit=${LIMIT}&offset=${offset}`;
+      let authUserId = '';
+      let authUserPhone = '';
+      try {
+        const userDataStr = await AsyncStorage.getItem('@nearhub_auth_user');
+        if (userDataStr) {
+          const userData = JSON.parse(userDataStr);
+          authUserId = String(userData?.id || '');
+          authUserPhone = String(userData?.phone || '');
+        }
+      } catch {
+        // Best-effort auth header attachment; continue without auth headers.
+      }
 
       const response = await fetchWithTimeout(url, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: buildUserAuthHeaders({ id: authUserId, phone: authUserPhone }),
       });
 
       if (response.ok) {
