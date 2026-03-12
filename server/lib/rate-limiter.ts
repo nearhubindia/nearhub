@@ -4,6 +4,7 @@
  */
 import rateLimit from 'express-rate-limit';
 import { ipKeyGenerator } from 'express-rate-limit';
+import { getRequestUserId } from './request-user';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
@@ -30,7 +31,7 @@ export const generalLimiter = rateLimit({
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  keyGenerator: (req) => req.get('x-user-id') || getIpRateLimitKey(req),
+  keyGenerator: (req) => getRequestUserId(req as any) || getIpRateLimitKey(req),
   skip: (req) => {
     const requestPath = getRequestPath(req);
 
@@ -134,8 +135,8 @@ export const listingCreationLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const requestWithUser = req as typeof req & { userId?: string };
-    const userId = typeof req.body?.userId === 'string' ? req.body.userId : undefined;
-    return requestWithUser.userId || req.get('x-user-id') || userId || getIpRateLimitKey(req);
+    const userId = getRequestUserId(req as any);
+    return requestWithUser.userId || userId || getIpRateLimitKey(req);
   },
   skip: (req) => {
     // Do not apply listing/day limits to admin-created listings

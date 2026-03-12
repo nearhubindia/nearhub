@@ -21,6 +21,15 @@ import {
 import { createCouponAdminSchema } from '../../admin/models/admin-settings';
 import { getRequestUserId } from '../../../lib/request-user';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function normalizeOptionalUuid(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return UUID_REGEX.test(trimmed) ? trimmed : undefined;
+}
+
 export function registerCouponRoutes(app: Express) {
   /**
    * GET /api/coupons/validate/:code
@@ -30,7 +39,7 @@ export function registerCouponRoutes(app: Express) {
   app.get('/api/coupons/validate/:code', async (req: Request, res: Response) => {
     try {
       const code = (req.params.code as string) || '';
-      const userId = (req.query.userId as string) || undefined;
+      const userId = normalizeOptionalUuid(req.query.userId);
       const tierId = (req.query.tierId as string) || undefined;
 
       if (!code || code.trim().length === 0) {
@@ -64,7 +73,7 @@ export function registerCouponRoutes(app: Express) {
   app.get('/api/coupons/free-listings/:code', async (req: Request, res: Response) => {
     try {
       const code = (req.params.code as string) || '';
-      const userId = (req.query.userId as string) || getRequestUserId(req);
+      const userId = normalizeOptionalUuid(req.query.userId) || getRequestUserId(req);
 
       if (!code || code.trim().length === 0) {
         return res.status(400).json({
@@ -134,7 +143,7 @@ export function registerCouponRoutes(app: Express) {
       const result = await applyCouponDiscount(
         code,
         parseFloat(amount as string),
-        userId as string | undefined,
+        normalizeOptionalUuid(userId),
         tierId as string | undefined
       );
 

@@ -213,11 +213,11 @@ export function registerInvoiceRoutes(app: Express) {
    */
   app.get('/api/users/invoices', async (req: Request, res: Response) => {
     try {
-      const userId = getRequestUserId(req) || String(req.query.userId || '');
+      const userId = getRequestUserId(req);
       if (!userId) {
-        return res.status(400).json({
+        return res.status(401).json({
           success: false,
-          error: 'Missing user identifier',
+          error: 'Authentication required',
         });
       }
 
