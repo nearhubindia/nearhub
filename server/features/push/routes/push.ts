@@ -18,7 +18,7 @@ import { notificationLogs, pushTokens } from '../../admin/models/admin-settings'
 import { desc, eq } from 'drizzle-orm';
 import { getRequestUserId } from '../../../lib/request-user';
 import { users } from '../../users/models/users';
-import { getStableUserIdFromPhone, normalizePhone } from '../../users/services/user-profiles';
+import { normalizePhone } from '../../users/services/user-profiles';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -53,26 +53,6 @@ async function resolveUserIdFromCandidate(candidate: string): Promise<string> {
       columns: { id: true },
     });
     if (byMobile?.id) return byMobile.id;
-
-    const stableId = getStableUserIdFromPhone(mobile);
-    if (!stableId) return '';
-
-    await db
-      .insert(users)
-      .values({
-        id: stableId,
-        username: mobile,
-        password: 'otp-auth',
-        mobile,
-        createdAt: new Date(),
-      })
-      .onConflictDoNothing({ target: users.username });
-
-    const created = await db.query.users.findFirst({
-      where: eq(users.mobile, mobile),
-      columns: { id: true },
-    });
-    return created?.id || '';
   }
 
   const byUsername = await db.query.users.findFirst({
