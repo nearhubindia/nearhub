@@ -1,4 +1,5 @@
 import type { Express, NextFunction, Request, Response } from 'express';
+import { Readable } from 'node:stream';
 import {
   getActiveListing,
   getListingById,
@@ -570,8 +571,53 @@ export function registerListingRoutes(app: Express) {
       if (!targetUrl || !/^https?:\/\//i.test(targetUrl)) {
         return res.status(404).json({ success: false, error: 'Media not found' });
       }
+      const parsed = new URL(targetUrl);
+      const allowedHosts = getAllowedRemoteMediaHosts();
+      const currentHost = (req.get('host') || '').split(':')[0].toLowerCase();
+      if (currentHost) {
+        allowedHosts.add(currentHost);
+      }
+      if (!allowedHosts.has(parsed.hostname.toLowerCase())) {
+        return res.status(400).json({ success: false, error: 'Unapproved media host' });
+      }
 
-      return res.redirect(302, targetUrl);
+      const range = req.get('range');
+      const upstream = await fetch(targetUrl, {
+        headers: range ? { Range: range } : undefined,
+      });
+      if (!upstream.ok && upstream.status !== 206) {
+        return res.status(upstream.status).json({ success: false, error: 'Failed to load media' });
+      }
+
+      const contentType = upstream.headers.get('content-type');
+      const contentLength = upstream.headers.get('content-length');
+      const contentRange = upstream.headers.get('content-range');
+      const acceptRanges = upstream.headers.get('accept-ranges');
+      const cacheControl = upstream.headers.get('cache-control');
+      if (contentType) res.setHeader('Content-Type', contentType);
+      if (contentLength) res.setHeader('Content-Length', contentLength);
+      if (contentRange) res.setHeader('Content-Range', contentRange);
+      if (acceptRanges) res.setHeader('Accept-Ranges', acceptRanges);
+      if (cacheControl) res.setHeader('Cache-Control', cacheControl);
+      else res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.status(upstream.status);
+
+      if (!upstream.body) {
+        const buf = Buffer.from(await upstream.arrayBuffer());
+        return res.send(buf);
+      }
+
+      const body = Readable.fromWeb(upstream.body as unknown as globalThis.ReadableStream);
+      body.on('error', (streamError) => {
+        console.error('[Listings] Media proxy stream error:', streamError);
+        if (!res.headersSent) {
+          res.status(502).end();
+        } else {
+          res.end();
+        }
+      });
+      body.pipe(res);
+      return;
     } catch (error) {
       console.error('[Listings] Error resolving listing media URL:', error);
       return res.status(500).json({ success: false, error: 'Failed to resolve media URL' });
