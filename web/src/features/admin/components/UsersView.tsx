@@ -139,7 +139,7 @@ export default function UsersView() {
       <div className="border-b border-slate-700 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 text-white">
         <h1 className="mb-2 text-4xl font-black">Users Management</h1>
         <p className="text-slate-300">
-          User name, auto-detected location, listing footprint, and trust controls.
+          Display name, auto-detected location, listing footprint, and trust controls.
         </p>
       </div>
 
@@ -176,7 +176,7 @@ export default function UsersView() {
                 <thead className="sticky top-0 border-b border-slate-200 bg-slate-100">
                   <tr>
                     <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">
-                      User Name
+                      Display Name
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">Mobile</th>
                     <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">
@@ -211,7 +211,6 @@ export default function UsersView() {
                           <div className="text-sm font-semibold text-slate-900">
                             {user.displayName || user.username}
                           </div>
-                          <div className="text-xs text-slate-500">ID: {user.id}</div>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700">
                           {user.mobile || user.username}
