@@ -91,6 +91,7 @@ export function registerAdminUsersRoutes(app: Express) {
           username: string;
           mobile: string;
           location: string;
+          isVerified: boolean;
           createdAt: string;
         }
       >();
@@ -108,6 +109,7 @@ export function registerAdminUsersRoutes(app: Express) {
           username: mobile, // Canonical: username == mobile to avoid identity duplication.
           mobile,
           location: latestListing?.location || meta?.location || '-',
+          isVerified: Boolean(meta?.isVerified),
           createdAt:
             activity?.firstSeenAt?.toISOString() ||
             latestListing?.createdAt?.toISOString() ||
@@ -171,6 +173,7 @@ export function registerAdminUsersRoutes(app: Express) {
         username: normalizeMobile(userMeta?.mobile || id) || id,
         mobile: normalizeMobile(userMeta?.mobile || id) || '-',
         location: latestListingRow?.location || userMeta?.location || '-',
+        isVerified: Boolean(userMeta?.isVerified),
         createdAt:
           userActivityRow?.firstSeenAt?.toISOString() ||
           latestListingRow?.createdAt?.toISOString() ||
@@ -216,7 +219,7 @@ export function registerAdminUsersRoutes(app: Express) {
   app.put('/api/admin/users/:id', async (req: AuthRequest, res: Response) => {
     try {
       const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
-      const { username, mobile, location } = req.body;
+      const { username, mobile, location, isVerified } = req.body;
       const normalizedMobile = normalizeMobile(mobile || id);
 
       if (!normalizedMobile || !location) {
@@ -234,6 +237,7 @@ export function registerAdminUsersRoutes(app: Express) {
           password: 'admin-managed',
           mobile: normalizedMobile,
           location,
+          isVerified: Boolean(isVerified),
         })
         .onConflictDoUpdate({
           target: users.id,
@@ -241,6 +245,7 @@ export function registerAdminUsersRoutes(app: Express) {
             username: normalizedMobile,
             mobile: normalizedMobile,
             location,
+            isVerified: Boolean(isVerified),
           },
         })
         .returning();
@@ -251,6 +256,7 @@ export function registerAdminUsersRoutes(app: Express) {
         username: updatedUser.username,
         mobile: updatedUser.mobile || '-',
         location: updatedUser.location || '-',
+        isVerified: Boolean(updatedUser.isVerified),
         createdAt: updatedUser.createdAt?.toISOString() || new Date().toISOString(),
       };
 

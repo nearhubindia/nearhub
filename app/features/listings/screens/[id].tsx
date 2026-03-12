@@ -13,6 +13,7 @@ import {
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
@@ -297,10 +298,22 @@ export default function ListingDetailScreen() {
           <Text style={styles.sectionTitle}>Seller</Text>
           <View style={styles.sellerCard}>
             <View style={styles.sellerAvatar}>
-              <Text style={styles.sellerAvatarText}>{listing.sellerName.charAt(0)}</Text>
+              {listing.sellerAvatar ? (
+                <Image source={{ uri: listing.sellerAvatar }} style={styles.sellerAvatarImage} />
+              ) : (
+                <Text style={styles.sellerAvatarText}>{listing.sellerName.charAt(0)}</Text>
+              )}
             </View>
             <View style={styles.sellerInfo}>
-              <Text style={styles.sellerName}>{listing.sellerName}</Text>
+              <View style={styles.sellerNameRow}>
+                <Text style={styles.sellerName}>{listing.sellerName}</Text>
+                {listing.sellerVerified && (
+                  <View style={styles.sellerVerifiedBadge}>
+                    <Feather name="check-circle" size={12} color="#fff" />
+                    <Text style={styles.sellerVerifiedText}>Verified</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.sellerLocation}>{listing.location.city}</Text>
             </View>
           </View>
@@ -564,9 +577,15 @@ const styles = createResponsiveStyles({
     width: 46,
     height: 46,
     borderRadius: 23,
+    overflow: 'hidden',
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sellerAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 23,
   },
   sellerAvatarText: {
     fontSize: 20,
@@ -575,6 +594,11 @@ const styles = createResponsiveStyles({
   },
   sellerInfo: {
     flex: 1,
+  },
+  sellerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   sellerName: {
     fontSize: 16,
@@ -586,6 +610,20 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  sellerVerifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#0F766E',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  sellerVerifiedText: {
+    color: '#fff',
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
   },
   categoryTag: {
     alignSelf: 'flex-start',

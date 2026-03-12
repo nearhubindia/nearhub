@@ -7,6 +7,7 @@ interface UserRow {
   username: string;
   mobile?: string;
   location?: string;
+  isVerified?: boolean;
 }
 
 export default function UsersView() {
@@ -17,7 +18,12 @@ export default function UsersView() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
-  const [formData, setFormData] = useState({ username: '', mobile: '', location: '' });
+  const [formData, setFormData] = useState({
+    username: '',
+    mobile: '',
+    location: '',
+    isVerified: false,
+  });
   const [saveError, setSaveError] = useState('');
 
   // Handle the API response structure: { success, data, total }
@@ -37,6 +43,7 @@ export default function UsersView() {
       username: user.username,
       mobile: user.mobile || '',
       location: user.location || '',
+      isVerified: Boolean(user.isVerified),
     });
     setSaveError('');
     setEditModalOpen(true);
@@ -47,10 +54,13 @@ export default function UsersView() {
     setDeleteModalOpen(true);
   };
 
-  const handleFormChange = (field: string, value: string) => {
+  const handleFormChange = (
+    field: 'username' | 'mobile' | 'location' | 'isVerified',
+    value: string
+  ) => {
     setFormData((prev) => ({
       ...prev,
-      [field]: value,
+      [field]: field === 'isVerified' ? value === 'true' : value,
     }));
     setSaveError('');
   };
@@ -153,6 +163,9 @@ export default function UsersView() {
                       Location
                     </th>
                     <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">
+                      Verified
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">
                       Actions
                     </th>
                   </tr>
@@ -168,6 +181,17 @@ export default function UsersView() {
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600">{user.mobile || '-'}</td>
                       <td className="px-6 py-4 text-sm text-slate-600">{user.location || '-'}</td>
+                      <td className="px-6 py-4 text-sm">
+                        {user.isVerified ? (
+                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                            Verified
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                            Unverified
+                          </span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-sm flex gap-2">
                         <button
                           onClick={() => handleEditClick(user)}
@@ -247,6 +271,19 @@ export default function UsersView() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   placeholder="Enter location"
                   disabled={updateUser.isPending}
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+                <label className="text-sm font-medium text-slate-700" htmlFor="is-verified">
+                  Verified Seller
+                </label>
+                <input
+                  id="is-verified"
+                  type="checkbox"
+                  checked={formData.isVerified}
+                  onChange={(e) => handleFormChange('isVerified', String(e.target.checked))}
+                  disabled={updateUser.isPending}
+                  className="h-4 w-4 cursor-pointer accent-teal-600"
                 />
               </div>
 

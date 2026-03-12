@@ -139,10 +139,6 @@ export default function RegisterScreen() {
             )}
           </LinearGradient>
         </Pressable>
-
-        <Text style={styles.disclaimer}>
-          Existing users will go directly to home after OTP verification.
-        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -190,7 +186,7 @@ const styles = createResponsiveStyles({
   },
   label: {
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_700Bold',
     color: Colors.text,
     marginBottom: 8,
   },
@@ -204,7 +200,7 @@ const styles = createResponsiveStyles({
   input: {
     flex: 1,
     fontSize: 14,
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Inter_700Bold',
     color: Colors.text,
     paddingVertical: 12,
   },
@@ -249,13 +245,5 @@ const styles = createResponsiveStyles({
     fontSize: 15,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
-  },
-  disclaimer: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: Colors.textTertiary,
-    textAlign: 'center',
-    lineHeight: 18,
-    paddingHorizontal: 20,
   },
 });

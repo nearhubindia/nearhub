@@ -32,6 +32,8 @@ export class MemStorage implements IStorage {
       id,
       mobile: null,
       location: null,
+      avatarUrl: null,
+      isVerified: false,
       createdAt: new Date(),
     };
     this.users.set(id, user);

@@ -8,15 +8,20 @@ import {
   TextInput,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import Colors from '@/constants/colors';
 import AppScreenBanners from '@/shared/components/AppScreenBanners';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
+import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
+import { getApiUrl } from '@/lib/query-client';
+import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -33,6 +38,69 @@ export default function ProfileScreen() {
   const lastSavedPayloadRef = useRef<string>('');
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+
+  const syncProfileToServer = async (payload: {
+    name: string;
+    email?: string;
+    bio?: string;
+    address?: string;
+    gstin?: string;
+    avatarUrl?: string;
+  }) => {
+    if (!user?.id) return;
+    const response = await fetch(
+      `${getApiUrl()}/api/users/${encodeURIComponent(user.id)}/profile`,
+      {
+        method: 'PUT',
+        headers: buildUserAuthHeaders({ id: user.id }),
+        body: JSON.stringify(payload),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(errorText || `Profile sync failed (${response.status})`);
+    }
+  };
+
+  const handleChangePhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission Required', 'Please allow photo access to update your profile photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.7,
+      aspect: [1, 1],
+    });
+
+    if (result.canceled || result.assets.length === 0) return;
+
+    try {
+      setSaving(true);
+      const uploaded = await uploadMediaToCloudflare({
+        uri: result.assets[0].uri,
+        mediaType: 'image',
+        userId: user?.id,
+      });
+      await syncProfileToServer({
+        name: (name || user?.name || 'User').trim(),
+        email: (email || user?.email || '').trim(),
+        bio: (bio || user?.bio || '').trim(),
+        address: (address || user?.address || '').trim(),
+        gstin: (gstin || user?.gstin || '').trim(),
+        avatarUrl: uploaded.url,
+      });
+      await updateUser({ avatarUrl: uploaded.url });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update profile photo');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Sync profile form when user changes (initial load / account switch)
   useEffect(() => {
@@ -83,6 +151,7 @@ export default function ProfileScreen() {
     const saveTimer = setTimeout(async () => {
       setSaving(true);
       try {
+        await syncProfileToServer(payload);
         await updateUser(payload);
         lastSavedPayloadRef.current = serializedPayload;
       } catch (error) {
@@ -125,11 +194,15 @@ export default function ProfileScreen() {
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {user?.name?.charAt(0).toUpperCase() || user?.phone?.charAt(0) || 'U'}
-            </Text>
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>
+                {user?.name?.charAt(0).toUpperCase() || user?.phone?.charAt(0) || 'U'}
+              </Text>
+            )}
           </View>
-          <Pressable style={styles.changeAvatarButton}>
+          <Pressable style={styles.changeAvatarButton} onPress={handleChangePhoto}>
             <Feather name="camera" size={16} color={Colors.primary} />
             <Text style={styles.changeAvatarText}>Change Photo</Text>
           </Pressable>
@@ -303,6 +376,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarText: {
     fontSize: 40,

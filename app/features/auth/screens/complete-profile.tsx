@@ -9,16 +9,19 @@ import {
   TextInput,
   View,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { getApiUrl } from '@/lib/query-client';
 import { createResponsiveStyles } from '@/lib/responsive';
+import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 
 export default function CompleteProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -28,12 +31,33 @@ export default function CompleteProfileScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | 'other' | ''>('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [localAvatarUri, setLocalAvatarUri] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const phoneValue = typeof phone === 'string' ? phone : '';
 
   const validateEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+
+  const pickProfilePhoto = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission Required', 'Please allow photo access to set profile photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.7,
+      aspect: [1, 1],
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      setLocalAvatarUri(result.assets[0].uri);
+    }
+  };
 
   const handleComplete = async () => {
     if (!name.trim()) {
@@ -53,6 +77,17 @@ export default function CompleteProfileScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      let uploadedAvatarUrl = avatarUrl;
+      if (localAvatarUri) {
+        const uploaded = await uploadMediaToCloudflare({
+          uri: localAvatarUri,
+          mediaType: 'image',
+          userId: phoneValue || undefined,
+        });
+        uploadedAvatarUrl = uploaded.url;
+        setAvatarUrl(uploaded.url);
+      }
+
       const baseUrl = getApiUrl();
       const url = new URL('/api/auth/complete-profile', baseUrl);
       const res = await fetch(url.toString(), {
@@ -63,6 +98,7 @@ export default function CompleteProfileScreen() {
           name: name.trim(),
           email: email.trim(),
           gender,
+          avatarUrl: uploadedAvatarUrl,
         }),
       });
 
@@ -105,6 +141,18 @@ export default function CompleteProfileScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.headerBlock}>
+          <Pressable style={styles.avatarButton} onPress={pickProfilePhoto}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+            ) : localAvatarUri ? (
+              <Image source={{ uri: localAvatarUri }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Feather name="camera" size={22} color={Colors.primary} />
+              </View>
+            )}
+            <Text style={styles.avatarLabel}>Add Profile Photo</Text>
+          </Pressable>
           <Text style={styles.title}>Complete your profile</Text>
           <Text style={styles.subtitle}>One quick step before entering NearHub</Text>
           {phoneValue ? <Text style={styles.phoneText}>+91 {phoneValue}</Text> : null}
@@ -206,6 +254,31 @@ const styles = createResponsiveStyles({
   headerBlock: {
     marginBottom: 22,
     alignItems: 'center',
+  },
+  avatarButton: {
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  avatarFallback: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: Colors.borderLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarImage: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+  },
+  avatarLabel: {
+    marginTop: 8,
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.primary,
   },
   title: {
     fontSize: 22,

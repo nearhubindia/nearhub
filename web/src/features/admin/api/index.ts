@@ -445,7 +445,7 @@ export const usersApi = {
 
   async updateUser(
     id: string,
-    data: { username: string; mobile: string; location: string }
+    data: { username: string; mobile: string; location: string; isVerified: boolean }
   ): Promise<unknown> {
     const response = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
       method: 'PUT',

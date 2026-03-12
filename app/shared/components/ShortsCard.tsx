@@ -36,6 +36,8 @@ interface ShortsCardProps {
   images?: string[];
   videos?: string[];
   sellerName: string;
+  sellerAvatar?: string;
+  sellerVerified?: boolean;
   location: string;
   category: string;
   condition: string;
@@ -182,6 +184,8 @@ export default function ShortsCard({
   images,
   videos,
   sellerName,
+  sellerAvatar,
+  sellerVerified = false,
   location,
   category,
   condition,
@@ -286,9 +290,22 @@ export default function ShortsCard({
 
           <View style={styles.sellerRow}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{sellerName.charAt(0)}</Text>
+              {sellerAvatar ? (
+                <Image
+                  source={{ uri: sellerAvatar }}
+                  style={styles.avatarImage}
+                  contentFit="cover"
+                />
+              ) : (
+                <Text style={styles.avatarText}>{sellerName.charAt(0)}</Text>
+              )}
             </View>
             <Text style={styles.sellerName}>{sellerName}</Text>
+            {sellerVerified && (
+              <View style={styles.verifiedBadge}>
+                <Feather name="check-circle" size={11} color="#fff" />
+              </View>
+            )}
             <Feather name="map-pin" size={12} color="rgba(255,255,255,0.7)" />
             <Text style={styles.location}>{location}</Text>
           </View>
@@ -395,9 +412,15 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
+    overflow: 'hidden',
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
   },
   avatarText: {
     color: '#fff',
@@ -412,6 +435,15 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  verifiedBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#0F766E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
   },
   location: {
     color: 'rgba(255,255,255,0.8)',

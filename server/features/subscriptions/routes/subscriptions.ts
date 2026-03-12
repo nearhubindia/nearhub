@@ -6,6 +6,8 @@
 
 import type { Express, Request, Response } from 'express';
 import { db } from '../../../data/db';
+import { users } from '../../users/models/users';
+import { inArray, or } from 'drizzle-orm';
 import {
   calculateCheckout,
   getListingCheckoutSummary,
@@ -181,16 +183,51 @@ function resolveContactPhone(rest: any, sellerId: string): string {
   return '';
 }
 
-function toPublicListing(listing: any) {
+type SellerMeta = {
+  avatarUrl: string;
+  isVerified: boolean;
+};
+
+async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, SellerMeta>> {
+  const uniqueSellerIds = [
+    ...new Set(sellerIds.map((id) => String(id || '').trim()).filter(Boolean)),
+  ];
+  if (uniqueSellerIds.length === 0) {
+    return new Map();
+  }
+
+  const metaRows = await db
+    .select({
+      id: users.id,
+      mobile: users.mobile,
+      avatarUrl: users.avatarUrl,
+      isVerified: users.isVerified,
+    })
+    .from(users)
+    .where(or(inArray(users.id, uniqueSellerIds), inArray(users.mobile, uniqueSellerIds))!);
+
+  const metaMap = new Map<string, SellerMeta>();
+  for (const row of metaRows) {
+    const meta = { avatarUrl: String(row.avatarUrl || ''), isVerified: Boolean(row.isVerified) };
+    if (row.id) metaMap.set(String(row.id).trim(), meta);
+    if (row.mobile) metaMap.set(String(row.mobile).trim(), meta);
+  }
+  return metaMap;
+}
+
+function toPublicListing(listing: any, sellerMetaMap?: Map<string, SellerMeta>) {
   const { sellerId: rawSellerId, ...rest } = listing || {};
   const sellerId = typeof rawSellerId === 'string' ? rawSellerId : '';
   const contactPhone = resolveContactPhone(rest, sellerId);
+  const sellerMeta = sellerMetaMap?.get(sellerId);
 
   return {
     ...rest,
     sellerId,
     userId: sellerId, // Backward compatibility for clients still reading userId.
     sellerName: getSellerDisplayName(listing),
+    sellerAvatar: sellerMeta?.avatarUrl || '',
+    sellerVerified: Boolean(sellerMeta?.isVerified),
     contactPhone,
     sellerPhone: contactPhone,
     images: parseMediaField(listing?.images),
@@ -1668,8 +1705,8 @@ export function registerSubscriptionRoutes(app: Express) {
   ): Promise<void> => {
     try {
       const listings = await getListingsByUser(ownerIdParam);
-
-      const formattedListings = listings.map((listing) => toPublicListing(listing));
+      const sellerMetaMap = await getSellerMetaMap(listings.map((listing) => listing.sellerId));
+      const formattedListings = listings.map((listing) => toPublicListing(listing, sellerMetaMap));
 
       // Attach latest rejection reason for rejected listings so seller can edit + resubmit
       const rejectedListingIds = formattedListings

@@ -18,6 +18,7 @@ interface ListingCardProps {
   image?: string;
   location: string;
   condition: string;
+  sellerVerified?: boolean;
   isBoosted?: boolean;
   isSponsored?: boolean;
   isSaved: boolean;
@@ -34,6 +35,7 @@ export default function ListingCard({
   image,
   location,
   condition,
+  sellerVerified = false,
   isBoosted = false,
   isSponsored = false,
   isSaved,
@@ -72,6 +74,12 @@ export default function ListingCard({
         {isSponsored && (
           <View style={styles.sponsoredBadge}>
             <Text style={styles.sponsoredText}>Sponsored</Text>
+          </View>
+        )}
+        {sellerVerified && (
+          <View style={styles.verifiedBadge}>
+            <Feather name="check-circle" size={11} color="#fff" />
+            <Text style={styles.verifiedText}>Verified</Text>
           </View>
         )}
       </View>
@@ -173,6 +181,23 @@ const styles = StyleSheet.create({
     borderRadius: responsiveModerateScale(8),
   },
   sponsoredText: {
+    color: '#fff',
+    fontSize: responsiveFont(10),
+    fontFamily: 'Inter_700Bold',
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    top: responsiveModerateScale(34),
+    left: responsiveModerateScale(8),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#0F766E',
+    paddingHorizontal: responsiveModerateScale(7),
+    paddingVertical: responsiveModerateScale(2),
+    borderRadius: responsiveModerateScale(8),
+  },
+  verifiedText: {
     color: '#fff',
     fontSize: responsiveFont(10),
     fontFamily: 'Inter_700Bold',

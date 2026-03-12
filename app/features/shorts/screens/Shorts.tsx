@@ -220,6 +220,8 @@ export default function ShortsScreen() {
             images={item.images}
             videos={item.videos}
             sellerName={item.sellerName}
+            sellerAvatar={item.sellerAvatar}
+            sellerVerified={Boolean(item.sellerVerified)}
             location={item.location.city}
             category={item.category}
             condition={formatCondition(item.condition)}

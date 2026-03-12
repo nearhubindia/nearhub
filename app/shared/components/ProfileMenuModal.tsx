@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Platform,
   Animated,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -82,7 +83,6 @@ const MENU_ITEMS: MenuItem[] = [
   },
 ];
 const MENU_ACCENT = '#0B6DD8';
-const UI_LAYOUT_VERSION = 'UI vd6198ef';
 
 export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalProps) {
   const insets = useSafeAreaInsets();
@@ -153,9 +153,6 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
             <View>
               <Text style={styles.headerTitle}>Account</Text>
               <Text style={styles.headerSubtitle}>Manage your NearHub profile</Text>
-              <View style={styles.versionPill}>
-                <Text style={styles.versionPillText}>{UI_LAYOUT_VERSION}</Text>
-              </View>
             </View>
             <Pressable onPress={onClose} style={styles.closeButton} hitSlop={10}>
               <Feather name="x" size={responsiveModerateScale(20)} color="#0B2545" />
@@ -171,9 +168,13 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
               style={styles.profileSection}
             >
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {user.name?.charAt(0).toUpperCase() || user.phone?.charAt(0) || 'U'}
-                </Text>
+                {user.avatarUrl ? (
+                  <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+                ) : (
+                  <Text style={styles.avatarText}>
+                    {user.name?.charAt(0).toUpperCase() || user.phone?.charAt(0) || 'U'}
+                  </Text>
+                )}
               </View>
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{user.name || 'User'}</Text>
@@ -350,22 +351,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     color: '#7084A3',
   },
-  versionPill: {
-    alignSelf: 'flex-start',
-    marginTop: 6,
-    paddingHorizontal: responsiveModerateScale(8),
-    paddingVertical: responsiveModerateScale(3),
-    borderRadius: 999,
-    backgroundColor: '#EAF1FF',
-    borderWidth: 1,
-    borderColor: '#D7E5FF',
-  },
-  versionPillText: {
-    fontSize: responsiveFont(10),
-    fontFamily: 'Inter_700Bold',
-    color: '#0B5FD3',
-    letterSpacing: 0.3,
-  },
   closeButton: {
     width: responsiveModerateScale(44),
     height: responsiveModerateScale(44),
@@ -418,6 +403,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.42)',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarText: {
     fontSize: responsiveFont(24),

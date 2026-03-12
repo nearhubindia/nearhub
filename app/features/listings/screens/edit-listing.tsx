@@ -316,7 +316,7 @@ export default function EditListingScreen() {
           return;
         }
         result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
           allowsEditing: true,
           quality: 0.8,
         });
@@ -327,7 +327,7 @@ export default function EditListingScreen() {
           return;
         }
         result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
           allowsMultipleSelection: true,
           quality: 0.8,
           selectionLimit: 5 - images.length,
@@ -414,7 +414,7 @@ export default function EditListingScreen() {
           return;
         }
         result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+          mediaTypes: ['videos'],
           allowsEditing: true,
           quality: 0.7,
           videoMaxDuration: 35,
@@ -426,7 +426,7 @@ export default function EditListingScreen() {
           return;
         }
         result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+          mediaTypes: ['videos'],
           allowsEditing: true,
           quality: 0.7,
           videoMaxDuration: 35,

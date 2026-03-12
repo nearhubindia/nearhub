@@ -13,6 +13,7 @@ export interface Listing {
   imageHashes?: string[]; // SHA256 hashes for deduplication
   videos?: string[]; // Up to 5 video URLs
   sellerName: string;
+  sellerVerified?: boolean;
   sellerPhone: string;
   contactPhone?: string;
   location: {

@@ -624,7 +624,7 @@ export function useUpdateUser() {
       data,
     }: {
       id: string;
-      data: { username: string; mobile: string; location: string };
+      data: { username: string; mobile: string; location: string; isVerified: boolean };
     }) => usersApi.updateUser(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });

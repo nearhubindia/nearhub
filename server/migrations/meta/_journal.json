@@ -22,6 +22,20 @@
       "when": 1773315000000,
       "tag": "0002_user_reference_normalization",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1773321000000,
+      "tag": "0003_user_verification_flag",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1773322200000,
+      "tag": "0004_user_avatar",
+      "breakpoints": true
     }
   ]
 }

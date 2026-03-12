@@ -4,9 +4,12 @@
  */
 
 import type { Express, Request, Response } from 'express';
+import { eq, or } from 'drizzle-orm';
 import { getListingsByUser } from '../../listings/services/listings';
 import { getUserById, normalizePhone, upsertUser, type AppUser } from '../services/user-profiles';
 import { getRequestUserId } from '../../../lib/request-user';
+import { db } from '../../../data/db';
+import { users } from '../models/users';
 
 function parseJsonField(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
@@ -38,6 +41,42 @@ function parseJsonField(value: unknown): unknown[] {
 }
 
 export function registerUserRoutes(app: Express) {
+  const getDbUser = async (userId: string) => {
+    const normalizedId = String(userId || '').trim();
+    const normalizedPhone = normalizePhone(normalizedId);
+    return db.query.users.findFirst({
+      where: or(
+        eq(users.id, normalizedId),
+        eq(users.username, normalizedId),
+        normalizedPhone ? eq(users.mobile, normalizedPhone) : eq(users.mobile, normalizedId)
+      )!,
+    });
+  };
+
+  const syncDbAvatar = async (userId: string, avatarUrl: string) => {
+    const dbUser = await getDbUser(userId);
+    if (dbUser?.id) {
+      await db
+        .update(users)
+        .set({ avatarUrl: avatarUrl || null, mobile: normalizePhone(userId) || dbUser.mobile })
+        .where(eq(users.id, dbUser.id));
+      return;
+    }
+
+    const normalizedPhone = normalizePhone(userId);
+    await db
+      .insert(users)
+      .values({
+        id: String(userId || '').trim() || normalizedPhone,
+        username: normalizedPhone || String(userId || '').trim(),
+        password: 'otp-auth',
+        mobile: normalizedPhone || null,
+        avatarUrl: avatarUrl || null,
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing({ target: users.id });
+  };
+
   const ensureUser = (userId: string): AppUser => {
     const existing = getUserById(userId);
     if (existing) return existing;
@@ -48,6 +87,7 @@ export function registerUserRoutes(app: Express) {
       name: '',
       email: '',
       gender: 'other',
+      avatarUrl: '',
       bio: '',
       address: '',
       gstin: '',
@@ -76,8 +116,17 @@ export function registerUserRoutes(app: Express) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      // Get user from storage, or create a default user if doesn't exist
-      const user = ensureUser(String(userId));
+      // Get user from in-memory storage, then hydrate avatar from DB for persistence across sessions.
+      let user = ensureUser(String(userId));
+      const dbUser = await getDbUser(String(userId));
+      if (dbUser && dbUser.avatarUrl && dbUser.avatarUrl !== user.avatarUrl) {
+        user = upsertUser({
+          ...user,
+          avatarUrl: dbUser.avatarUrl,
+          phone: normalizePhone(dbUser.mobile || user.phone || user.id),
+          updatedAt: new Date().toISOString(),
+        });
+      }
 
       return res.json({
         success: true,
@@ -85,13 +134,14 @@ export function registerUserRoutes(app: Express) {
         phone: user.phone,
         name: user.name,
         email: user.email,
+        avatarUrl: user.avatarUrl,
         bio: user.bio,
         address: user.address,
         gstin: user.gstin,
         location: user.location,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
-        isVerified: user.isVerified || true,
+        isVerified: user.isVerified || false,
         profileComplete: !!(user.name && user.email && user.address),
       });
     } catch (error) {
@@ -108,8 +158,38 @@ export function registerUserRoutes(app: Express) {
     try {
       const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
 
-      // Get user from storage (mock)
-      const user = getUserById(String(userId));
+      let user = getUserById(String(userId));
+      const dbUser = await getDbUser(String(userId));
+      if (!user && dbUser) {
+        user = upsertUser({
+          id: String(dbUser.id),
+          phone: normalizePhone(dbUser.mobile || dbUser.id),
+          name: String(dbUser.username || '').trim() || `User ${String(dbUser.id).slice(-4)}`,
+          email: '',
+          gender: 'other',
+          avatarUrl: dbUser.avatarUrl || '',
+          bio: '',
+          address: '',
+          gstin: '',
+          location: dbUser.location || null,
+          isVerified: Boolean(dbUser.isVerified),
+          createdAt: dbUser.createdAt
+            ? new Date(dbUser.createdAt).toISOString()
+            : new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          preferences: {
+            notifications: true,
+            emailNotifications: true,
+            autoLocalizeListings: true,
+          },
+        });
+      } else if (user && dbUser && dbUser.avatarUrl && dbUser.avatarUrl !== user.avatarUrl) {
+        user = upsertUser({
+          ...user,
+          avatarUrl: dbUser.avatarUrl,
+          updatedAt: new Date().toISOString(),
+        });
+      }
 
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
@@ -122,13 +202,14 @@ export function registerUserRoutes(app: Express) {
           phone: user.phone,
           name: user.name,
           email: user.email,
+          avatarUrl: user.avatarUrl,
           bio: user.bio,
           address: user.address,
           gstin: user.gstin,
           location: user.location,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
-          isVerified: user.isVerified || true,
+          isVerified: user.isVerified || false,
           profileComplete: !!(user.name && user.email && user.address),
         },
       });
@@ -145,7 +226,7 @@ export function registerUserRoutes(app: Express) {
   app.put('/api/users/:userId/profile', async (req: Request, res: Response) => {
     try {
       const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
-      const { name, email, bio, address, gstin } = req.body;
+      const { name, email, bio, address, gstin, avatarUrl } = req.body;
 
       // Validate required fields
       if (!name || !name.trim()) {
@@ -160,6 +241,7 @@ export function registerUserRoutes(app: Express) {
         ...user,
         name: name.trim(),
         email: email?.trim() || user.email,
+        avatarUrl: typeof avatarUrl === 'string' ? avatarUrl.trim() : user.avatarUrl,
         bio: bio?.trim() || user.bio,
         address: address?.trim() || user.address,
         gstin: gstin?.trim() || user.gstin,
@@ -167,6 +249,7 @@ export function registerUserRoutes(app: Express) {
       };
 
       upsertUser(user);
+      await syncDbAvatar(String(userId), user.avatarUrl || '');
 
       return res.json({
         success: true,
@@ -176,6 +259,7 @@ export function registerUserRoutes(app: Express) {
           phone: user.phone,
           name: user.name,
           email: user.email,
+          avatarUrl: user.avatarUrl,
           bio: user.bio,
           address: user.address,
           gstin: user.gstin,

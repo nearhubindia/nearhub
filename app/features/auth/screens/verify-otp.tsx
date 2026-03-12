@@ -109,7 +109,7 @@ export default function VerifyOTPScreen() {
       if (data.success && data.user) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await login(data.user);
-        if (data.isNewUser) {
+        if (data.isNewUser || data.requiresProfileCompletion) {
           router.replace({
             pathname: '/auth/complete-profile',
             params: { phone: data.user.phone || phone },

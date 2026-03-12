@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, text, varchar, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, text, varchar, timestamp, boolean } from 'drizzle-orm/pg-core';
 import { createInsertSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
@@ -11,6 +11,8 @@ export const users = pgTable('users', {
   password: text('password').notNull(),
   mobile: varchar('mobile'),
   location: text('location'),
+  avatarUrl: text('avatar_url'),
+  isVerified: boolean('is_verified').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow(),
 });
 

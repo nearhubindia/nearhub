@@ -4,6 +4,7 @@ export type AppUser = {
   name: string;
   email: string;
   gender: 'male' | 'female' | 'other';
+  avatarUrl?: string;
   createdAt: string;
   updatedAt?: string;
   bio?: string;
@@ -67,6 +68,7 @@ export function upsertUserFromAuth(input: {
   name?: string;
   email?: string;
   gender?: 'male' | 'female' | 'other';
+  avatarUrl?: string;
   createdAt?: string;
   updatedAt?: string;
 }): AppUser {
@@ -84,6 +86,10 @@ export function upsertUserFromAuth(input: {
         : existing?.name || 'User',
     email: typeof input.email === 'string' ? input.email.trim() : existing?.email || '',
     gender: input.gender || existing?.gender || 'other',
+    avatarUrl:
+      typeof input.avatarUrl === 'string' && input.avatarUrl.trim()
+        ? input.avatarUrl.trim()
+        : existing?.avatarUrl || '',
     createdAt: existing?.createdAt || input.createdAt || nowIso,
     updatedAt: input.updatedAt || nowIso,
     bio: existing?.bio || '',

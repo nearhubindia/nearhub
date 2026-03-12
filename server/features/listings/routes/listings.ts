@@ -17,6 +17,9 @@ import {
 } from '../../../shared/services/auto-notifications';
 import { SERVER_CONFIG } from '../../../lib/config';
 import { getRequestUserId } from '../../../lib/request-user';
+import { db } from '../../../data/db';
+import { users } from '../../users/models/users';
+import { inArray, or } from 'drizzle-orm';
 
 function parseJsonField(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
@@ -117,6 +120,38 @@ function getSellerDisplayName(listing: any): string {
   return candidate || 'Seller';
 }
 
+type SellerMeta = {
+  isVerified: boolean;
+  avatarUrl: string;
+};
+
+async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, SellerMeta>> {
+  const uniqueSellerIds = [
+    ...new Set(sellerIds.map((id) => String(id || '').trim()).filter(Boolean)),
+  ];
+  if (uniqueSellerIds.length === 0) {
+    return new Map();
+  }
+
+  const metaRows = await db
+    .select({
+      id: users.id,
+      mobile: users.mobile,
+      isVerified: users.isVerified,
+      avatarUrl: users.avatarUrl,
+    })
+    .from(users)
+    .where(or(inArray(users.id, uniqueSellerIds), inArray(users.mobile, uniqueSellerIds))!);
+
+  const metaMap = new Map<string, SellerMeta>();
+  for (const row of metaRows) {
+    const meta = { isVerified: Boolean(row.isVerified), avatarUrl: String(row.avatarUrl || '') };
+    if (row.id) metaMap.set(String(row.id).trim(), meta);
+    if (row.mobile) metaMap.set(String(row.mobile).trim(), meta);
+  }
+  return metaMap;
+}
+
 function resolveContactPhone(rest: any, sellerId: string): string {
   const candidates = [rest?.contactPhone, rest?.sellerPhone, sellerId];
   for (const value of candidates) {
@@ -131,16 +166,19 @@ function resolveContactPhone(rest: any, sellerId: string): string {
   return '';
 }
 
-function toPublicListing(listing: any) {
+function toPublicListing(listing: any, sellerMetaMap?: Map<string, SellerMeta>) {
   const { sellerId: rawSellerId, ...rest } = listing || {};
   const sellerId = typeof rawSellerId === 'string' ? rawSellerId : '';
   const contactPhone = resolveContactPhone(rest, sellerId);
+  const sellerMeta = sellerMetaMap?.get(sellerId);
 
   return {
     ...rest,
     sellerId,
     userId: sellerId, // Backward compatibility for mobile clients still reading userId.
     sellerName: getSellerDisplayName(listing),
+    sellerVerified: Boolean(sellerMeta?.isVerified),
+    sellerAvatar: sellerMeta?.avatarUrl || '',
     contactPhone,
     sellerPhone: contactPhone,
     images: parseJsonField(listing?.images),
@@ -190,10 +228,11 @@ export function registerListingRoutes(app: Express) {
         if (typeof maxPrice === 'number' && numericPrice > maxPrice) return false;
         return true;
       });
+      const sellerMetaMap = await getSellerMetaMap(priceFilteredListings.map((l) => l.sellerId));
 
       return res.json({
         success: true,
-        data: priceFilteredListings.map((l) => toPublicListing(l)),
+        data: priceFilteredListings.map((l) => toPublicListing(l, sellerMetaMap)),
         limit,
         offset,
       });
@@ -221,11 +260,12 @@ export function registerListingRoutes(app: Express) {
       const offset = parseInt(req.query.offset as string) || 0;
 
       const listings = await getActiveListing({ limit, offset, category });
+      const sellerMetaMap = await getSellerMetaMap(listings.map((l) => l.sellerId));
 
       return res.json({
         success: true,
         category,
-        listings: listings.map((l) => toPublicListing(l)),
+        listings: listings.map((l) => toPublicListing(l, sellerMetaMap)),
         pagination: { limit, offset, total: listings.length },
       });
     } catch (error) {
@@ -264,9 +304,10 @@ export function registerListingRoutes(app: Express) {
       if (!listing) {
         return res.status(404).json({ success: false, error: 'Listing not found' });
       }
+      const sellerMetaMap = await getSellerMetaMap([listing.sellerId]);
       return res.json({
         success: true,
-        listing: toPublicListing(listing),
+        listing: toPublicListing(listing, sellerMetaMap),
       });
     } catch (error) {
       console.error('[Listings] Error fetching listing:', error);

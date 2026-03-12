@@ -61,6 +61,7 @@ export interface User {
   name: string;
   gender: 'male' | 'female' | 'other';
   email: string;
+  avatarUrl?: string;
   bio?: string;
   address?: string; // Seller's address for invoices
   gstin?: string; // GSTIN for invoices

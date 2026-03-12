@@ -233,9 +233,13 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                     longitude: listing.longitude ? parseFloat(listing.longitude) : 0,
                   },
                   sellerName: resolveSellerName(listing),
+                  sellerVerified: Boolean((listing as any).sellerVerified),
                   sellerPhone: listing.contactPhone || listing.sellerPhone || '',
                   contactPhone: listing.contactPhone || listing.sellerPhone || '',
-                  sellerAvatar: 'https://i.pravatar.cc/150?img=1',
+                  sellerAvatar:
+                    typeof (listing as any).sellerAvatar === 'string'
+                      ? normalizeMediaUrl((listing as any).sellerAvatar)
+                      : '',
                   createdAt: listing.createdAt || new Date().toISOString(),
                   expiresAt: listing.expiresAt || undefined,
                   isPaid: listing.isPaid || false,
@@ -649,9 +653,13 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
               longitude: listing.longitude ? Number(listing.longitude) : 0,
             },
             sellerName: resolveSellerName(listing),
+            sellerVerified: Boolean((listing as any).sellerVerified),
             sellerPhone: listing.contactPhone || listing.sellerPhone || '',
             contactPhone: listing.contactPhone || listing.sellerPhone || '',
-            sellerAvatar: 'https://i.pravatar.cc/150?img=1',
+            sellerAvatar:
+              typeof (listing as any).sellerAvatar === 'string'
+                ? (listing as any).sellerAvatar.trim()
+                : '',
             createdAt: listing.createdAt || new Date().toISOString(),
             expiresAt: listing.expiresAt || undefined,
             isPaid: listing.isPaid || false,

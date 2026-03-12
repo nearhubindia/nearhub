@@ -469,6 +469,7 @@ export default function HomeScreen() {
           image={item.images[0]}
           location={item.location.city}
           condition={formatCondition(item.condition)}
+          sellerVerified={Boolean(item.sellerVerified)}
           isBoosted={Boolean(item.featured)}
           isSponsored={Boolean((item as any).sponsored)}
           isSaved={savedIds.has(item.id)}

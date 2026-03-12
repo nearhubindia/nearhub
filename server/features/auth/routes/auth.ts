@@ -6,13 +6,64 @@ import { authLimiter } from '../../../lib/rate-limiter';
 import { grantStarterCreditsIfEligible } from '../../subscriptions/services/starter-credits';
 import { db } from '../../../data/db';
 import { listings, userStarterCredits, userSubscriptions } from '../../admin/models/admin-settings';
+import { users } from '../../users/models/users';
 import {
   getStableUserIdFromPhone,
   getUserByPhone,
   normalizePhone,
+  type AppUser,
   upsertUserFromAuth,
 } from '../../users/services/user-profiles';
 import { touchUserActivity } from '../../users/services/user-lifecycle';
+
+async function upsertAuthUserRecord(input: {
+  phone: string;
+  avatarUrl?: string;
+  preferredId?: string;
+}): Promise<void> {
+  const normalizedPhone = normalizePhone(input.phone);
+  if (!normalizedPhone) return;
+
+  const match = await db.query.users.findFirst({
+    where: eq(users.mobile, normalizedPhone),
+    columns: { id: true, avatarUrl: true },
+  });
+
+  if (match?.id) {
+    await db
+      .update(users)
+      .set({
+        mobile: normalizedPhone,
+        avatarUrl:
+          typeof input.avatarUrl === 'string' && input.avatarUrl.trim()
+            ? input.avatarUrl.trim()
+            : match.avatarUrl || null,
+      })
+      .where(eq(users.id, match.id));
+    return;
+  }
+
+  await db
+    .insert(users)
+    .values({
+      id: input.preferredId || normalizedPhone,
+      username: normalizedPhone,
+      password: 'otp-auth',
+      mobile: normalizedPhone,
+      avatarUrl: typeof input.avatarUrl === 'string' ? input.avatarUrl.trim() || null : null,
+      createdAt: new Date(),
+    })
+    .onConflictDoNothing({ target: users.id });
+}
+
+async function getDbUserByPhone(phone: string) {
+  const normalizedPhone = normalizePhone(phone);
+  if (!normalizedPhone) return null;
+  return db.query.users.findFirst({
+    where: eq(users.mobile, normalizedPhone),
+    columns: { id: true, avatarUrl: true },
+  });
+}
 
 async function hasExistingAccountFootprint(userId: string): Promise<boolean> {
   const [starterRow, listingRow, subscriptionRow] = await Promise.all([
@@ -30,6 +81,17 @@ async function hasExistingAccountFootprint(userId: string): Promise<boolean> {
   ]);
 
   return starterRow.length > 0 || listingRow.length > 0 || subscriptionRow.length > 0;
+}
+
+function hasCompletedOnboarding(user: AppUser | undefined): boolean {
+  if (!user) return false;
+  const name = String(user.name || '').trim();
+  const email = String(user.email || '').trim();
+  const gender = user.gender;
+  const hasValidName = !!name && !/^user$/i.test(name);
+  const hasValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const hasValidGender = gender === 'male' || gender === 'female' || gender === 'other';
+  return hasValidName && hasValidEmail && hasValidGender;
 }
 
 export function registerAuthRoutes(app: Express) {
@@ -69,13 +131,60 @@ export function registerAuthRoutes(app: Express) {
       }
 
       const existingUser = getUserByPhone(normalizedPhone);
+      const dbUser = await getDbUserByPhone(normalizedPhone);
       if (existingUser) {
+        if (dbUser?.avatarUrl && dbUser.avatarUrl !== existingUser.avatarUrl) {
+          upsertUserFromAuth({
+            phone: normalizedPhone,
+            name: existingUser.name,
+            email: existingUser.email,
+            gender: existingUser.gender,
+            avatarUrl: dbUser.avatarUrl,
+          });
+        }
+        await upsertAuthUserRecord({
+          phone: normalizedPhone,
+          avatarUrl: dbUser?.avatarUrl || existingUser.avatarUrl,
+          preferredId: existingUser.id,
+        }).catch((error) => console.error('[Auth] Failed to persist existing user to DB:', error));
         await touchUserActivity({
           userId: existingUser.id,
           ip: (req.ip || req.socket.remoteAddress || '').replace('::ffff:', ''),
           userAgent: req.get('user-agent') || '',
         }).catch((error) => console.error('[Auth] Failed to update user activity:', error));
-        return res.json({ success: true, user: existingUser, isNewUser: false });
+        return res.json({
+          success: true,
+          user:
+            dbUser?.avatarUrl && dbUser.avatarUrl !== existingUser.avatarUrl
+              ? {
+                  ...existingUser,
+                  avatarUrl: dbUser.avatarUrl,
+                }
+              : existingUser,
+          isNewUser: false,
+          requiresProfileCompletion: !hasCompletedOnboarding(existingUser),
+        });
+      }
+
+      if (dbUser?.id) {
+        const recoveredUser = upsertUserFromAuth({
+          phone: normalizedPhone,
+          avatarUrl: dbUser.avatarUrl || '',
+          name: typeof name === 'string' ? name.trim() : '',
+          email: typeof email === 'string' ? email.trim() : '',
+          gender: gender === 'male' || gender === 'female' || gender === 'other' ? gender : 'other',
+        });
+        await touchUserActivity({
+          userId: recoveredUser.id,
+          ip: (req.ip || req.socket.remoteAddress || '').replace('::ffff:', ''),
+          userAgent: req.get('user-agent') || '',
+        }).catch((error) => console.error('[Auth] Failed to update user activity:', error));
+        return res.json({
+          success: true,
+          user: recoveredUser,
+          isNewUser: false,
+          requiresProfileCompletion: !hasCompletedOnboarding(recoveredUser),
+        });
       }
 
       const hasFootprint = await hasExistingAccountFootprint(userId);
@@ -86,12 +195,22 @@ export function registerAuthRoutes(app: Express) {
           email: typeof email === 'string' ? email.trim() : '',
           gender: gender === 'male' || gender === 'female' || gender === 'other' ? gender : 'other',
         });
+        await upsertAuthUserRecord({
+          phone: normalizedPhone,
+          avatarUrl: user.avatarUrl,
+          preferredId: user.id,
+        }).catch((error) => console.error('[Auth] Failed to persist recovered user to DB:', error));
         await touchUserActivity({
           userId: user.id,
           ip: (req.ip || req.socket.remoteAddress || '').replace('::ffff:', ''),
           userAgent: req.get('user-agent') || '',
         }).catch((error) => console.error('[Auth] Failed to update user activity:', error));
-        return res.json({ success: true, user, isNewUser: false });
+        return res.json({
+          success: true,
+          user,
+          isNewUser: false,
+          requiresProfileCompletion: !hasCompletedOnboarding(user),
+        });
       }
 
       const user = upsertUserFromAuth({
@@ -100,6 +219,11 @@ export function registerAuthRoutes(app: Express) {
         email: typeof email === 'string' ? email.trim() : '',
         gender: gender === 'male' || gender === 'female' || gender === 'other' ? gender : 'other',
       });
+      await upsertAuthUserRecord({
+        phone: normalizedPhone,
+        avatarUrl: user.avatarUrl,
+        preferredId: user.id,
+      }).catch((error) => console.error('[Auth] Failed to persist new user to DB:', error));
       try {
         await grantStarterCreditsIfEligible(user.id, { grantedBy: 'system' });
       } catch (starterError) {
@@ -127,6 +251,7 @@ export function registerAuthRoutes(app: Express) {
       const normalizedPhone = normalizePhone(req.body?.phone);
       const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
       const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+      const avatarUrl = typeof req.body?.avatarUrl === 'string' ? req.body.avatarUrl.trim() : '';
       const gender = req.body?.gender;
 
       if (!normalizedPhone || !/^[6-9]\d{9}$/.test(normalizedPhone)) {
@@ -149,10 +274,16 @@ export function registerAuthRoutes(app: Express) {
         phone: normalizedPhone,
         name,
         email,
+        avatarUrl,
         gender: gender as 'male' | 'female' | 'other',
         createdAt: existingUser?.createdAt || nowIso,
         updatedAt: nowIso,
       });
+      await upsertAuthUserRecord({
+        phone: normalizedPhone,
+        avatarUrl,
+        preferredId: updatedUser.id,
+      }).catch((error) => console.error('[Auth] Failed to persist user profile to DB:', error));
       try {
         await grantStarterCreditsIfEligible(updatedUser.id, { grantedBy: 'system' });
       } catch (starterError) {
