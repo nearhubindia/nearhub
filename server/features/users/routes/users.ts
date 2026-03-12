@@ -4,10 +4,9 @@
  */
 
 import type { Express, Request, Response } from 'express';
-import { eq, or } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getListingsByUser } from '../../listings/services/listings';
 import {
-  getStableUserIdFromPhone,
   getUserById,
   normalizePhone,
   upsertUser,
@@ -16,6 +15,12 @@ import {
 import { getRequestUserId } from '../../../lib/request-user';
 import { db } from '../../../data/db';
 import { users } from '../models/users';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string): boolean {
+  return UUID_REGEX.test(String(value || '').trim());
+}
 
 function parseJsonField(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
@@ -49,13 +54,9 @@ function parseJsonField(value: unknown): unknown[] {
 export function registerUserRoutes(app: Express) {
   const getDbUser = async (userId: string) => {
     const normalizedId = String(userId || '').trim();
-    const normalizedPhone = normalizePhone(normalizedId);
+    if (!isUuid(normalizedId)) return null;
     return db.query.users.findFirst({
-      where: or(
-        eq(users.id, normalizedId),
-        eq(users.username, normalizedId),
-        normalizedPhone ? eq(users.mobile, normalizedPhone) : eq(users.mobile, normalizedId)
-      )!,
+      where: eq(users.id, normalizedId),
     });
   };
 
@@ -64,10 +65,9 @@ export function registerUserRoutes(app: Express) {
     avatarUrl: string | undefined,
     profile: { name?: string; address?: string; gstin?: string }
   ) => {
-    const isUuid = (value: string): boolean =>
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        value.trim()
-      );
+    if (!isUuid(userId)) {
+      throw new Error('Invalid user id format');
+    }
 
     const dbUser = await getDbUser(userId);
     const profileName =
@@ -97,28 +97,23 @@ export function registerUserRoutes(app: Express) {
           address: profileAddress || dbUser.address || null,
           gstin: profileGstin || dbUser.gstin || null,
           avatarUrl: normalizedAvatarUrl || dbUser.avatarUrl || null,
-          mobile: normalizePhone(userId) || dbUser.mobile,
+          mobile: dbUser.mobile,
         })
         .where(eq(users.id, dbUser.id));
       return;
     }
 
-    const normalizedPhone = normalizePhone(userId);
-    const canonicalIdCandidate = String(userId || '').trim();
-    const canonicalId = isUuid(canonicalIdCandidate)
-      ? canonicalIdCandidate
-      : getStableUserIdFromPhone(normalizedPhone);
     await db
       .insert(users)
       .values({
-        ...(canonicalId ? { id: canonicalId } : {}),
-        username: normalizedPhone || String(userId || '').trim(),
+        id: userId,
+        username: userId,
         displayName:
           profileName && !isPhoneLikeUsername(profileName) && !isPlaceholderName(profileName)
             ? profileName
             : null,
         password: 'otp-auth',
-        mobile: normalizedPhone || null,
+        mobile: null,
         address: profileAddress || null,
         gstin: profileGstin || null,
         avatarUrl: normalizedAvatarUrl || null,
@@ -160,28 +155,39 @@ export function registerUserRoutes(app: Express) {
   app.get('/api/users/profile', async (req: Request, res: Response) => {
     try {
       // Get userId from request context (set by middleware)
-      const userId = getRequestUserId(req);
+      const userId = String(getRequestUserId(req) || '').trim();
 
-      if (!userId) {
+      if (!userId || !isUuid(userId)) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      // Get user from in-memory storage, then hydrate persisted profile fields from DB.
-      let user = ensureUser(String(userId));
-      const dbUser = await getDbUser(String(userId));
-      if (dbUser) {
-        const dbDisplayName = String(dbUser.displayName || '').trim();
-        const fallbackName = String(dbUser.username || '').trim();
-        user = upsertUser({
-          ...user,
-          name: dbDisplayName || (user.name ? user.name : fallbackName),
-          avatarUrl: dbUser.avatarUrl || user.avatarUrl,
-          address: String(dbUser.address || user.address || '').trim(),
-          gstin: String(dbUser.gstin || user.gstin || '').trim(),
-          phone: normalizePhone(dbUser.mobile || user.phone || user.id),
-          updatedAt: new Date().toISOString(),
-        });
+      const dbUser = await getDbUser(userId);
+      if (!dbUser) {
+        return res.status(404).json({ error: 'User not found' });
       }
+      const existing = getUserById(userId);
+      const dbDisplayName = String(dbUser.displayName || '').trim();
+      const fallbackName = String(dbUser.username || '').trim();
+      const user = upsertUser({
+        id: userId,
+        phone: normalizePhone(dbUser.mobile || existing?.phone || ''),
+        name: dbDisplayName || existing?.name || fallbackName,
+        email: existing?.email || '',
+        gender: existing?.gender || 'other',
+        avatarUrl: dbUser.avatarUrl || existing?.avatarUrl || '',
+        bio: existing?.bio || '',
+        address: String(dbUser.address || existing?.address || '').trim(),
+        gstin: String(dbUser.gstin || existing?.gstin || '').trim(),
+        location: dbUser.location || existing?.location || null,
+        isVerified: Boolean(dbUser.isVerified || existing?.isVerified),
+        preferences: existing?.preferences || {
+          notifications: true,
+          emailNotifications: true,
+          autoLocalizeListings: true,
+        },
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
 
       return res.json({
         success: true,
@@ -211,11 +217,19 @@ export function registerUserRoutes(app: Express) {
    */
   app.get('/api/users/:userId/profile', async (req: Request, res: Response) => {
     try {
-      const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+      const userId = String(
+        Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
+      ).trim();
+      if (!isUuid(userId)) {
+        return res.status(400).json({ error: 'Invalid user id format' });
+      }
 
-      let user = getUserById(String(userId));
-      const dbUser = await getDbUser(String(userId));
-      if (!user && dbUser) {
+      let user = getUserById(userId);
+      const dbUser = await getDbUser(userId);
+      if (!dbUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      if (!user) {
         const dbDisplayName = String(dbUser.displayName || '').trim();
         const fallbackName = String(dbUser.username || '').trim();
         user = upsertUser({
@@ -253,10 +267,6 @@ export function registerUserRoutes(app: Express) {
         });
       }
 
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
       return res.json({
         success: true,
         user: {
@@ -287,7 +297,16 @@ export function registerUserRoutes(app: Express) {
    */
   app.put('/api/users/:userId/profile', async (req: Request, res: Response) => {
     try {
-      const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+      const userId = String(
+        Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
+      ).trim();
+      const requestUserId = String(getRequestUserId(req) || '').trim();
+      if (!isUuid(userId)) {
+        return res.status(400).json({ error: 'Invalid user id format' });
+      }
+      if (!isUuid(requestUserId) || requestUserId !== userId) {
+        return res.status(403).json({ error: 'You can only update your own profile' });
+      }
       const { name, email, bio, address, gstin, avatarUrl } = req.body;
 
       // Validate required fields
