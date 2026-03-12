@@ -4,7 +4,7 @@
  * Integrates with database-backed listings
  */
 
-import type { Express, Request, Response } from 'express';
+import type { Express, NextFunction, Request, Response } from 'express';
 import { db } from '../../../data/db';
 import { users } from '../../users/models/users';
 import { inArray, or } from 'drizzle-orm';
@@ -1581,10 +1581,40 @@ export function registerSubscriptionRoutes(app: Express) {
   });
 
   /**
+   * GET /api/subscriptions/tiers
+   * Get available subscription tiers for users
+   */
+  app.get('/api/subscriptions/tiers', async (_req: Request, res: Response) => {
+    try {
+      const tiers = await getActiveSubscriptionTiers();
+
+      return res.json({
+        success: true,
+        tiers: tiers.map((tier) => ({
+          ...tier,
+          features: typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features,
+        })),
+      });
+    } catch (error) {
+      console.error('[Subscriptions] Error fetching tiers:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch subscription tiers',
+      });
+    }
+  });
+
+  /**
    * GET /api/subscriptions/:subscriptionId
    * Get subscription details
    */
-  app.get('/api/subscriptions/:subscriptionId', async (req: Request, res: Response) => {
+  app.get(
+    '/api/subscriptions/:subscriptionId',
+    async (req: Request, res: Response, next: NextFunction) => {
+      if (req.params.subscriptionId === 'tiers') {
+        return next();
+      }
+
     try {
       const subscriptionId = req.params.subscriptionId as string;
 
@@ -1621,7 +1651,8 @@ export function registerSubscriptionRoutes(app: Express) {
       console.error('[Subscriptions] Error fetching subscription:', error);
       res.status(500).json({ error: 'Failed to fetch subscription' });
     }
-  });
+    }
+  );
 
   /**
    * POST /api/subscriptions/webhook/razorpay
@@ -2441,30 +2472,6 @@ export function registerSubscriptionRoutes(app: Express) {
     } catch (error) {
       console.error('[Boost] Error verifying boost payment:', error);
       return res.status(500).json({ success: false, error: 'Failed to verify boost payment' });
-    }
-  });
-
-  /**
-   * GET /api/subscriptions/tiers
-   * Get available subscription tiers for users
-   */
-  app.get('/api/subscriptions/tiers', async (req: Request, res: Response) => {
-    try {
-      const tiers = await getActiveSubscriptionTiers();
-
-      return res.json({
-        success: true,
-        tiers: tiers.map((tier) => ({
-          ...tier,
-          features: typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features,
-        })),
-      });
-    } catch (error) {
-      console.error('[Subscriptions] Error fetching tiers:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to fetch subscription tiers',
-      });
     }
   });
 

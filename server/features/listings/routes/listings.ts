@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from 'express';
+import type { Express, NextFunction, Request, Response } from 'express';
 import {
   getActiveListing,
   getListingById,
@@ -296,9 +296,76 @@ export function registerListingRoutes(app: Express) {
   });
 
   /**
+   * GET /api/listings/search
+   * Text + filter search for active listings.
+   */
+  app.get('/api/listings/search', async (req: Request, res: Response) => {
+    try {
+      const query = String(req.query.q || '').trim().toLowerCase();
+      const category = String(req.query.category || '').trim();
+      const location = String(req.query.location || '').trim().toLowerCase();
+      const minPrice = req.query.minPrice ? Number(req.query.minPrice) : undefined;
+      const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : undefined;
+      const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 500);
+      const offset = parseInt(String(req.query.offset || '0'), 10) || 0;
+
+      const candidates = await getActiveListing({
+        limit: Math.min(limit + offset + 200, 500),
+        offset: 0,
+        category: category || undefined,
+      });
+
+      const filtered = candidates.filter((listing) => {
+        const numericPrice =
+          typeof listing.price === 'string' ? parseFloat(listing.price) : Number(listing.price);
+        if (!Number.isFinite(numericPrice)) return false;
+        if (typeof minPrice === 'number' && numericPrice < minPrice) return false;
+        if (typeof maxPrice === 'number' && numericPrice > maxPrice) return false;
+        if (location && !String(listing.location || '').toLowerCase().includes(location))
+          return false;
+
+        if (!query) return true;
+        const haystack = [
+          listing.title,
+          listing.description,
+          listing.category,
+          listing.location,
+          listing.condition,
+        ]
+          .map((value) => String(value || '').toLowerCase())
+          .join(' ');
+        return haystack.includes(query);
+      });
+
+      const page = filtered.slice(offset, offset + limit);
+      const sellerMetaMap = await getSellerMetaMap(page.map((listing) => listing.sellerId));
+      const results = page.map((listing) => toPublicListing(listing, sellerMetaMap));
+
+      return res.json({
+        success: true,
+        data: results,
+        results, // backward compatibility for older clients
+        pagination: {
+          limit,
+          offset,
+          total: filtered.length,
+          hasMore: offset + results.length < filtered.length,
+        },
+      });
+    } catch (error) {
+      console.error('[Listings] Error searching listings:', error);
+      return res.status(500).json({ success: false, error: 'Failed to search listings' });
+    }
+  });
+
+  /**
    * GET /api/listings/:id
    */
-  app.get('/api/listings/:id', async (req: Request, res: Response) => {
+  app.get('/api/listings/:id', async (req: Request, res: Response, next: NextFunction) => {
+    if (req.params.id === 'search') {
+      return next();
+    }
+
     try {
       const listing = await getListingById(req.params.id as string);
       if (!listing) {

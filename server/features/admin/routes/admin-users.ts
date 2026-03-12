@@ -4,6 +4,7 @@ import { db } from '../../../data/db';
 import { users } from '../../users/models/users';
 import type { AuthRequest } from '../../../lib/types';
 import { handleError, notFound } from '../../../lib/error-handler';
+import { adminAuthMiddleware } from './admin-auth';
 import {
   listings,
   userActivity,
@@ -39,7 +40,7 @@ export function registerAdminUsersRoutes(app: Express) {
    * GET /api/admin/users
    * Get all users (admin only)
    */
-  app.get('/api/admin/users', async (req: AuthRequest, res: Response) => {
+  app.get('/api/admin/users', adminAuthMiddleware, async (req: AuthRequest, res: Response) => {
     try {
       const [activityRows, listingRows, subscriptionRows, starterRows] = await Promise.all([
         db
@@ -191,7 +192,10 @@ export function registerAdminUsersRoutes(app: Express) {
    * GET /api/admin/users/:id
    * Get user by ID (admin only)
    */
-  app.get('/api/admin/users/:id', async (req: AuthRequest, res: Response) => {
+  app.get(
+    '/api/admin/users/:id',
+    adminAuthMiddleware,
+    async (req: AuthRequest, res: Response) => {
     try {
       const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
       const [meta, activity, latestListing] = await Promise.all([
@@ -244,13 +248,17 @@ export function registerAdminUsersRoutes(app: Express) {
       console.error('[Admin Users] Error fetching user:', error);
       handleError(res, error, '[Admin Users]', 'Failed to fetch user');
     }
-  });
+    }
+  );
 
   /**
    * DELETE /api/admin/users/:id
    * Delete user (admin only)
    */
-  app.delete('/api/admin/users/:id', async (req: AuthRequest, res: Response) => {
+  app.delete(
+    '/api/admin/users/:id',
+    adminAuthMiddleware,
+    async (req: AuthRequest, res: Response) => {
     try {
       const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
       const impact = await deleteUserDataByAdmin(id);
@@ -265,13 +273,17 @@ export function registerAdminUsersRoutes(app: Express) {
       console.error('[Admin Users] Error deleting user:', error);
       handleError(res, error, '[Admin Users]', 'Failed to delete user');
     }
-  });
+    }
+  );
 
   /**
    * PUT /api/admin/users/:id
    * Update user data (admin only)
    */
-  app.put('/api/admin/users/:id', async (req: AuthRequest, res: Response) => {
+  app.put(
+    '/api/admin/users/:id',
+    adminAuthMiddleware,
+    async (req: AuthRequest, res: Response) => {
     try {
       const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
       const { username, mobile, location, isVerified } = req.body;
@@ -324,5 +336,6 @@ export function registerAdminUsersRoutes(app: Express) {
       console.error('[Admin Users] Error updating user:', error);
       handleError(res, error, '[Admin Users]', 'Failed to update user');
     }
-  });
+    }
+  );
 }

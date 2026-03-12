@@ -11,6 +11,91 @@ import {
   isElasticsearchHealthy,
   syncAllListings,
 } from '../services/elasticsearch';
+import { getActiveListing } from '../../listings/services/listings';
+
+type SearchFilterInput = {
+  category?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  condition?: string;
+  listingType?: string;
+  latitude?: number;
+  longitude?: number;
+  radiusKm?: number;
+};
+
+async function searchListingsFallback(
+  query: string,
+  filters: SearchFilterInput,
+  limit: number,
+  offset: number
+) {
+  const pool = await getActiveListing({
+    category: filters.category,
+    latitude: filters.latitude,
+    longitude: filters.longitude,
+    radiusKm: filters.radiusKm,
+    // Fetch a bounded pool, then apply text/price filters in memory.
+    limit: Math.min(limit + offset + 300, 500),
+    offset: 0,
+  });
+
+  const q = query.trim().toLowerCase();
+  const filtered = pool.filter((listing) => {
+    const text = [listing.title, listing.description, listing.category, listing.location]
+      .map((value) => String(value || '').toLowerCase())
+      .join(' ');
+    if (q && !text.includes(q)) return false;
+
+    const conditionValue = String(listing.condition || '').toLowerCase();
+    if (filters.condition && conditionValue !== filters.condition.toLowerCase()) return false;
+
+    const listingTypeValue = String((listing as any).listingType || '').toLowerCase();
+    if (filters.listingType && listingTypeValue !== filters.listingType.toLowerCase()) return false;
+
+    const numericPrice =
+      typeof listing.price === 'string' ? parseFloat(listing.price) : Number(listing.price);
+    if (!Number.isFinite(numericPrice)) return false;
+    if (typeof filters.minPrice === 'number' && numericPrice < filters.minPrice) return false;
+    if (typeof filters.maxPrice === 'number' && numericPrice > filters.maxPrice) return false;
+
+    return true;
+  });
+
+  const page = filtered.slice(offset, offset + limit);
+  return {
+    success: true,
+    data: {
+      listings: page,
+      total: filtered.length,
+      limit,
+      offset,
+      hasMore: offset + page.length < filtered.length,
+    },
+    source: 'database-fallback',
+  };
+}
+
+async function getSearchSuggestionsFallback(query: string, limit: number): Promise<string[]> {
+  const pool = await getActiveListing({ limit: 200, offset: 0 });
+  const q = query.trim().toLowerCase();
+  const terms = new Set<string>();
+
+  for (const listing of pool) {
+    const candidates = [listing.title, listing.category, listing.location]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
+    for (const candidate of candidates) {
+      if (candidate.toLowerCase().includes(q)) {
+        terms.add(candidate);
+      }
+      if (terms.size >= limit) break;
+    }
+    if (terms.size >= limit) break;
+  }
+
+  return [...terms].slice(0, limit);
+}
 
 export function registerSearchRoutes(app: Express) {
   /**
@@ -50,13 +135,6 @@ export function registerSearchRoutes(app: Express) {
         });
       }
 
-      if (!isElasticsearchHealthy()) {
-        return res.status(503).json({
-          success: false,
-          error: 'Search service is temporarily unavailable',
-        });
-      }
-
       // Parse and validate pagination
       let limitNum = parseInt(limit as string, 10);
       let offsetNum = parseInt(offset as string, 10);
@@ -92,7 +170,15 @@ export function registerSearchRoutes(app: Express) {
         offset: offsetNum,
       });
 
-      const results = await elasticsearchSearch(q as string, filters, limitNum, offsetNum);
+      let results;
+      if (isElasticsearchHealthy()) {
+        results = await elasticsearchSearch(q as string, filters, limitNum, offsetNum);
+        if (!results.success) {
+          results = await searchListingsFallback(q as string, filters, limitNum, offsetNum);
+        }
+      } else {
+        results = await searchListingsFallback(q as string, filters, limitNum, offsetNum);
+      }
 
       return res.json(results);
     } catch (error) {
@@ -122,18 +208,13 @@ export function registerSearchRoutes(app: Express) {
         });
       }
 
-      if (!isElasticsearchHealthy()) {
-        return res.status(503).json({
-          success: false,
-          error: 'Search service is temporarily unavailable',
-        });
-      }
-
       let limitNum = parseInt(limit as string, 10);
       if (isNaN(limitNum) || limitNum < 1) limitNum = 10;
       if (limitNum > 20) limitNum = 20;
 
-      const suggestions = await getSearchSuggestions(q as string, limitNum);
+      const suggestions = isElasticsearchHealthy()
+        ? await getSearchSuggestions(q as string, limitNum)
+        : await getSearchSuggestionsFallback(q as string, limitNum);
 
       return res.json({
         success: true,
