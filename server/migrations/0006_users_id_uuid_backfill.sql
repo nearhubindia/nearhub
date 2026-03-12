@@ -43,6 +43,12 @@ BEGIN
   FROM user_id_migration m
   WHERE u.id = m.old_id;
 
+  -- Free unique mobile values before inserting UUID user rows.
+  UPDATE users u
+  SET mobile = NULL
+  FROM user_id_migration m
+  WHERE u.id = m.old_id;
+
   -- Create canonical UUID user rows with original profile fields.
   INSERT INTO users (
     id,
