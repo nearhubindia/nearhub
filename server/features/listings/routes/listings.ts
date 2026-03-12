@@ -92,6 +92,43 @@ function isHttpMediaUrl(value: unknown): value is string {
   return trimmed.startsWith('http://') || trimmed.startsWith('https://');
 }
 
+const PHONE_PATH_SEGMENT = /\/(?:images|videos)\/\d{10,15}(?=\/)/i;
+
+function hasPhoneInMediaPath(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  return PHONE_PATH_SEGMENT.test(value);
+}
+
+function getPublicBaseUrl(req: Request): string {
+  const forwardedProto = String(req.get('x-forwarded-proto') || '').trim();
+  const proto = forwardedProto || req.protocol || 'https';
+  const forwardedHost = String(req.get('x-forwarded-host') || '').trim();
+  const host = forwardedHost || req.get('host') || '';
+  return `${proto}://${host}`;
+}
+
+function buildMediaProxyUrl(
+  req: Request,
+  listingId: string,
+  mediaType: 'images' | 'videos',
+  index: number
+): string {
+  const base = getPublicBaseUrl(req);
+  return `${base}/api/listings/${encodeURIComponent(listingId)}/media/${mediaType}/${index}`;
+}
+
+function sanitizeMediaForPublic(
+  req: Request,
+  listingId: string,
+  mediaType: 'images' | 'videos',
+  values: unknown[]
+): unknown[] {
+  return values.map((value, index) => {
+    if (!hasPhoneInMediaPath(value)) return value;
+    return buildMediaProxyUrl(req, listingId, mediaType, index);
+  });
+}
+
 function findInvalidRemoteMediaUrls(values: unknown[], allowedHosts: Set<string>): string[] {
   if (allowedHosts.size === 0 || !SERVER_CONFIG.CLOUDFLARE_R2_ENABLED) {
     return [];
@@ -209,14 +246,18 @@ function resolveContactPhone(rest: any, sellerId: string): string {
 }
 
 function toPublicListing(
+  req: Request,
   listing: any,
   sellerMetaMap?: Map<string, SellerMeta>,
   options?: { includeSellerIdentity?: boolean }
 ) {
   const { sellerId: rawSellerId, ...rest } = listing || {};
   const sellerId = typeof rawSellerId === 'string' ? rawSellerId : '';
+  const listingId = String(listing?.id || '').trim();
   const sellerMeta = sellerMetaMap?.get(sellerId);
   const includeSellerIdentity = Boolean(options?.includeSellerIdentity);
+  const images = parseJsonField(listing?.images);
+  const videos = parseJsonField(listing?.videos);
 
   return {
     ...rest,
@@ -228,8 +269,8 @@ function toPublicListing(
     // Never expose raw phone numbers in public listing payloads.
     contactPhone: '',
     sellerPhone: '',
-    images: parseJsonField(listing?.images),
-    videos: parseJsonField(listing?.videos),
+    images: sanitizeMediaForPublic(req, listingId, 'images', images),
+    videos: sanitizeMediaForPublic(req, listingId, 'videos', videos),
   };
 }
 
@@ -305,7 +346,7 @@ export function registerListingRoutes(app: Express) {
       return res.json({
         success: true,
         data: priceFilteredListings.map((l) =>
-          toPublicListing(l, sellerMetaMap, { includeSellerIdentity: Boolean(requesterId) })
+          toPublicListing(req, l, sellerMetaMap, { includeSellerIdentity: Boolean(requesterId) })
         ),
         limit,
         offset,
@@ -341,7 +382,7 @@ export function registerListingRoutes(app: Express) {
         success: true,
         category,
         listings: listings.map((l) =>
-          toPublicListing(l, sellerMetaMap, { includeSellerIdentity: Boolean(requesterId) })
+          toPublicListing(req, l, sellerMetaMap, { includeSellerIdentity: Boolean(requesterId) })
         ),
         pagination: { limit, offset, total: listings.length },
       });
@@ -427,7 +468,9 @@ export function registerListingRoutes(app: Express) {
       const page = filtered.slice(offset, offset + limit);
       const sellerMetaMap = await getSellerMetaMap(page.map((listing) => listing.sellerId));
       const results = page.map((listing) =>
-        toPublicListing(listing, sellerMetaMap, { includeSellerIdentity: Boolean(requesterId) })
+        toPublicListing(req, listing, sellerMetaMap, {
+          includeSellerIdentity: Boolean(requesterId),
+        })
       );
 
       return res.json({
@@ -493,6 +536,49 @@ export function registerListingRoutes(app: Express) {
   });
 
   /**
+   * GET /api/listings/:id/media/:mediaType/:index
+   * Resolves a listing media URL by index to avoid exposing phone-based storage paths.
+   */
+  app.get('/api/listings/:id/media/:mediaType/:index', async (req: Request, res: Response) => {
+    try {
+      const listingId = String(req.params.id || '').trim();
+      const mediaType = String(req.params.mediaType || '')
+        .trim()
+        .toLowerCase();
+      const rawIndex = Number.parseInt(String(req.params.index || ''), 10);
+
+      if (!listingId || !Number.isInteger(rawIndex) || rawIndex < 0) {
+        return res.status(400).json({ success: false, error: 'Invalid media request' });
+      }
+      if (mediaType !== 'images' && mediaType !== 'videos') {
+        return res.status(400).json({ success: false, error: 'Invalid media type' });
+      }
+
+      const listing = await getListingById(listingId);
+      if (!listing) {
+        return res.status(404).json({ success: false, error: 'Listing not found' });
+      }
+      if (!listing.isActive || normalizeStatus(listing.status) !== 'active') {
+        return res.status(404).json({ success: false, error: 'Listing is not available' });
+      }
+
+      const media =
+        mediaType === 'images' ? parseJsonField(listing.images) : parseJsonField(listing.videos);
+      const item = media[rawIndex];
+      const targetUrl = typeof item === 'string' ? item.trim() : '';
+
+      if (!targetUrl || !/^https?:\/\//i.test(targetUrl)) {
+        return res.status(404).json({ success: false, error: 'Media not found' });
+      }
+
+      return res.redirect(302, targetUrl);
+    } catch (error) {
+      console.error('[Listings] Error resolving listing media URL:', error);
+      return res.status(500).json({ success: false, error: 'Failed to resolve media URL' });
+    }
+  });
+
+  /**
    * GET /api/listings/:id
    */
   app.get('/api/listings/:id', async (req: Request, res: Response, next: NextFunction) => {
@@ -509,7 +595,7 @@ export function registerListingRoutes(app: Express) {
       const sellerMetaMap = await getSellerMetaMap([listing.sellerId]);
       return res.json({
         success: true,
-        listing: toPublicListing(listing, sellerMetaMap, {
+        listing: toPublicListing(req, listing, sellerMetaMap, {
           includeSellerIdentity: Boolean(requesterId),
         }),
       });

@@ -70,6 +70,35 @@ function sanitizePathPart(value: string): string {
     .replace(/^-|-$/g, '');
 }
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim()
+  );
+}
+
+function toDeterministicUuid(seed: string): string {
+  const hash = crypto.createHash('sha256').update(seed).digest('hex');
+  const base = hash.slice(0, 32).split('');
+  // RFC4122-ish format: set version (4) and variant (10xx)
+  base[12] = '4';
+  const variantNibble = parseInt(base[16] || '8', 16);
+  base[16] = ((variantNibble & 0x3) | 0x8).toString(16);
+  const hex = base.join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(
+    16,
+    20
+  )}-${hex.slice(20, 32)}`;
+}
+
+function toMediaOwnerKey(userId?: string): string {
+  const raw = String(userId || '')
+    .trim()
+    .toLowerCase();
+  if (!raw) return 'anonymous';
+  if (isUuid(raw)) return raw;
+  return toDeterministicUuid(raw);
+}
+
 function normalizeContentType(value: string): string {
   return (value || '').toLowerCase().trim();
 }
@@ -112,7 +141,7 @@ function buildObjectKey(params: {
   const ext = resolveExtension(params.originalFileName, params.contentType);
   const now = new Date();
   const datePath = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-  const ownerPrefix = params.userId ? sanitizePathPart(params.userId).slice(0, 32) : 'anonymous';
+  const ownerPrefix = toMediaOwnerKey(params.userId);
   const randomSuffix = crypto.randomUUID();
 
   return `${folder}/${ownerPrefix}/${datePath}/${randomSuffix}.${ext}`;
