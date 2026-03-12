@@ -19,6 +19,7 @@ import {
 import { SERVER_CONFIG } from '../../../lib/config';
 import { getRequestUserId } from '../../../lib/request-user';
 import { db } from '../../../data/db';
+import { redisCache } from '../../../shared/cache/redis-cache';
 import { users } from '../../users/models/users';
 import { resolveUserDisplayName } from '../../users/services/user-profiles';
 import { eq, inArray, or } from 'drizzle-orm';
@@ -359,6 +360,19 @@ export function registerListingRoutes(app: Express) {
   app.get('/api/listings', async (req: Request, res: Response) => {
     try {
       const requesterId = await resolveTrustedRequestUserId(req);
+      const includeSellerIdentity = Boolean(requesterId);
+      const cacheKey = `listings:v1:${includeSellerIdentity ? 'auth' : 'public'}:${JSON.stringify(req.query || {})}`;
+      if (redisCache.isOnline()) {
+        const cached = await redisCache.get<{
+          success: boolean;
+          data: unknown[];
+          limit: number;
+          offset: number;
+        }>(cacheKey);
+        if (cached) {
+          return res.json(cached);
+        }
+      }
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 500);
       const offset = parseInt(req.query.offset as string) || 0;
       const minPrice = req.query.minPrice ? parseFloat(req.query.minPrice as string) : undefined;
@@ -396,14 +410,18 @@ export function registerListingRoutes(app: Express) {
       });
       const sellerMetaMap = await getSellerMetaMap(priceFilteredListings.map((l) => l.sellerId));
 
-      return res.json({
+      const response = {
         success: true,
         data: priceFilteredListings.map((l) =>
-          toPublicListing(req, l, sellerMetaMap, { includeSellerIdentity: Boolean(requesterId) })
+          toPublicListing(req, l, sellerMetaMap, { includeSellerIdentity })
         ),
         limit,
         offset,
-      });
+      };
+      if (redisCache.isOnline()) {
+        await redisCache.set(cacheKey, response, { ttl: 30 });
+      }
+      return res.json(response);
     } catch (error) {
       console.error('[Listings] Error fetching listings:', error);
       // Log the actual error for debugging
@@ -473,6 +491,14 @@ export function registerListingRoutes(app: Express) {
   app.get('/api/listings/search', async (req: Request, res: Response) => {
     try {
       const requesterId = await resolveTrustedRequestUserId(req);
+      const includeSellerIdentity = Boolean(requesterId);
+      const cacheKey = `listings-search:v1:${includeSellerIdentity ? 'auth' : 'public'}:${JSON.stringify(req.query || {})}`;
+      if (redisCache.isOnline()) {
+        const cached = await redisCache.get<any>(cacheKey);
+        if (cached) {
+          return res.json(cached);
+        }
+      }
       const query = String(req.query.q || '')
         .trim()
         .toLowerCase();
@@ -526,7 +552,7 @@ export function registerListingRoutes(app: Express) {
         })
       );
 
-      return res.json({
+      const response = {
         success: true,
         data: results,
         results, // backward compatibility for older clients
@@ -536,7 +562,11 @@ export function registerListingRoutes(app: Express) {
           total: filtered.length,
           hasMore: offset + results.length < filtered.length,
         },
-      });
+      };
+      if (redisCache.isOnline()) {
+        await redisCache.set(cacheKey, response, { ttl: 30 });
+      }
+      return res.json(response);
     } catch (error) {
       console.error('[Listings] Error searching listings:', error);
       return res.status(500).json({ success: false, error: 'Failed to search listings' });
