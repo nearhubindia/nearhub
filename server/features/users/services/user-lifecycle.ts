@@ -60,23 +60,7 @@ async function resolveCanonicalUserId(candidateUserId: string): Promise<string> 
     });
     if (byMobile?.id) return byMobile.id;
   }
-
-  await db
-    .insert(users)
-    .values({
-      id: candidate,
-      username: candidate,
-      password: 'otp-auth',
-      mobile: normalizedPhone || null,
-      createdAt: new Date(),
-    })
-    .onConflictDoNothing({ target: users.id });
-
-  const created = await db.query.users.findFirst({
-    where: eq(users.id, candidate),
-    columns: { id: true },
-  });
-  return created?.id || '';
+  return '';
 }
 
 export async function resolveUserIdFromRequest(req: {

@@ -83,6 +83,7 @@ export function upsertUser(user: AppUser): AppUser {
 
 export function upsertUserFromAuth(input: {
   phone: string;
+  preferredId?: string;
   name?: string;
   email?: string;
   gender?: 'male' | 'female' | 'other';
@@ -92,11 +93,15 @@ export function upsertUserFromAuth(input: {
 }): AppUser {
   const normalizedPhone = normalizePhone(input.phone);
   const stableId = getStableUserIdFromPhone(normalizedPhone);
-  const existing = getUserById(stableId) || getUserByPhone(normalizedPhone);
+  const preferredId = typeof input.preferredId === 'string' ? input.preferredId.trim() : '';
+  const existing =
+    (preferredId ? getUserById(preferredId) : undefined) ||
+    getUserById(stableId) ||
+    getUserByPhone(normalizedPhone);
   const nowIso = new Date().toISOString();
 
   return indexUser({
-    id: existing?.id || stableId,
+    id: existing?.id || preferredId || stableId,
     phone: normalizedPhone,
     name:
       typeof input.name === 'string' && input.name.trim()
