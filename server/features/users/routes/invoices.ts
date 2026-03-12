@@ -230,22 +230,28 @@ export function registerInvoiceRoutes(app: Express) {
 
       return res.json({
         success: true,
-        invoices: rows.map((row) => ({
-          invoiceNumber: row.invoiceNumber,
-          invoiceDate: row.invoiceDate,
-          customerName: row.customerName,
-          total: Number(row.totalAmount || 0),
-          status: row.status || 'issued',
-          paymentId: row.paymentId || undefined,
-          orderId: row.orderId || undefined,
-          sellerName: 'Synvide Business Solutions Private Limited',
-          sellerCity: 'Bangalore',
-          sellerGstin: '29ABKCS0463R1ZI',
-          storedAt: row.createdAt,
-          invoiceHtmlUrl: `/api/invoices/${encodeURIComponent(row.invoiceNumber)}/view`,
-          invoiceDownloadUrl: `/api/invoices/${encodeURIComponent(row.invoiceNumber)}/download`,
-          rawInvoiceData: row.invoiceData ? JSON.parse(row.invoiceData) : undefined,
-        })),
+        invoices: rows.map((row) => {
+          const parsedInvoiceData = row.invoiceData ? JSON.parse(row.invoiceData) : undefined;
+          const vendorName = String(parsedInvoiceData?.vendorName || '').trim();
+          const vendorCity = String(parsedInvoiceData?.vendorCity || '').trim();
+          const vendorGST = String(parsedInvoiceData?.vendorGST || '').trim();
+          return {
+            invoiceNumber: row.invoiceNumber,
+            invoiceDate: row.invoiceDate,
+            customerName: row.customerName,
+            total: Number(row.totalAmount || 0),
+            status: row.status || 'issued',
+            paymentId: row.paymentId || undefined,
+            orderId: row.orderId || undefined,
+            sellerName: vendorName || 'NearHub',
+            sellerCity: vendorCity || '',
+            sellerGstin: vendorGST || '',
+            storedAt: row.createdAt,
+            invoiceHtmlUrl: `/api/invoices/${encodeURIComponent(row.invoiceNumber)}/view`,
+            invoiceDownloadUrl: `/api/invoices/${encodeURIComponent(row.invoiceNumber)}/download`,
+            rawInvoiceData: parsedInvoiceData,
+          };
+        }),
       });
     } catch (error) {
       console.error('[Invoices] Error fetching user invoices:', error);

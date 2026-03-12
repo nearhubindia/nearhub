@@ -1472,17 +1472,28 @@ export function registerSubscriptionRoutes(app: Express) {
         try {
           console.log('[Subscriptions] Generating invoice for customer:', customerName);
           const InvoiceService = (await import('../../users/services/invoice')).default;
+          const { users } = await import('../../users/models/users');
+          const customerProfile = await db.query.users.findFirst({
+            where: eq(users.id, customerId),
+            columns: { displayName: true, address: true, gstin: true },
+          });
           const invoiceService = new InvoiceService(InvoiceService.createSynvideConfig());
 
           // Financial source of truth comes from server-side computed amount.
           const items = serverInvoiceItems;
+          const customerDisplayName = String(customerProfile?.displayName || '').trim();
+          const customerAddress = String(customerProfile?.address || '').trim();
+          const customerGstin = String(customerProfile?.gstin || '').trim();
+          const effectiveCustomerName = customerDisplayName || customerName;
 
           invoiceData = invoiceService.createInvoice(
-            customerName,
+            effectiveCustomerName,
             customerEmail,
             customerPhone,
             items,
             {
+              customerAddress: customerAddress || undefined,
+              customerGST: customerGstin || undefined,
               paymentMethod: 'Razorpay',
               paymentId: razorpay_payment_id,
               orderId: razorpay_order_id,
@@ -1501,9 +1512,11 @@ export function registerSubscriptionRoutes(app: Express) {
             await db.insert(invoices).values({
               invoiceNumber: invoiceData.invoiceNumber,
               customerId: customerId,
-              customerName: customerName,
+              customerName: effectiveCustomerName,
               customerEmail: customerEmail,
               customerPhone: customerPhone,
+              customerAddress: customerAddress || null,
+              customerGST: customerGstin || null,
               subscriptionId: safeSubscriptionId,
               orderId: razorpay_order_id || null,
               paymentId: razorpay_payment_id || null,
