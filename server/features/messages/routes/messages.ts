@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { and, desc, eq, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, or } from 'drizzle-orm';
 
 import { db } from '../../../data/db';
 import {
@@ -11,6 +11,7 @@ import {
 import { notifyNewMessage } from '../../../shared/services/auto-notifications';
 import { resolveUserDisplayName, upsertUser } from '../../users/services/user-profiles';
 import { resolveUserIdFromRequest } from '../../users/services/user-lifecycle';
+import { users } from '../../users/models/users';
 
 type ParticipantRole = 'buyer' | 'seller';
 
@@ -47,6 +48,46 @@ function parseFirstImage(value: unknown): string {
 
 function participantLabel(userId: string, role: 'buyer' | 'seller'): string {
   return resolveUserDisplayName(userId, role === 'seller' ? 'Seller' : 'Buyer');
+}
+
+function isValidDisplayName(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  const normalized = trimmed.toLowerCase();
+  if (normalized === 'buyer' || normalized === 'seller' || normalized === 'unknown') {
+    return false;
+  }
+  if (/^(buyer|seller)\s+[0-9a-f]{4,}$/i.test(trimmed)) {
+    return false;
+  }
+  return true;
+}
+
+async function getUserLabelMap(userIds: string[]): Promise<Map<string, string>> {
+  const uniqueIds = [...new Set(userIds.map((id) => String(id || '').trim()).filter(Boolean))];
+  if (uniqueIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      username: users.username,
+    })
+    .from(users)
+    .where(or(inArray(users.id, uniqueIds), inArray(users.mobile, uniqueIds))!);
+
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    const preferred =
+      (isValidDisplayName(row.displayName) && row.displayName.trim()) ||
+      (isValidDisplayName(row.username) && row.username.trim()) ||
+      '';
+    if (!preferred) continue;
+    map.set(String(row.id).trim(), preferred);
+  }
+  return map;
 }
 
 function captureActorProfile(req: Request, identity: CanonicalIdentity): void {
@@ -131,10 +172,17 @@ export function registerMessageRoutes(app: Express) {
         )
         .orderBy(desc(chatConversations.lastMessageAt), desc(chatConversations.updatedAt));
 
+      const otherUserIds = rows.map((row) =>
+        row.sellerId === identity.userId ? row.buyerId : row.sellerId
+      );
+      const userLabelMap = await getUserLabelMap(otherUserIds);
+
       const threads = rows.map((row) => {
         const isSeller = row.sellerId === identity.userId;
         const otherUserId = isSeller ? row.buyerId : row.sellerId;
-        const otherUserLabel = participantLabel(otherUserId, isSeller ? 'buyer' : 'seller');
+        const otherUserLabel =
+          userLabelMap.get(otherUserId) ||
+          participantLabel(otherUserId, isSeller ? 'buyer' : 'seller');
 
         return {
           conversationId: row.conversationId,
@@ -187,6 +235,9 @@ export function registerMessageRoutes(app: Express) {
       const listing = listingRow[0];
       const isSeller = participant.role === 'seller';
       const otherUserId = isSeller ? conversation.buyerId : conversation.sellerId;
+      const labelMap = await getUserLabelMap([otherUserId]);
+      const otherUserLabel =
+        labelMap.get(otherUserId) || participantLabel(otherUserId, isSeller ? 'buyer' : 'seller');
 
       return res.json({
         success: true,
@@ -196,8 +247,8 @@ export function registerMessageRoutes(app: Express) {
           listingTitle: listing?.title || 'Listing',
           listingImage: parseFirstImage(listing?.images),
           otherUserId,
-          otherUserLabel: participantLabel(otherUserId, isSeller ? 'buyer' : 'seller'),
-          otherUserName: participantLabel(otherUserId, isSeller ? 'buyer' : 'seller'),
+          otherUserLabel,
+          otherUserName: otherUserLabel,
         },
       });
     } catch (error) {
@@ -365,15 +416,14 @@ export function registerMessageRoutes(app: Express) {
         })
         .where(eq(chatConversations.id, conversation.id));
 
-      notifyNewMessage(
-        recipientId,
-        participantLabel(identity.userId, senderRole),
-        text,
-        conversation.id,
-        identity.userId
-      ).catch((err) => {
-        console.error('[Messages] Failed to send new message notification:', err);
-      });
+      const senderLabelMap = await getUserLabelMap([identity.userId]);
+      const senderLabel =
+        senderLabelMap.get(identity.userId) || participantLabel(identity.userId, senderRole);
+      notifyNewMessage(recipientId, senderLabel, text, conversation.id, identity.userId).catch(
+        (err) => {
+          console.error('[Messages] Failed to send new message notification:', err);
+        }
+      );
 
       const message = inserted[0];
       return res.json({
