@@ -1615,42 +1615,42 @@ export function registerSubscriptionRoutes(app: Express) {
         return next();
       }
 
-    try {
-      const subscriptionId = req.params.subscriptionId as string;
+      try {
+        const subscriptionId = req.params.subscriptionId as string;
 
-      // Fetch subscription with tier details
-      const subscription = await getSubscriptionById(subscriptionId);
+        // Fetch subscription with tier details
+        const subscription = await getSubscriptionById(subscriptionId);
 
-      if (!subscription) {
-        return res.status(404).json({ success: false, error: 'Subscription not found' });
+        if (!subscription) {
+          return res.status(404).json({ success: false, error: 'Subscription not found' });
+        }
+
+        return res.json({
+          success: true,
+          id: subscription.id,
+          userId: subscription.userId,
+          tierId: subscription.subscriptionTierId,
+          status: subscription.status,
+          expiresAt: subscription.expiresAt,
+          startDate: subscription.subscribedAt,
+          subscribedAt: subscription.subscribedAt,
+          autoRenew: subscription.autoRenew,
+          tier: {
+            id: subscription.tier.id,
+            name: subscription.tier.name,
+            type: (subscription.tier as any).type || 'bundle',
+            price: subscription.tier.price,
+            durationDays: subscription.tier.durationDays,
+            maxListings: subscription.tier.maxListings,
+            featuredListingsPerMonth: subscription.tier.featuredListingsPerMonth,
+            boostCredits: Number((subscription.tier as any).boostCredits || 0),
+          },
+          boostsRemaining: Number((subscription as any).boostsRemaining || 0),
+        });
+      } catch (error) {
+        console.error('[Subscriptions] Error fetching subscription:', error);
+        res.status(500).json({ error: 'Failed to fetch subscription' });
       }
-
-      return res.json({
-        success: true,
-        id: subscription.id,
-        userId: subscription.userId,
-        tierId: subscription.subscriptionTierId,
-        status: subscription.status,
-        expiresAt: subscription.expiresAt,
-        startDate: subscription.subscribedAt,
-        subscribedAt: subscription.subscribedAt,
-        autoRenew: subscription.autoRenew,
-        tier: {
-          id: subscription.tier.id,
-          name: subscription.tier.name,
-          type: (subscription.tier as any).type || 'bundle',
-          price: subscription.tier.price,
-          durationDays: subscription.tier.durationDays,
-          maxListings: subscription.tier.maxListings,
-          featuredListingsPerMonth: subscription.tier.featuredListingsPerMonth,
-          boostCredits: Number((subscription.tier as any).boostCredits || 0),
-        },
-        boostsRemaining: Number((subscription as any).boostsRemaining || 0),
-      });
-    } catch (error) {
-      console.error('[Subscriptions] Error fetching subscription:', error);
-      res.status(500).json({ error: 'Failed to fetch subscription' });
-    }
     }
   );
 

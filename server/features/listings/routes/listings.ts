@@ -301,9 +301,13 @@ export function registerListingRoutes(app: Express) {
    */
   app.get('/api/listings/search', async (req: Request, res: Response) => {
     try {
-      const query = String(req.query.q || '').trim().toLowerCase();
+      const query = String(req.query.q || '')
+        .trim()
+        .toLowerCase();
       const category = String(req.query.category || '').trim();
-      const location = String(req.query.location || '').trim().toLowerCase();
+      const location = String(req.query.location || '')
+        .trim()
+        .toLowerCase();
       const minPrice = req.query.minPrice ? Number(req.query.minPrice) : undefined;
       const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : undefined;
       const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 500);
@@ -321,7 +325,12 @@ export function registerListingRoutes(app: Express) {
         if (!Number.isFinite(numericPrice)) return false;
         if (typeof minPrice === 'number' && numericPrice < minPrice) return false;
         if (typeof maxPrice === 'number' && numericPrice > maxPrice) return false;
-        if (location && !String(listing.location || '').toLowerCase().includes(location))
+        if (
+          location &&
+          !String(listing.location || '')
+            .toLowerCase()
+            .includes(location)
+        )
           return false;
 
         if (!query) return true;
