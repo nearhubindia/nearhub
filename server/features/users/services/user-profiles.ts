@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 export type AppUser = {
   id: string;
   phone: string;
@@ -27,8 +29,24 @@ export function normalizePhone(phone: unknown): string {
   return phone.replace(/\D/g, '').slice(-10);
 }
 
+function toDeterministicUuid(seed: string): string {
+  const hash = crypto.createHash('sha256').update(seed).digest('hex');
+  const base = hash.slice(0, 32).split('');
+  // RFC4122-ish UUID formatting.
+  base[12] = '4';
+  const variantNibble = parseInt(base[16] || '8', 16);
+  base[16] = ((variantNibble & 0x3) | 0x8).toString(16);
+  const hex = base.join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(
+    16,
+    20
+  )}-${hex.slice(20, 32)}`;
+}
+
 export function getStableUserIdFromPhone(phone: string): string {
-  return normalizePhone(phone);
+  const normalized = normalizePhone(phone);
+  if (!normalized) return '';
+  return toDeterministicUuid(`nearhub:user:${normalized}`);
 }
 
 function indexUser(user: AppUser): AppUser {

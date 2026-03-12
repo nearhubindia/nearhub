@@ -35,6 +35,12 @@ function normalizeUserId(input: unknown): string {
   return input.trim();
 }
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim()
+  );
+}
+
 export async function resolveUserIdFromRequest(req: {
   get: (name: string) => string | undefined;
   path?: string;
@@ -67,17 +73,40 @@ export async function resolveUserIdFromRequest(req: {
       if (byPhone?.id) return byPhone.id;
     }
 
-    await db
+    if (isUuid(candidate)) {
+      await db
+        .insert(users)
+        .values({
+          id: candidate,
+          username: normalized || candidate,
+          password: 'otp-auth',
+          mobile: normalized || null,
+          createdAt: new Date(),
+        })
+        .onConflictDoNothing({ target: users.id });
+      return candidate;
+    }
+
+    const created = await db
       .insert(users)
       .values({
-        id: candidate,
+        id: sql`gen_random_uuid()`,
         username: candidate,
         password: 'otp-auth',
         mobile: normalized || null,
         createdAt: new Date(),
       })
-      .onConflictDoNothing({ target: users.id });
-    return candidate;
+      .onConflictDoNothing({ target: users.username })
+      .returning({ id: users.id });
+    if (created[0]?.id) return created[0].id;
+
+    const byUsername = await db.query.users.findFirst({
+      where: eq(users.username, candidate),
+      columns: { id: true },
+    });
+    if (byUsername?.id) return byUsername.id;
+
+    return '';
   }
 
   const rawPhone = req.get('x-user-phone');
@@ -94,17 +123,24 @@ export async function resolveUserIdFromRequest(req: {
   });
   if (byPhone?.id) return byPhone.id;
 
-  await db
+  const created = await db
     .insert(users)
     .values({
-      id: normalized,
+      id: sql`gen_random_uuid()`,
       username: normalized,
       password: 'otp-auth',
       mobile: normalized,
       createdAt: new Date(),
     })
-    .onConflictDoNothing({ target: users.id });
-  return normalized;
+    .onConflictDoNothing({ target: users.username })
+    .returning({ id: users.id });
+  if (created[0]?.id) return created[0].id;
+
+  const byAlias = await db.query.users.findFirst({
+    where: or(eq(users.mobile, normalized), eq(users.username, normalized)),
+    columns: { id: true },
+  });
+  return byAlias?.id || '';
 }
 
 export async function touchUserActivity(input: {

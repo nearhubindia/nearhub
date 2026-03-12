@@ -6,7 +6,13 @@
 import type { Express, Request, Response } from 'express';
 import { eq, or } from 'drizzle-orm';
 import { getListingsByUser } from '../../listings/services/listings';
-import { getUserById, normalizePhone, upsertUser, type AppUser } from '../services/user-profiles';
+import {
+  getStableUserIdFromPhone,
+  getUserById,
+  normalizePhone,
+  upsertUser,
+  type AppUser,
+} from '../services/user-profiles';
 import { getRequestUserId } from '../../../lib/request-user';
 import { db } from '../../../data/db';
 import { users } from '../models/users';
@@ -58,6 +64,11 @@ export function registerUserRoutes(app: Express) {
     avatarUrl: string | undefined,
     profile: { name?: string; address?: string; gstin?: string }
   ) => {
+    const isUuid = (value: string): boolean =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        value.trim()
+      );
+
     const dbUser = await getDbUser(userId);
     const profileName =
       typeof profile.name === 'string' && profile.name.trim() ? profile.name.trim() : '';
@@ -93,10 +104,14 @@ export function registerUserRoutes(app: Express) {
     }
 
     const normalizedPhone = normalizePhone(userId);
+    const canonicalIdCandidate = String(userId || '').trim();
+    const canonicalId = isUuid(canonicalIdCandidate)
+      ? canonicalIdCandidate
+      : getStableUserIdFromPhone(normalizedPhone);
     await db
       .insert(users)
       .values({
-        id: String(userId || '').trim() || normalizedPhone,
+        ...(canonicalId ? { id: canonicalId } : {}),
         username: normalizedPhone || String(userId || '').trim(),
         displayName:
           profileName && !isPhoneLikeUsername(profileName) && !isPlaceholderName(profileName)
@@ -109,7 +124,7 @@ export function registerUserRoutes(app: Express) {
         avatarUrl: normalizedAvatarUrl || null,
         createdAt: new Date(),
       })
-      .onConflictDoNothing({ target: users.id });
+      .onConflictDoNothing({ target: users.username });
   };
 
   const ensureUser = (userId: string): AppUser => {

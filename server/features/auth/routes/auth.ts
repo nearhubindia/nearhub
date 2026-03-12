@@ -56,10 +56,11 @@ async function upsertAuthUserRecord(input: {
     return;
   }
 
+  const preferredId = String(input.preferredId || '').trim();
   await db
     .insert(users)
     .values({
-      id: input.preferredId || normalizedPhone,
+      ...(preferredId && isUuid(preferredId) ? { id: preferredId } : {}),
       username: normalizedPhone,
       displayName:
         profileName && !isPhoneLikeUsername(profileName) && !isPlaceholderName(profileName)
@@ -70,7 +71,7 @@ async function upsertAuthUserRecord(input: {
       avatarUrl: typeof input.avatarUrl === 'string' ? input.avatarUrl.trim() || null : null,
       createdAt: new Date(),
     })
-    .onConflictDoNothing({ target: users.id });
+    .onConflictDoNothing({ target: users.username });
 }
 
 async function getDbUserByPhone(phone: string) {
@@ -361,3 +362,5 @@ export function registerAuthRoutes(app: Express) {
     }
   });
 }
+const isUuid = (value: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
