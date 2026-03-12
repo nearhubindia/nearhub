@@ -6,10 +6,10 @@ import {
   TouchableOpacity,
   Text,
   Alert,
-  SafeAreaView,
   Platform,
   Linking,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import { Audio } from 'expo-av';

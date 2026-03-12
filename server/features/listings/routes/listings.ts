@@ -115,14 +115,10 @@ function normalizeStatus(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
-function getSellerDisplayName(listing: any): string {
-  const candidate = typeof listing?.sellerName === 'string' ? listing.sellerName.trim() : '';
-  return candidate || 'Seller';
-}
-
 type SellerMeta = {
   isVerified: boolean;
   avatarUrl: string;
+  displayName: string;
 };
 
 async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, SellerMeta>> {
@@ -137,6 +133,7 @@ async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, Seller
     .select({
       id: users.id,
       mobile: users.mobile,
+      username: users.username,
       isVerified: users.isVerified,
       avatarUrl: users.avatarUrl,
     })
@@ -145,11 +142,29 @@ async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, Seller
 
   const metaMap = new Map<string, SellerMeta>();
   for (const row of metaRows) {
-    const meta = { isVerified: Boolean(row.isVerified), avatarUrl: String(row.avatarUrl || '') };
+    const meta = {
+      isVerified: Boolean(row.isVerified),
+      avatarUrl: String(row.avatarUrl || ''),
+      displayName: String(row.username || '').trim(),
+    };
     if (row.id) metaMap.set(String(row.id).trim(), meta);
     if (row.mobile) metaMap.set(String(row.mobile).trim(), meta);
   }
   return metaMap;
+}
+
+function getSellerDisplayName(listing: any, sellerMeta?: SellerMeta): string {
+  const listingName =
+    typeof listing?.sellerName === 'string' ? listing.sellerName.trim() : '';
+  if (listingName && listingName.toLowerCase() !== 'seller') {
+    return listingName;
+  }
+
+  const userName =
+    typeof sellerMeta?.displayName === 'string' ? sellerMeta.displayName.trim() : '';
+  if (userName) return userName;
+
+  return listingName || 'Seller';
 }
 
 function resolveContactPhone(rest: any, sellerId: string): string {
@@ -176,7 +191,7 @@ function toPublicListing(listing: any, sellerMetaMap?: Map<string, SellerMeta>) 
     ...rest,
     sellerId,
     userId: sellerId, // Backward compatibility for mobile clients still reading userId.
-    sellerName: getSellerDisplayName(listing),
+    sellerName: getSellerDisplayName(listing, sellerMeta),
     sellerVerified: Boolean(sellerMeta?.isVerified),
     sellerAvatar: sellerMeta?.avatarUrl || '',
     contactPhone,

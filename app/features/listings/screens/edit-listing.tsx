@@ -20,6 +20,7 @@ import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import Svg, { Circle } from 'react-native-svg';
 import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
 import { Category, CATEGORIES, CONDITIONS, PriceUnit, PRICE_UNITS } from '@/lib/types';
@@ -105,6 +106,8 @@ export default function EditListingScreen() {
   const [videoUploadProgress, setVideoUploadProgress] = useState<UploadProgressState | null>(null);
   const [showRecorder, setShowRecorder] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitProgress, setSubmitProgress] = useState(0);
+  const [submitStatusMessage, setSubmitStatusMessage] = useState('');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showConditionPicker, setShowConditionPicker] = useState(false);
   const [showPriceUnitPicker, setShowPriceUnitPicker] = useState(false);
@@ -487,15 +490,24 @@ export default function EditListingScreen() {
     }
 
     setIsSubmitting(true);
+    setSubmitProgress(10);
+    setSubmitStatusMessage('Preparing your update...');
 
     try {
       const portableImages = await uploadImagesToCloudflare(images);
+      setSubmitProgress(55);
+      setSubmitStatusMessage('Uploading media...');
 
       if (portableImages.length === 0) {
         Alert.alert('Error', 'Images could not be processed. Please re-add images and try again.');
         setIsSubmitting(false);
+        setSubmitProgress(0);
+        setSubmitStatusMessage('');
         return;
       }
+
+      setSubmitProgress(80);
+      setSubmitStatusMessage('Saving changes...');
 
       await updateListing(id, {
         title: title.trim(),
@@ -527,21 +539,28 @@ export default function EditListingScreen() {
         });
       }
 
+      setSubmitProgress(100);
+      setSubmitStatusMessage('Listing updated successfully');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Success', 'Listing updated successfully', [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]);
+      router.replace({ pathname: '/my-listings', params: { edited: '1' } });
     } catch (error) {
       console.error('Error updating listing:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Error', 'Failed to update listing. Please try again.');
     } finally {
       setIsSubmitting(false);
+      setSubmitProgress(0);
+      setSubmitStatusMessage('');
     }
   };
+
+  const normalizedSubmitProgress = Math.max(0, Math.min(100, Math.round(submitProgress)));
+  const progressCircleRadius = 82;
+  const progressCircleStroke = 14;
+  const progressCircleSize = 220;
+  const progressCircleCircumference = 2 * Math.PI * progressCircleRadius;
+  const progressCircleStrokeOffset =
+    progressCircleCircumference * (1 - normalizedSubmitProgress / 100);
 
   return (
     <View style={styles.container}>
@@ -919,6 +938,47 @@ export default function EditListingScreen() {
         onVideoRecorded={handleRecordedVideo}
         maxDuration={30}
       />
+
+      {isSubmitting && (
+        <View style={styles.submitOverlay}>
+          <View style={styles.submitOverlayCard}>
+            <View style={styles.submitProgressRingWrap}>
+              <Svg
+                width={progressCircleSize}
+                height={progressCircleSize}
+                style={styles.submitProgressSvg}
+              >
+                <Circle
+                  cx={progressCircleSize / 2}
+                  cy={progressCircleSize / 2}
+                  r={progressCircleRadius}
+                  stroke="rgba(255,255,255,0.2)"
+                  strokeWidth={progressCircleStroke}
+                  fill="none"
+                />
+                <Circle
+                  cx={progressCircleSize / 2}
+                  cy={progressCircleSize / 2}
+                  r={progressCircleRadius}
+                  stroke="#38BDF8"
+                  strokeWidth={progressCircleStroke}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray={`${progressCircleCircumference} ${progressCircleCircumference}`}
+                  strokeDashoffset={progressCircleStrokeOffset}
+                />
+              </Svg>
+              <View style={styles.submitProgressCenter}>
+                <Text style={styles.submitProgressText}>{normalizedSubmitProgress}%</Text>
+                <Text style={styles.submitProgressSubtext}>Updating</Text>
+              </View>
+            </View>
+            <Text style={styles.submitOverlayMessage}>
+              {submitStatusMessage || 'Updating your listing...'}
+            </Text>
+          </View>
+        </View>
+      )}
 
       <Modal
         visible={showLocationModal}
@@ -1424,6 +1484,55 @@ const styles = StyleSheet.create({
   },
   submitButtonDisabled: {
     opacity: 0.5,
+  },
+  submitOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.82)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1200,
+    elevation: 1200,
+  },
+  submitOverlayCard: {
+    width: '86%',
+    maxWidth: 360,
+    alignItems: 'center',
+  },
+  submitProgressRingWrap: {
+    width: 220,
+    height: 220,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  submitProgressSvg: {
+    transform: [{ rotate: '-90deg' }],
+  },
+  submitProgressCenter: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  submitProgressText: {
+    fontSize: 44,
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#FFFFFF',
+    lineHeight: 48,
+  },
+  submitProgressSubtext: {
+    marginTop: 2,
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: 'rgba(255,255,255,0.82)',
+    letterSpacing: 0.4,
+  },
+  submitOverlayMessage: {
+    marginTop: 20,
+    textAlign: 'center',
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#F8FAFC',
+    lineHeight: 22,
+    paddingHorizontal: 8,
   },
   submitButtonText: {
     fontSize: 16,

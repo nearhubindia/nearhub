@@ -6,11 +6,10 @@ import {
   FlatList,
   Pressable,
   Platform,
-  SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Feather } from '@expo/vector-icons';
 import Colors from '@/constants/colors';

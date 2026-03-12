@@ -164,11 +164,6 @@ function parseMediaField(value: unknown): unknown[] {
   }
 }
 
-function getSellerDisplayName(listing: any): string {
-  const candidate = typeof listing?.sellerName === 'string' ? listing.sellerName.trim() : '';
-  return candidate || 'Seller';
-}
-
 function resolveContactPhone(rest: any, sellerId: string): string {
   const candidates = [rest?.contactPhone, rest?.sellerPhone, sellerId];
   for (const value of candidates) {
@@ -186,6 +181,7 @@ function resolveContactPhone(rest: any, sellerId: string): string {
 type SellerMeta = {
   avatarUrl: string;
   isVerified: boolean;
+  displayName: string;
 };
 
 async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, SellerMeta>> {
@@ -200,6 +196,7 @@ async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, Seller
     .select({
       id: users.id,
       mobile: users.mobile,
+      username: users.username,
       avatarUrl: users.avatarUrl,
       isVerified: users.isVerified,
     })
@@ -208,11 +205,29 @@ async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, Seller
 
   const metaMap = new Map<string, SellerMeta>();
   for (const row of metaRows) {
-    const meta = { avatarUrl: String(row.avatarUrl || ''), isVerified: Boolean(row.isVerified) };
+    const meta = {
+      avatarUrl: String(row.avatarUrl || ''),
+      isVerified: Boolean(row.isVerified),
+      displayName: String(row.username || '').trim(),
+    };
     if (row.id) metaMap.set(String(row.id).trim(), meta);
     if (row.mobile) metaMap.set(String(row.mobile).trim(), meta);
   }
   return metaMap;
+}
+
+function getSellerDisplayName(listing: any, sellerMeta?: SellerMeta): string {
+  const listingName =
+    typeof listing?.sellerName === 'string' ? listing.sellerName.trim() : '';
+  if (listingName && listingName.toLowerCase() !== 'seller') {
+    return listingName;
+  }
+
+  const userName =
+    typeof sellerMeta?.displayName === 'string' ? sellerMeta.displayName.trim() : '';
+  if (userName) return userName;
+
+  return listingName || 'Seller';
 }
 
 function toPublicListing(listing: any, sellerMetaMap?: Map<string, SellerMeta>) {
@@ -225,7 +240,7 @@ function toPublicListing(listing: any, sellerMetaMap?: Map<string, SellerMeta>) 
     ...rest,
     sellerId,
     userId: sellerId, // Backward compatibility for clients still reading userId.
-    sellerName: getSellerDisplayName(listing),
+    sellerName: getSellerDisplayName(listing, sellerMeta),
     sellerAvatar: sellerMeta?.avatarUrl || '',
     sellerVerified: Boolean(sellerMeta?.isVerified),
     contactPhone,

@@ -21,19 +21,30 @@ const CURRENT_DATA_VERSION = '8'; // Remove sample fallback and reset stale samp
 const NETWORK_TIMEOUT_MS = 12000;
 
 function resolveSellerName(listing: any): string {
+  const isPlaceholderName = (value: string): boolean => {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'seller' || normalized === 'unknown' || normalized === 'anonymous';
+  };
+
   const candidates = [
     listing?.sellerName,
     listing?.seller_name,
+    listing?.seller?.name,
+    listing?.seller?.username,
     listing?.ownerName,
     listing?.owner_name,
     listing?.userName,
     listing?.user_name,
+    listing?.username,
     listing?.name,
   ];
 
   for (const candidate of candidates) {
     if (typeof candidate === 'string' && candidate.trim().length > 0) {
-      return candidate.trim();
+      const normalized = candidate.trim();
+      if (!isPlaceholderName(normalized)) {
+        return normalized;
+      }
     }
   }
 

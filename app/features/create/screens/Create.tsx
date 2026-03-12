@@ -22,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
+import Svg, { Circle } from 'react-native-svg';
 import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
 import UploadProgressBar from '@/shared/components/UploadProgressBar';
@@ -1264,30 +1265,18 @@ export default function CreateScreen() {
 
       // Show success message briefly before clearing
       await new Promise((resolve) => setTimeout(resolve, 800));
-
-      Alert.alert(
-        'Submitted!',
-        'Your listing was submitted successfully and is pending admin approval.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setTitle('');
-              setDescription('');
-              setPrice('');
-              setOfferPrice('');
-              setMediaType('photo');
-              setImages([]);
-              setImageHashes([]);
-              setImageDeduplicationInfo(null);
-              setVideoUri(null);
-              setVideoThumbnail(null);
-              // Navigate to home page
-              router.replace('/(tabs)');
-            },
-          },
-        ]
-      );
+      setTitle('');
+      setDescription('');
+      setPrice('');
+      setOfferPrice('');
+      setMediaType('photo');
+      setImages([]);
+      setImageHashes([]);
+      setImageDeduplicationInfo(null);
+      setVideoUri(null);
+      setVideoThumbnail(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace({ pathname: '/my-listings', params: { posted: '1' } });
     } catch (e) {
       const error = e as any;
       console.error('[Create] Listing creation error:', error);
@@ -1471,6 +1460,14 @@ export default function CreateScreen() {
       </View>
     );
   }
+
+  const submissionProgress = Math.max(0, Math.min(100, Math.round(overallProgress)));
+  const progressCircleRadius = 82;
+  const progressCircleStroke = 14;
+  const progressCircleSize = 220;
+  const progressCircleCircumference = 2 * Math.PI * progressCircleRadius;
+  const progressCircleStrokeOffset =
+    progressCircleCircumference * (1 - submissionProgress / 100);
 
   return (
     <>
@@ -2235,52 +2232,6 @@ export default function CreateScreen() {
             </Pressable>
           </View>
 
-          {/* Upload & submit progress banner */}
-          {(isSubmitting || validationMessage) && (
-            <View style={styles.validationBanner}>
-              <LinearGradient
-                colors={
-                  overallProgress === 100
-                    ? ['#DCFCE7', '#BBF7D0', '#86EFAC']
-                    : ['#E0F2FE', '#BAE6FD', '#7DD3FC']
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.validationGradient}
-              >
-                {/* Progress Bar Background */}
-                <View style={styles.progressBarContainer}>
-                  <View style={[styles.progressBarFill, { width: `${overallProgress}%` }]} />
-                </View>
-
-                <View style={styles.validationContent}>
-                  {overallProgress < 100 ? (
-                    <ActivityIndicator size="small" color="#0369A1" style={{ marginRight: 12 }} />
-                  ) : (
-                    <View style={styles.successIconContainer}>
-                      <Feather name="check-circle" size={20} color="#16A34A" />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.titleRow}>
-                      <Text style={styles.validationTitle}>
-                        {overallProgress === 100
-                          ? '✅ Listing Posted Successfully!'
-                          : isUploading
-                            ? '⬆️ Uploading Content'
-                            : '✨ Creating Your Listing'}
-                      </Text>
-                      <Text style={styles.percentageText}>{overallProgress}%</Text>
-                    </View>
-                    <Text style={styles.validationMessage}>
-                      {validationMessage ||
-                        (isSubmitting ? 'Almost ready to publish!' : 'Please wait...')}
-                    </Text>
-                  </View>
-                </View>
-              </LinearGradient>
-            </View>
-          )}
         </ScrollView>
 
         {/* Subscription Picker Modal */}
@@ -2675,6 +2626,47 @@ export default function CreateScreen() {
           maxDuration={30}
         />
       </KeyboardAvoidingView>
+
+      {isSubmitting && (
+        <View style={styles.submitOverlay}>
+          <View style={styles.submitOverlayCard}>
+            <View style={styles.submitProgressRingWrap}>
+              <Svg
+                width={progressCircleSize}
+                height={progressCircleSize}
+                style={styles.submitProgressSvg}
+              >
+                <Circle
+                  cx={progressCircleSize / 2}
+                  cy={progressCircleSize / 2}
+                  r={progressCircleRadius}
+                  stroke="rgba(255,255,255,0.2)"
+                  strokeWidth={progressCircleStroke}
+                  fill="none"
+                />
+                <Circle
+                  cx={progressCircleSize / 2}
+                  cy={progressCircleSize / 2}
+                  r={progressCircleRadius}
+                  stroke="#38BDF8"
+                  strokeWidth={progressCircleStroke}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray={`${progressCircleCircumference} ${progressCircleCircumference}`}
+                  strokeDashoffset={progressCircleStrokeOffset}
+                />
+              </Svg>
+              <View style={styles.submitProgressCenter}>
+                <Text style={styles.submitProgressText}>{submissionProgress}%</Text>
+                <Text style={styles.submitProgressSubtext}>Posting</Text>
+              </View>
+            </View>
+            <Text style={styles.submitOverlayMessage}>
+              {validationMessage || (isUploading ? 'Uploading media...' : 'Creating your listing...')}
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* Location Selection - Full screen overlay (NOT a Modal, avoids Android keyboard bug) */}
       {showLocationModal && (
@@ -4509,6 +4501,55 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
     lineHeight: 16,
+  },
+  submitOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.82)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1100,
+    elevation: 1100,
+  },
+  submitOverlayCard: {
+    width: '86%',
+    maxWidth: 360,
+    alignItems: 'center',
+  },
+  submitProgressRingWrap: {
+    width: 220,
+    height: 220,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  submitProgressSvg: {
+    transform: [{ rotate: '-90deg' }],
+  },
+  submitProgressCenter: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  submitProgressText: {
+    fontSize: 44,
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#FFFFFF',
+    lineHeight: 48,
+  },
+  submitProgressSubtext: {
+    marginTop: 2,
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: 'rgba(255,255,255,0.82)',
+    letterSpacing: 0.4,
+  },
+  submitOverlayMessage: {
+    marginTop: 20,
+    textAlign: 'center',
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#F8FAFC',
+    lineHeight: 22,
+    paddingHorizontal: 8,
   },
   validationBanner: {
     marginTop: 16,

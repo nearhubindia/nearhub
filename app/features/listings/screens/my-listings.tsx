@@ -14,6 +14,7 @@ import {
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import Colors from '@/constants/colors';
@@ -46,7 +47,12 @@ const PLAN_AMOUNT_BY_DURATION: Record<number, number> = {
 };
 
 export default function MyListingsScreen() {
-  const params = useLocalSearchParams<{ tab?: string; renewId?: string }>();
+  const params = useLocalSearchParams<{
+    tab?: string;
+    renewId?: string;
+    posted?: string;
+    edited?: string;
+  }>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { listings, deleteListing, updateListing, refreshListings } = useListings();
@@ -68,6 +74,8 @@ export default function MyListingsScreen() {
   const [feedbackModalTitle, setFeedbackModalTitle] = useState('Success');
   const [feedbackModalMessage, setFeedbackModalMessage] = useState('');
   const [feedbackModalType, setFeedbackModalType] = useState<'success' | 'error'>('success');
+  const [hasHandledPostedSuccess, setHasHandledPostedSuccess] = useState(false);
+  const [hasHandledEditedSuccess, setHasHandledEditedSuccess] = useState(false);
   const [autoRenewOpenedForId, setAutoRenewOpenedForId] = useState<string | null>(null);
   const [upgradePlans, setUpgradePlans] = useState<UpgradePlan[]>(DEFAULT_UPGRADE_PLANS);
   const [nowTick, setNowTick] = useState(Date.now());
@@ -191,6 +199,30 @@ export default function MyListingsScreen() {
   }, [params.renewId, expiredListings, autoRenewOpenedForId]);
 
   useEffect(() => {
+    const posted = typeof params.posted === 'string' ? params.posted : '';
+    if (posted !== '1' || hasHandledPostedSuccess) return;
+
+    setHasHandledPostedSuccess(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showSuccessModal(
+      'Listing posted successfully. It is now visible in your listings.',
+      'Listing Posted Successfully'
+    );
+  }, [hasHandledPostedSuccess, params.posted]);
+
+  useEffect(() => {
+    const edited = typeof params.edited === 'string' ? params.edited : '';
+    if (edited !== '1' || hasHandledEditedSuccess) return;
+
+    setHasHandledEditedSuccess(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showSuccessModal(
+      'Listing updated successfully and will be posted after admin review.',
+      'Listing Updated Successfully'
+    );
+  }, [hasHandledEditedSuccess, params.edited]);
+
+  useEffect(() => {
     const timer = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -212,8 +244,8 @@ export default function MyListingsScreen() {
     }, [refreshListings])
   );
 
-  const showSuccessModal = (message: string) => {
-    setFeedbackModalTitle('Success');
+  const showSuccessModal = (message: string, title = 'Success') => {
+    setFeedbackModalTitle(title);
     setFeedbackModalType('success');
     setFeedbackModalMessage(message);
     setFeedbackModalVisible(true);
@@ -621,7 +653,10 @@ export default function MyListingsScreen() {
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showSuccessModal('Listing boosted for 24 hours.');
+      showSuccessModal(
+        'Listing boosted successfully for more views.',
+        'Listing Boosted Successfully'
+      );
       onRefresh();
     } catch (error) {
       console.error('[Boost] Error boosting listing:', error);
@@ -1091,30 +1126,42 @@ export default function MyListingsScreen() {
             style={StyleSheet.absoluteFillObject}
             onPress={() => setFeedbackModalVisible(false)}
           />
-          <View style={styles.feedbackModalCard}>
-            <View
-              style={[
-                styles.feedbackIconWrap,
-                feedbackModalType === 'success'
-                  ? styles.feedbackIconSuccess
-                  : styles.feedbackIconError,
-              ]}
+          {feedbackModalType === 'success' ? (
+            <LinearGradient
+              colors={['#ECFDF3', '#D1FAE5']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.feedbackSuccessCard}
             >
-              <Feather
-                name={feedbackModalType === 'success' ? 'check' : 'x'}
-                size={20}
-                color="#fff"
-              />
+              <View style={styles.feedbackSuccessIconOuter}>
+                <View style={styles.feedbackSuccessIconInner}>
+                  <Feather name="check" size={28} color="#fff" />
+                </View>
+              </View>
+              <Text style={styles.feedbackSuccessTitle}>{feedbackModalTitle}</Text>
+              <Text style={styles.feedbackSuccessMessage}>{feedbackModalMessage}</Text>
+              <Pressable
+                style={styles.feedbackSuccessButton}
+                onPress={() => setFeedbackModalVisible(false)}
+              >
+                <Text style={styles.feedbackSuccessButtonText}>Awesome</Text>
+              </Pressable>
+            </LinearGradient>
+          ) : (
+            <View style={styles.feedbackModalCard}>
+              <View style={[styles.feedbackIconWrap, styles.feedbackIconError]}>
+                <Feather name="x" size={20} color="#fff" />
+              </View>
+              <Text style={styles.feedbackModalTitle}>{feedbackModalTitle}</Text>
+              <Text style={styles.feedbackModalMessage}>{feedbackModalMessage}</Text>
+              <Pressable
+                style={styles.feedbackModalButton}
+                onPress={() => setFeedbackModalVisible(false)}
+              >
+                <Text style={styles.feedbackModalButtonText}>Done</Text>
+              </Pressable>
             </View>
-            <Text style={styles.feedbackModalTitle}>{feedbackModalTitle}</Text>
-            <Text style={styles.feedbackModalMessage}>{feedbackModalMessage}</Text>
-            <Pressable
-              style={styles.feedbackModalButton}
-              onPress={() => setFeedbackModalVisible(false)}
-            >
-              <Text style={styles.feedbackModalButtonText}>Done</Text>
-            </Pressable>
-          </View>
+          )}
         </View>
       </Modal>
     </View>
@@ -1658,10 +1705,76 @@ const styles = createResponsiveStyles({
   },
   feedbackModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.42)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+  },
+  feedbackSuccessCard: {
+    width: '100%',
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    paddingVertical: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  feedbackSuccessIconOuter: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  feedbackSuccessIconInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  feedbackSuccessTitle: {
+    fontSize: 23,
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#065F46',
+    textAlign: 'center',
+    lineHeight: 30,
+  },
+  feedbackSuccessMessage: {
+    marginTop: 8,
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: '#047857',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  feedbackSuccessButton: {
+    marginTop: 18,
+    backgroundColor: '#059669',
+    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    minWidth: 140,
+    alignItems: 'center',
+    shadowColor: '#065F46',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  feedbackSuccessButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter_700Bold',
+    color: '#fff',
+    letterSpacing: 0.2,
   },
   feedbackModalCard: {
     width: '100%',
