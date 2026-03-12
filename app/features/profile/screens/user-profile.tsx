@@ -38,9 +38,14 @@ type UserListing = {
 export default function UserProfileScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ userId?: string | string[]; userName?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    userId?: string | string[];
+    userName?: string | string[];
+  }>();
   const userId = Array.isArray(params.userId) ? params.userId[0] : params.userId || '';
-  const fallbackName = Array.isArray(params.userName) ? params.userName[0] : params.userName || 'User';
+  const fallbackName = Array.isArray(params.userName)
+    ? params.userName[0]
+    : params.userName || 'User';
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const [isLoading, setIsLoading] = useState(true);
@@ -146,7 +151,11 @@ export default function UserProfileScreen() {
           <View style={styles.profileCard}>
             <View style={styles.avatarWrap}>
               {profile?.avatarUrl ? (
-                <Image source={{ uri: profile.avatarUrl }} style={styles.avatarImage} contentFit="cover" />
+                <Image
+                  source={{ uri: profile.avatarUrl }}
+                  style={styles.avatarImage}
+                  contentFit="cover"
+                />
               ) : (
                 <Text style={styles.avatarText}>{headerInitial}</Text>
               )}
@@ -182,7 +191,11 @@ export default function UserProfileScreen() {
             onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
           >
             {item.images && item.images[0] ? (
-              <Image source={{ uri: item.images[0] }} style={styles.listingImage} contentFit="cover" />
+              <Image
+                source={{ uri: item.images[0] }}
+                style={styles.listingImage}
+                contentFit="cover"
+              />
             ) : (
               <View style={[styles.listingImage, styles.listingImageFallback]}>
                 <Feather name="image" size={16} color={Colors.textTertiary} />
@@ -196,7 +209,9 @@ export default function UserProfileScreen() {
                 {item.location || 'Unknown location'}
               </Text>
             </View>
-            <Text style={styles.listingPrice}>₹{Number(item.price || 0).toLocaleString('en-IN')}</Text>
+            <Text style={styles.listingPrice}>
+              ₹{Number(item.price || 0).toLocaleString('en-IN')}
+            </Text>
           </Pressable>
         )}
       />
