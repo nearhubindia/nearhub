@@ -149,7 +149,7 @@ function parseMediaField(value: unknown): unknown[] {
       const inner = raw.slice(1, -1).trim();
       if (!inner) return [];
       return inner
-        .split(/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/)
+        .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
         .map((item) => item.trim().replace(/^"(.*)"$/, '$1').replace(/\\"/g, '"'))
         .filter(Boolean);
     }

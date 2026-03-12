@@ -67,13 +67,13 @@ export function registerAdminUsersRoutes(app: Express) {
       >();
       for (const row of listingRows) {
         const existing = latestListingById.get(row.userId);
-        if (!existing || (row.createdAt && existing.createdAt && row.createdAt > existing.createdAt)) {
+        if (!existing) {
           latestListingById.set(row.userId, {
             location: row.location || null,
             createdAt: row.createdAt || null,
             contactPhone: row.contactPhone || null,
           });
-        } else if (!existing) {
+        } else if (row.createdAt && existing.createdAt && row.createdAt > existing.createdAt) {
           latestListingById.set(row.userId, {
             location: row.location || null,
             createdAt: row.createdAt || null,
