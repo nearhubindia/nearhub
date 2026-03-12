@@ -29,3 +29,8 @@ console.warn = (...args: any[]) => {
 
 // Global test timeout
 jest.setTimeout(10000);
+
+beforeAll(async () => {
+  const { ensureCoreSchema } = await import('../../data/ensure-core-schema');
+  await ensureCoreSchema();
+});

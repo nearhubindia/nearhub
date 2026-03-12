@@ -25,6 +25,7 @@ import {
 } from './features/users/services/user-lifecycle';
 import { runInactiveUserCleanupJob } from './features/users/workers/inactive-user-cleanup';
 import { runDataRetentionCleanupJob } from './features/users/workers/data-retention-cleanup';
+import { ensureCoreSchema } from './data/ensure-core-schema';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -343,6 +344,13 @@ function setupErrorHandler(app: express.Application) {
 }
 
 (async () => {
+  try {
+    await ensureCoreSchema();
+  } catch (error) {
+    console.error('[DB] Core schema verification failed:', error);
+    process.exit(1);
+  }
+
   // Initialize Redis cache
   try {
     await redisCache.connect();
