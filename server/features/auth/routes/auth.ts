@@ -156,6 +156,7 @@ export function registerAuthRoutes(app: Express) {
 
       const hasFootprint = await hasExistingAccountFootprint(canonicalUserId);
       const isNewUser = !dbUser?.id && !hasFootprint;
+      const requiresProfileCompletion = isNewUser ? !hasCompletedOnboarding(user) : false;
 
       if (isNewUser) {
         try {
@@ -169,7 +170,7 @@ export function registerAuthRoutes(app: Express) {
         success: true,
         user,
         isNewUser,
-        requiresProfileCompletion: !hasCompletedOnboarding(user),
+        requiresProfileCompletion,
       });
     } catch (error) {
       console.error('Error verifying OTP:', error);
