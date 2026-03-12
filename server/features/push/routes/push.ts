@@ -16,6 +16,16 @@ import {
 import { db } from '../../../data/db';
 import { notificationLogs, pushTokens } from '../../admin/models/admin-settings';
 import { desc, eq } from 'drizzle-orm';
+import { getRequestUserId } from '../../../lib/request-user';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function normalizeUuid(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return UUID_REGEX.test(trimmed) ? trimmed : '';
+}
 
 export function registerPushNotificationRoutes(app: Express) {
   /**
@@ -24,12 +34,22 @@ export function registerPushNotificationRoutes(app: Express) {
    */
   app.post('/api/push/register', async (req: Request, res: Response) => {
     try {
-      const { userId, token, platform, deviceId } = req.body;
+      const { userId: rawUserId, token, platform, deviceId } = req.body;
+      const headerUserId = getRequestUserId(req);
+      const bodyUserId = normalizeUuid(rawUserId);
+      const userId = headerUserId || bodyUserId;
 
       if (!userId || !token || !platform) {
         return res.status(400).json({
           success: false,
           message: 'Missing required fields: userId, token, platform',
+        });
+      }
+
+      if (headerUserId && bodyUserId && headerUserId !== bodyUserId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Token registration user mismatch',
         });
       }
 

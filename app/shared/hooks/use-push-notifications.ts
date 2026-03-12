@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { getApiUrl } from '@/lib/query-client';
 import { useAuth } from '@/shared/contexts/auth-context';
+import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 
 // Configure how notifications are handled when app is in foreground
 Notifications.setNotificationHandler({
@@ -174,9 +175,7 @@ async function sendTokenToServer(token: string, userId: string): Promise<void> {
     const apiUrl = getApiUrl();
     const response = await fetch(`${apiUrl}/api/push/register`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: buildUserAuthHeaders({ id: userId }),
       body: JSON.stringify({
         userId,
         token,

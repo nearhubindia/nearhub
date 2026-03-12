@@ -99,9 +99,22 @@ export async function notifyNewMessage(
   recipientId: string,
   senderName: string,
   message: string,
-  conversationId: string
+  conversationId: string,
+  senderId?: string
 ): Promise<void> {
   try {
+    const normalizedRecipient = String(recipientId || '').trim();
+    const normalizedSender = String(senderId || '').trim();
+    if (!normalizedRecipient) return;
+    if (normalizedSender && normalizedRecipient === normalizedSender) {
+      console.warn('[Auto-Notify] Skipping self-message push notification', {
+        recipientId: normalizedRecipient,
+        senderId: normalizedSender,
+        conversationId,
+      });
+      return;
+    }
+
     await sendPushToUser(recipientId, {
       title: `💬 New message from ${senderName}`,
       body: message.substring(0, 100),

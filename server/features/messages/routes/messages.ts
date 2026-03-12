@@ -369,7 +369,8 @@ export function registerMessageRoutes(app: Express) {
         recipientId,
         participantLabel(identity.userId, senderRole),
         text,
-        conversation.id
+        conversation.id,
+        identity.userId
       ).catch((err) => {
         console.error('[Messages] Failed to send new message notification:', err);
       });
