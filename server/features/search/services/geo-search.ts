@@ -107,11 +107,13 @@ export async function searchListingsByGeo(options: GeoSearchOptions): Promise<Se
   );
 
   // Get all active listings from database only
-  const allListings = (await getActiveListing({
-    limit: 5000,
-    offset: 0,
-    category,
-  })).map(mapListing);
+  const allListings = (
+    await getActiveListing({
+      limit: 5000,
+      offset: 0,
+      category,
+    })
+  ).map(mapListing);
 
   // Filter and calculate distances
   const resultsWithDistance: SearchResult[] = [];

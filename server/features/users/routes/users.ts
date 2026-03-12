@@ -23,7 +23,12 @@ function parseJsonField(value: unknown): unknown[] {
         if (!inner) return [];
         return inner
           .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
-          .map((item) => item.trim().replace(/^"(.*)"$/, '$1').replace(/\\"/g, '"'))
+          .map((item) =>
+            item
+              .trim()
+              .replace(/^"(.*)"$/, '$1')
+              .replace(/\\"/g, '"')
+          )
           .filter(Boolean);
       }
       return [raw];

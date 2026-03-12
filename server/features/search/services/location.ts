@@ -102,20 +102,25 @@ async function searchLocationRecords(query: string, limit: number): Promise<Loca
         OR lower(${locationIndex.searchText}) LIKE lower(${contains})
       )`
     )
-    .orderBy(sql`CASE
+    .orderBy(
+      sql`CASE
       WHEN lower(${locationIndex.locationName}) = lower(${exact}) OR lower(${locationIndex.city}) = lower(${exact}) THEN 120
       WHEN lower(${locationIndex.locationName}) LIKE lower(${startsWith}) OR lower(${locationIndex.city}) LIKE lower(${startsWith}) THEN 100
       WHEN lower(${locationIndex.locationName}) LIKE lower(${contains}) OR lower(${locationIndex.city}) LIKE lower(${contains}) THEN 80
       WHEN lower(${locationIndex.district}) LIKE lower(${startsWith}) THEN 60
       WHEN lower(${locationIndex.district}) LIKE lower(${contains}) THEN 40
       ELSE 0
-    END DESC`, sql`length(${locationIndex.city}) ASC`)
+    END DESC`,
+      sql`length(${locationIndex.city}) ASC`
+    )
     .limit(limit);
 
   return rows.map(toLocationRecord);
 }
 
-async function getMetricsForPincode(pincode: string): Promise<Pick<LocationMetrics, 'totalListings' | 'totalViews' | 'avgPrice'>> {
+async function getMetricsForPincode(
+  pincode: string
+): Promise<Pick<LocationMetrics, 'totalListings' | 'totalViews' | 'avgPrice'>> {
   const result = await db
     .select({
       totalListings: sql<number>`count(*)`,
@@ -123,7 +128,9 @@ async function getMetricsForPincode(pincode: string): Promise<Pick<LocationMetri
       avgPrice: sql<number>`coalesce(avg(cast(${listings.price} as numeric)), 0)`,
     })
     .from(listings)
-    .where(and(eq(listings.pincode, pincode), eq(listings.isActive, true), eq(listings.status, 'active')))
+    .where(
+      and(eq(listings.pincode, pincode), eq(listings.isActive, true), eq(listings.status, 'active'))
+    )
     .limit(1);
 
   return {
@@ -134,7 +141,10 @@ async function getMetricsForPincode(pincode: string): Promise<Pick<LocationMetri
 }
 
 async function ensureLocationIndexAvailable(): Promise<void> {
-  const countResult = await db.select({ count: sql<number>`count(*)` }).from(locationIndex).limit(1);
+  const countResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(locationIndex)
+    .limit(1);
   const count = countResult.length ? toNumber(countResult[0].count) : 0;
 
   if (count === 0) {
@@ -297,10 +307,7 @@ export async function registerLocationRoutes(app: Express) {
         .from(locationIndex)
         .where(
           state
-            ? and(
-                ilike(locationIndex.city, city),
-                ilike(locationIndex.state, state)
-              )
+            ? and(ilike(locationIndex.city, city), ilike(locationIndex.state, state))
             : ilike(locationIndex.city, city)
         )
         .limit(1);
@@ -388,7 +395,13 @@ export async function registerLocationRoutes(app: Express) {
           avgPrice: sql<number>`coalesce(avg(cast(${listings.price} as numeric)), 0)`,
         })
         .from(listings)
-        .where(and(eq(listings.isActive, true), eq(listings.status, 'active'), isNotNull(listings.pincode)))
+        .where(
+          and(
+            eq(listings.isActive, true),
+            eq(listings.status, 'active'),
+            isNotNull(listings.pincode)
+          )
+        )
         .groupBy(listings.pincode)
         .orderBy(desc(sql`coalesce(sum(${listings.viewCount}), 0)`), desc(sql`count(*)`))
         .limit(limitNum * 2);
@@ -450,7 +463,9 @@ export async function registerLocationRoutes(app: Express) {
       const locations = await db
         .select()
         .from(locationIndex)
-        .where(and(ilike(locationIndex.city, String(city)), ilike(locationIndex.state, String(state))))
+        .where(
+          and(ilike(locationIndex.city, String(city)), ilike(locationIndex.state, String(state)))
+        )
         .limit(1);
 
       if (!locations.length) {

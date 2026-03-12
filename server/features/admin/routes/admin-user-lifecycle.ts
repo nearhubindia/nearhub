@@ -11,44 +11,51 @@ import {
 } from '../../users/services/user-lifecycle';
 
 export function registerAdminUserLifecycleRoutes(app: Express): void {
-  app.get('/api/admin/user-lifecycle/reviews', adminAuthMiddleware, async (req: Request, res: Response) => {
-    try {
-      const statusQuery = String(req.query.status || 'pending').trim().toLowerCase();
-      const status =
-        statusQuery === 'all'
-          ? 'all'
-          : (statusQuery as UserDeletionReviewStatus);
-      const limit = Number(req.query.limit || 100);
-      const offset = Number(req.query.offset || 0);
+  app.get(
+    '/api/admin/user-lifecycle/reviews',
+    adminAuthMiddleware,
+    async (req: Request, res: Response) => {
+      try {
+        const statusQuery = String(req.query.status || 'pending')
+          .trim()
+          .toLowerCase();
+        const status = statusQuery === 'all' ? 'all' : (statusQuery as UserDeletionReviewStatus);
+        const limit = Number(req.query.limit || 100);
+        const offset = Number(req.query.offset || 0);
 
-      const reviews = await listUserDeletionReviews({ status, limit, offset });
-      return res.json({
-        success: true,
-        data: reviews,
-        count: reviews.length,
-      });
-    } catch (error) {
-      console.error('[AdminLifecycle] Failed to list reviews:', error);
-      return res.status(500).json({ success: false, error: 'Failed to fetch review list' });
+        const reviews = await listUserDeletionReviews({ status, limit, offset });
+        return res.json({
+          success: true,
+          data: reviews,
+          count: reviews.length,
+        });
+      } catch (error) {
+        console.error('[AdminLifecycle] Failed to list reviews:', error);
+        return res.status(500).json({ success: false, error: 'Failed to fetch review list' });
+      }
     }
-  });
+  );
 
-  app.post('/api/admin/user-lifecycle/scan', adminAuthMiddleware, async (req: Request, res: Response) => {
-    try {
-      const inactivityDays =
-        req.body?.inactivityDays !== undefined ? Number(req.body.inactivityDays) : undefined;
-      const limit = Number(req.body?.limit || 500);
-      const result = await queueInactiveUsersForReview({ inactivityDays, limit });
-      return res.json({
-        success: true,
-        message: `Queued ${result.queued} inactive users for review`,
-        result,
-      });
-    } catch (error) {
-      console.error('[AdminLifecycle] Failed to scan inactive users:', error);
-      return res.status(500).json({ success: false, error: 'Failed to scan inactive users' });
+  app.post(
+    '/api/admin/user-lifecycle/scan',
+    adminAuthMiddleware,
+    async (req: Request, res: Response) => {
+      try {
+        const inactivityDays =
+          req.body?.inactivityDays !== undefined ? Number(req.body.inactivityDays) : undefined;
+        const limit = Number(req.body?.limit || 500);
+        const result = await queueInactiveUsersForReview({ inactivityDays, limit });
+        return res.json({
+          success: true,
+          message: `Queued ${result.queued} inactive users for review`,
+          result,
+        });
+      } catch (error) {
+        console.error('[AdminLifecycle] Failed to scan inactive users:', error);
+        return res.status(500).json({ success: false, error: 'Failed to scan inactive users' });
+      }
     }
-  });
+  );
 
   app.patch(
     '/api/admin/user-lifecycle/reviews/:id',

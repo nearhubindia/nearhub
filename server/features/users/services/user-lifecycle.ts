@@ -57,7 +57,11 @@ export async function resolveUserIdFromRequest(req: {
     const normalized = normalizePhone(candidate);
     if (normalized) {
       const byPhone = await db.query.users.findFirst({
-        where: or(eq(users.mobile, normalized), eq(users.username, normalized), eq(users.id, normalized)),
+        where: or(
+          eq(users.mobile, normalized),
+          eq(users.username, normalized),
+          eq(users.id, normalized)
+        ),
         columns: { id: true },
       });
       if (byPhone?.id) return byPhone.id;
@@ -81,7 +85,11 @@ export async function resolveUserIdFromRequest(req: {
   if (!normalized) return '';
 
   const byPhone = await db.query.users.findFirst({
-    where: or(eq(users.mobile, normalized), eq(users.username, normalized), eq(users.id, normalized)),
+    where: or(
+      eq(users.mobile, normalized),
+      eq(users.username, normalized),
+      eq(users.id, normalized)
+    ),
     columns: { id: true },
   });
   if (byPhone?.id) return byPhone.id;
@@ -241,10 +249,7 @@ export async function queueInactiveUsersForReview(options?: {
     .where(
       and(
         inArray(userDeletionReviews.userId, candidateIds),
-        or(
-          eq(userDeletionReviews.status, 'pending'),
-          eq(userDeletionReviews.status, 'approved')
-        )
+        or(eq(userDeletionReviews.status, 'pending'), eq(userDeletionReviews.status, 'approved'))
       )
     );
   const activeReviewUserIds = new Set(activeReviews.map((row) => row.userId));
@@ -297,7 +302,9 @@ export async function listUserDeletionReviews(options?: {
   const status = options?.status || 'pending';
 
   const whereClause =
-    status === 'all' ? undefined : eq(userDeletionReviews.status, status as UserDeletionReviewStatus);
+    status === 'all'
+      ? undefined
+      : eq(userDeletionReviews.status, status as UserDeletionReviewStatus);
   const rows = whereClause
     ? await db
         .select()
@@ -345,9 +352,7 @@ export async function updateUserDeletionReview(input: {
       reviewedAt: now,
       notes: typeof input.notes === 'string' ? input.notes.trim() : null,
       updatedAt: now,
-      ...(input.status === 'pending'
-        ? { processedAt: null, lastError: null }
-        : {}),
+      ...(input.status === 'pending' ? { processedAt: null, lastError: null } : {}),
     })
     .where(eq(userDeletionReviews.id, input.reviewId))
     .returning({ id: userDeletionReviews.id });
@@ -357,8 +362,14 @@ export async function updateUserDeletionReview(input: {
 
 async function hardDeleteUserData(userId: string): Promise<UserDeletionImpact> {
   const impact = await getUserDeletionImpact(userId);
-  const conversationFilter = or(eq(chatConversations.buyerId, userId), eq(chatConversations.sellerId, userId))!;
-  const messageFilter = or(eq(chatMessages.senderId, userId), eq(chatMessages.recipientId, userId))!;
+  const conversationFilter = or(
+    eq(chatConversations.buyerId, userId),
+    eq(chatConversations.sellerId, userId)
+  )!;
+  const messageFilter = or(
+    eq(chatMessages.senderId, userId),
+    eq(chatMessages.recipientId, userId)
+  )!;
 
   await db.transaction(async (tx) => {
     await tx.delete(chatMessages).where(messageFilter);

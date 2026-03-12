@@ -219,7 +219,9 @@ async function importLocationIndex() {
         },
       });
 
-    console.log(`[Location Import] Upserted ${Math.min(i + chunk.length, rows.length)}/${rows.length}`);
+    console.log(
+      `[Location Import] Upserted ${Math.min(i + chunk.length, rows.length)}/${rows.length}`
+    );
   }
 
   console.log(`[Location Import] ✅ Completed in ${Date.now() - startTime}ms`);

@@ -38,7 +38,12 @@ function parseJsonField(value: unknown): unknown[] {
       if (!inner) return [];
       return inner
         .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
-        .map((item) => item.trim().replace(/^"(.*)"$/, '$1').replace(/\\"/g, '"'))
+        .map((item) =>
+          item
+            .trim()
+            .replace(/^"(.*)"$/, '$1')
+            .replace(/\\"/g, '"')
+        )
         .filter(Boolean);
     }
 
@@ -356,8 +361,7 @@ export function registerListingRoutes(app: Express) {
         if (invalidImageUrls.length > 0) {
           return res.status(400).json({
             success: false,
-            error:
-              'One or more image URLs are not from the approved Cloudflare R2 media domain.',
+            error: 'One or more image URLs are not from the approved Cloudflare R2 media domain.',
             code: 'INVALID_REMOTE_IMAGE_URL',
           });
         }
@@ -371,8 +375,7 @@ export function registerListingRoutes(app: Express) {
         if (invalidVideoUrls.length > 0) {
           return res.status(400).json({
             success: false,
-            error:
-              'One or more video URLs are not from the approved Cloudflare R2 media domain.',
+            error: 'One or more video URLs are not from the approved Cloudflare R2 media domain.',
             code: 'INVALID_REMOTE_VIDEO_URL',
           });
         }

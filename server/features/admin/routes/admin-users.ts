@@ -25,7 +25,9 @@ export function registerAdminUsersRoutes(app: Express) {
   app.get('/api/admin/users', async (req: AuthRequest, res: Response) => {
     try {
       const [activityRows, listingRows, subscriptionRows, starterRows] = await Promise.all([
-        db.select({ userId: userActivity.userId, firstSeenAt: userActivity.firstSeenAt }).from(userActivity),
+        db
+          .select({ userId: userActivity.userId, firstSeenAt: userActivity.firstSeenAt })
+          .from(userActivity),
         db
           .select({
             userId: listings.sellerId,
@@ -93,32 +95,36 @@ export function registerAdminUsersRoutes(app: Express) {
         }
       >();
       idList.forEach((id) => {
-          const meta = metaById.get(id);
-          const activity = activityById.get(id);
-          const latestListing = latestListingById.get(id);
-          const mobile = normalizeMobile(meta?.mobile || latestListing?.contactPhone || id);
-          if (!mobile) {
-            return;
-          }
-          const existing = deduped.get(mobile);
-          const candidate = {
-            id: mobile,
-            username: mobile, // Canonical: username == mobile to avoid identity duplication.
-            mobile,
-            location: latestListing?.location || meta?.location || '-',
-            createdAt:
-              activity?.firstSeenAt?.toISOString() ||
-              latestListing?.createdAt?.toISOString() ||
-              meta?.createdAt?.toISOString() ||
-              new Date().toISOString(),
-          };
-          if (!existing || new Date(candidate.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
-            deduped.set(mobile, candidate);
-          }
-        });
+        const meta = metaById.get(id);
+        const activity = activityById.get(id);
+        const latestListing = latestListingById.get(id);
+        const mobile = normalizeMobile(meta?.mobile || latestListing?.contactPhone || id);
+        if (!mobile) {
+          return;
+        }
+        const existing = deduped.get(mobile);
+        const candidate = {
+          id: mobile,
+          username: mobile, // Canonical: username == mobile to avoid identity duplication.
+          mobile,
+          location: latestListing?.location || meta?.location || '-',
+          createdAt:
+            activity?.firstSeenAt?.toISOString() ||
+            latestListing?.createdAt?.toISOString() ||
+            meta?.createdAt?.toISOString() ||
+            new Date().toISOString(),
+        };
+        if (
+          !existing ||
+          new Date(candidate.createdAt).getTime() > new Date(existing.createdAt).getTime()
+        ) {
+          deduped.set(mobile, candidate);
+        }
+      });
 
-      const safeUsers = [...deduped.values()]
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const safeUsers = [...deduped.values()].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
 
       res.json({
         success: true,
@@ -144,11 +150,7 @@ export function registerAdminUsersRoutes(app: Express) {
           .from(users)
           .where(or(eq(users.id, id), eq(users.mobile, id))!)
           .limit(1),
-        db
-          .select()
-          .from(userActivity)
-          .where(eq(userActivity.userId, id))
-          .limit(1),
+        db.select().from(userActivity).where(eq(userActivity.userId, id)).limit(1),
         db
           .select({ location: listings.location, createdAt: listings.createdAt })
           .from(listings)

@@ -19,10 +19,7 @@ if (!databaseUrl) {
 
 const config: Config = {
   out: './migrations',
-  schema: [
-    './features/admin/models/admin-settings.ts',
-    './features/users/models/users.ts',
-  ],
+  schema: ['./features/admin/models/admin-settings.ts', './features/users/models/users.ts'],
   dialect: 'postgresql',
   dbCredentials: {
     url: databaseUrl,

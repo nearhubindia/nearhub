@@ -418,12 +418,8 @@
           "name": "chat_conversations_listing_id_listings_id_fk",
           "tableFrom": "chat_conversations",
           "tableTo": "listings",
-          "columnsFrom": [
-            "listing_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["listing_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -483,12 +479,8 @@
           "name": "chat_messages_conversation_id_chat_conversations_id_fk",
           "tableFrom": "chat_messages",
           "tableTo": "chat_conversations",
-          "columnsFrom": [
-            "conversation_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["conversation_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -549,12 +541,8 @@
           "name": "contact_submission_comments_submission_id_contact_submissions_id_fk",
           "tableFrom": "contact_submission_comments",
           "tableTo": "contact_submissions",
-          "columnsFrom": [
-            "submission_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["submission_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -716,12 +704,8 @@
           "name": "coupon_usage_coupon_id_coupons_id_fk",
           "tableFrom": "coupon_usage",
           "tableTo": "coupons",
-          "columnsFrom": [
-            "coupon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["coupon_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -829,9 +813,7 @@
         "coupons_code_unique": {
           "name": "coupons_code_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "code"
-          ]
+          "columns": ["code"]
         }
       },
       "policies": {},
@@ -1146,9 +1128,7 @@
         "invoices_invoice_number_unique": {
           "name": "invoices_invoice_number_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "invoice_number"
-          ]
+          "columns": ["invoice_number"]
         }
       },
       "policies": {},
@@ -1204,12 +1184,8 @@
           "name": "listing_views_listing_id_listings_id_fk",
           "tableFrom": "listing_views",
           "tableTo": "listings",
-          "columnsFrom": [
-            "listing_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["listing_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1434,12 +1410,8 @@
           "name": "listings_subscription_tier_id_subscription_tiers_id_fk",
           "tableFrom": "listings",
           "tableTo": "subscription_tiers",
-          "columnsFrom": [
-            "subscription_tier_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["subscription_tier_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1447,12 +1419,8 @@
           "name": "listings_user_subscription_id_user_subscriptions_id_fk",
           "tableFrom": "listings",
           "tableTo": "user_subscriptions",
-          "columnsFrom": [
-            "user_subscription_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_subscription_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1460,12 +1428,8 @@
           "name": "listings_coupon_id_coupons_id_fk",
           "tableFrom": "listings",
           "tableTo": "coupons",
-          "columnsFrom": [
-            "coupon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["coupon_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1725,9 +1689,7 @@
         "push_tokens_token_unique": {
           "name": "push_tokens_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -2071,9 +2033,7 @@
         "user_starter_credits_user_id_unique": {
           "name": "user_starter_credits_user_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "user_id"
-          ]
+          "columns": ["user_id"]
         }
       },
       "policies": {},
@@ -2175,12 +2135,8 @@
           "name": "user_subscriptions_subscription_tier_id_subscription_tiers_id_fk",
           "tableFrom": "user_subscriptions",
           "tableTo": "subscription_tiers",
-          "columnsFrom": [
-            "subscription_tier_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["subscription_tier_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2188,12 +2144,8 @@
           "name": "user_subscriptions_invoice_id_invoices_id_fk",
           "tableFrom": "user_subscriptions",
           "tableTo": "invoices",
-          "columnsFrom": [
-            "invoice_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["invoice_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2201,12 +2153,8 @@
           "name": "user_subscriptions_coupon_id_coupons_id_fk",
           "tableFrom": "user_subscriptions",
           "tableTo": "coupons",
-          "columnsFrom": [
-            "coupon_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["coupon_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2267,9 +2215,7 @@
         "users_username_unique": {
           "name": "users_username_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "username"
-          ]
+          "columns": ["username"]
         }
       },
       "policies": {},

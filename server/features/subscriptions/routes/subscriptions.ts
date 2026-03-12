@@ -150,7 +150,12 @@ function parseMediaField(value: unknown): unknown[] {
       if (!inner) return [];
       return inner
         .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
-        .map((item) => item.trim().replace(/^"(.*)"$/, '$1').replace(/\\"/g, '"'))
+        .map((item) =>
+          item
+            .trim()
+            .replace(/^"(.*)"$/, '$1')
+            .replace(/\\"/g, '"')
+        )
         .filter(Boolean);
     }
     return [raw];
@@ -597,8 +602,7 @@ export function registerSubscriptionRoutes(app: Express) {
         const invalidImageUrls = findInvalidRemoteMediaUrls(imageItems, allowedRemoteMediaHosts);
         if (invalidImageUrls.length > 0) {
           return res.status(400).json({
-            error:
-              'One or more image URLs are not from the approved Cloudflare R2 media domain.',
+            error: 'One or more image URLs are not from the approved Cloudflare R2 media domain.',
             code: 'INVALID_REMOTE_IMAGE_URL',
           });
         }
@@ -606,8 +610,7 @@ export function registerSubscriptionRoutes(app: Express) {
         const invalidVideoUrls = findInvalidRemoteMediaUrls(videoItems, allowedRemoteMediaHosts);
         if (invalidVideoUrls.length > 0) {
           return res.status(400).json({
-            error:
-              'One or more video URLs are not from the approved Cloudflare R2 media domain.',
+            error: 'One or more video URLs are not from the approved Cloudflare R2 media domain.',
             code: 'INVALID_REMOTE_VIDEO_URL',
           });
         }
@@ -799,7 +802,7 @@ export function registerSubscriptionRoutes(app: Express) {
             ? `✓ Listing submitted for review with coupon! ${couponFreeRemaining} free listing${couponFreeRemaining !== 1 ? 's' : ''} remaining.`
             : isFreeFromStarterCredits
               ? `✓ Listing submitted for review using starter credits. ${starterListingsRemaining} starter listing credit${starterListingsRemaining !== 1 ? 's' : ''} remaining.`
-            : '✓ Listing submitted for admin review. It will go live after approval.',
+              : '✓ Listing submitted for admin review. It will go live after approval.',
           listing: {
             id: createdListing.id,
             title: createdListing.title,
@@ -906,7 +909,9 @@ export function registerSubscriptionRoutes(app: Express) {
       }
 
       const tierPriceRaw =
-        subscription.tier.offerPrice != null ? subscription.tier.offerPrice : subscription.tier.price;
+        subscription.tier.offerPrice != null
+          ? subscription.tier.offerPrice
+          : subscription.tier.price;
       const tierPrice = Number(tierPriceRaw);
       if (!Number.isFinite(tierPrice) || tierPrice < 0) {
         return res.status(400).json({
@@ -1013,12 +1018,12 @@ export function registerSubscriptionRoutes(app: Express) {
           },
           discount: discountApplied
             ? {
-              percentage: discountPercentage,
-              amount: discountAmount,
-              originalAmount,
-              finalAmount: 0,
-              couponId,
-            }
+                percentage: discountPercentage,
+                amount: discountAmount,
+                originalAmount,
+                finalAmount: 0,
+                couponId,
+              }
             : null,
           nextStep: 'No payment required - proceed directly to create listing',
         });
@@ -1130,7 +1135,12 @@ export function registerSubscriptionRoutes(app: Express) {
         });
       }
 
-      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !safeSubscriptionId) {
+      if (
+        !razorpay_order_id ||
+        !razorpay_payment_id ||
+        !razorpay_signature ||
+        !safeSubscriptionId
+      ) {
         return res.status(400).json({
           error: 'Missing payment verification fields or subscription ID',
         });
@@ -1212,7 +1222,9 @@ export function registerSubscriptionRoutes(app: Express) {
       }
 
       const tierPriceRaw =
-        subscription.tier.offerPrice != null ? subscription.tier.offerPrice : subscription.tier.price;
+        subscription.tier.offerPrice != null
+          ? subscription.tier.offerPrice
+          : subscription.tier.price;
       const originalAmount = roundToTwo(Number(tierPriceRaw));
       if (!Number.isFinite(originalAmount) || originalAmount < 0) {
         return res.status(400).json({
@@ -1343,7 +1355,12 @@ export function registerSubscriptionRoutes(app: Express) {
           // Just log it and continue
         } else if (customerId) {
           // Send coupon applied notification
-          notifyCouponApplied(customerId, couponCode, expectedDiscountAmount, invoiceItemDescription).catch((err) =>
+          notifyCouponApplied(
+            customerId,
+            couponCode,
+            expectedDiscountAmount,
+            invoiceItemDescription
+          ).catch((err) =>
             console.error('[Subscriptions] Failed to send coupon notification:', err)
           );
         }
@@ -1851,9 +1868,7 @@ export function registerSubscriptionRoutes(app: Express) {
           ? parseFloat(finalOfferPrice)
           : undefined;
       const numericOfferPrice =
-        parsedOfferPrice !== undefined &&
-        Number.isFinite(parsedOfferPrice) &&
-        parsedOfferPrice > 0
+        parsedOfferPrice !== undefined && Number.isFinite(parsedOfferPrice) && parsedOfferPrice > 0
           ? parsedOfferPrice
           : undefined;
 
@@ -2168,9 +2183,7 @@ export function registerSubscriptionRoutes(app: Express) {
 
       const effectiveUserId = String(userId);
       const consumed = await consumeUserBoostCredit(effectiveUserId);
-      const starterConsumed = !consumed
-        ? await consumeStarterBoostCredit(effectiveUserId)
-        : null;
+      const starterConsumed = !consumed ? await consumeStarterBoostCredit(effectiveUserId) : null;
       if (!consumed && !starterConsumed) {
         const tiers = await getActiveSubscriptionTiers();
         const plans = tiers

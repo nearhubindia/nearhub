@@ -9,7 +9,8 @@ export function registerCloudflareMediaRoutes(app: Express) {
   app.post('/api/media/presign-upload', async (req: Request, res: Response) => {
     try {
       const mediaTypeRaw = asString(req.body?.mediaType).trim().toLowerCase();
-      const mediaType = mediaTypeRaw === 'video' ? 'video' : mediaTypeRaw === 'image' ? 'image' : '';
+      const mediaType =
+        mediaTypeRaw === 'video' ? 'video' : mediaTypeRaw === 'image' ? 'image' : '';
       const contentType = asString(req.body?.contentType).trim();
       const originalFileName = asString(req.body?.fileName).trim() || 'upload';
       const fileSizeBytes = Number(req.body?.fileSizeBytes || 0);

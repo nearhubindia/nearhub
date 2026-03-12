@@ -5,11 +5,7 @@ import { validateImageWithPhi2, validateVideoWithPhi2 } from '../../../shared/ai
 import { authLimiter } from '../../../lib/rate-limiter';
 import { grantStarterCreditsIfEligible } from '../../subscriptions/services/starter-credits';
 import { db } from '../../../data/db';
-import {
-  listings,
-  userStarterCredits,
-  userSubscriptions,
-} from '../../admin/models/admin-settings';
+import { listings, userStarterCredits, userSubscriptions } from '../../admin/models/admin-settings';
 import {
   getStableUserIdFromPhone,
   getUserByPhone,
@@ -25,11 +21,7 @@ async function hasExistingAccountFootprint(userId: string): Promise<boolean> {
       .from(userStarterCredits)
       .where(eq(userStarterCredits.userId, userId))
       .limit(1),
-    db
-      .select({ id: listings.id })
-      .from(listings)
-      .where(eq(listings.sellerId, userId))
-      .limit(1),
+    db.select({ id: listings.id }).from(listings).where(eq(listings.sellerId, userId)).limit(1),
     db
       .select({ id: userSubscriptions.id })
       .from(userSubscriptions)

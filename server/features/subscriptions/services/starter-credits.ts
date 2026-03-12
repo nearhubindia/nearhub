@@ -13,13 +13,15 @@ export interface StarterCreditsSummary {
   boostsRemaining: number;
 }
 
-function toSummary(row?: {
-  isActive: boolean;
-  listingsTotal: number;
-  listingsUsed: number;
-  boostsTotal: number;
-  boostsUsed: number;
-} | null): StarterCreditsSummary {
+function toSummary(
+  row?: {
+    isActive: boolean;
+    listingsTotal: number;
+    listingsUsed: number;
+    boostsTotal: number;
+    boostsUsed: number;
+  } | null
+): StarterCreditsSummary {
   const listingsTotal = Number(row?.listingsTotal || 0);
   const listingsUsed = Number(row?.listingsUsed || 0);
   const boostsTotal = Number(row?.boostsTotal || 0);

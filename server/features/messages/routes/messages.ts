@@ -208,48 +208,51 @@ export function registerMessageRoutes(app: Express) {
     }
   });
 
-  app.get('/api/messages/conversations/:conversationId/messages', async (req: Request, res: Response) => {
-    try {
-      const identity = await getCanonicalIdentity(req);
-      if (!identity?.userId) {
-        return res.status(401).json({ success: false, error: 'Missing authenticated user' });
+  app.get(
+    '/api/messages/conversations/:conversationId/messages',
+    async (req: Request, res: Response) => {
+      try {
+        const identity = await getCanonicalIdentity(req);
+        if (!identity?.userId) {
+          return res.status(401).json({ success: false, error: 'Missing authenticated user' });
+        }
+        captureActorProfile(req, identity);
+
+        const conversationId = String(req.params.conversationId || '').trim();
+        if (!conversationId) {
+          return res.status(400).json({ success: false, error: 'conversationId is required' });
+        }
+
+        const participant = await resolveConversationParticipant(conversationId, identity.userId);
+        if (!participant) {
+          return res.status(404).json({ success: false, error: 'Conversation not found' });
+        }
+        const conversation = participant.conversation;
+
+        const rows = await db
+          .select()
+          .from(chatMessages)
+          .where(eq(chatMessages.conversationId, conversationId))
+          .orderBy(chatMessages.createdAt);
+
+        const messages = rows.map((row) => ({
+          id: row.id,
+          conversationId: row.conversationId,
+          listingId: conversation.listingId,
+          text: row.text,
+          sender: row.senderId === identity.userId ? 'me' : 'seller',
+          senderId: row.senderId,
+          recipientId: row.recipientId,
+          timestamp: row.createdAt.toISOString(),
+        }));
+
+        return res.json({ success: true, data: messages });
+      } catch (error) {
+        console.error('[Messages] Failed to fetch messages:', error);
+        return res.status(500).json({ success: false, error: 'Failed to fetch messages' });
       }
-      captureActorProfile(req, identity);
-
-      const conversationId = String(req.params.conversationId || '').trim();
-      if (!conversationId) {
-        return res.status(400).json({ success: false, error: 'conversationId is required' });
-      }
-
-      const participant = await resolveConversationParticipant(conversationId, identity.userId);
-      if (!participant) {
-        return res.status(404).json({ success: false, error: 'Conversation not found' });
-      }
-      const conversation = participant.conversation;
-
-      const rows = await db
-        .select()
-        .from(chatMessages)
-        .where(eq(chatMessages.conversationId, conversationId))
-        .orderBy(chatMessages.createdAt);
-
-      const messages = rows.map((row) => ({
-        id: row.id,
-        conversationId: row.conversationId,
-        listingId: conversation.listingId,
-        text: row.text,
-        sender: row.senderId === identity.userId ? 'me' : 'seller',
-        senderId: row.senderId,
-        recipientId: row.recipientId,
-        timestamp: row.createdAt.toISOString(),
-      }));
-
-      return res.json({ success: true, data: messages });
-    } catch (error) {
-      console.error('[Messages] Failed to fetch messages:', error);
-      return res.status(500).json({ success: false, error: 'Failed to fetch messages' });
     }
-  });
+  );
 
   app.post('/api/messages/send', async (req: Request, res: Response) => {
     try {
@@ -261,7 +264,8 @@ export function registerMessageRoutes(app: Express) {
 
       const textRaw = typeof req.body?.text === 'string' ? req.body.text : '';
       const text = textRaw.trim();
-      const conversationIdRaw = typeof req.body?.conversationId === 'string' ? req.body.conversationId : '';
+      const conversationIdRaw =
+        typeof req.body?.conversationId === 'string' ? req.body.conversationId : '';
       const listingIdRaw = typeof req.body?.listingId === 'string' ? req.body.listingId : '';
       const conversationId = conversationIdRaw.trim();
       const listingId = listingIdRaw.trim();
@@ -270,7 +274,9 @@ export function registerMessageRoutes(app: Express) {
         return res.status(400).json({ success: false, error: 'Message text is required' });
       }
       if (!conversationId && !listingId) {
-        return res.status(400).json({ success: false, error: 'conversationId or listingId is required' });
+        return res
+          .status(400)
+          .json({ success: false, error: 'conversationId or listingId is required' });
       }
 
       let conversation: ChatConversation | null = null;
@@ -361,11 +367,14 @@ export function registerMessageRoutes(app: Express) {
         })
         .where(eq(chatConversations.id, conversation.id));
 
-      notifyNewMessage(recipientId, participantLabel(identity.userId, senderRole), text, conversation.id).catch(
-        (err) => {
-          console.error('[Messages] Failed to send new message notification:', err);
-        }
-      );
+      notifyNewMessage(
+        recipientId,
+        participantLabel(identity.userId, senderRole),
+        text,
+        conversation.id
+      ).catch((err) => {
+        console.error('[Messages] Failed to send new message notification:', err);
+      });
 
       const message = inserted[0];
       return res.json({

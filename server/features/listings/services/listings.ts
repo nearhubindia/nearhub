@@ -58,7 +58,7 @@ export async function createListing(data: InsertListing): Promise<Listing> {
       images: imagesValue,
       videos: videosValue,
       expiresAt,
-    } as any);
+    }) as any;
 
   try {
     const result = await db
