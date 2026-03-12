@@ -151,7 +151,7 @@ class InvoiceService {
     // Generate invoice number and dates
     const invoiceNumber = this.generateInvoiceNumber();
     const invoiceDate = new Date().toISOString().split('T')[0];
-    const dueDate = this.addDays(new Date(), 7).toISOString().split('T')[0];
+    const dueDate = invoiceDate;
 
     return {
       invoiceNumber,
@@ -187,7 +187,7 @@ class InvoiceService {
       paymentId: options?.paymentId,
       orderId: options?.orderId,
       notes: options?.notes,
-      terms: 'Payment must be made within 7 days of invoice date.',
+      terms: 'Payment received in full via Razorpay.',
     };
   }
 
@@ -221,6 +221,9 @@ class InvoiceService {
     `
       )
       .join('');
+
+    const paymentDateLabel = invoice.paymentId ? 'Paid On' : 'Due Date';
+    const paymentDateValue = invoice.paymentId ? invoice.invoiceDate : invoice.dueDate;
 
     const html = `
 <!DOCTYPE html>
@@ -418,7 +421,7 @@ class InvoiceService {
         <h2>TAX INVOICE</h2>
         <p><strong>${invoice.invoiceNumber}</strong></p>
         <p>Date: ${invoice.invoiceDate}</p>
-        <p>Due Date: ${invoice.dueDate}</p>
+        <p>${paymentDateLabel}: ${paymentDateValue}</p>
       </div>
     </div>
 
@@ -530,7 +533,7 @@ class InvoiceService {
     }
 
     <div class="footer">
-      <p><strong>Payment Terms:</strong> ${invoice.terms || 'Net 7 days'}</p>
+      <p><strong>Terms:</strong> ${invoice.terms || 'Payment received in full via Razorpay.'}</p>
       <p><strong>Thank you for your business!</strong></p>
       <p style="margin-top: 20px; color: #999;">This is a computer-generated invoice. No signature required.</p>
     </div>
