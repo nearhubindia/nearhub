@@ -34,8 +34,8 @@ ON subscriptions (listing_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_subscription_id
 ON transactions (subscription_id);
 
-CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id_status_created
-ON user_subscriptions (user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id_status_subscribed
+ON user_subscriptions (user_id, status, subscribed_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_user_subscriptions_coupon_id
 ON user_subscriptions (coupon_id);
@@ -49,4 +49,3 @@ ON user_subscriptions (subscription_tier_id);
 CREATE INDEX IF NOT EXISTS idx_users_email
 ON users (email)
 WHERE email IS NOT NULL AND btrim(email) <> '';
-
