@@ -154,14 +154,12 @@ async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, Seller
 }
 
 function getSellerDisplayName(listing: any, sellerMeta?: SellerMeta): string {
-  const listingName =
-    typeof listing?.sellerName === 'string' ? listing.sellerName.trim() : '';
+  const listingName = typeof listing?.sellerName === 'string' ? listing.sellerName.trim() : '';
   if (listingName && listingName.toLowerCase() !== 'seller') {
     return listingName;
   }
 
-  const userName =
-    typeof sellerMeta?.displayName === 'string' ? sellerMeta.displayName.trim() : '';
+  const userName = typeof sellerMeta?.displayName === 'string' ? sellerMeta.displayName.trim() : '';
   if (userName) return userName;
 
   return listingName || 'Seller';
