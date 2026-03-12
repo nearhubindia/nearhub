@@ -6,12 +6,7 @@
 import type { Express, Request, Response } from 'express';
 import { eq } from 'drizzle-orm';
 import { getListingsByUser } from '../../listings/services/listings';
-import {
-  getUserById,
-  normalizePhone,
-  upsertUser,
-  type AppUser,
-} from '../services/user-profiles';
+import { getUserById, normalizePhone, upsertUser, type AppUser } from '../services/user-profiles';
 import { getRequestUserId } from '../../../lib/request-user';
 import { db } from '../../../data/db';
 import { users } from '../models/users';
