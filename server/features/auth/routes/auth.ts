@@ -29,7 +29,11 @@ async function upsertAuthUserRecord(input: {
 
   const match = await db.query.users.findFirst({
     where: canLookupById
-      ? or(eq(users.mobile, normalizedPhone), eq(users.username, normalizedPhone), eq(users.id, preferredId))
+      ? or(
+          eq(users.mobile, normalizedPhone),
+          eq(users.username, normalizedPhone),
+          eq(users.id, preferredId)
+        )
       : or(eq(users.mobile, normalizedPhone), eq(users.username, normalizedPhone)),
     columns: { id: true, username: true },
   });
@@ -78,9 +82,9 @@ async function getDbUserByPhone(phone: string) {
     .where(eq(listings.contactPhone, normalizedPhone))
     .limit(2);
 
-  const sellerIds = [...new Set(listingMatches.map((row) => String(row.sellerId || '').trim()))].filter(
-    (value) => value && isUuid(value)
-  );
+  const sellerIds = [
+    ...new Set(listingMatches.map((row) => String(row.sellerId || '').trim())),
+  ].filter((value) => value && isUuid(value));
   if (sellerIds.length !== 1) return null;
 
   return db.query.users.findFirst({
