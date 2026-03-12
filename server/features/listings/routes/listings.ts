@@ -19,6 +19,7 @@ import { SERVER_CONFIG } from '../../../lib/config';
 import { getRequestUserId } from '../../../lib/request-user';
 import { db } from '../../../data/db';
 import { users } from '../../users/models/users';
+import { resolveUserDisplayName } from '../../users/services/user-profiles';
 import { inArray, or } from 'drizzle-orm';
 
 function parseJsonField(value: unknown): unknown[] {
@@ -154,15 +155,42 @@ async function getSellerMetaMap(sellerIds: string[]): Promise<Map<string, Seller
 }
 
 function getSellerDisplayName(listing: any, sellerMeta?: SellerMeta): string {
+  const hasValidDisplayName = (value: unknown): value is string => {
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    const normalized = trimmed.toLowerCase();
+    const digitsOnly = trimmed.replace(/\D/g, '');
+    const lettersOnly = trimmed.replace(/[^a-z]/gi, '');
+    if (
+      normalized === 'seller' ||
+      normalized === 'unknown' ||
+      normalized === 'anonymous' ||
+      /^seller\b/i.test(normalized)
+    ) {
+      return false;
+    }
+    if (digitsOnly.length >= 10 && lettersOnly.length === 0) {
+      return false;
+    }
+    return true;
+  };
+
   const listingName = typeof listing?.sellerName === 'string' ? listing.sellerName.trim() : '';
-  if (listingName && listingName.toLowerCase() !== 'seller') {
+  if (hasValidDisplayName(listingName)) {
     return listingName;
   }
 
   const userName = typeof sellerMeta?.displayName === 'string' ? sellerMeta.displayName.trim() : '';
-  if (userName && !/^\d{10,15}$/.test(userName)) return userName;
+  if (hasValidDisplayName(userName)) return userName;
 
-  return listingName || 'Seller';
+  const sellerId = typeof listing?.sellerId === 'string' ? listing.sellerId.trim() : '';
+  if (sellerId && !sellerId.startsWith('admin')) {
+    const profileName = resolveUserDisplayName(sellerId, 'Seller');
+    if (hasValidDisplayName(profileName)) return profileName;
+  }
+
+  return 'Seller';
 }
 
 function resolveContactPhone(rest: any, sellerId: string): string {
