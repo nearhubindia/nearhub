@@ -15,7 +15,7 @@ import {
   userSubscriptions,
 } from '../../admin/models/admin-settings';
 import { users } from '../models/users';
-import { removeUserProfile } from './user-profiles';
+import { getUserById, normalizePhone, removeUserProfile } from './user-profiles';
 
 export type UserDeletionReviewStatus = 'pending' | 'approved' | 'rejected' | 'deleted' | 'failed';
 
@@ -41,6 +41,44 @@ function isUuid(value: string): boolean {
   );
 }
 
+async function resolveCanonicalUserId(candidateUserId: string): Promise<string> {
+  const candidate = normalizeUserId(candidateUserId);
+  if (!candidate || !isUuid(candidate)) return '';
+
+  const byId = await db.query.users.findFirst({
+    where: eq(users.id, candidate),
+    columns: { id: true },
+  });
+  if (byId?.id) return byId.id;
+
+  const memoryUser = getUserById(candidate);
+  const normalizedPhone = normalizePhone(memoryUser?.phone || '');
+  if (normalizedPhone) {
+    const byMobile = await db.query.users.findFirst({
+      where: eq(users.mobile, normalizedPhone),
+      columns: { id: true },
+    });
+    if (byMobile?.id) return byMobile.id;
+  }
+
+  await db
+    .insert(users)
+    .values({
+      id: candidate,
+      username: candidate,
+      password: 'otp-auth',
+      mobile: normalizedPhone || null,
+      createdAt: new Date(),
+    })
+    .onConflictDoNothing({ target: users.id });
+
+  const created = await db.query.users.findFirst({
+    where: eq(users.id, candidate),
+    columns: { id: true },
+  });
+  return created?.id || '';
+}
+
 export async function resolveUserIdFromRequest(req: {
   get: (name: string) => string | undefined;
   path?: string;
@@ -49,13 +87,7 @@ export async function resolveUserIdFromRequest(req: {
   if (typeof rawUserId !== 'string' || !rawUserId.trim()) return '';
 
   const candidate = rawUserId.trim();
-  if (!isUuid(candidate)) return '';
-
-  const byId = await db.query.users.findFirst({
-    where: eq(users.id, candidate),
-    columns: { id: true },
-  });
-  return byId?.id || '';
+  return resolveCanonicalUserId(candidate);
 }
 
 export async function touchUserActivity(input: {
@@ -63,7 +95,8 @@ export async function touchUserActivity(input: {
   ip?: string;
   userAgent?: string;
 }): Promise<void> {
-  const userId = normalizeUserId(input.userId);
+  const resolvedUserId = await resolveCanonicalUserId(input.userId);
+  const userId = normalizeUserId(resolvedUserId);
   if (!userId) return;
 
   const now = new Date();

@@ -11,7 +11,6 @@ import {
 import { notifyNewMessage } from '../../../shared/services/auto-notifications';
 import { resolveUserDisplayName, upsertUser } from '../../users/services/user-profiles';
 import { resolveUserIdFromRequest } from '../../users/services/user-lifecycle';
-import { getRequestUserId } from '../../../lib/request-user';
 
 type ParticipantRole = 'buyer' | 'seller';
 
@@ -67,8 +66,7 @@ function captureActorProfile(req: Request, identity: CanonicalIdentity): void {
 }
 
 async function getCanonicalIdentity(req: Request): Promise<CanonicalIdentity | null> {
-  const existingUserId = getRequestUserId(req);
-  const resolvedUserId = existingUserId || (await resolveUserIdFromRequest(req as any));
+  const resolvedUserId = await resolveUserIdFromRequest(req as any);
   if (!resolvedUserId) return null;
 
   (req as any).userId = resolvedUserId;
