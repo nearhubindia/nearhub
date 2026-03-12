@@ -59,6 +59,15 @@ function isValidDisplayName(value: unknown): value is string {
   if (normalized === 'buyer' || normalized === 'seller' || normalized === 'unknown') {
     return false;
   }
+  if (/^[0-9]{10,15}$/.test(trimmed)) {
+    return false;
+  }
+  if (/^[0-9a-f]{8,}$/i.test(trimmed)) {
+    return false;
+  }
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed)) {
+    return false;
+  }
   if (/^(buyer|seller)\s+[0-9a-f]{4,}$/i.test(trimmed)) {
     return false;
   }
