@@ -24,9 +24,13 @@ async function upsertAuthUserRecord(input: {
 }): Promise<void> {
   const normalizedPhone = normalizePhone(input.phone);
   if (!normalizedPhone) return;
+  const preferredId = String(input.preferredId || '').trim();
+  const canLookupById = preferredId && isUuid(preferredId);
 
   const match = await db.query.users.findFirst({
-    where: or(eq(users.mobile, normalizedPhone), eq(users.username, normalizedPhone)),
+    where: canLookupById
+      ? or(eq(users.mobile, normalizedPhone), eq(users.username, normalizedPhone), eq(users.id, preferredId))
+      : or(eq(users.mobile, normalizedPhone), eq(users.username, normalizedPhone)),
     columns: { id: true, username: true },
   });
 
@@ -40,7 +44,6 @@ async function upsertAuthUserRecord(input: {
     return;
   }
 
-  const preferredId = String(input.preferredId || '').trim();
   await db
     .insert(users)
     .values({
@@ -56,8 +59,32 @@ async function upsertAuthUserRecord(input: {
 async function getDbUserByPhone(phone: string) {
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone) return null;
+  const stableUserId = getStableUserIdFromPhone(normalizedPhone);
+
+  const directMatch = await db.query.users.findFirst({
+    where: or(
+      eq(users.mobile, normalizedPhone),
+      eq(users.username, normalizedPhone),
+      eq(users.id, stableUserId)
+    ),
+    columns: { id: true },
+  });
+  if (directMatch?.id) return directMatch;
+
+  // Legacy recovery: infer user from historical listing records when mobile wasn't persisted.
+  const listingMatches = await db
+    .select({ sellerId: listings.sellerId })
+    .from(listings)
+    .where(eq(listings.contactPhone, normalizedPhone))
+    .limit(2);
+
+  const sellerIds = [...new Set(listingMatches.map((row) => String(row.sellerId || '').trim()))].filter(
+    (value) => value && isUuid(value)
+  );
+  if (sellerIds.length !== 1) return null;
+
   return db.query.users.findFirst({
-    where: or(eq(users.mobile, normalizedPhone), eq(users.username, normalizedPhone)),
+    where: eq(users.id, sellerIds[0]),
     columns: { id: true },
   });
 }
