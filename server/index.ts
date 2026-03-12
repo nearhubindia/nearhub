@@ -43,6 +43,39 @@ if (process.env.DATABASE_URL) {
 
 const app = express();
 
+function configureTrustProxy(appInstance: express.Application): void {
+  const trustProxyEnv = String(process.env.TRUST_PROXY || '')
+    .trim()
+    .toLowerCase();
+
+  if (trustProxyEnv) {
+    if (trustProxyEnv === 'true' || trustProxyEnv === '1') {
+      appInstance.set('trust proxy', 1);
+      debugServer('[Proxy] trust proxy enabled from TRUST_PROXY env');
+      return;
+    }
+
+    if (trustProxyEnv === 'false' || trustProxyEnv === '0') {
+      appInstance.set('trust proxy', false);
+      debugServer('[Proxy] trust proxy disabled from TRUST_PROXY env');
+      return;
+    }
+
+    if (Number.isInteger(Number(trustProxyEnv))) {
+      const hops = Number(trustProxyEnv);
+      appInstance.set('trust proxy', hops);
+      debugServer('[Proxy] trust proxy set to %d hop(s) from TRUST_PROXY env', hops);
+      return;
+    }
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    // Hostinger VPS usually runs Express behind one Nginx reverse proxy.
+    appInstance.set('trust proxy', 1);
+    debugServer('[Proxy] trust proxy enabled for production');
+  }
+}
+
 declare module 'http' {
   interface IncomingMessage {
     rawBody?: string;
@@ -330,6 +363,7 @@ function setupErrorHandler(app: express.Application) {
     debugServer('Elasticsearch disabled (set ELASTICSEARCH_ENABLED=true to enable)');
   }
 
+  configureTrustProxy(app);
   setupCors(app);
   setupBodyParsing(app);
   setupUserActivityTracking(app);
