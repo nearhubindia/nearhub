@@ -598,13 +598,16 @@ export function registerSubscriptionRoutes(app: Express) {
 
         const normalizedSellerName =
           typeof sellerName === 'string' && sellerName.trim() ? sellerName.trim() : '';
-        if (normalizedSellerName) {
+        const isPhoneLikeName = /^\d{10,15}$/.test(normalizedSellerName);
+        const isPlaceholderName = ['seller', 'unknown', 'anonymous'].includes(
+          normalizedSellerName.toLowerCase()
+        );
+        if (normalizedSellerName && !isPhoneLikeName && !isPlaceholderName) {
           const owner = await db.query.users.findFirst({
             where: eq(users.id, ownerId),
             columns: { id: true, username: true },
           });
-          const existingUsername = String(owner?.username || '').trim();
-          if (!existingUsername || /^\d{10,15}$/.test(existingUsername)) {
+          if (owner?.id) {
             await db
               .update(users)
               .set({ username: normalizedSellerName })

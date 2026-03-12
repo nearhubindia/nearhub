@@ -57,10 +57,14 @@ export function registerUserRoutes(app: Express) {
     const dbUser = await getDbUser(userId);
     const profileName = typeof name === 'string' && name.trim() ? name.trim() : '';
     const isPhoneLikeUsername = (value: string): boolean => /^\d{10,15}$/.test(value.trim());
+    const isPlaceholderName = (value: string): boolean => {
+      const normalized = value.trim().toLowerCase();
+      return normalized === 'seller' || normalized === 'unknown' || normalized === 'anonymous';
+    };
 
     if (dbUser?.id) {
       const nextUsername =
-        profileName && (!dbUser.username || isPhoneLikeUsername(String(dbUser.username || '')))
+        profileName && !isPhoneLikeUsername(profileName) && !isPlaceholderName(profileName)
           ? profileName
           : dbUser.username;
 

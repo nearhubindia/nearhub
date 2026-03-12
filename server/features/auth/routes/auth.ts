@@ -26,6 +26,10 @@ async function upsertAuthUserRecord(input: {
   if (!normalizedPhone) return;
   const profileName = typeof input.name === 'string' && input.name.trim() ? input.name.trim() : '';
   const isPhoneLikeUsername = (value: string): boolean => /^\d{10,15}$/.test(value.trim());
+  const isPlaceholderName = (value: string): boolean => {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'seller' || normalized === 'unknown' || normalized === 'anonymous';
+  };
 
   const match = await db.query.users.findFirst({
     where: eq(users.mobile, normalizedPhone),
@@ -34,7 +38,7 @@ async function upsertAuthUserRecord(input: {
 
   if (match?.id) {
     const nextUsername =
-      profileName && (!match.username || isPhoneLikeUsername(String(match.username || '')))
+      profileName && !isPhoneLikeUsername(profileName) && !isPlaceholderName(profileName)
         ? profileName
         : match.username;
 
