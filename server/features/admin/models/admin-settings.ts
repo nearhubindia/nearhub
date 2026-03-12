@@ -663,6 +663,7 @@ export const chatMessages = pgTable('chat_messages', {
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   text: text('text').notNull(),
+  readAt: timestamp('read_at'),
 
   createdAt: timestamp('created_at')
     .default(sql`CURRENT_TIMESTAMP`)

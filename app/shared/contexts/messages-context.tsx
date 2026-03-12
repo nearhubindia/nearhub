@@ -11,6 +11,8 @@ export interface ChatMessage {
   text: string;
   sender: 'me' | 'seller';
   timestamp: string;
+  readAt?: string | null;
+  isRead?: boolean;
 }
 
 export interface ChatThread {
@@ -23,6 +25,7 @@ export interface ChatThread {
   messages: ChatMessage[];
   lastMessage: string;
   lastTimestamp: string;
+  unreadCount: number;
 }
 
 interface MessagesContextValue {
@@ -53,6 +56,7 @@ interface ApiThread {
   otherUserName?: string;
   lastMessage: string;
   lastTimestamp: string;
+  unreadCount?: number;
 }
 
 interface ApiMessage {
@@ -63,6 +67,8 @@ interface ApiMessage {
   sender?: 'me' | 'seller' | string;
   senderId?: string;
   timestamp: string;
+  readAt?: string | null;
+  isRead?: boolean;
 }
 
 function normalizeTimestamp(value: unknown): string {
@@ -109,6 +115,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           messages: [],
           lastMessage: '',
           lastTimestamp: new Date().toISOString(),
+          unreadCount: 0,
         };
       } catch (error) {
         console.error('Failed to fetch conversation metadata:', error);
@@ -157,6 +164,8 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
             messages: existing?.messages || [],
             lastMessage: item.lastMessage || existing?.lastMessage || '',
             lastTimestamp: normalizeTimestamp(item.lastTimestamp || existing?.lastTimestamp),
+            unreadCount:
+              typeof item.unreadCount === 'number' ? item.unreadCount : existing?.unreadCount || 0,
           };
         });
       });
@@ -229,6 +238,8 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
               text: typeof item.text === 'string' ? item.text : '',
               sender,
               timestamp: normalizeTimestamp(item.timestamp),
+              readAt: typeof item.readAt === 'string' ? item.readAt : null,
+              isRead: typeof item.isRead === 'boolean' ? item.isRead : Boolean(item.readAt),
             };
           })
           .filter((item) => item.text.trim().length > 0);
@@ -242,6 +253,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
                   lastMessage: mapped[mapped.length - 1]?.text || t.lastMessage,
                   lastTimestamp:
                     mapped[mapped.length - 1]?.timestamp || normalizeTimestamp(t.lastTimestamp),
+                  unreadCount: 0,
                 }
               : t
           )
@@ -313,6 +325,8 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         text: message.text,
         sender: 'me',
         timestamp: normalizeTimestamp(message.timestamp),
+        readAt: null,
+        isRead: false,
       };
 
       setThreads((prev) => {
@@ -328,6 +342,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
             messages: [...existing.messages, localMessage],
             lastMessage: localMessage.text,
             lastTimestamp: localMessage.timestamp,
+            unreadCount: 0,
           };
           const [changed] = updated.splice(existingIndex, 1);
           updated.unshift(changed);
@@ -345,6 +360,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
             messages: [localMessage],
             lastMessage: localMessage.text,
             lastTimestamp: localMessage.timestamp,
+            unreadCount: 0,
           },
           ...prev,
         ];

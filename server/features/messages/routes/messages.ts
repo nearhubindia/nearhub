@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { and, desc, eq, inArray, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { db } from '../../../data/db';
 import {
@@ -185,6 +185,27 @@ export function registerMessageRoutes(app: Express) {
         row.sellerId === identity.userId ? row.buyerId : row.sellerId
       );
       const userLabelMap = await getUserLabelMap(otherUserIds);
+      const conversationIds = rows.map((row) => row.conversationId);
+      const unreadRows =
+        conversationIds.length > 0
+          ? await db
+              .select({
+                conversationId: chatMessages.conversationId,
+                unreadCount: sql<number>`count(*)`,
+              })
+              .from(chatMessages)
+              .where(
+                and(
+                  inArray(chatMessages.conversationId, conversationIds),
+                  eq(chatMessages.recipientId, identity.userId),
+                  isNull(chatMessages.readAt)
+                )
+              )
+              .groupBy(chatMessages.conversationId)
+          : [];
+      const unreadCountMap = new Map(
+        unreadRows.map((row) => [row.conversationId, Number(row.unreadCount) || 0])
+      );
 
       const threads = rows.map((row) => {
         const isSeller = row.sellerId === identity.userId;
@@ -203,6 +224,7 @@ export function registerMessageRoutes(app: Express) {
           otherUserName: otherUserLabel,
           lastMessage: row.lastMessage || '',
           lastTimestamp: (row.lastMessageAt || row.updatedAt).toISOString(),
+          unreadCount: unreadCountMap.get(row.conversationId) || 0,
         };
       });
 
@@ -287,6 +309,17 @@ export function registerMessageRoutes(app: Express) {
         }
         const conversation = participant.conversation;
 
+        await db
+          .update(chatMessages)
+          .set({ readAt: new Date() })
+          .where(
+            and(
+              eq(chatMessages.conversationId, conversationId),
+              eq(chatMessages.recipientId, identity.userId),
+              isNull(chatMessages.readAt)
+            )
+          );
+
         const rows = await db
           .select()
           .from(chatMessages)
@@ -302,6 +335,8 @@ export function registerMessageRoutes(app: Express) {
           senderId: row.senderId,
           recipientId: row.recipientId,
           timestamp: row.createdAt.toISOString(),
+          readAt: row.readAt ? row.readAt.toISOString() : null,
+          isRead: Boolean(row.readAt),
         }));
 
         return res.json({ success: true, data: messages });
@@ -447,6 +482,8 @@ export function registerMessageRoutes(app: Express) {
             senderId: message.senderId,
             recipientId: message.recipientId,
             timestamp: message.createdAt.toISOString(),
+            readAt: null,
+            isRead: false,
           },
         },
       });

@@ -25,6 +25,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   const isMe = message.sender === 'me';
   const time = new Date(message.timestamp);
   const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const receipt = isMe ? (message.isRead ? '✓✓' : '✓') : '';
 
   return (
     <View style={[styles.bubbleRow, isMe ? styles.bubbleRowMe : styles.bubbleRowSeller]}>
@@ -32,9 +33,16 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         <Text style={[styles.bubbleText, isMe ? styles.bubbleTextMe : styles.bubbleTextSeller]}>
           {message.text}
         </Text>
-        <Text style={[styles.bubbleTime, isMe ? styles.bubbleTimeMe : styles.bubbleTimeSeller]}>
-          {timeStr}
-        </Text>
+        <View style={styles.bubbleMetaRow}>
+          <Text style={[styles.bubbleTime, isMe ? styles.bubbleTimeMe : styles.bubbleTimeSeller]}>
+            {timeStr}
+          </Text>
+          {isMe ? (
+            <Text style={[styles.readReceipt, message.isRead && styles.readReceiptRead]}>
+              {receipt}
+            </Text>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -435,6 +443,21 @@ const styles = StyleSheet.create({
   },
   bubbleTimeSeller: {
     color: Colors.textTertiary,
+  },
+  bubbleMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 4,
+    marginTop: 4,
+  },
+  readReceipt: {
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+    color: 'rgba(255,255,255,0.6)',
+  },
+  readReceiptRead: {
+    color: '#BFDBFE',
   },
   inputBar: {
     backgroundColor: Colors.surface,

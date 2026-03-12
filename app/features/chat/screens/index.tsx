@@ -45,12 +45,20 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
 
   const timeAgo = getTimeAgo(thread.lastTimestamp);
   const preview =
-    thread.lastMessage.substring(0, 60) + (thread.lastMessage.length > 60 ? '...' : '');
+    thread.lastMessage && thread.lastMessage.trim().length > 0
+      ? thread.lastMessage.substring(0, 60) + (thread.lastMessage.length > 60 ? '...' : '')
+      : 'No messages yet';
   const initial = (thread.sellerName || 'U').trim().charAt(0).toUpperCase();
+  const unreadCount = Math.max(0, Number(thread.unreadCount || 0));
+  const hasUnread = unreadCount > 0;
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.threadItem, pressed && styles.threadItemPressed]}
+      style={({ pressed }) => [
+        styles.threadItem,
+        hasUnread && styles.threadItemUnread,
+        pressed && styles.threadItemPressed,
+      ]}
       onPress={handlePress}
     >
       <View style={styles.threadContent}>
@@ -92,12 +100,24 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
                 {thread.sellerName}
               </Text>
             </Pressable>
-            <Text style={styles.timestamp}>{timeAgo}</Text>
+            <View style={styles.trailingMeta}>
+              <Text style={styles.timestamp}>{timeAgo}</Text>
+              {unreadCount > 0 ? (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           </View>
           <Text style={styles.listingTitle} numberOfLines={1}>
             {thread.listingTitle}
           </Text>
-          <Text style={styles.lastMessage} numberOfLines={1}>
+          <Text
+            style={[styles.lastMessage, unreadCount > 0 && styles.lastMessageUnread]}
+            numberOfLines={1}
+          >
             {preview}
           </Text>
         </View>
@@ -221,27 +241,31 @@ const styles = StyleSheet.create({
   },
   threadItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    marginBottom: 10,
-    borderRadius: 16,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    marginBottom: 11,
+    borderRadius: 14,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
     shadowColor: '#0F172A',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
     elevation: 1,
   },
+  threadItemUnread: {
+    borderColor: '#BFDCF8',
+    backgroundColor: '#F8FCFF',
+  },
   threadItemPressed: {
-    opacity: 0.85,
+    opacity: 0.9,
   },
   threadContent: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     flex: 1,
     gap: 12,
   },
@@ -255,9 +279,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listingImage: {
-    width: 58,
-    height: 58,
-    borderRadius: 12,
+    width: 56,
+    height: 56,
+    borderRadius: 14,
   },
   noImage: {
     backgroundColor: Colors.border,
@@ -285,6 +309,7 @@ const styles = StyleSheet.create({
   chatInfo: {
     flex: 1,
     justifyContent: 'center',
+    minHeight: 56,
   },
   headerRow: {
     flexDirection: 'row',
@@ -293,27 +318,49 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   sellerName: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
     flex: 1,
   },
   timestamp: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
     color: Colors.textTertiary,
     marginLeft: 8,
   },
+  trailingMeta: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
   listingTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Inter_500Medium',
     color: Colors.textSecondary,
-    marginBottom: 5,
+    marginBottom: 4,
   },
   lastMessage: {
-    fontSize: 13,
-    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
+  },
+  lastMessageUnread: {
+    color: Colors.text,
+    fontFamily: 'Inter_700Bold',
+  },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+  },
+  unreadBadgeText: {
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+    color: '#fff',
   },
   emptyContainer: {
     flex: 1,

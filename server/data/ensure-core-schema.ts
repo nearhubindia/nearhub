@@ -14,6 +14,7 @@ async function applyCoreSchemaPatches(): Promise<void> {
   await db.execute(
     sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified boolean NOT NULL DEFAULT false`
   );
+  await db.execute(sql`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS read_at timestamp`);
 
   // Keep display_name useful when legacy rows only had username.
   await db.execute(sql`
