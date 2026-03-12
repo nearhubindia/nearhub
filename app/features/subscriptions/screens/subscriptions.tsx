@@ -399,7 +399,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
   const hasStarterCredits = Boolean(
     starterCredits &&
     starterCredits.isActive &&
-    (starterCredits.listingsTotal > 0 || starterCredits.boostsTotal > 0)
+    ((starterCredits.listingsRemaining || 0) > 0 || (starterCredits.boostsRemaining || 0) > 0)
   );
 
   const consolidatedActiveSubscriptions = useMemo((): ConsolidatedActiveSubscription[] => {

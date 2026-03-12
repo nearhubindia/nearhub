@@ -2326,9 +2326,9 @@ export function registerSubscriptionRoutes(app: Express) {
       }
 
       const effectiveUserId = String(userId);
-      const consumed = await consumeUserBoostCredit(effectiveUserId);
-      const starterConsumed = !consumed ? await consumeStarterBoostCredit(effectiveUserId) : null;
-      if (!consumed && !starterConsumed) {
+      const starterConsumed = await consumeStarterBoostCredit(effectiveUserId);
+      const consumed = !starterConsumed ? await consumeUserBoostCredit(effectiveUserId) : null;
+      if (!starterConsumed && !consumed) {
         const tiers = await getActiveSubscriptionTiers();
         const plans = tiers
           .filter((tier: any) => String(tier.type || 'bundle') === 'boost')
@@ -2358,9 +2358,11 @@ export function registerSubscriptionRoutes(app: Express) {
         success: true,
         listingId,
         boostedUntil: boosted.boostedUntil,
-        boostsRemaining: consumed ? consumed.boostsRemaining : starterConsumed!.boostsRemaining,
+        boostsRemaining: starterConsumed
+          ? starterConsumed.boostsRemaining
+          : consumed!.boostsRemaining,
         usedSubscriptionId: consumed?.subscriptionId || null,
-        usedStarterCredits: !consumed && !!starterConsumed,
+        usedStarterCredits: !!starterConsumed,
         message: 'Listing boosted for 24 hours',
       });
     } catch (error) {
@@ -2520,14 +2522,18 @@ export function registerSubscriptionRoutes(app: Express) {
           const isOwner = listing.sellerId === userId;
 
           if (isOwner && listing.status === 'active' && listing.isActive === true) {
-            const consumed = await consumeUserBoostCredit(String(userId));
-            if (consumed) {
+            const starterConsumed = await consumeStarterBoostCredit(String(userId));
+            const consumed = !starterConsumed ? await consumeUserBoostCredit(String(userId)) : null;
+            if (starterConsumed || consumed) {
               const boosted = await boostListingForHours(String(listingId), 24);
               immediateBoost = {
                 listingId: String(listingId),
                 boostedUntil: boosted?.boostedUntil || null,
-                usedSubscriptionId: consumed.subscriptionId,
-                boostsRemainingAfterBoost: consumed.boostsRemaining,
+                usedSubscriptionId: consumed?.subscriptionId || null,
+                usedStarterCredits: !!starterConsumed,
+                boostsRemainingAfterBoost: starterConsumed
+                  ? starterConsumed.boostsRemaining
+                  : consumed!.boostsRemaining,
               };
             }
           }
