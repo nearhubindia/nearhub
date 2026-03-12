@@ -55,7 +55,7 @@ export function registerUserRoutes(app: Express) {
 
   const syncDbUserProfile = async (
     userId: string,
-    avatarUrl: string,
+    avatarUrl: string | undefined,
     profile: { name?: string; address?: string; gstin?: string }
   ) => {
     const dbUser = await getDbUser(userId);
@@ -71,6 +71,8 @@ export function registerUserRoutes(app: Express) {
       return normalized === 'seller' || normalized === 'unknown' || normalized === 'anonymous';
     };
 
+    const normalizedAvatarUrl = typeof avatarUrl === 'string' ? avatarUrl.trim() : '';
+
     if (dbUser?.id) {
       const nextDisplayName =
         profileName && !isPhoneLikeUsername(profileName) && !isPlaceholderName(profileName)
@@ -83,7 +85,7 @@ export function registerUserRoutes(app: Express) {
           displayName: nextDisplayName,
           address: profileAddress || dbUser.address || null,
           gstin: profileGstin || dbUser.gstin || null,
-          avatarUrl: avatarUrl || null,
+          avatarUrl: normalizedAvatarUrl || dbUser.avatarUrl || null,
           mobile: normalizePhone(userId) || dbUser.mobile,
         })
         .where(eq(users.id, dbUser.id));
@@ -104,7 +106,7 @@ export function registerUserRoutes(app: Express) {
         mobile: normalizedPhone || null,
         address: profileAddress || null,
         gstin: profileGstin || null,
-        avatarUrl: avatarUrl || null,
+        avatarUrl: normalizedAvatarUrl || null,
         createdAt: new Date(),
       })
       .onConflictDoNothing({ target: users.id });
@@ -280,13 +282,17 @@ export function registerUserRoutes(app: Express) {
 
       // Get existing user or create new one
       let user = ensureUser(String(userId));
+      const dbUser = await getDbUser(String(userId));
+      const persistedAvatar = String(dbUser?.avatarUrl || '').trim();
+      const incomingAvatar = typeof avatarUrl === 'string' ? avatarUrl.trim() : '';
+      const nextAvatar = incomingAvatar || persistedAvatar || user.avatarUrl || '';
 
       // Update user
       user = {
         ...user,
         name: name.trim(),
         email: email?.trim() || user.email,
-        avatarUrl: typeof avatarUrl === 'string' ? avatarUrl.trim() : user.avatarUrl,
+        avatarUrl: nextAvatar,
         bio: bio?.trim() || user.bio,
         address: address?.trim() || user.address,
         gstin: gstin?.trim() || user.gstin,
@@ -294,7 +300,7 @@ export function registerUserRoutes(app: Express) {
       };
 
       upsertUser(user);
-      await syncDbUserProfile(String(userId), user.avatarUrl || '', {
+      await syncDbUserProfile(String(userId), user.avatarUrl, {
         name: user.name,
         address: user.address,
         gstin: user.gstin,
