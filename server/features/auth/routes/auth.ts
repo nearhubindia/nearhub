@@ -111,6 +111,16 @@ async function hasExistingAccountFootprint(userId: string): Promise<boolean> {
   return starterRow.length > 0 || listingRow.length > 0 || subscriptionRow.length > 0;
 }
 
+async function userExistsInDb(userId: string): Promise<boolean> {
+  const normalizedId = String(userId || '').trim();
+  if (!normalizedId || !isUuid(normalizedId)) return false;
+  const row = await db.query.users.findFirst({
+    where: eq(users.id, normalizedId),
+    columns: { id: true },
+  });
+  return Boolean(row?.id);
+}
+
 function isPlaceholderName(value: string): boolean {
   const normalized = value.trim().toLowerCase();
   return (
@@ -242,10 +252,10 @@ export function registerAuthRoutes(app: Express) {
 
       const dbUser = await getDbUserByPhone(normalizedPhone);
       const existingUser = getUserByPhone(normalizedPhone);
-      const canonicalUserId =
+      let canonicalUserId =
         dbUser?.id || existingUser?.id || getStableUserIdFromPhone(normalizedPhone);
 
-      const authUser = upsertUserFromAuth({
+      let authUser = upsertUserFromAuth({
         preferredId: canonicalUserId,
         phone: normalizedPhone,
         name:
@@ -262,6 +272,18 @@ export function registerAuthRoutes(app: Express) {
         avatarUrl: authUser.avatarUrl,
         preferredId: canonicalUserId,
       }).catch((error) => console.error('[Auth] Failed to persist new user to DB:', error));
+      const resolvedDbUser = await getDbUserByPhone(normalizedPhone);
+      if (resolvedDbUser?.id && resolvedDbUser.id !== canonicalUserId) {
+        canonicalUserId = resolvedDbUser.id;
+        authUser = upsertUserFromAuth({
+          preferredId: canonicalUserId,
+          phone: normalizedPhone,
+          name: authUser.name,
+          email: authUser.email,
+          gender: authUser.gender,
+          avatarUrl: authUser.avatarUrl,
+        });
+      }
       const user = await hydrateAuthUserFromDb(canonicalUserId, authUser);
       await touchUserActivity({
         userId: canonicalUserId,
@@ -275,7 +297,13 @@ export function registerAuthRoutes(app: Express) {
 
       if (isNewUser) {
         try {
-          await grantStarterCreditsIfEligible(canonicalUserId, { grantedBy: 'system' });
+          if (await userExistsInDb(canonicalUserId)) {
+            await grantStarterCreditsIfEligible(canonicalUserId, { grantedBy: 'system' });
+          } else {
+            console.warn('[Auth] Skipping starter credits: user does not exist in DB', {
+              userId: canonicalUserId,
+            });
+          }
         } catch (starterError) {
           console.error('[Auth] Failed to grant starter credits on verify-otp:', starterError);
         }
@@ -321,10 +349,10 @@ export function registerAuthRoutes(app: Express) {
       const existingUser = getUserByPhone(normalizedPhone);
       const dbUser = await getDbUserByPhone(normalizedPhone);
       const nowIso = new Date().toISOString();
-      const canonicalUserId =
+      let canonicalUserId =
         dbUser?.id || existingUser?.id || getStableUserIdFromPhone(normalizedPhone);
 
-      const updatedAuthUser = upsertUserFromAuth({
+      let updatedAuthUser = upsertUserFromAuth({
         preferredId: canonicalUserId,
         phone: normalizedPhone,
         name,
@@ -340,9 +368,29 @@ export function registerAuthRoutes(app: Express) {
         avatarUrl,
         preferredId: canonicalUserId,
       }).catch((error) => console.error('[Auth] Failed to persist user profile to DB:', error));
+      const resolvedDbUser = await getDbUserByPhone(normalizedPhone);
+      if (resolvedDbUser?.id && resolvedDbUser.id !== canonicalUserId) {
+        canonicalUserId = resolvedDbUser.id;
+        updatedAuthUser = upsertUserFromAuth({
+          preferredId: canonicalUserId,
+          phone: normalizedPhone,
+          name,
+          email,
+          avatarUrl,
+          gender: gender as 'male' | 'female' | 'other',
+          createdAt: existingUser?.createdAt || nowIso,
+          updatedAt: nowIso,
+        });
+      }
       const updatedUser = await hydrateAuthUserFromDb(canonicalUserId, updatedAuthUser);
       try {
-        await grantStarterCreditsIfEligible(canonicalUserId, { grantedBy: 'system' });
+        if (await userExistsInDb(canonicalUserId)) {
+          await grantStarterCreditsIfEligible(canonicalUserId, { grantedBy: 'system' });
+        } else {
+          console.warn('[Auth] Skipping starter credits: user does not exist in DB', {
+            userId: canonicalUserId,
+          });
+        }
       } catch (starterError) {
         console.error('[Auth] Failed to grant starter credits on complete-profile:', starterError);
       }
