@@ -154,6 +154,42 @@ function normalizeStatus(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
+function isDirectBrowserNavigationRequest(req: Request): boolean {
+  if (req.method !== 'GET') return false;
+
+  const secFetchMode = String(req.get('sec-fetch-mode') || '')
+    .trim()
+    .toLowerCase();
+  const secFetchDest = String(req.get('sec-fetch-dest') || '')
+    .trim()
+    .toLowerCase();
+  const accept = String(req.get('accept') || '')
+    .trim()
+    .toLowerCase();
+
+  if (secFetchMode === 'navigate' || secFetchDest === 'document') {
+    return true;
+  }
+
+  if (!secFetchMode && accept.includes('text/html') && !accept.includes('application/json')) {
+    return true;
+  }
+
+  return false;
+}
+
+function blockListingsBrowserNavigation(req: Request, res: Response, next: NextFunction): void {
+  if (!isDirectBrowserNavigationRequest(req)) {
+    next();
+    return;
+  }
+
+  res.status(403).json({
+    success: false,
+    error: 'Direct browser access is blocked for this API.',
+  });
+}
+
 type SellerMeta = {
   isVerified: boolean;
   avatarUrl: string;
@@ -314,6 +350,8 @@ async function resolveTrustedRequestUserId(req: Request): Promise<string> {
 }
 
 export function registerListingRoutes(app: Express) {
+  app.use('/api/listings', blockListingsBrowserNavigation);
+
   /**
    * GET /api/listings
    * Query: limit, offset, category, userId, latitude, longitude, radius
