@@ -10,6 +10,7 @@ import {
   YAxis,
   Tooltip,
 } from 'recharts';
+import { useEffect, useState } from 'react';
 import { Users, FileText, BarChart3, TrendingUp } from 'lucide-react';
 import { chartData, categoryData, COLORS } from '@/features/admin/constants/admin-constants';
 import { useGrowthReport, useRecentActivity } from '@/features/admin/hooks';
@@ -18,12 +19,20 @@ import type { Stat } from '@/features/admin/types/admin-types';
 export default function DashboardView() {
   const { data: reportData, isLoading } = useGrowthReport();
   const { data: recentActivityData } = useRecentActivity();
+  const [nowTimestamp, setNowTimestamp] = useState(0);
+
+  useEffect(() => {
+    const refreshNow = () => setNowTimestamp(Date.now());
+    refreshNow();
+    const intervalId = window.setInterval(refreshNow, 60000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const formatRelativeTime = (timestamp?: string | null): string => {
     if (!timestamp) return 'Just now';
     const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return 'Just now';
-    const diffMs = Date.now() - date.getTime();
+    const diffMs = nowTimestamp - date.getTime();
     const diffMin = Math.floor(diffMs / 60000);
     if (diffMin < 1) return 'Just now';
     if (diffMin < 60) return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
