@@ -24,6 +24,7 @@ import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
 import { getTimeAgo, formatCondition } from '@/lib/utils';
 import { getApiUrl } from '@/lib/query-client';
 import { createResponsiveStyles } from '@/lib/responsive';
+import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 
 interface UpgradePlan {
   duration: number;
@@ -73,21 +74,12 @@ export default function MyListingsScreen() {
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
-  // Filter user's listings (handles +91, spaces, dashes by comparing trailing 10 digits)
-  const normalizePhone = (value: string | undefined | null) => {
-    const digits = String(value || '').replace(/\D/g, '');
-    return digits.length > 10 ? digits.slice(-10) : digits;
-  };
+  // Filter user's listings using canonical user id.
   const normalizeId = (value: string | undefined | null) => String(value || '').trim();
   const userIdNormalized = normalizeId(user?.id);
-  const userPhoneNormalized = normalizePhone(user?.phone);
   const myListings = listings.filter((listing) => {
     const listingUserId = normalizeId(listing.userId);
-    if (userIdNormalized && listingUserId && listingUserId === userIdNormalized) {
-      return true;
-    }
-
-    return normalizePhone(listing.sellerPhone) === userPhoneNormalized;
+    return Boolean(userIdNormalized && listingUserId && listingUserId === userIdNormalized);
   });
 
   const activeListings = myListings.filter((l) => {
@@ -458,11 +450,7 @@ export default function MyListingsScreen() {
       const apiUrl = await getApiUrl();
       const checkoutResponse = await fetch(`${apiUrl}/api/subscriptions/upgrade-listing/checkout`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user?.id || '',
-          'x-user-phone': user?.phone || '',
-        },
+        headers: buildUserAuthHeaders({ id: user?.id || '', phone: user?.phone || '' }),
         body: JSON.stringify({
           listingId,
           duration,
@@ -505,11 +493,7 @@ export default function MyListingsScreen() {
         `${apiUrl}/api/subscriptions/upgrade-listing/verify-payment`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': user?.id || '',
-            'x-user-phone': user?.phone || '',
-          },
+          headers: buildUserAuthHeaders({ id: user?.id || '', phone: user?.phone || '' }),
           body: JSON.stringify({
             listingId,
             duration,
@@ -592,11 +576,7 @@ export default function MyListingsScreen() {
       const apiUrl = await getApiUrl();
       const response = await fetch(`${apiUrl}/api/subscriptions/listings/${item.id}/boost`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user?.id || '',
-          'x-user-phone': user?.phone || '',
-        },
+        headers: buildUserAuthHeaders({ id: user?.id || '', phone: user?.phone || '' }),
       });
 
       const data = await response.json();

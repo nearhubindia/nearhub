@@ -19,6 +19,12 @@ import { taskScheduler } from './lib/task-scheduler';
 import { checkAndExpireSubscriptions } from './features/subscriptions/workers/subscription-expiration';
 import { checkAndDeactivateListings } from './features/listings/workers/listing-expiration';
 import { generalLimiter } from './lib/rate-limiter';
+import {
+  resolveUserIdFromRequest,
+  touchUserActivity,
+} from './features/users/services/user-lifecycle';
+import { runInactiveUserCleanupJob } from './features/users/workers/inactive-user-cleanup';
+import { runDataRetentionCleanupJob } from './features/users/workers/data-retention-cleanup';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -39,7 +45,7 @@ const app = express();
 
 declare module 'http' {
   interface IncomingMessage {
-    rawBody: unknown;
+    rawBody?: string;
   }
 }
 
@@ -74,7 +80,10 @@ function setupCors(app: express.Application) {
     if (shouldAllow) {
       res.header('Access-Control-Allow-Origin', origin || '*');
       res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range, x-user-id');
+      res.header(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, Range, x-user-id, x-user-phone'
+      );
       res.header('Access-Control-Expose-Headers', 'Content-Range, Content-Length, Accept-Ranges');
       res.header('Access-Control-Allow-Credentials', 'true');
     }
@@ -93,6 +102,9 @@ function setupBodyParsing(app: express.Application) {
     express.json({
       limit: '50mb',
       strict: false,
+      verify: (req, _res, buf) => {
+        req.rawBody = buf.toString('utf8');
+      },
     })
   );
 
@@ -139,6 +151,36 @@ function setupRequestLogging(app: express.Application) {
     });
 
     next();
+  });
+}
+
+function setupUserActivityTracking(app: express.Application): void {
+  app.use('/api', async (req: Request, _res: Response, next: NextFunction) => {
+    const path = req.path || '';
+    if (path === '/health' || path.startsWith('/admin/login')) {
+      return next();
+    }
+
+    let userId = '';
+    try {
+      userId = await resolveUserIdFromRequest(req as any);
+    } catch (error) {
+      debugServer('Failed to resolve canonical user id: %O', error);
+    }
+    if (!userId) return next();
+    (req as any).userId = userId;
+
+    const ipAddress = (req.ip || req.socket.remoteAddress || '').replace('::ffff:', '');
+    const userAgent = req.get('user-agent') || '';
+    void touchUserActivity({
+      userId,
+      ip: ipAddress,
+      userAgent,
+    }).catch((error) => {
+      debugServer('Failed to update user activity for %s: %O', userId, error);
+    });
+
+    return next();
   });
 }
 
@@ -290,6 +332,7 @@ function setupErrorHandler(app: express.Application) {
 
   setupCors(app);
   setupBodyParsing(app);
+  setupUserActivityTracking(app);
 
   // Apply general rate limiting to all API routes
   app.use('/api', generalLimiter);
@@ -353,7 +396,32 @@ function initializeBackgroundWorkers(): void {
     { enabled: true, maxRetries: 3 }
   );
 
+  // Inactive user cleanup worker - disabled by default, run manually by admin after review.
+  taskScheduler.register(
+    'inactive-user-cleanup',
+    async () => {
+      await runInactiveUserCleanupJob({ inactivityDays: 90, scanLimit: 1000, cleanupLimit: 200 });
+    },
+    24 * 60 * 60 * 1000, // 24 hours
+    { enabled: false, maxRetries: 3 }
+  );
+
+  // Data retention cleanup worker - disabled by default.
+  taskScheduler.register(
+    'data-retention-cleanup',
+    async () => {
+      await runDataRetentionCleanupJob({
+        listingViewsDays: Number(process.env.LISTING_VIEWS_RETENTION_DAYS || 90),
+        notificationLogsDays: Number(process.env.NOTIFICATION_LOGS_RETENTION_DAYS || 30),
+      });
+    },
+    24 * 60 * 60 * 1000, // 24 hours
+    { enabled: false, maxRetries: 3 }
+  );
+
   debugWorkers('Background workers initialized');
   debugWorkers('subscription-expiration: Every 1 hour');
   debugWorkers('listing-expiration: Every 30 minutes');
+  debugWorkers('inactive-user-cleanup: Every 24 hours (disabled by default)');
+  debugWorkers('data-retention-cleanup: Every 24 hours (disabled by default)');
 }

@@ -8,6 +8,20 @@
       "when": 1773311030018,
       "tag": "0000_lucky_sentry",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773312600000,
+      "tag": "0001_schema_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773315000000,
+      "tag": "0002_user_reference_normalization",
+      "breakpoints": true
     }
   ]
 }

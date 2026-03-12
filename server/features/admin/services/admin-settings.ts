@@ -47,6 +47,7 @@ const DEFAULT_SETTINGS: AdminSettings = {
   enableDynamicPricing: false,
   dynamicPricingAlgorithm: 'demand_supply',
   geoRadiusKm: 50,
+  inactiveUserReviewDays: 90,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -267,5 +268,8 @@ Media Deletion:
 Reactivation:
   Allowed: ${settings.allowReactivation ? 'Yes' : 'No'}
   Price multiplier: ${settings.reactivationPricingMultiplier}x
+
+Inactive User Review:
+  Inactivity threshold: ${settings.inactiveUserReviewDays} days
   `.trim();
 }

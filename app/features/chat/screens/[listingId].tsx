@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,6 +8,7 @@ import {
   Pressable,
   Platform,
   KeyboardAvoidingView,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +17,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
+import { useAuth } from '@/shared/contexts/auth-context';
 import { useMessages, ChatMessage } from '@/shared/contexts/messages-context';
 import { getTimeAgo } from '@/lib/utils';
 
@@ -39,39 +41,103 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 }
 
 export default function ChatScreen() {
-  const { listingId, sellerName, listingTitle, listingImage } = useLocalSearchParams<{
-    listingId: string;
-    sellerName: string;
-    listingTitle: string;
-    listingImage: string;
+  const params = useLocalSearchParams<{
+    listingId?: string | string[];
+    conversationId?: string | string[];
+    sellerName?: string | string[];
+    listingTitle?: string | string[];
+    listingImage?: string | string[];
   }>();
   const insets = useSafeAreaInsets();
   const { getListingById } = useListings();
-  const { getThread, sendMessage } = useMessages();
+  const { user } = useAuth();
+  const { getThread, loadThreadMessages, sendMessage } = useMessages();
   const [inputText, setInputText] = useState('');
+  const listingId = Array.isArray(params.listingId) ? params.listingId[0] : params.listingId || '';
+  const conversationId = Array.isArray(params.conversationId)
+    ? params.conversationId[0]
+    : params.conversationId;
+  const sellerName = Array.isArray(params.sellerName) ? params.sellerName[0] : params.sellerName;
+  const listingTitle = Array.isArray(params.listingTitle)
+    ? params.listingTitle[0]
+    : params.listingTitle;
+  const listingImage = Array.isArray(params.listingImage)
+    ? params.listingImage[0]
+    : params.listingImage;
+  const [resolvedConversationId, setResolvedConversationId] = useState<string | undefined>(
+    conversationId
+  );
   const flatListRef = useRef<FlatList>(null);
 
   const listing = getListingById(listingId);
-  const thread = getThread(listingId);
+  const thread = getThread(resolvedConversationId || listingId);
   const messages = thread?.messages || [];
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+
+  useEffect(() => {
+    setResolvedConversationId(conversationId);
+  }, [conversationId]);
+
+  useEffect(() => {
+    const targetId = resolvedConversationId || listingId;
+    if (!targetId) return;
+
+    loadThreadMessages(targetId).catch((error) => {
+      console.error('Failed to load chat messages:', error);
+    });
+  }, [listingId, loadThreadMessages, resolvedConversationId]);
 
   const handleSend = useCallback(async () => {
     const text = inputText.trim();
     if (!text) return;
 
+    const normalizedUserId = String(user?.id || '')
+      .replace(/[\s+-]/g, '')
+      .toLowerCase();
+    const normalizedListingUserId = String(listing?.userId || '')
+      .replace(/[\s+-]/g, '')
+      .toLowerCase();
+    const isOwnerWithoutConversation =
+      !thread?.conversationId && !!normalizedUserId && normalizedUserId === normalizedListingUserId;
+
+    if (isOwnerWithoutConversation) {
+      Alert.alert('Not Allowed', 'You cannot message your own listing.');
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setInputText('');
 
-    await sendMessage(
-      listingId,
-      text,
-      sellerName || listing?.sellerName || 'Seller',
-      listingTitle || listing?.title || 'Item',
-      listingImage || listing?.images[0] || ''
-    );
-  }, [inputText, listingId, sellerName, listingTitle, listingImage]);
+    try {
+      const nextConversationId = await sendMessage(
+        thread?.listingId || listingId,
+        text,
+        sellerName || listing?.sellerName || 'Seller',
+        listingTitle || listing?.title || 'Item',
+        listingImage || listing?.images[0] || '',
+        thread?.conversationId || resolvedConversationId
+      );
+      if (nextConversationId && nextConversationId !== resolvedConversationId) {
+        setResolvedConversationId(nextConversationId);
+      }
+    } catch (error: any) {
+      const message = error?.message || 'Failed to send message';
+      Alert.alert('Message Error', message);
+    }
+  }, [
+    inputText,
+    listing,
+    listingId,
+    listingImage,
+    listingTitle,
+    resolvedConversationId,
+    sellerName,
+    sendMessage,
+    thread?.conversationId,
+    thread?.listingId,
+    user?.id,
+  ]);
 
   const reversedMessages = [...messages].reverse();
 

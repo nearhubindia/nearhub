@@ -98,6 +98,19 @@ function upsertCanonical(href: string) {
   link.setAttribute('href', href);
 }
 
+function upsertJsonLd(id: string, data: Record<string, unknown>) {
+  let script = document.querySelector(
+    `script[type="application/ld+json"][data-seo-id="${id}"]`
+  ) as HTMLScriptElement | null;
+  if (!script) {
+    script = document.createElement('script');
+    script.setAttribute('type', 'application/ld+json');
+    script.setAttribute('data-seo-id', id);
+    document.head.appendChild(script);
+  }
+  script.textContent = JSON.stringify(data);
+}
+
 function resolveMeta(pathname: string): RouteMeta {
   if (pathname.startsWith('/admin')) {
     return {
@@ -130,6 +143,42 @@ function resolveMeta(pathname: string): RouteMeta {
     };
   }
 
+  if (pathname === '/privacy-policy') {
+    return {
+      title: 'Privacy Policy | NearHub',
+      description: 'Read how NearHub collects, uses, secures, and shares personal information.',
+    };
+  }
+
+  if (pathname === '/terms') {
+    return {
+      title: 'Terms And Conditions | NearHub',
+      description: 'Review user responsibilities, payment terms, and account rules for NearHub.',
+    };
+  }
+
+  if (pathname === '/refund-policy') {
+    return {
+      title: 'Refund And Cancellation Policy | NearHub',
+      description: 'Learn NearHub refund eligibility, cancellation terms, and processing timelines.',
+    };
+  }
+
+  if (pathname === '/about') {
+    return {
+      title: 'About | NearHub',
+      description: 'Learn about NearHub, our mission, and company information.',
+    };
+  }
+
+  if (pathname === '/payment-security') {
+    return {
+      title: 'Payment Security | NearHub',
+      description:
+        'Understand how NearHub and Razorpay process payments securely and protect payment data.',
+    };
+  }
+
   if (pathname.startsWith('/footer/')) {
     const key = pathname.split('/')[2] || '';
     return (
@@ -143,6 +192,90 @@ function resolveMeta(pathname: string): RouteMeta {
   return {
     title: 'NearHub',
     description: 'NearHub hyperlocal classifieds platform.',
+  };
+}
+
+function buildJsonLd(pathname: string, canonicalUrl: string, meta: RouteMeta): Record<string, unknown> {
+  const graph: Record<string, unknown>[] = [
+    {
+      '@type': 'Organization',
+      '@id': `${SITE_URL}#organization`,
+      name: 'NearHub',
+      url: SITE_URL,
+      logo: DEFAULT_IMAGE_URL,
+      sameAs: [
+        'https://x.com',
+        'https://www.facebook.com',
+        'https://www.linkedin.com',
+        'https://www.instagram.com',
+      ],
+      contactPoint: [
+        {
+          '@type': 'ContactPoint',
+          contactType: 'customer support',
+          email: 'support@nearhub.com',
+          areaServed: 'IN',
+          availableLanguage: ['en'],
+        },
+      ],
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${SITE_URL}#website`,
+      name: 'NearHub',
+      url: SITE_URL,
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: `${SITE_URL}/?q={search_term_string}`,
+        'query-input': 'required name=search_term_string',
+      },
+    },
+    {
+      '@type': 'WebPage',
+      '@id': `${canonicalUrl}#webpage`,
+      url: canonicalUrl,
+      name: meta.title,
+      description: meta.description,
+      isPartOf: { '@id': `${SITE_URL}#website` },
+    },
+  ];
+
+  if (pathname === '/') {
+    graph.push({
+      '@type': 'CollectionPage',
+      '@id': `${canonicalUrl}#home`,
+      url: canonicalUrl,
+      name: 'NearHub Home',
+      isPartOf: { '@id': `${SITE_URL}#website` },
+      about: { '@id': `${SITE_URL}#organization` },
+    });
+  }
+
+  if (pathname === '/contact') {
+    graph.push({
+      '@type': 'ContactPage',
+      '@id': `${canonicalUrl}#contact`,
+      url: canonicalUrl,
+      name: 'NearHub Contact',
+      isPartOf: { '@id': `${SITE_URL}#website` },
+      about: { '@id': `${SITE_URL}#organization` },
+    });
+  }
+
+  if (pathname === '/about') {
+    graph.push({
+      '@type': 'AboutPage',
+      '@id': `${canonicalUrl}#about`,
+      url: canonicalUrl,
+      name: 'About NearHub',
+      isPartOf: { '@id': `${SITE_URL}#website` },
+      about: { '@id': `${SITE_URL}#organization` },
+    });
+  }
+
+  return {
+    '@context': 'https://schema.org',
+    '@graph': graph,
   };
 }
 
@@ -179,6 +312,7 @@ export function SeoManager() {
     upsertMeta('name', 'twitter:image', DEFAULT_IMAGE_URL);
 
     upsertCanonical(canonicalUrl);
+    upsertJsonLd('nearhub-structured-data', buildJsonLd(pathname, canonicalUrl, meta));
   }, [location]);
 
   return null;

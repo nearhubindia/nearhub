@@ -5,9 +5,8 @@
 
 import type { Express, Request, Response } from 'express';
 import { getListingsByUser } from '../../listings/services/listings';
-
-// Mock user storage (replace with database in production)
-const usersStorage = new Map<string, any>();
+import { getUserById, normalizePhone, upsertUser, type AppUser } from '../services/user-profiles';
+import { getRequestUserId } from '../../../lib/request-user';
 
 function parseJsonField(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
@@ -34,6 +33,31 @@ function parseJsonField(value: unknown): unknown[] {
 }
 
 export function registerUserRoutes(app: Express) {
+  const ensureUser = (userId: string): AppUser => {
+    const existing = getUserById(userId);
+    if (existing) return existing;
+
+    return upsertUser({
+      id: userId,
+      phone: normalizePhone(userId),
+      name: '',
+      email: '',
+      gender: 'other',
+      bio: '',
+      address: '',
+      gstin: '',
+      location: null,
+      isVerified: true,
+      preferences: {
+        notifications: true,
+        emailNotifications: true,
+        autoLocalizeListings: true,
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
   /**
    * GET /api/users/profile
    * Get authenticated user's profile
@@ -41,37 +65,14 @@ export function registerUserRoutes(app: Express) {
   app.get('/api/users/profile', async (req: Request, res: Response) => {
     try {
       // Get userId from request context (set by middleware)
-      const userId = (req as any).userId;
+      const userId = getRequestUserId(req);
 
       if (!userId) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
       // Get user from storage, or create a default user if doesn't exist
-      let user = usersStorage.get(userId);
-
-      if (!user) {
-        // Create a default user in storage
-        user = {
-          id: userId,
-          phone: '',
-          name: '',
-          email: '',
-          bio: '',
-          address: '',
-          gstin: '',
-          location: null,
-          isVerified: true,
-          preferences: {
-            notifications: true,
-            emailNotifications: true,
-            autoLocalizeListings: true,
-          },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        usersStorage.set(userId, user);
-      }
+      const user = ensureUser(String(userId));
 
       return res.json({
         success: true,
@@ -103,7 +104,7 @@ export function registerUserRoutes(app: Express) {
       const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
 
       // Get user from storage (mock)
-      const user = usersStorage.get(userId);
+      const user = getUserById(String(userId));
 
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
@@ -147,28 +148,7 @@ export function registerUserRoutes(app: Express) {
       }
 
       // Get existing user or create new one
-      let user = usersStorage.get(userId);
-
-      if (!user) {
-        // Create new user if doesn't exist
-        user = {
-          id: userId,
-          phone: '', // Will be set from auth or phone verification
-          name: '',
-          email: '',
-          bio: '',
-          address: '',
-          gstin: '',
-          location: null,
-          preferences: {
-            notifications: true,
-            emailNotifications: true,
-            autoLocalizeListings: true,
-          },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-      }
+      let user = ensureUser(String(userId));
 
       // Update user
       user = {
@@ -181,7 +161,7 @@ export function registerUserRoutes(app: Express) {
         updatedAt: new Date().toISOString(),
       };
 
-      usersStorage.set(userId, user);
+      upsertUser(user);
 
       return res.json({
         success: true,
@@ -332,7 +312,7 @@ export function registerUserRoutes(app: Express) {
       const { notifications, emailNotifications, autoLocalize } = req.body;
 
       // Get existing user
-      let user = usersStorage.get(userId);
+      let user = getUserById(String(userId));
 
       if (!user) {
         return res.status(404).json({ error: 'User not found' });
@@ -350,7 +330,7 @@ export function registerUserRoutes(app: Express) {
         updatedAt: new Date().toISOString(),
       };
 
-      usersStorage.set(userId, user);
+      upsertUser(user);
 
       return res.json({
         success: true,
@@ -365,5 +345,3 @@ export function registerUserRoutes(app: Express) {
 
   console.log('[Users] User routes registered');
 }
-
-export { usersStorage };

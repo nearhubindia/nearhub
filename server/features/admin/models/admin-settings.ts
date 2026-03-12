@@ -2,6 +2,7 @@ import { pgTable, text, varchar, decimal, integer, timestamp, boolean } from 'dr
 import { sql } from 'drizzle-orm';
 import { createInsertSchema } from 'drizzle-zod';
 import { z } from 'zod';
+import { users } from '../../users/models/users';
 
 /**
  * Admin Settings Table
@@ -104,6 +105,7 @@ export const adminSettings = pgTable('admin_settings', {
 
   // Geo-location settings
   geoRadiusKm: integer('geo_radius_km').default(50), // Radius in km for ad search filtering
+  inactiveUserReviewDays: integer('inactive_user_review_days').notNull().default(90), // Users inactive for N days become eligible for deletion review
 
   // Timestamps
   createdAt: timestamp('created_at')
@@ -301,7 +303,9 @@ export const couponUsage = pgTable('coupon_usage', {
     .references(() => coupons.id, { onDelete: 'cascade' }),
   listingId: varchar('listing_id').notNull(),
   subscriptionId: varchar('subscription_id').notNull(),
-  userId: varchar('user_id').notNull(), // Track which user used the coupon
+  userId: varchar('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Track which user used the coupon
 
   // Usage info
   discountAmount: decimal('discount_amount', { precision: 12, scale: 2 }).notNull(), // Amount discounted in rupees
@@ -349,7 +353,7 @@ export const invoices = pgTable('invoices', {
   invoiceNumber: varchar('invoice_number').notNull().unique(),
 
   // Customer Info
-  customerId: varchar('customer_id').notNull(),
+  customerId: varchar('customer_id').references(() => users.id, { onDelete: 'set null' }),
   customerName: varchar('customer_name').notNull(),
   customerEmail: varchar('customer_email').notNull(),
   customerPhone: varchar('customer_phone').notNull(),
@@ -443,7 +447,9 @@ export const userSubscriptions = pgTable('user_subscriptions', {
     .default(sql`gen_random_uuid()`),
 
   // References
-  userId: varchar('user_id').notNull(), // Multiple subscriptions allowed per user
+  userId: varchar('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }), // Multiple subscriptions allowed per user
   subscriptionTierId: varchar('subscription_tier_id')
     .notNull()
     .references(() => subscriptionTiers.id),
@@ -482,7 +488,10 @@ export const userStarterCredits = pgTable('user_starter_credits', {
     .primaryKey()
     .default(sql`gen_random_uuid()`),
 
-  userId: varchar('user_id').notNull().unique(),
+  userId: varchar('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
   listingsTotal: integer('listings_total').notNull().default(0),
   listingsUsed: integer('listings_used').notNull().default(0),
   boostsTotal: integer('boosts_total').notNull().default(0),
@@ -499,6 +508,43 @@ export const userStarterCredits = pgTable('user_starter_credits', {
 });
 
 /**
+ * User Activity Table
+ * Stores last activity timestamp for lifecycle governance.
+ */
+export const userActivity = pgTable('user_activity', {
+  userId: varchar('user_id', { length: 64 })
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  firstSeenAt: timestamp('first_seen_at').notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at').notNull().defaultNow(),
+  lastSeenIp: varchar('last_seen_ip', { length: 64 }),
+  lastSeenUserAgent: text('last_seen_user_agent'),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+/**
+ * User Deletion Review Queue
+ * Admin reviews inactive users before data purge.
+ */
+export const userDeletionReviews = pgTable('user_deletion_reviews', {
+  id: varchar('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  userId: varchar('user_id', { length: 64 })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  lastSeenAt: timestamp('last_seen_at').notNull(),
+  status: varchar('status', { length: 20 }).notNull().default('pending'), // pending | approved | rejected | deleted | failed
+  reviewedBy: varchar('reviewed_by', { length: 120 }),
+  reviewedAt: timestamp('reviewed_at'),
+  processedAt: timestamp('processed_at'),
+  notes: text('notes'),
+  lastError: text('last_error'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+/**
  * Listings Table
  * Replaces in-memory storage with database persistence
  */
@@ -508,7 +554,9 @@ export const listings = pgTable('listings', {
     .default(sql`gen_random_uuid()`),
 
   // Seller info
-  sellerId: varchar('seller_id').notNull(),
+  sellerId: varchar('seller_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
 
   // Listing details
   title: varchar('title', { length: 200 }).notNull(),
@@ -560,6 +608,63 @@ export const listings = pgTable('listings', {
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
   updatedAt: timestamp('updated_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+});
+
+/**
+ * Chat Conversations Table
+ * One thread per buyer<->seller pair per listing.
+ */
+export const chatConversations = pgTable('chat_conversations', {
+  id: varchar('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+
+  listingId: varchar('listing_id')
+    .notNull()
+    .references(() => listings.id, { onDelete: 'cascade' }),
+
+  buyerId: varchar('buyer_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  sellerId: varchar('seller_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+
+  lastMessage: text('last_message'),
+  lastMessageAt: timestamp('last_message_at'),
+
+  createdAt: timestamp('created_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: timestamp('updated_at')
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+});
+
+/**
+ * Chat Messages Table
+ * Messages within a conversation.
+ */
+export const chatMessages = pgTable('chat_messages', {
+  id: varchar('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+
+  conversationId: varchar('conversation_id')
+    .notNull()
+    .references(() => chatConversations.id, { onDelete: 'cascade' }),
+
+  senderId: varchar('sender_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  recipientId: varchar('recipient_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  text: text('text').notNull(),
+
+  createdAt: timestamp('created_at')
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
 });
@@ -619,6 +724,17 @@ export const insertListingSchema = createInsertSchema(listings)
       .nullable(),
   });
 
+export const insertChatConversationSchema = createInsertSchema(chatConversations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
 /**
  * Type Exports
  */
@@ -639,7 +755,7 @@ export const listingViews = pgTable('listing_views', {
     .references(() => listings.id, { onDelete: 'cascade' }),
 
   // Viewer info (nullable for anonymous views)
-  viewerId: varchar('viewer_id'),
+  viewerId: varchar('viewer_id').references(() => users.id, { onDelete: 'set null' }),
   ipAddress: varchar('ip_address', { length: 45 }), // IPv6 support
   userAgent: text('user_agent'),
 
@@ -660,9 +776,17 @@ export type InsertListingView = z.infer<typeof insertListingViewSchema>;
 export type UserSubscription = typeof userSubscriptions.$inferSelect;
 export type InsertUserSubscription = z.infer<typeof insertUserSubscriptionSchema>;
 export type UserStarterCredits = typeof userStarterCredits.$inferSelect;
+export type UserActivity = typeof userActivity.$inferSelect;
+export type InsertUserActivity = typeof userActivity.$inferInsert;
+export type UserDeletionReview = typeof userDeletionReviews.$inferSelect;
+export type InsertUserDeletionReview = typeof userDeletionReviews.$inferInsert;
 
 export type Listing = typeof listings.$inferSelect;
 export type InsertListing = z.infer<typeof insertListingSchema>;
+export type ChatConversation = typeof chatConversations.$inferSelect;
+export type InsertChatConversation = z.infer<typeof insertChatConversationSchema>;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 export type LocationIndex = typeof locationIndex.$inferSelect;
 export type InsertLocationIndex = typeof locationIndex.$inferInsert;
 
@@ -686,7 +810,9 @@ export const pushTokens = pgTable('push_tokens', {
     .default(sql`gen_random_uuid()`),
 
   // User reference
-  userId: varchar('user_id').notNull(),
+  userId: varchar('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
 
   // Token details
   token: text('token').notNull().unique(), // Expo push token
@@ -719,7 +845,7 @@ export const notificationLogs = pgTable('notification_logs', {
     .default(sql`gen_random_uuid()`),
 
   // Target info
-  userId: varchar('user_id'),
+  userId: varchar('user_id').references(() => users.id, { onDelete: 'set null' }),
   userType: varchar('user_type', { length: 20 }), // 'buyer' | 'seller' | 'all'
 
   // Message details
@@ -779,7 +905,7 @@ export const inAppNotifications = pgTable('in_app_notifications', {
     .default(sql`gen_random_uuid()`),
 
   // Target user (null = all users)
-  userId: varchar('user_id'),
+  userId: varchar('user_id').references(() => users.id, { onDelete: 'set null' }),
   userType: varchar('user_type', { length: 20 }), // 'buyer' | 'seller' | 'all'
 
   // Notification content

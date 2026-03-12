@@ -16,6 +16,7 @@ import {
   notifyAdminListingPendingReview,
 } from '../../../shared/services/auto-notifications';
 import { SERVER_CONFIG } from '../../../lib/config';
+import { getRequestUserId } from '../../../lib/request-user';
 
 function parseJsonField(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
@@ -106,6 +107,42 @@ function normalizeStatus(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
+function getSellerDisplayName(listing: any): string {
+  const candidate = typeof listing?.sellerName === 'string' ? listing.sellerName.trim() : '';
+  return candidate || 'Seller';
+}
+
+function resolveContactPhone(rest: any, sellerId: string): string {
+  const candidates = [rest?.contactPhone, rest?.sellerPhone, sellerId];
+  for (const value of candidates) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const digits = trimmed.replace(/\D/g, '');
+    if (digits.length >= 10) {
+      return digits.slice(-10);
+    }
+  }
+  return '';
+}
+
+function toPublicListing(listing: any) {
+  const { sellerId: rawSellerId, ...rest } = listing || {};
+  const sellerId = typeof rawSellerId === 'string' ? rawSellerId : '';
+  const contactPhone = resolveContactPhone(rest, sellerId);
+
+  return {
+    ...rest,
+    sellerId,
+    userId: sellerId, // Backward compatibility for mobile clients still reading userId.
+    sellerName: getSellerDisplayName(listing),
+    contactPhone,
+    sellerPhone: contactPhone,
+    images: parseJsonField(listing?.images),
+    videos: parseJsonField(listing?.videos),
+  };
+}
+
 export function registerListingRoutes(app: Express) {
   /**
    * GET /api/listings
@@ -151,15 +188,7 @@ export function registerListingRoutes(app: Express) {
 
       return res.json({
         success: true,
-        data: priceFilteredListings.map((l) => {
-          const { sellerId: _sellerId, ...listingWithoutSellerId } = l as any;
-          return {
-            ...listingWithoutSellerId,
-            userId: l.sellerId,
-            images: parseJsonField(l.images),
-            videos: parseJsonField(l.videos),
-          };
-        }),
+        data: priceFilteredListings.map((l) => toPublicListing(l)),
         limit,
         offset,
       });
@@ -191,15 +220,7 @@ export function registerListingRoutes(app: Express) {
       return res.json({
         success: true,
         category,
-        listings: listings.map((l) => {
-          const { sellerId: _sellerId, ...listingWithoutSellerId } = l as any;
-          return {
-            ...listingWithoutSellerId,
-            userId: l.sellerId,
-            images: parseJsonField(l.images),
-            videos: parseJsonField(l.videos),
-          };
-        }),
+        listings: listings.map((l) => toPublicListing(l)),
         pagination: { limit, offset, total: listings.length },
       });
     } catch (error) {
@@ -240,15 +261,7 @@ export function registerListingRoutes(app: Express) {
       }
       return res.json({
         success: true,
-        listing: (() => {
-          const { sellerId: _sellerId, ...listingWithoutSellerId } = listing as any;
-          return {
-            ...listingWithoutSellerId,
-            userId: listing.sellerId,
-            images: parseJsonField(listing.images),
-            videos: parseJsonField(listing.videos),
-          };
-        })(),
+        listing: toPublicListing(listing),
       });
     } catch (error) {
       console.error('[Listings] Error fetching listing:', error);
@@ -263,7 +276,7 @@ export function registerListingRoutes(app: Express) {
   app.patch('/api/listings/:id', async (req: Request, res: Response) => {
     try {
       const listingId = String(req.params.id);
-      const userId = (req as any).userId || req.get('x-user-id');
+      const userId = getRequestUserId(req);
 
       // Get the listing to check ownership
       const existingListing = await getListingById(listingId);
@@ -416,7 +429,7 @@ export function registerListingRoutes(app: Express) {
   app.delete('/api/listings/:id', async (req: Request, res: Response) => {
     try {
       const listingId = String(req.params.id);
-      const userId = (req as any).userId || req.get('x-user-id');
+      const userId = getRequestUserId(req);
 
       // Get the listing to check ownership
       const existingListing = await getListingById(listingId);

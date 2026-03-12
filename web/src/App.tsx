@@ -6,6 +6,7 @@ import Landing from './features/landing/pages/Landing';
 import Features from './features/landing/pages/Features';
 import Contact from './features/landing/pages/Contact';
 import FooterPage from './features/landing/pages/FooterPage';
+import CompliancePage from './features/landing/pages/CompliancePage';
 import AdminLayout from './features/admin/pages/AdminLayout';
 import DashboardPage from './features/admin/pages/DashboardPage';
 import ListingsPage from './features/admin/pages/ListingsPage';
@@ -35,6 +36,11 @@ function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/features" element={<Features />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/privacy-policy" element={<CompliancePage pageKey="privacy-policy" />} />
+          <Route path="/terms" element={<CompliancePage pageKey="terms" />} />
+          <Route path="/refund-policy" element={<CompliancePage pageKey="refund-policy" />} />
+          <Route path="/about" element={<CompliancePage pageKey="about" />} />
+          <Route path="/payment-security" element={<CompliancePage pageKey="payment-security" />} />
           <Route path="/footer/:pageKey" element={<FooterPage />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route

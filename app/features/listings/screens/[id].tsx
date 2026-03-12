@@ -43,10 +43,14 @@ export default function ListingDetailScreen() {
 
   const listing = getListingById(id);
   const isSaved = savedIds.has(id);
-  const normalizedUserPhone = (user?.phone || '').replace(/[\s+-]/g, '');
   const normalizedUserId = (user?.id || '').replace(/[\s+-]/g, '');
-  const listingPhone = (listing?.contactPhone || listing?.sellerPhone || '').trim();
-  const normalizedSellerPhone = listingPhone.replace(/[\s+-]/g, '');
+  const listingPhoneRaw = (
+    listing?.contactPhone ||
+    listing?.sellerPhone ||
+    String(listing?.userId || '')
+  ).trim();
+  const normalizedSellerPhone = listingPhoneRaw.replace(/\D/g, '').slice(-10);
+  const listingPhone = normalizedSellerPhone;
   const normalizedListingUserId = (listing?.userId || '').replace(/[\s+-]/g, '');
   const listingUserIdLower = String(listing?.userId || '')
     .trim()
@@ -56,11 +60,9 @@ export default function ListingDetailScreen() {
     listingUserIdLower.startsWith('admin-') ||
     listingUserIdLower.startsWith('admin_') ||
     normalizedListingUserId.toLowerCase().startsWith('admin');
-  const canShowMessage = !isAdminListing;
-  const canShowCall = !isAdminListing || (isAdminListing && normalizedSellerPhone.length > 0);
-  const isOwner =
-    (!!normalizedUserPhone && normalizedUserPhone === normalizedSellerPhone) ||
-    (!!normalizedUserId && normalizedUserId === normalizedListingUserId);
+  const isOwner = !!normalizedUserId && normalizedUserId === normalizedListingUserId;
+  const canShowCall = (!isAdminListing || (isAdminListing && normalizedSellerPhone.length > 0)) && !isOwner;
+  const canShowMessage = !isAdminListing && !isOwner;
   const listingStatus = String((listing as any)?.status || '').toLowerCase();
   const isExpired =
     listingStatus === 'expired' ||
@@ -128,6 +130,10 @@ export default function ListingDetailScreen() {
 
   const handleMessage = () => {
     requireAuth(() => {
+      if (isOwner) {
+        Alert.alert('Not Allowed', 'You cannot message your own listing.');
+        return;
+      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       router.push({
         pathname: '/chat/[listingId]',
@@ -143,6 +149,10 @@ export default function ListingDetailScreen() {
 
   const handleCall = () => {
     requireAuth(() => {
+      if (isOwner) {
+        Alert.alert('Not Allowed', 'You cannot call your own listing.');
+        return;
+      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (!normalizedSellerPhone) {
         Alert.alert('Contact Seller', 'Seller phone number is not available.');

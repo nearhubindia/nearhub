@@ -37,9 +37,10 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [cameraType, setCameraType] = useState<CameraType>('back');
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [cameraPermission, requestCameraPermission, getCameraPermission] = useCameraPermissions();
   const [audioPermission, setAudioPermission] = useState<any>(null);
   const [mediaLibraryPermission, setMediaLibraryPermission] = useState<any>(null);
+  const [permissionsChecked, setPermissionsChecked] = useState(false);
   const [recordedVideoUri, setRecordedVideoUri] = useState<string>('');
   const [isCameraReady, setIsCameraReady] = useState(false);
   const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -50,7 +51,7 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
   const hasCameraPermission = cameraPermission?.granted ?? false;
   const hasAudioPermission = audioPermission?.granted ?? false;
   const hasMediaLibraryPermission = mediaLibraryPermission?.granted ?? false;
-  const hasAllPermissions = hasCameraPermission && hasAudioPermission;
+  const hasAllPermissions = permissionsChecked && hasCameraPermission && hasAudioPermission;
 
   const canAskCameraPermission = cameraPermission?.canAskAgain ?? true;
   const canAskAudioPermission = audioPermission?.canAskAgain ?? true;
@@ -60,6 +61,12 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
   useEffect(() => {
     const checkPermissions = async () => {
       console.log('[VideoRecorderModal] Checking permissions...');
+      setPermissionsChecked(false);
+
+      // Check camera permission using live value from permission API
+      const cameraStatus = await getCameraPermission();
+      console.log('[VideoRecorderModal] Camera permission:', cameraStatus.granted);
+
       // Check audio permission
       const audioStatus = await Audio.getPermissionsAsync();
       setAudioPermission(audioStatus);
@@ -69,6 +76,8 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
       const mediaStatus = await MediaLibrary.getPermissionsAsync();
       setMediaLibraryPermission(mediaStatus);
       console.log('[VideoRecorderModal] MediaLibrary permission:', mediaStatus.granted);
+
+      setPermissionsChecked(true);
     };
 
     if (visible) {
@@ -79,11 +88,12 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
       setRecordingTime(0);
       setRecordedVideoUri('');
       setIsCameraReady(false);
+      setPermissionsChecked(false);
       if (recordingIntervalRef.current) {
         clearInterval(recordingIntervalRef.current);
       }
     }
-  }, [visible]);
+  }, [visible, getCameraPermission]);
 
   const handleRequestPermissions = async () => {
     try {
@@ -97,12 +107,19 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
         canAskMediaLibrary: canAskMediaLibraryPermission,
       });
 
-      let cameraGranted = hasCameraPermission;
-      let audioGranted = hasAudioPermission;
-      let mediaLibraryGranted = hasMediaLibraryPermission;
+      const latestCamera = await getCameraPermission();
+      const latestAudio = await Audio.getPermissionsAsync();
+      const latestMedia = await MediaLibrary.getPermissionsAsync();
+
+      setAudioPermission(latestAudio);
+      setMediaLibraryPermission(latestMedia);
+
+      let cameraGranted = latestCamera.granted;
+      let audioGranted = latestAudio.granted;
+      let mediaLibraryGranted = latestMedia.granted;
 
       // Request camera permission if needed
-      if (!hasCameraPermission && canAskCameraPermission) {
+      if (!cameraGranted && latestCamera.canAskAgain) {
         console.log('[VideoRecorderModal] Requesting camera permission...');
         const cameraResult = await requestCameraPermission();
         cameraGranted = cameraResult.granted;
@@ -110,7 +127,7 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
       }
 
       // Request audio permission if needed
-      if (!hasAudioPermission && canAskAudioPermission) {
+      if (!audioGranted && latestAudio.canAskAgain) {
         console.log('[VideoRecorderModal] Requesting audio permission...');
         const audioResult = await Audio.requestPermissionsAsync();
         setAudioPermission(audioResult);
@@ -119,7 +136,7 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
       }
 
       // Request media library permission if needed
-      if (!hasMediaLibraryPermission && canAskMediaLibraryPermission) {
+      if (!mediaLibraryGranted && latestMedia.canAskAgain) {
         console.log('[VideoRecorderModal] Requesting media library permission...');
         const mediaResult = await MediaLibrary.requestPermissionsAsync();
         setMediaLibraryPermission(mediaResult);
@@ -145,6 +162,7 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
         );
       } else {
         console.log('[VideoRecorderModal] All required permissions granted!');
+        setPermissionsChecked(true);
         // Note: media library permission is optional - we'll handle save errors gracefully
       }
     } catch (error) {
@@ -293,6 +311,22 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
   const toggleCameraType = () => {
     setCameraType((prev) => (prev === 'back' ? 'front' : 'back'));
   };
+
+  if (!permissionsChecked) {
+    return (
+      <Modal visible={visible} animationType="slide">
+        <SafeAreaView style={styles.centerContainer}>
+          <View style={styles.permissionContainer}>
+            <MaterialCommunityIcons name="shield-sync" size={64} color="#3B82F6" />
+            <Text style={styles.permissionTitle}>Checking Permissions...</Text>
+            <Text style={styles.permissionText}>
+              Verifying camera and microphone access.
+            </Text>
+          </View>
+        </SafeAreaView>
+      </Modal>
+    );
+  }
 
   if (!hasAllPermissions) {
     return (

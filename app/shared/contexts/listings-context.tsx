@@ -11,17 +11,59 @@ import React, {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Listing, Category } from '@/lib/types';
 import { getBackendURL } from '@/lib/config';
+import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 
 const LISTINGS_KEY = '@marketlocal_listings';
 const SAVED_KEY = '@marketlocal_saved';
 const INITIALIZED_KEY = '@marketlocal_initialized';
 const DATA_VERSION_KEY = '@marketlocal_data_version';
 const CURRENT_DATA_VERSION = '8'; // Remove sample fallback and reset stale sample cache
+const NETWORK_TIMEOUT_MS = 12000;
+
+function resolveSellerName(listing: any): string {
+  const candidates = [
+    listing?.sellerName,
+    listing?.seller_name,
+    listing?.ownerName,
+    listing?.owner_name,
+    listing?.userName,
+    listing?.user_name,
+    listing?.name,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+  }
+
+  return 'Seller';
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  timeoutMs: number = NETWORK_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 interface ListingsContextValue {
   listings: Listing[];
   savedIds: Set<string>;
   isLoading: boolean;
+  isRefreshing: boolean;
+  isFetchingMore: boolean;
   hasMore: boolean;
   offset: number;
   limit: number;
@@ -48,6 +90,8 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
   const LIMIT = 50; // Items per page
@@ -56,7 +100,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   const hasLoadedOnceRef = useRef(false);
   const MIN_LOAD_INTERVAL_MS = 1500;
 
-  const loadData = useCallback(async (options?: { force?: boolean }) => {
+  const loadData = useCallback(async (options?: { force?: boolean; asRefresh?: boolean }) => {
     if (loadInFlightRef.current) {
       return loadInFlightRef.current;
     }
@@ -73,14 +117,14 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     const run = (async () => {
       try {
         console.log('[Listings] loadData: Fetching listings from backend...');
-        setIsLoading(true);
+        if (!options?.asRefresh) {
+          setIsLoading(true);
+        }
 
         const backendURL = getBackendURL();
         const dataVersion = await AsyncStorage.getItem(DATA_VERSION_KEY);
         const needsCacheReset = dataVersion !== CURRENT_DATA_VERSION;
         let currentUserId = '';
-        let currentUserPhone = '';
-        let normalizedCurrentUserPhone = '';
 
         if (needsCacheReset) {
           await AsyncStorage.removeItem(LISTINGS_KEY);
@@ -117,14 +161,12 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         };
 
         // Get user location and radius from AsyncStorage (set by auth context)
-        let url = `${backendURL}/api/listings?limit=100&offset=0`;
+        let url = `${backendURL}/api/listings?limit=${LIMIT}&offset=0`;
         try {
           const userDataStr = await AsyncStorage.getItem('@nearhub_auth_user');
           if (userDataStr) {
             const userData = JSON.parse(userDataStr);
             currentUserId = String(userData?.id || '');
-            currentUserPhone = String(userData?.phone || '');
-            normalizedCurrentUserPhone = currentUserPhone.replace(/[\s+-]/g, '');
             const latitude = userData?.location?.latitude;
             const longitude = userData?.location?.longitude;
             const radiusKm = userData?.preferences?.searchRadiusKm || 50; // Default 50km
@@ -142,7 +184,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
         try {
           // Try to fetch from backend API first
-          const response = await fetch(url, {
+          const response = await fetchWithTimeout(url, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
@@ -190,7 +232,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                     latitude: listing.latitude ? parseFloat(listing.latitude) : 0,
                     longitude: listing.longitude ? parseFloat(listing.longitude) : 0,
                   },
-                  sellerName: 'Seller',
+                  sellerName: resolveSellerName(listing),
                   sellerPhone: listing.contactPhone || listing.sellerPhone || '',
                   contactPhone: listing.contactPhone || listing.sellerPhone || '',
                   sellerAvatar: 'https://i.pravatar.cc/150?img=1',
@@ -220,18 +262,14 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
               );
 
               let userListings: Listing[] = [];
-              const userLookupId = currentUserId || normalizedCurrentUserPhone;
+              const userLookupId = currentUserId;
               if (userLookupId) {
                 try {
-                  const userRes = await fetch(
+                  const userRes = await fetchWithTimeout(
                     `${backendURL}/api/subscriptions/user/${encodeURIComponent(userLookupId)}/listings`,
                     {
                       method: 'GET',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        ...(currentUserId ? { 'x-user-id': currentUserId } : {}),
-                        ...(currentUserPhone ? { 'x-user-phone': currentUserPhone } : {}),
-                      },
+                      headers: buildUserAuthHeaders({ id: currentUserId }),
                     }
                   );
 
@@ -268,8 +306,9 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
               await AsyncStorage.setItem(LISTINGS_KEY, JSON.stringify(mergedServerListings));
               await AsyncStorage.setItem(INITIALIZED_KEY, 'true');
               await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
-              setHasMore(true);
-              setOffset(0);
+              const baseCount = Array.isArray(data.data) ? data.data.length : 0;
+              setHasMore(baseCount >= LIMIT);
+              setOffset(baseCount);
               return;
             }
           }
@@ -291,7 +330,9 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         console.error('[Listings] Failed to load data:', e);
         setListings([]);
       } finally {
-        setIsLoading(false);
+        if (!options?.asRefresh) {
+          setIsLoading(false);
+        }
       }
       hasLoadedOnceRef.current = true;
       lastLoadAtRef.current = Date.now();
@@ -334,7 +375,10 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       );
 
       // DEBUG: Log what we're sending
-      const ownerId = listing.userId || listing.sellerPhone || `user-${Date.now()}`;
+      const ownerId = String(listing.userId || '').trim();
+      if (!ownerId) {
+        throw new Error('Missing listing owner id');
+      }
       const requestBody = {
         userId: ownerId,
         title: listing.title,
@@ -365,9 +409,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
       const response = await fetch(`${backendURL}/api/subscriptions/create-listing`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: buildUserAuthHeaders({ id: ownerId }),
         body: JSON.stringify({
           ...requestBody,
           // Explicitly include latitude and longitude for geolocation
@@ -430,17 +472,16 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     try {
       console.log('[Listings] Updating listing:', id, updates);
       const existingListing = listings.find((listing) => listing.id === id);
-      const ownerId = existingListing?.userId?.trim() || existingListing?.sellerPhone?.trim();
-      const ownerUserId = existingListing?.userId?.trim() || ownerId;
+      const ownerUserId = existingListing?.userId?.trim() || '';
+      if (!ownerUserId) {
+        throw new Error('Missing listing owner id');
+      }
 
       // Try API update first
       const backendURL = getBackendURL();
       const response = await fetch(`${backendURL}/api/listings/${id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(ownerUserId ? { 'x-user-id': ownerUserId } : {}),
-        },
+        headers: buildUserAuthHeaders({ id: ownerUserId }),
         body: JSON.stringify({
           status: updates.status,
           title: updates.title,
@@ -487,17 +528,16 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     try {
       console.log('[Listings] Deleting listing:', id);
       const existingListing = listings.find((listing) => listing.id === id);
-      const ownerId = existingListing?.userId?.trim() || existingListing?.sellerPhone?.trim();
-      const ownerUserId = existingListing?.userId?.trim() || ownerId;
+      const ownerUserId = existingListing?.userId?.trim() || '';
+      if (!ownerUserId) {
+        throw new Error('Missing listing owner id');
+      }
 
       // Try API delete first
       const backendURL = getBackendURL();
       const response = await fetch(`${backendURL}/api/listings/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(ownerUserId ? { 'x-user-id': ownerUserId } : {}),
-        },
+        headers: buildUserAuthHeaders({ id: ownerUserId }),
       });
 
       if (response.ok) {
@@ -548,19 +588,23 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   const getSavedListings = () => listings.filter((l) => savedIds.has(l.id));
 
   const refreshListings = useCallback(async () => {
-    setIsLoading(true);
-    await loadData();
+    setIsRefreshing(true);
+    try {
+      await loadData({ force: true, asRefresh: true });
+    } finally {
+      setIsRefreshing(false);
+    }
   }, [loadData]);
 
   const loadMore = async () => {
-    if (!hasMore || isLoading) return;
+    if (!hasMore || isLoading || isFetchingMore) return;
 
+    setIsFetchingMore(true);
     try {
       const backendURL = getBackendURL();
-      const newOffset = offset + LIMIT;
-      const url = `${backendURL}/api/listings?limit=${LIMIT}&offset=${newOffset}`;
+      const url = `${backendURL}/api/listings?limit=${LIMIT}&offset=${offset}`;
 
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -569,114 +613,84 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
+        const responseListings = Array.isArray(data?.data) ? data.data : [];
 
-        if (data.success && data.listings) {
-          const newListings: Listing[] = [];
+        if (data.success) {
+          const parseMedia = (value: unknown): string[] => {
+            if (Array.isArray(value)) return value.filter((v) => typeof v === 'string');
+            if (typeof value !== 'string' || !value.trim()) return [];
+            try {
+              const parsed = JSON.parse(value);
+              return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : [];
+            } catch {
+              return [value];
+            }
+          };
 
-          // Handle both grouped and flat responses
-          if (Array.isArray(data.listings)) {
-            data.listings.forEach((listing: any) => {
-              newListings.push({
-                id: listing.id,
-                userId: listing.userId || '',
-                title: listing.title,
-                description: listing.description || '',
-                price: listing.price,
-                offerPrice: listing.offerPrice,
-                category: listing.category as Category,
-                condition: listing.condition,
-                images: listing.images || [],
-                videos: listing.videos || [],
-                location: {
-                  city: listing.location || 'Unknown',
-                  latitude: 0,
-                  longitude: 0,
-                },
-                sellerName: 'Seller',
-                sellerPhone: listing.contactPhone || listing.sellerPhone || '',
-                contactPhone: listing.contactPhone || listing.sellerPhone || '',
-                sellerAvatar: 'https://i.pravatar.cc/150?img=1',
-                createdAt: listing.createdAt || new Date().toISOString(),
-                expiresAt: listing.expiresAt || undefined,
-                isPaid: listing.isPaid || false,
-                featured: Boolean(listing.featured),
-                sponsored: Boolean((listing as any).sponsored),
-                boostedUntil: listing.boostedUntil || undefined,
-                boostCount:
-                  listing.boostCount !== undefined && listing.boostCount !== null
-                    ? Number(listing.boostCount)
-                    : undefined,
-                duration: Number(listing.durationDays || listing.duration || 0) || undefined,
-                durationDays: Number(listing.durationDays || listing.duration || 0) || undefined,
-                status: listing.status || 'active',
-                rejectionReason:
-                  typeof listing.rejectionReason === 'string' && listing.rejectionReason.trim()
-                    ? listing.rejectionReason.trim()
-                    : undefined,
-                listingType: (listing.listingType as Listing['listingType']) || 'sell',
-              });
+          const newListings: Listing[] = responseListings.map((listing: any) => ({
+            id: listing.id,
+            userId: listing.userId || '',
+            title: listing.title,
+            description: listing.description || '',
+            price: typeof listing.price === 'string' ? Number(listing.price) : listing.price,
+            offerPrice:
+              listing.offerPrice !== undefined && listing.offerPrice !== null
+                ? typeof listing.offerPrice === 'string'
+                  ? Number(listing.offerPrice)
+                  : listing.offerPrice
+                : undefined,
+            category: listing.category as Category,
+            condition: listing.condition,
+            images: parseMedia(listing.images),
+            videos: parseMedia(listing.videos),
+            location: {
+              city: listing.location || 'Unknown',
+              latitude: listing.latitude ? Number(listing.latitude) : 0,
+              longitude: listing.longitude ? Number(listing.longitude) : 0,
+            },
+            sellerName: resolveSellerName(listing),
+            sellerPhone: listing.contactPhone || listing.sellerPhone || '',
+            contactPhone: listing.contactPhone || listing.sellerPhone || '',
+            sellerAvatar: 'https://i.pravatar.cc/150?img=1',
+            createdAt: listing.createdAt || new Date().toISOString(),
+            expiresAt: listing.expiresAt || undefined,
+            isPaid: listing.isPaid || false,
+            featured: Boolean(listing.featured),
+            sponsored: Boolean((listing as any).sponsored),
+            boostedUntil: listing.boostedUntil || undefined,
+            boostCount:
+              listing.boostCount !== undefined && listing.boostCount !== null
+                ? Number(listing.boostCount)
+                : undefined,
+            duration: Number(listing.durationDays || listing.duration || 0) || undefined,
+            durationDays: Number(listing.durationDays || listing.duration || 0) || undefined,
+            status: listing.status || 'active',
+            rejectionReason:
+              typeof listing.rejectionReason === 'string' && listing.rejectionReason.trim()
+                ? listing.rejectionReason.trim()
+                : undefined,
+            listingType: (listing.listingType as Listing['listingType']) || 'sell',
+          }));
+
+          setListings((prev) => {
+            const listingMap = new Map<string, Listing>();
+            [...prev, ...newListings].forEach((listing) => {
+              listingMap.set(listing.id, listing);
             });
-          } else {
-            Object.entries(data.listings).forEach(([category, categoryListings]: [string, any]) => {
-              if (Array.isArray(categoryListings)) {
-                categoryListings.forEach((listing: any) => {
-                  newListings.push({
-                    id: listing.id,
-                    userId: listing.userId || '',
-                    title: listing.title,
-                    description: listing.description || '',
-                    price: listing.price,
-                    offerPrice: listing.offerPrice,
-                    category: listing.category as Category,
-                    condition: listing.condition,
-                    images: listing.images || [],
-                    videos: listing.videos || [],
-                    location: {
-                      city: listing.location || 'Unknown',
-                      latitude: 0,
-                      longitude: 0,
-                    },
-                    sellerName: 'Seller',
-                    sellerPhone: listing.contactPhone || listing.sellerPhone || '',
-                    contactPhone: listing.contactPhone || listing.sellerPhone || '',
-                    sellerAvatar: 'https://i.pravatar.cc/150?img=1',
-                    createdAt: listing.createdAt || new Date().toISOString(),
-                    expiresAt: listing.expiresAt || undefined,
-                    isPaid: listing.isPaid || false,
-                    featured: Boolean(listing.featured),
-                    sponsored: Boolean((listing as any).sponsored),
-                    boostedUntil: listing.boostedUntil || undefined,
-                    boostCount:
-                      listing.boostCount !== undefined && listing.boostCount !== null
-                        ? Number(listing.boostCount)
-                        : undefined,
-                    duration: Number(listing.durationDays || listing.duration || 0) || undefined,
-                    durationDays:
-                      Number(listing.durationDays || listing.duration || 0) || undefined,
-                    status: listing.status || 'active',
-                    rejectionReason:
-                      typeof listing.rejectionReason === 'string' && listing.rejectionReason.trim()
-                        ? listing.rejectionReason.trim()
-                        : undefined,
-                    listingType: (listing.listingType as Listing['listingType']) || 'sell',
-                  });
-                });
-              }
-            });
-          }
-
-          // Append new listings
-          setListings([...listings, ...newListings]);
-          setOffset(newOffset);
-
-          // Update hasMore
-          if (data.pagination) {
-            setHasMore(data.pagination.hasMore || false);
-          }
+            return [...listingMap.values()];
+          });
+          setOffset((prevOffset) => prevOffset + responseListings.length);
+          setHasMore(newListings.length >= LIMIT);
+        } else {
+          setHasMore(false);
         }
+      } else {
+        setHasMore(false);
       }
     } catch (error) {
       console.error('[Listings] Error loading more listings:', error);
+    } finally {
+      setIsFetchingMore(false);
     }
   };
 
@@ -688,6 +702,8 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       limit: LIMIT,
       savedIds,
       isLoading,
+      isRefreshing,
+      isFetchingMore,
       addListing,
       updateListing,
       deleteListing,
@@ -698,7 +714,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       refreshListings,
       loadMore,
     }),
-    [listings, savedIds, isLoading, hasMore, offset]
+    [listings, savedIds, isLoading, isRefreshing, isFetchingMore, hasMore, offset]
   );
 
   return <ListingsContext.Provider value={value}>{children}</ListingsContext.Provider>;

@@ -38,8 +38,17 @@ export default function SearchResultsScreen() {
     category = 'All',
     radius = '',
   } = useLocalSearchParams();
-  const { listings, savedIds, toggleSaved, isLoading, refreshListings, loadMore, hasMore } =
-    useListings();
+  const {
+    listings,
+    savedIds,
+    toggleSaved,
+    isLoading,
+    isRefreshing,
+    isFetchingMore,
+    refreshListings,
+    loadMore,
+    hasMore,
+  } = useListings();
   const { user } = useAuth();
   const { interests, trackSave } = useUserInterests();
   const { geoRadiusKm } = useAdminSettings();
@@ -51,7 +60,6 @@ export default function SearchResultsScreen() {
       : 'All';
 
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>(initialCategory);
-  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState(Array.isArray(query) ? query[0] : query || '');
 
   const userLat = lat ? parseFloat(Array.isArray(lat) ? lat[0] : lat) : null;
@@ -140,10 +148,16 @@ export default function SearchResultsScreen() {
   ]);
 
   const onRefresh = useCallback(async () => {
-    setRefreshing(true);
     await refreshListings();
-    setRefreshing(false);
   }, [refreshListings]);
+
+  const handleLoadMore = useCallback(async () => {
+    if (!filteredListings.length || !hasMore || isLoading || isFetchingMore || isRefreshing) {
+      return;
+    }
+
+    await loadMore();
+  }, [filteredListings.length, hasMore, isLoading, isFetchingMore, isRefreshing, loadMore]);
 
   const handleSave = useCallback(
     (id: string, category: string) => {
@@ -198,7 +212,7 @@ export default function SearchResultsScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
+            refreshing={isRefreshing}
             onRefresh={onRefresh}
             tintColor={Colors.primary}
           />
@@ -262,14 +276,10 @@ export default function SearchResultsScreen() {
             </Text>
           </View>
         }
-        onEndReached={() => {
-          if (hasMore && !isLoading) {
-            loadMore();
-          }
-        }}
+        onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         ListFooterComponent={
-          hasMore ? (
+          filteredListings.length > 0 && hasMore && isFetchingMore ? (
             <View style={styles.loadingFooter}>
               <Text style={styles.loadingText}>Loading more...</Text>
             </View>

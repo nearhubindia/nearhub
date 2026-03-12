@@ -61,6 +61,7 @@ export function registerAdminSettingsRoutes(app: Express) {
           enableDynamicPricing: settings.enableDynamicPricing,
           dynamicPricingAlgorithm: settings.dynamicPricingAlgorithm,
           geoRadiusKm: settings.geoRadiusKm,
+          inactiveUserReviewDays: settings.inactiveUserReviewDays,
         },
       });
     } catch (error) {
@@ -134,6 +135,7 @@ export function registerAdminSettingsRoutes(app: Express) {
           enableDynamicPricing,
           dynamicPricingAlgorithm,
           geoRadiusKm,
+          inactiveUserReviewDays,
         } = req.body;
 
         // Validate inputs
@@ -172,6 +174,14 @@ export function registerAdminSettingsRoutes(app: Express) {
 
         if (geoRadiusKm && (geoRadiusKm < 1 || geoRadiusKm > 500)) {
           return res.status(400).json({ error: 'Geo radius must be between 1 and 500 km' });
+        }
+        if (
+          inactiveUserReviewDays !== undefined &&
+          (!Number.isFinite(Number(inactiveUserReviewDays)) || Number(inactiveUserReviewDays) < 1)
+        ) {
+          return res
+            .status(400)
+            .json({ error: 'Inactive user review days must be a positive number' });
         }
 
         if (starterListingsCount !== undefined && starterListingsCount < 0) {
@@ -237,6 +247,8 @@ export function registerAdminSettingsRoutes(app: Express) {
         if (dynamicPricingAlgorithm !== undefined)
           updates.dynamicPricingAlgorithm = dynamicPricingAlgorithm;
         if (geoRadiusKm !== undefined) updates.geoRadiusKm = geoRadiusKm;
+        if (inactiveUserReviewDays !== undefined)
+          updates.inactiveUserReviewDays = Number(inactiveUserReviewDays);
 
         const updatedSettings = await updateAdminSettings(updates);
 

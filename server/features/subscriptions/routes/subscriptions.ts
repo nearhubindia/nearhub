@@ -21,6 +21,7 @@ import {
 import { verifyAdminToken } from '../../admin/services/admin-auth';
 import { isListingFree, getPricingForDuration, type DurationOption } from '../services/pricing';
 import { getRazorpayService } from '../../payments/services/razorpay';
+import { getRequestUserId } from '../../../lib/request-user';
 import {
   createListing,
   updateListing,
@@ -69,16 +70,13 @@ import { getActiveListingCount, getSubscriptionById } from '../services/subscrip
 import { listingCreationLimiter } from '../../../lib/rate-limiter';
 import { SERVER_CONFIG } from '../../../lib/config';
 
-function normalizePhoneVariants(value: string): string[] {
-  const raw = String(value || '');
-  const digitsOnly = raw.replace(/\D/g, '');
-  const variants = new Set<string>();
+function getAuthenticatedUserId(req: Request): string {
+  const userId = getRequestUserId(req);
+  return typeof userId === 'string' ? userId.trim() : '';
+}
 
-  if (raw) variants.add(raw);
-  if (digitsOnly) variants.add(digitsOnly);
-  if (digitsOnly.length > 10) variants.add(digitsOnly.slice(-10));
-
-  return [...variants];
+function roundToTwo(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function hasLocalDeviceUri(value: unknown): boolean {
@@ -159,6 +157,42 @@ function parseMediaField(value: unknown): unknown[] {
   }
 }
 
+function getSellerDisplayName(listing: any): string {
+  const candidate = typeof listing?.sellerName === 'string' ? listing.sellerName.trim() : '';
+  return candidate || 'Seller';
+}
+
+function resolveContactPhone(rest: any, sellerId: string): string {
+  const candidates = [rest?.contactPhone, rest?.sellerPhone, sellerId];
+  for (const value of candidates) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const digits = trimmed.replace(/\D/g, '');
+    if (digits.length >= 10) {
+      return digits.slice(-10);
+    }
+  }
+  return '';
+}
+
+function toPublicListing(listing: any) {
+  const { sellerId: rawSellerId, ...rest } = listing || {};
+  const sellerId = typeof rawSellerId === 'string' ? rawSellerId : '';
+  const contactPhone = resolveContactPhone(rest, sellerId);
+
+  return {
+    ...rest,
+    sellerId,
+    userId: sellerId, // Backward compatibility for clients still reading userId.
+    sellerName: getSellerDisplayName(listing),
+    contactPhone,
+    sellerPhone: contactPhone,
+    images: parseMediaField(listing?.images),
+    videos: parseMediaField(listing?.videos),
+  };
+}
+
 export function registerSubscriptionRoutes(app: Express) {
   /**
    * NOTE: GET /api/listings and GET /api/listings/:id endpoints
@@ -178,7 +212,7 @@ export function registerSubscriptionRoutes(app: Express) {
       res.setHeader('Expires', '0');
 
       // Get userId from request context (set by middleware) or x-user-id header
-      const userId = (req as any).userId || req.get('x-user-id');
+      const userId = getRequestUserId(req);
 
       console.log('[GET /api/subscriptions] Fetching subscriptions for user:', userId);
 
@@ -206,16 +240,7 @@ export function registerSubscriptionRoutes(app: Express) {
       );
 
       // Get user's total listing count for backward compatibility
-      let userListings = await getListingsByUser(userId);
-
-      // If no listings found by userId, try user's phone number from header
-      if (userListings.length === 0) {
-        const userPhone = req.get('x-user-phone');
-        if (userPhone) {
-          const normalizedPhone = userPhone.replace(/[\s+-]/g, '');
-          userListings = await getListingsByUser(normalizedPhone);
-        }
-      }
+      const userListings = await getListingsByUser(userId);
 
       const totalListingsCount = userListings.length;
 
@@ -344,7 +369,7 @@ export function registerSubscriptionRoutes(app: Express) {
   app.post('/api/subscriptions', async (req: Request, res: Response) => {
     try {
       // Get userId from request context (set by middleware) or x-user-id header
-      const userId = (req as any).userId || req.get('x-user-id');
+      const userId = getRequestUserId(req);
 
       if (!userId) {
         return res.status(401).json({
@@ -516,7 +541,9 @@ export function registerSubscriptionRoutes(app: Express) {
         }
 
         // Check if user can create a listing (subscription limit check)
-        // Skip check for admin accounts and coupon-based listings
+        // Skip check for admin accounts and coupon-based listings.
+        // For starter-credit flow (no subscription ids provided), defer eligibility
+        // to consumeStarterListingCredit() below so users without active plans can still post.
         if (!ownerId.startsWith('admin') && !couponCode) {
           if (userSubscriptionId) {
             // NEW: Per-subscription quota check
@@ -532,7 +559,7 @@ export function registerSubscriptionRoutes(app: Express) {
                 subscriptionName: limitCheck.subscriptionName,
               });
             }
-          } else {
+          } else if (subscriptionTierId) {
             // OLD: Global quota check (fallback for backward compatibility)
             const limitCheck = await canUserCreateListing(ownerId);
             if (!limitCheck.allowed) {
@@ -805,7 +832,7 @@ export function registerSubscriptionRoutes(app: Express) {
   /**
    * POST /api/subscriptions/checkout
    * Initiate Razorpay payment for listing with optional coupon
-   * Body: { subscriptionId, userId, listingId, listingTitle, totalFee, duration, tierId?, couponCode? }
+   * Body: { subscriptionId, userId, listingId?, listingTitle?, totalFee?, duration?, tierId?, couponCode? }
    */
   app.post('/api/subscriptions/checkout', async (req: Request, res: Response) => {
     try {
@@ -819,23 +846,92 @@ export function registerSubscriptionRoutes(app: Express) {
         tierId,
         couponCode,
       } = req.body;
+      const authenticatedUserId = getAuthenticatedUserId(req);
       const ownerId = typeof userId === 'string' ? userId.trim() : '';
+      const safeSubscriptionId = typeof subscriptionId === 'string' ? subscriptionId.trim() : '';
+      const safeListingId =
+        typeof listingId === 'string' && listingId.trim()
+          ? listingId.trim()
+          : `subscription-${safeSubscriptionId}`;
+      const safeListingTitle =
+        typeof listingTitle === 'string' && listingTitle.trim()
+          ? listingTitle.trim()
+          : 'Subscription Plan';
 
-      if (!subscriptionId || !ownerId || !listingId || !totalFee || !duration) {
-        return res.status(400).json({
-          error: 'Missing required fields: subscriptionId, userId, listingId, totalFee, duration',
+      if (!authenticatedUserId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Authentication required',
         });
       }
 
-      let finalFee = parseFloat(totalFee);
+      if (!safeSubscriptionId || !ownerId) {
+        return res.status(400).json({ error: 'Missing required fields: subscriptionId, userId' });
+      }
+
+      if (ownerId !== authenticatedUserId) {
+        return res.status(403).json({
+          success: false,
+          error: 'Authenticated user does not match checkout owner',
+        });
+      }
+
+      const subscription = await getSubscriptionById(safeSubscriptionId);
+      if (!subscription) {
+        return res.status(404).json({
+          success: false,
+          error: 'Subscription not found',
+        });
+      }
+
+      if (String(subscription.userId) !== authenticatedUserId) {
+        return res.status(403).json({
+          success: false,
+          error: 'Subscription does not belong to authenticated user',
+        });
+      }
+
+      if (tierId && tierId !== subscription.subscriptionTierId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Subscription tier mismatch for checkout',
+        });
+      }
+
+      if (subscription.status === 'active' && subscription.paymentId) {
+        return res.status(409).json({
+          success: false,
+          error: 'Subscription is already paid and active',
+        });
+      }
+
+      const tierPriceRaw =
+        subscription.tier.offerPrice != null ? subscription.tier.offerPrice : subscription.tier.price;
+      const tierPrice = Number(tierPriceRaw);
+      if (!Number.isFinite(tierPrice) || tierPrice < 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid subscription tier price',
+        });
+      }
+
+      const clientTotalFee = Number(totalFee);
+      const originalAmount = roundToTwo(tierPrice);
+      let finalFee = originalAmount;
       let discountApplied = false;
       let discountPercentage = 0;
       let discountAmount = 0;
       let couponId: string | null = null;
+      const effectiveDuration = Number(subscription.tier.durationDays || duration || 30);
 
       // Apply coupon if provided
       if (couponCode) {
-        const discountResult = await applyCouponDiscount(couponCode, finalFee, ownerId, tierId);
+        const discountResult = await applyCouponDiscount(
+          couponCode,
+          finalFee,
+          authenticatedUserId,
+          subscription.subscriptionTierId
+        );
 
         if (discountResult.success) {
           discountApplied = true;
@@ -844,7 +940,11 @@ export function registerSubscriptionRoutes(app: Express) {
           discountAmount = discountResult.discountAmount;
 
           // Get coupon ID for tracking
-          const couponValidation = await validateCouponCode(couponCode, ownerId, tierId);
+          const couponValidation = await validateCouponCode(
+            couponCode,
+            authenticatedUserId,
+            subscription.subscriptionTierId
+          );
           if (couponValidation.isValid && couponValidation.coupon) {
             couponId = couponValidation.coupon.id;
           }
@@ -862,7 +962,7 @@ export function registerSubscriptionRoutes(app: Express) {
         console.log(
           discountApplied
             ? `[Checkout] 100% discount applied with coupon ${couponCode} - bypassing payment`
-            : `[Checkout] Zero-fee subscription (${subscriptionId}) - bypassing payment`
+            : `[Checkout] Zero-fee subscription (${safeSubscriptionId}) - bypassing payment`
         );
 
         // Activate subscription immediately for free subscriptions
@@ -876,18 +976,25 @@ export function registerSubscriptionRoutes(app: Express) {
             .set({
               status: 'active',
               orderId: 'FREE_SUBSCRIPTION',
+              couponId,
               updatedAt: new Date(),
             })
-            .where(eq(userSubscriptions.id, subscriptionId));
+            .where(eq(userSubscriptions.id, safeSubscriptionId));
 
-          console.log('[Checkout] Free subscription activated:', subscriptionId);
+          console.log('[Checkout] Free subscription activated:', safeSubscriptionId);
         } catch (activationError) {
           console.error('[Checkout] Failed to activate free subscription:', activationError);
         }
 
         // Record coupon usage (only when coupon is actually applied)
         if (couponCode && discountApplied) {
-          await recordCouponUsage(couponCode, listingId, subscriptionId, ownerId, discountAmount);
+          await recordCouponUsage(
+            couponCode,
+            safeListingId,
+            safeSubscriptionId,
+            authenticatedUserId,
+            discountAmount
+          );
         }
 
         // Return special response for free subscription
@@ -895,36 +1002,52 @@ export function registerSubscriptionRoutes(app: Express) {
           success: true,
           isFree: true,
           message: discountApplied
-            ? `🎉 100% discount applied! Your subscription is completely FREE for ${duration} days`
-            : `🎉 Free plan activated for ${duration} days`,
+            ? `🎉 100% discount applied! Your subscription is completely FREE for ${effectiveDuration} days`
+            : `🎉 Free plan activated for ${effectiveDuration} days`,
           payment: {
             razorpayOrderId: 'FREE_SUBSCRIPTION',
             amount: 0,
             amountInRupees: 0,
             key: '',
-            subscriptionId: subscriptionId,
+            subscriptionId: safeSubscriptionId,
           },
           discount: discountApplied
             ? {
-                percentage: discountPercentage,
-                amount: discountAmount,
-                originalAmount: parseFloat(totalFee),
-                finalAmount: 0,
-                couponId,
-              }
+              percentage: discountPercentage,
+              amount: discountAmount,
+              originalAmount,
+              finalAmount: 0,
+              couponId,
+            }
             : null,
           nextStep: 'No payment required - proceed directly to create listing',
         });
       }
 
       const paymentDetails = await initiatePayment(
-        subscriptionId,
-        ownerId,
-        listingId,
-        listingTitle,
+        safeSubscriptionId,
+        authenticatedUserId,
+        safeListingId,
+        safeListingTitle,
         finalFee,
-        parseInt(duration) as DurationOption
+        effectiveDuration as DurationOption
       );
+
+      // Persist order/coupon context for verification integrity
+      try {
+        const { userSubscriptions } = await import('../../admin/models/admin-settings');
+        const { eq } = await import('drizzle-orm');
+        await db
+          .update(userSubscriptions)
+          .set({
+            orderId: paymentDetails.razorpayOrderId,
+            couponId,
+            updatedAt: new Date(),
+          })
+          .where(eq(userSubscriptions.id, safeSubscriptionId));
+      } catch (persistError) {
+        console.error('[Checkout] Failed to persist pending order context:', persistError);
+      }
 
       return res.json({
         success: true,
@@ -942,11 +1065,21 @@ export function registerSubscriptionRoutes(app: Express) {
           ? {
               percentage: discountPercentage,
               amount: discountAmount,
-              originalAmount: parseFloat(totalFee),
+              originalAmount,
               finalAmount: finalFee,
               couponId,
             }
           : null,
+        validation: Number.isFinite(clientTotalFee)
+          ? {
+              clientAmount: roundToTwo(clientTotalFee),
+              serverAmount: originalAmount,
+              sourceOfTruth: 'server-tier-pricing',
+            }
+          : {
+              serverAmount: originalAmount,
+              sourceOfTruth: 'server-tier-pricing',
+            },
         nextStep:
           'Use razorpayOrderId to initiate payment in Razorpay checkout. After payment, verify with /api/subscriptions/verify-payment',
       });
@@ -961,7 +1094,7 @@ export function registerSubscriptionRoutes(app: Express) {
    * Verify Razorpay payment and activate subscription
    * Body: {
    *   razorpay_order_id, razorpay_payment_id, razorpay_signature,
-   *   subscriptionId, couponCode?, listingId?, discountAmount?,
+   *   subscriptionId, couponCode?, listingId?,
    *   customerId?, customerName?, customerEmail?, customerPhone?,
    *   invoiceItems?, generateInvoice?
    * }
@@ -975,19 +1108,83 @@ export function registerSubscriptionRoutes(app: Express) {
         subscriptionId,
         couponCode,
         listingId,
-        discountAmount,
         // Invoice fields
-        customerId,
+        customerId: requestedCustomerId,
         customerName,
         customerEmail,
         customerPhone,
-        invoiceItems,
         generateInvoice,
       } = req.body;
+      const authenticatedUserId = getAuthenticatedUserId(req);
+      const safeSubscriptionId = typeof subscriptionId === 'string' ? subscriptionId.trim() : '';
+      const safeListingId =
+        typeof listingId === 'string' && listingId.trim()
+          ? listingId.trim()
+          : `subscription-${safeSubscriptionId}`;
+      const customerId = requestedCustomerId || authenticatedUserId;
 
-      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      if (!authenticatedUserId) {
+        return res.status(401).json({
+          success: false,
+          error: 'Authentication required',
+        });
+      }
+
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !safeSubscriptionId) {
         return res.status(400).json({
-          error: 'Missing payment verification fields',
+          error: 'Missing payment verification fields or subscription ID',
+        });
+      }
+
+      const subscription = await getSubscriptionById(safeSubscriptionId);
+      if (!subscription) {
+        return res.status(404).json({
+          success: false,
+          error: 'Subscription not found',
+        });
+      }
+
+      if (String(subscription.userId) !== authenticatedUserId) {
+        return res.status(403).json({
+          success: false,
+          error: 'Subscription does not belong to authenticated user',
+        });
+      }
+
+      if (requestedCustomerId && requestedCustomerId !== authenticatedUserId) {
+        return res.status(403).json({
+          success: false,
+          error: 'customerId does not match authenticated user',
+        });
+      }
+
+      // Idempotency: same payment can be acknowledged safely.
+      if (
+        subscription.status === 'active' &&
+        subscription.paymentId === razorpay_payment_id &&
+        subscription.orderId === razorpay_order_id
+      ) {
+        return res.json({
+          success: true,
+          message: '✓ Payment already verified',
+          subscriptionId: safeSubscriptionId,
+          subscriptionActivated: true,
+          paymentId: razorpay_payment_id,
+          orderId: razorpay_order_id,
+          invoice: null,
+          invoiceGenerated: false,
+          idempotent: true,
+        });
+      }
+
+      if (
+        subscription.status === 'active' &&
+        subscription.paymentId &&
+        subscription.paymentId !== razorpay_payment_id
+      ) {
+        return res.status(409).json({
+          success: false,
+          error: 'Subscription has already been activated with a different payment',
         });
       }
 
@@ -997,7 +1194,11 @@ export function registerSubscriptionRoutes(app: Express) {
       if (!isValid) {
         // Send payment failure notification
         if (customerId) {
-          const amount = Number(invoiceItems && invoiceItems[0] ? invoiceItems[0].amount : 0);
+          const tierPriceRaw =
+            subscription.tier.offerPrice != null
+              ? subscription.tier.offerPrice
+              : subscription.tier.price;
+          const amount = Number(tierPriceRaw);
           notifyPaymentFailed(customerId, amount, 'Invalid payment signature').catch((err) =>
             console.error('[Subscriptions] Failed to send payment failed notification:', err)
           );
@@ -1010,14 +1211,130 @@ export function registerSubscriptionRoutes(app: Express) {
         });
       }
 
+      const tierPriceRaw =
+        subscription.tier.offerPrice != null ? subscription.tier.offerPrice : subscription.tier.price;
+      const originalAmount = roundToTwo(Number(tierPriceRaw));
+      if (!Number.isFinite(originalAmount) || originalAmount < 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid subscription tier price',
+        });
+      }
+
+      let expectedFinalAmount = originalAmount;
+      let expectedDiscountAmount = 0;
+      let expectedDiscountPercentage = 0;
+      let couponApplied = false;
+      if (couponCode) {
+        const discountResult = await applyCouponDiscount(
+          couponCode,
+          originalAmount,
+          authenticatedUserId,
+          subscription.subscriptionTierId
+        );
+        if (!discountResult.success) {
+          return res.status(400).json({
+            success: false,
+            error: discountResult.error || 'Invalid coupon code',
+          });
+        }
+        couponApplied = true;
+        expectedFinalAmount = roundToTwo(discountResult.finalAmount);
+        expectedDiscountAmount = roundToTwo(discountResult.discountAmount);
+        expectedDiscountPercentage = discountResult.discountPercentage;
+      }
+
+      const expectedAmountPaise = Math.round(expectedFinalAmount * 100);
+      const razorpay = getRazorpayService();
+      const paymentDetails = await razorpay.getPaymentDetails(razorpay_payment_id);
+      const paymentAmountPaise = Number(paymentDetails?.amount || 0);
+      const paymentOrderId = String(paymentDetails?.order_id || '');
+      const paymentCurrency = String(paymentDetails?.currency || '');
+      const paymentStatus = String(paymentDetails?.status || '');
+
+      if (paymentOrderId !== razorpay_order_id) {
+        return res.status(400).json({
+          success: false,
+          error: 'Payment order mismatch',
+        });
+      }
+
+      if (
+        subscription.orderId &&
+        subscription.orderId !== 'FREE_SUBSCRIPTION' &&
+        subscription.orderId !== razorpay_order_id
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'Order ID does not match checkout order for this subscription',
+        });
+      }
+
+      if (paymentCurrency !== 'INR') {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid payment currency',
+        });
+      }
+
+      if (!['captured', 'authorized'].includes(paymentStatus)) {
+        return res.status(400).json({
+          success: false,
+          error: `Payment status is not valid for activation (${paymentStatus || 'unknown'})`,
+        });
+      }
+
+      if (paymentAmountPaise !== expectedAmountPaise) {
+        if (customerId) {
+          notifyPaymentFailed(
+            customerId,
+            expectedFinalAmount,
+            `Amount mismatch (expected ${expectedAmountPaise}, got ${paymentAmountPaise})`
+          ).catch((err) =>
+            console.error('[Subscriptions] Failed to send payment failed notification:', err)
+          );
+        }
+        return res.status(400).json({
+          success: false,
+          error: 'Payment amount mismatch',
+          expectedAmountPaise,
+          paidAmountPaise: paymentAmountPaise,
+        });
+      }
+
+      const paymentNotesUserId = String(paymentDetails?.notes?.userId || '').trim();
+      const paymentNotesSubscriptionId = String(paymentDetails?.notes?.subscriptionId || '').trim();
+      if (paymentNotesUserId && paymentNotesUserId !== authenticatedUserId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Payment notes user mismatch',
+        });
+      }
+      if (paymentNotesSubscriptionId && paymentNotesSubscriptionId !== safeSubscriptionId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Payment notes subscription mismatch',
+        });
+      }
+
+      const invoiceItemDescription = `${subscription.tier.name} Plan - ${subscription.tier.durationDays} Days`;
+      const serverInvoiceItems = [
+        {
+          description: invoiceItemDescription,
+          quantity: 1,
+          unitPrice: expectedFinalAmount,
+          amount: expectedFinalAmount,
+        },
+      ];
+
       // Record coupon usage if applicable
-      if (couponCode && listingId && subscriptionId && discountAmount && customerId) {
+      if (couponCode && couponApplied && customerId && expectedDiscountAmount > 0) {
         const usageResult = await recordCouponUsage(
           couponCode,
-          listingId,
-          subscriptionId,
+          safeListingId,
+          safeSubscriptionId,
           customerId,
-          parseFloat(discountAmount)
+          expectedDiscountAmount
         );
 
         if (!usageResult.success) {
@@ -1026,14 +1343,7 @@ export function registerSubscriptionRoutes(app: Express) {
           // Just log it and continue
         } else if (customerId) {
           // Send coupon applied notification
-          const listingTitle =
-            invoiceItems && invoiceItems[0] ? invoiceItems[0].description : 'listing';
-          notifyCouponApplied(
-            customerId,
-            couponCode,
-            parseFloat(discountAmount),
-            listingTitle
-          ).catch((err) =>
+          notifyCouponApplied(customerId, couponCode, expectedDiscountAmount, invoiceItemDescription).catch((err) =>
             console.error('[Subscriptions] Failed to send coupon notification:', err)
           );
         }
@@ -1047,17 +1357,8 @@ export function registerSubscriptionRoutes(app: Express) {
           const InvoiceService = (await import('../../users/services/invoice')).default;
           const invoiceService = new InvoiceService(InvoiceService.createSynvideConfig());
 
-          // Use provided items or create default subscription item
-          const items = invoiceItems || [
-            {
-              description: 'Listing Subscription Payment',
-              quantity: 1,
-              unitPrice: 0, // Will be provided by client
-              amount: 0, // Will be provided by client
-            },
-          ];
-
-          console.log('[Subscriptions] Invoice items:', JSON.stringify(items, null, 2));
+          // Financial source of truth comes from server-side computed amount.
+          const items = serverInvoiceItems;
 
           invoiceData = invoiceService.createInvoice(
             customerName,
@@ -1086,7 +1387,7 @@ export function registerSubscriptionRoutes(app: Express) {
               customerName: customerName,
               customerEmail: customerEmail,
               customerPhone: customerPhone,
-              subscriptionId: subscriptionId || null,
+              subscriptionId: safeSubscriptionId,
               orderId: razorpay_order_id || null,
               paymentId: razorpay_payment_id || null,
               paymentMethod: 'Razorpay',
@@ -1137,74 +1438,78 @@ export function registerSubscriptionRoutes(app: Express) {
       }
 
       // Activate subscription after successful payment verification
-      if (subscriptionId) {
-        try {
-          console.log('[Subscriptions] Activating subscription:', subscriptionId);
-          const { db } = await import('../../../data/db');
-          const { userSubscriptions } = await import('../../admin/models/admin-settings');
-          const { eq } = await import('drizzle-orm');
+      try {
+        console.log('[Subscriptions] Activating subscription:', safeSubscriptionId);
+        const { userSubscriptions } = await import('../../admin/models/admin-settings');
+        const { eq } = await import('drizzle-orm');
 
-          const updateResult = await db
-            .update(userSubscriptions)
-            .set({
-              status: 'active',
-              paymentId: razorpay_payment_id,
-              orderId: razorpay_order_id,
-              updatedAt: new Date(),
-            })
-            .where(eq(userSubscriptions.id, subscriptionId))
-            .returning();
+        const updateResult = await db
+          .update(userSubscriptions)
+          .set({
+            status: 'active',
+            paymentId: razorpay_payment_id,
+            orderId: razorpay_order_id,
+            updatedAt: new Date(),
+          })
+          .where(eq(userSubscriptions.id, safeSubscriptionId))
+          .returning();
 
-          console.log(
-            '[Subscriptions] Subscription activation result:',
-            updateResult.length > 0 ? 'SUCCESS' : 'FAILED'
-          );
-          if (updateResult.length > 0) {
-            console.log('[Subscriptions] Updated subscription:', {
-              id: updateResult[0].id,
-              status: updateResult[0].status,
-              userId: updateResult[0].userId,
-            });
-          } else {
-            console.error('[Subscriptions] No subscription found with ID:', subscriptionId);
-          }
-        } catch (activationError) {
-          console.error('[Subscriptions] Failed to activate subscription:', activationError);
-          if (activationError instanceof Error) {
-            console.error('[Subscriptions] Activation error stack:', activationError.stack);
-          }
-          // Don't fail the verification, just log the error
+        console.log(
+          '[Subscriptions] Subscription activation result:',
+          updateResult.length > 0 ? 'SUCCESS' : 'FAILED'
+        );
+        if (updateResult.length > 0) {
+          console.log('[Subscriptions] Updated subscription:', {
+            id: updateResult[0].id,
+            status: updateResult[0].status,
+            userId: updateResult[0].userId,
+          });
+        } else {
+          console.error('[Subscriptions] No subscription found with ID:', safeSubscriptionId);
         }
-      } else {
-        console.warn('[Subscriptions] No subscriptionId provided for activation');
+      } catch (activationError) {
+        console.error('[Subscriptions] Failed to activate subscription:', activationError);
+        if (activationError instanceof Error) {
+          console.error('[Subscriptions] Activation error stack:', activationError.stack);
+        }
+        // Don't fail the verification, just log the error
       }
 
       // Send payment success notification
       if (customerId) {
-        const amount = Number(invoiceItems && invoiceItems[0] ? invoiceItems[0].amount : 0);
-        const listingTitle =
-          invoiceItems && invoiceItems[0] ? invoiceItems[0].description : undefined;
-        notifyPaymentSuccess(customerId, amount, razorpay_payment_id, listingTitle).catch((err) =>
+        notifyPaymentSuccess(
+          customerId,
+          expectedFinalAmount,
+          razorpay_payment_id,
+          invoiceItemDescription
+        ).catch((err) =>
           console.error('[Subscriptions] Failed to send payment success notification:', err)
         );
       }
 
       // Payment verified successfully
       console.log('[Subscriptions] Payment verification complete:', {
-        subscriptionId,
+        subscriptionId: safeSubscriptionId,
         invoicegenerated: !!invoiceData,
         invoiceNumber: invoiceData?.invoiceNumber,
       });
 
       return res.json({
         success: true,
-        message: couponCode
+        message: couponApplied
           ? '✓ Payment verified successfully with coupon discount applied'
           : '✓ Payment verified successfully',
-        subscriptionId,
-        subscriptionActivated: !!subscriptionId,
+        subscriptionId: safeSubscriptionId,
+        subscriptionActivated: true,
         paymentId: razorpay_payment_id,
         orderId: razorpay_order_id,
+        amount: expectedFinalAmount,
+        discount: couponApplied
+          ? {
+              percentage: expectedDiscountPercentage,
+              amount: expectedDiscountAmount,
+            }
+          : null,
         nextStep: 'Subscription is now active - refresh to see updated quota',
         invoice: invoiceData || null,
         invoiceGenerated: !!invoiceData,
@@ -1271,12 +1576,16 @@ export function registerSubscriptionRoutes(app: Express) {
   app.post('/api/subscriptions/webhook/razorpay', async (req: Request, res: Response) => {
     try {
       const signature = req.headers['x-razorpay-signature'] as string;
-      const payload = JSON.stringify(req.body);
 
       const razorpay = getRazorpayService();
 
-      // Convert payload to string for verification
-      const payloadString = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+      // Verify against exact raw payload for Razorpay signature correctness.
+      const payloadString =
+        typeof (req as any).rawBody === 'string'
+          ? ((req as any).rawBody as string)
+          : typeof req.body === 'string'
+            ? req.body
+            : JSON.stringify(req.body);
 
       const isValid = razorpay.verifyWebhookSignature(payloadString, signature);
 
@@ -1341,25 +1650,9 @@ export function registerSubscriptionRoutes(app: Express) {
     ownerIdParam: string
   ): Promise<void> => {
     try {
-      let listings = await getListingsByUser(ownerIdParam);
+      const listings = await getListingsByUser(ownerIdParam);
 
-      // If no listings found, try user's phone from header
-      if (listings.length === 0) {
-        const userPhone = req.get('x-user-phone');
-        if (userPhone) {
-          const phoneCandidates = normalizePhoneVariants(userPhone);
-          for (const candidate of phoneCandidates) {
-            listings = await getListingsByUser(candidate);
-            if (listings.length > 0) break;
-          }
-        }
-      }
-
-      const formattedListings = listings.map((listing) => ({
-        ...listing,
-        images: parseMediaField(listing.images),
-        videos: parseMediaField(listing.videos),
-      }));
+      const formattedListings = listings.map((listing) => toPublicListing(listing));
 
       // Attach latest rejection reason for rejected listings so seller can edit + resubmit
       const rejectedListingIds = formattedListings
@@ -1370,7 +1663,7 @@ export function registerSubscriptionRoutes(app: Express) {
         ...new Set(
           formattedListings
             .filter((l) => l.status === 'rejected')
-            .map((l) => String(l.sellerId || '').trim())
+            .map((l) => String(l.sellerId).trim())
             .filter(Boolean)
         ),
       ];
@@ -1409,17 +1702,11 @@ export function registerSubscriptionRoutes(app: Express) {
         }
       }
 
-      const listingsWithRejectionReason = formattedListings.map((listing) => {
-        const { sellerId: _sellerId, ...listingWithoutSellerId } = listing as any;
-        return {
-          ...listingWithoutSellerId,
-          userId: listing.sellerId,
-          rejectionReason:
-            listing.status === 'rejected'
-              ? rejectionReasonByListingId.get(listing.id) || null
-              : null,
-        };
-      });
+      const listingsWithRejectionReason = formattedListings.map((listing) => ({
+        ...listing,
+        rejectionReason:
+          listing.status === 'rejected' ? rejectionReasonByListingId.get(listing.id) || null : null,
+      }));
 
       const activeListings = listingsWithRejectionReason.filter(
         (l) => l.status === 'active' && l.isActive
@@ -1779,7 +2066,7 @@ export function registerSubscriptionRoutes(app: Express) {
    */
   app.get('/api/subscriptions/boost/summary', async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).userId || req.get('x-user-id');
+      const userId = getRequestUserId(req);
       if (!userId) {
         return res.status(401).json({ success: false, error: 'Authentication required' });
       }
@@ -1839,14 +2126,13 @@ export function registerSubscriptionRoutes(app: Express) {
   app.post('/api/subscriptions/listings/:listingId/boost', async (req: Request, res: Response) => {
     try {
       const listingId = String(req.params.listingId || '');
-      const userId = (req as any).userId || req.get('x-user-id');
-      const userPhone = req.get('x-user-phone');
+      const userId = getRequestUserId(req);
 
       if (!listingId) {
         return res.status(400).json({ success: false, error: 'Listing ID is required' });
       }
 
-      if (!userId && !userPhone) {
+      if (!userId) {
         return res.status(401).json({ success: false, error: 'Authentication required' });
       }
 
@@ -1855,11 +2141,7 @@ export function registerSubscriptionRoutes(app: Express) {
         return res.status(404).json({ success: false, error: 'Listing not found' });
       }
 
-      const normalizedUserPhone = String(userPhone || '').replace(/[\s+-]/g, '');
-      const normalizedOwnerId = String(listing.sellerId || '').replace(/[\s+-]/g, '');
-      const isOwner =
-        (!!userId && listing.sellerId === userId) ||
-        (!!normalizedUserPhone && normalizedOwnerId === normalizedUserPhone);
+      const isOwner = listing.sellerId === userId;
 
       if (!isOwner) {
         return res
@@ -1884,7 +2166,7 @@ export function registerSubscriptionRoutes(app: Express) {
         });
       }
 
-      const effectiveUserId = String(userId || normalizedUserPhone || listing.sellerId);
+      const effectiveUserId = String(userId);
       const consumed = await consumeUserBoostCredit(effectiveUserId);
       const starterConsumed = !consumed
         ? await consumeStarterBoostCredit(effectiveUserId)
@@ -1936,7 +2218,7 @@ export function registerSubscriptionRoutes(app: Express) {
    */
   app.post('/api/subscriptions/boost/checkout', async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).userId || req.get('x-user-id');
+      const userId = getRequestUserId(req);
       if (!userId) {
         return res.status(401).json({ success: false, error: 'Authentication required' });
       }
@@ -2010,9 +2292,8 @@ export function registerSubscriptionRoutes(app: Express) {
    */
   app.post('/api/subscriptions/boost/verify-payment', async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).userId || req.get('x-user-id');
-      const userPhone = req.get('x-user-phone');
-      if (!userId && !userPhone) {
+      const userId = getRequestUserId(req);
+      if (!userId) {
         return res.status(401).json({ success: false, error: 'Authentication required' });
       }
 
@@ -2079,14 +2360,10 @@ export function registerSubscriptionRoutes(app: Express) {
       if (listingId) {
         const listing = await getListingById(String(listingId));
         if (listing) {
-          const normalizedUserPhone = String(userPhone || '').replace(/[\s+-]/g, '');
-          const normalizedOwnerId = String(listing.sellerId || '').replace(/[\s+-]/g, '');
-          const isOwner =
-            (!!userId && listing.sellerId === userId) ||
-            (!!normalizedUserPhone && normalizedOwnerId === normalizedUserPhone);
+          const isOwner = listing.sellerId === userId;
 
           if (isOwner && listing.status === 'active' && listing.isActive === true) {
-            const consumed = await consumeUserBoostCredit(String(userId || normalizedUserPhone));
+            const consumed = await consumeUserBoostCredit(String(userId));
             if (consumed) {
               const boosted = await boostListingForHours(String(listingId), 24);
               immediateBoost = {
@@ -2100,7 +2377,7 @@ export function registerSubscriptionRoutes(app: Express) {
         }
       }
 
-      const summary = await getUserBoostCreditsSummary(String(userId || userPhone));
+      const summary = await getUserBoostCreditsSummary(String(userId));
       return res.json({
         success: true,
         subscriptionId,
@@ -2148,8 +2425,7 @@ export function registerSubscriptionRoutes(app: Express) {
   app.post('/api/subscriptions/upgrade-listing/checkout', async (req: Request, res: Response) => {
     try {
       const { listingId, duration, price } = req.body;
-      const userId = (req as any).userId || req.get('x-user-id');
-      const userPhone = req.get('x-user-phone');
+      const userId = getRequestUserId(req);
 
       if (!listingId || !duration || price === undefined) {
         return res.status(400).json({
@@ -2158,7 +2434,7 @@ export function registerSubscriptionRoutes(app: Express) {
         });
       }
 
-      if (!userId && !userPhone) {
+      if (!userId) {
         return res.status(401).json({
           success: false,
           error: 'Authentication required',
@@ -2181,11 +2457,7 @@ export function registerSubscriptionRoutes(app: Express) {
         });
       }
 
-      const normalizedUserPhone = userPhone?.replace(/[\s+-]/g, '');
-      const normalizedOwnerId = listing.sellerId?.replace(/[\s+-]/g, '');
-      const isOwner =
-        (!!userId && listing.sellerId === userId) ||
-        (!!normalizedUserPhone && normalizedOwnerId === normalizedUserPhone);
+      const isOwner = listing.sellerId === userId;
 
       if (!isOwner) {
         return res.status(403).json({
@@ -2204,7 +2476,7 @@ export function registerSubscriptionRoutes(app: Express) {
 
       const razorpay = getRazorpayService();
       const amountInPaise = Math.round(numericPrice * 100);
-      const effectiveUserId = String(userId || normalizedUserPhone || listing.sellerId);
+      const effectiveUserId = String(userId);
       const receipt = razorpay.generateReceiptId(effectiveUserId, listingId);
 
       const order = await razorpay.createOrder({
@@ -2253,8 +2525,7 @@ export function registerSubscriptionRoutes(app: Express) {
           razorpay_payment_id,
           razorpay_signature,
         } = req.body;
-        const userId = (req as any).userId || req.get('x-user-id');
-        const userPhone = req.get('x-user-phone');
+        const userId = getRequestUserId(req);
 
         if (!listingId || !duration || price === undefined) {
           return res.status(400).json({
@@ -2263,7 +2534,7 @@ export function registerSubscriptionRoutes(app: Express) {
           });
         }
 
-        if (!userId && !userPhone) {
+        if (!userId) {
           return res.status(401).json({
             success: false,
             error: 'Authentication required',
@@ -2301,11 +2572,7 @@ export function registerSubscriptionRoutes(app: Express) {
           });
         }
 
-        const normalizedUserPhone = userPhone?.replace(/[\s+-]/g, '');
-        const normalizedOwnerId = listing.sellerId?.replace(/[\s+-]/g, '');
-        const isOwner =
-          (!!userId && listing.sellerId === userId) ||
-          (!!normalizedUserPhone && normalizedOwnerId === normalizedUserPhone);
+        const isOwner = listing.sellerId === userId;
 
         if (!isOwner) {
           return res.status(403).json({

@@ -18,25 +18,33 @@ export function LandingFooter(): ReactElement {
             </p>
             <div className="flex gap-3 pt-2">
               <a
-                href="#"
+                href="https://x.com"
+                target="_blank"
+                rel="noreferrer"
                 className="w-10 h-10 bg-slate-700/50 hover:bg-[#1e5da8] rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110"
               >
                 <span className="text-lg">𝕏</span>
               </a>
               <a
-                href="#"
+                href="https://www.facebook.com"
+                target="_blank"
+                rel="noreferrer"
                 className="w-10 h-10 bg-slate-700/50 hover:bg-[#1e5da8] rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110"
               >
                 <span className="text-lg">f</span>
               </a>
               <a
-                href="#"
+                href="https://www.linkedin.com"
+                target="_blank"
+                rel="noreferrer"
                 className="w-10 h-10 bg-slate-700/50 hover:bg-[#1e5da8] rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110"
               >
                 <span className="text-lg">in</span>
               </a>
               <a
-                href="#"
+                href="https://www.instagram.com"
+                target="_blank"
+                rel="noreferrer"
                 className="w-10 h-10 bg-slate-700/50 hover:bg-[#1e5da8] rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110"
               >
                 <span className="text-lg">📷</span>
@@ -86,10 +94,7 @@ export function LandingFooter(): ReactElement {
             <h3 className="text-lg font-bold mb-4 text-white">Company</h3>
             <ul className="space-y-3">
               <li>
-                <Link
-                  to="/footer/about-us"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
+                <Link to="/about" className="text-slate-300 hover:text-[#ff9933] transition text-sm">
                   About Us
                 </Link>
               </li>
@@ -148,19 +153,32 @@ export function LandingFooter(): ReactElement {
                 </Link>
               </li>
               <li>
-                <Link
-                  to="/footer/terms-of-service"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
+                <Link to="/terms" className="text-slate-300 hover:text-[#ff9933] transition text-sm">
                   Terms of Service
                 </Link>
               </li>
               <li>
                 <Link
-                  to="/footer/privacy-policy"
+                  to="/privacy-policy"
                   className="text-slate-300 hover:text-[#ff9933] transition text-sm"
                 >
                   Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/refund-policy"
+                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
+                >
+                  Refund Policy
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/payment-security"
+                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
+                >
+                  Payment Security
                 </Link>
               </li>
               <li>
@@ -183,16 +201,22 @@ export function LandingFooter(): ReactElement {
             </p>
             <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm md:justify-end">
               <Link
-                to="/footer/terms-of-service"
+                to="/terms"
                 className="text-slate-100 hover:text-[#ff9933] transition font-medium"
               >
                 Terms
               </Link>
               <Link
-                to="/footer/privacy-policy"
+                to="/privacy-policy"
                 className="text-slate-100 hover:text-[#ff9933] transition font-medium"
               >
                 Privacy
+              </Link>
+              <Link
+                to="/refund-policy"
+                className="text-slate-100 hover:text-[#ff9933] transition font-medium"
+              >
+                Refunds
               </Link>
               <Link
                 to="/footer/cookies"

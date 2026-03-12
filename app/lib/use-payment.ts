@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { getApiUrl } from '@/lib/query-client';
 import { storeInvoice, extractInvoiceFromResponse } from '@/lib/invoice-storage';
+import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 
 export interface PaymentData {
   razorpayOrderId: string;
@@ -37,6 +38,12 @@ export interface PaymentResult {
   message?: string;
 }
 
+interface RazorpayCheckoutResponse {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
 export function usePayment() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +56,7 @@ export function usePayment() {
       paymentData: PaymentData,
       customerData: CustomerData,
       listingData: ListingData
-    ): Promise<void> => {
+    ): Promise<RazorpayCheckoutResponse> => {
       try {
         setIsLoading(true);
         setError(null);
@@ -76,19 +83,18 @@ export function usePayment() {
           },
         };
 
-        console.log('[Payment] Opening Razorpay with options:', {
-          ...options,
-          key: options.key.substring(0, 10) + '...',
-        });
-
         // @ts-ignore - dynamic import to avoid New Architecture crash
         const RazorpayCheckout = require('react-native-razorpay').default;
-        RazorpayCheckout.open(options);
+        const result = (await RazorpayCheckout.open(options)) as RazorpayCheckoutResponse;
+        return result;
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Payment initialization failed';
         console.error('[Payment] Error initiating payment:', err);
         setError(errorMsg);
-        Alert.alert('Payment Error', errorMsg);
+        if (!String(errorMsg).toLowerCase().includes('cancel')) {
+          Alert.alert('Payment Error', errorMsg);
+        }
+        throw err;
       } finally {
         setIsLoading(false);
       }
@@ -122,8 +128,6 @@ export function usePayment() {
         setIsLoading(true);
         setError(null);
 
-        console.log('[Payment] Verifying payment and generating invoice...');
-
         const apiUrl = await getApiUrl();
 
         const verifyPayload = {
@@ -141,36 +145,18 @@ export function usePayment() {
 
           // Coupon tracking
           couponCode: subscriptionData.couponCode,
-          discountAmount: subscriptionData.discountAmount,
-
-          // Invoice items
-          invoiceItems: [
-            {
-              description: `Listing Premium Subscription - ${subscriptionData.duration} Days`,
-              quantity: 1,
-              unitPrice: subscriptionData.listingPrice,
-              amount: subscriptionData.listingPrice,
-            },
-          ],
         };
-
-        console.log('[Payment] Sending verification request with payload:', verifyPayload);
 
         const response = await fetch(`${apiUrl}/api/subscriptions/verify-payment`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: buildUserAuthHeaders({
+            id: subscriptionData.customerId,
+            phone: subscriptionData.customerPhone || '',
+          }),
           body: JSON.stringify(verifyPayload),
         });
 
         const data = await response.json();
-
-        console.log('[Payment] Verification response received:', {
-          success: data.success,
-          hasInvoice: !!data.invoice,
-          message: data.message,
-        });
 
         if (!data.success) {
           throw new Error(data.error || 'Payment verification failed');

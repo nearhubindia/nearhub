@@ -33,7 +33,6 @@ export interface Listing {
 
 export interface CreateListingInput {
   userId?: string;
-  sellerId?: string;
   title: string;
   description?: string;
   category: string;
@@ -84,7 +83,7 @@ class ListingsStorage {
 
     const listing: Listing = {
       id,
-      userId: input.userId || input.sellerId || '',
+      userId: input.userId || '',
       title: input.title,
       description: input.description || '',
       category: input.category,

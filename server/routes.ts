@@ -11,6 +11,7 @@ import { registerAdminListingsRoutes } from './features/admin/routes/admin-listi
 import { registerAdminBannersRoutes } from './features/admin/routes/admin-banners';
 import { registerAdminContactSubmissionRoutes } from './features/admin/routes/admin-contact-submissions';
 import { registerReportsRoutes } from './features/admin/routes/reports';
+import { registerAdminUserLifecycleRoutes } from './features/admin/routes/admin-user-lifecycle';
 // Auth feature routes
 import { registerAuthRoutes } from './features/auth/routes/auth';
 // AI feature routes (shared)
@@ -41,6 +42,8 @@ import { registerUserRoutes } from './features/users/routes/users';
 import { registerPushNotificationRoutes } from './features/push/routes/push';
 // In-app notifications feature routes
 import { registerInAppNotificationRoutes } from './features/notifications/routes/in-app';
+// Messages feature routes
+import { registerMessageRoutes } from './features/messages/routes/messages';
 // Worker management routes
 import { registerWorkerRoutes } from './features/workers/routes/workers';
 import { registerApiDocsRoutes } from './shared/routes/api-docs';
@@ -67,6 +70,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerAdminBannersRoutes(app);
   registerAdminContactSubmissionRoutes(app);
   registerReportsRoutes(app);
+  registerAdminUserLifecycleRoutes(app);
   registerListingRoutes(app);
 
   // Location
@@ -98,6 +102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // In-app notifications
   registerInAppNotificationRoutes(app);
+  registerMessageRoutes(app);
 
   // Background workers
   registerWorkerRoutes(app);

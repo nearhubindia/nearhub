@@ -3,7 +3,7 @@
  * Manages Razorpay payment integration for listing subscriptions
  */
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback } from 'react';
 import { Text, View, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import Colors from '@/constants/colors';
 import {
@@ -32,15 +32,7 @@ export function usePaymentHandler() {
     error,
     initiatePayment,
     verifyPaymentAndGenerateInvoice,
-    handlePaymentSuccess: handleSuccess,
-    handlePaymentError: handleError,
   } = usePayment();
-
-  const pendingPaymentData = useRef<{
-    subscriptionData: any;
-    onSuccess?: (result: PaymentResult) => void;
-    onError?: (error: string) => void;
-  } | null>(null);
 
   /**
    * Main payment processing function
@@ -65,98 +57,34 @@ export function usePaymentHandler() {
       onError?: (error: string) => void
     ) => {
       try {
-        // Store subscription data for verification
-        pendingPaymentData.current = {
-          subscriptionData,
-          onSuccess,
-          onError,
-        };
-
-        // Open Razorpay checkout
-        await initiatePayment(paymentData, customerData, listingData);
-
-        // Setup Razorpay event handlers
-        const handleRazorpaySuccess = async (data: any) => {
-          console.log('[PaymentHandler] Razorpay payment success:', data);
-
-          if (!pendingPaymentData.current) {
-            console.error('[PaymentHandler] No pending payment data found');
-            return;
-          }
-
-          try {
-            const result = await verifyPaymentAndGenerateInvoice(
-              {
-                razorpay_order_id: data.razorpay_order_id,
-                razorpay_payment_id: data.razorpay_payment_id,
-                razorpay_signature: data.razorpay_signature,
-              },
-              pendingPaymentData.current.subscriptionData
-            );
-
-            Alert.alert(
-              'Payment Successful! 🎉',
-              `Your listing is now active.\nInvoice: ${result.invoiceNumber || 'Generated'}`,
-              [
-                {
-                  text: 'View Invoice',
-                  onPress: () => {
-                    pendingPaymentData.current?.onSuccess?.(result);
-                  },
-                },
-              ]
-            );
-
-            pendingPaymentData.current = null;
-          } catch (verifyError) {
-            const errorMsg =
-              verifyError instanceof Error ? verifyError.message : 'Verification failed';
-            console.error('[PaymentHandler] Payment verification error:', errorMsg);
-            Alert.alert(
-              'Verification Failed',
-              'Payment was completed but verification failed. Please contact support.'
-            );
-            pendingPaymentData.current?.onError?.(errorMsg);
-            pendingPaymentData.current = null;
-          }
-        };
-
-        const handleRazorpayError = (error: any) => {
-          console.error('[PaymentHandler] Razorpay error:', error);
-          const errorMsg = error?.description || error?.message || 'Payment failed';
-          Alert.alert('Payment Failed', errorMsg);
-          pendingPaymentData.current?.onError?.(errorMsg);
-          pendingPaymentData.current = null;
-        };
-
-        const handleRazorpayDismiss = () => {
-          console.log('[PaymentHandler] Razorpay checkout dismissed');
-          pendingPaymentData.current = null;
-        };
-
-        // Register Razorpay event handlers
-        // @ts-ignore - dynamic import to avoid New Architecture crash
-        const RazorpayCheckout = require('react-native-razorpay').default;
-        RazorpayCheckout.addEventListener('open', () => {
-          console.log('[PaymentHandler] Razorpay opened');
-        });
-
-        RazorpayCheckout.addEventListener('success', handleRazorpaySuccess);
-        RazorpayCheckout.addEventListener('error', handleRazorpayError);
-        RazorpayCheckout.addEventListener('dismiss', handleRazorpayDismiss);
-
-        return {
-          cleanup: () => {
-            // @ts-ignore
-            const RazorpayCheckout = require('react-native-razorpay').default;
-            RazorpayCheckout.removeEventListener('success', handleRazorpaySuccess);
-            RazorpayCheckout.removeEventListener('error', handleRazorpayError);
-            RazorpayCheckout.removeEventListener('dismiss', handleRazorpayDismiss);
+        const razorpayResult = await initiatePayment(paymentData, customerData, listingData);
+        const result = await verifyPaymentAndGenerateInvoice(
+          {
+            razorpay_order_id: razorpayResult.razorpay_order_id,
+            razorpay_payment_id: razorpayResult.razorpay_payment_id,
+            razorpay_signature: razorpayResult.razorpay_signature,
           },
-        };
+          subscriptionData
+        );
+
+        Alert.alert('Subscription Updated Successfully', 'Your subscription is active. You can download invoices from the Invoices screen.', [
+          {
+            text: 'OK',
+            onPress: () => {
+              onSuccess?.(result);
+            },
+          },
+        ]);
+        return result;
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Payment initialization failed';
         console.error('[PaymentHandler] Error in processPayment:', err);
+        if (
+          !errorMsg.toLowerCase().includes('cancel') &&
+          !errorMsg.toLowerCase().includes('dismiss')
+        ) {
+          Alert.alert('Payment Failed', errorMsg);
+        }
         onError?.(errorMsg);
       }
     },

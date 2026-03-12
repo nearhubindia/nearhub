@@ -19,6 +19,7 @@ import {
   getRemainingFreeListings,
 } from '../services/coupons';
 import { createCouponAdminSchema } from '../../admin/models/admin-settings';
+import { getRequestUserId } from '../../../lib/request-user';
 
 export function registerCouponRoutes(app: Express) {
   /**
@@ -63,8 +64,7 @@ export function registerCouponRoutes(app: Express) {
   app.get('/api/coupons/free-listings/:code', async (req: Request, res: Response) => {
     try {
       const code = (req.params.code as string) || '';
-      const userId = (req.query.userId as string) || (req.get('x-user-id') as string) || '';
-      const userPhone = (req.get('x-user-phone') as string) || '';
+      const userId = (req.query.userId as string) || getRequestUserId(req);
 
       if (!code || code.trim().length === 0) {
         return res.status(400).json({
@@ -73,16 +73,14 @@ export function registerCouponRoutes(app: Express) {
         });
       }
 
-      // Use phone as fallback identifier (matches listing sellerId pattern)
-      const identifier = userId || userPhone;
-      if (!identifier) {
+      if (!userId) {
         return res.status(400).json({
           success: false,
           error: 'User ID is required',
         });
       }
 
-      const result = await getRemainingFreeListings(code, identifier);
+      const result = await getRemainingFreeListings(code, userId);
 
       if (result.error) {
         return res.json({

@@ -1,9 +1,21 @@
 import type { Express, Response } from 'express';
-import { eq, count } from 'drizzle-orm';
+import { eq, inArray, or } from 'drizzle-orm';
 import { db } from '../../../data/db';
 import { users } from '../../users/models/users';
 import type { AuthRequest } from '../../../lib/types';
 import { handleError, notFound } from '../../../lib/error-handler';
+import {
+  listings,
+  userActivity,
+  userStarterCredits,
+  userSubscriptions,
+} from '../models/admin-settings';
+import { deleteUserDataByAdmin } from '../../users/services/user-lifecycle';
+
+function normalizeMobile(value: unknown): string {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length === 10 ? digits : '';
+}
 
 export function registerAdminUsersRoutes(app: Express) {
   /**
@@ -12,15 +24,101 @@ export function registerAdminUsersRoutes(app: Express) {
    */
   app.get('/api/admin/users', async (req: AuthRequest, res: Response) => {
     try {
-      const allUsers = await db.select().from(users).limit(100);
+      const [activityRows, listingRows, subscriptionRows, starterRows] = await Promise.all([
+        db.select({ userId: userActivity.userId, firstSeenAt: userActivity.firstSeenAt }).from(userActivity),
+        db
+          .select({
+            userId: listings.sellerId,
+            createdAt: listings.createdAt,
+            location: listings.location,
+            contactPhone: listings.contactPhone,
+          })
+          .from(listings),
+        db.select({ userId: userSubscriptions.userId }).from(userSubscriptions),
+        db.select({ userId: userStarterCredits.userId }).from(userStarterCredits),
+      ]);
 
-      const safeUsers = allUsers.map((user) => ({
-        id: user.id,
-        username: user.username,
-        mobile: user.mobile || '-',
-        location: user.location || '-',
-        createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
-      }));
+      const userIds = new Set<string>();
+      activityRows.forEach((row) => userIds.add(row.userId));
+      listingRows.forEach((row) => userIds.add(row.userId));
+      subscriptionRows.forEach((row) => userIds.add(row.userId));
+      starterRows.forEach((row) => userIds.add(row.userId));
+
+      const idList = [...userIds].filter(Boolean).slice(0, 1000);
+      if (idList.length === 0) {
+        return res.json({ success: true, data: [], total: 0 });
+      }
+
+      const metaRows = await db
+        .select()
+        .from(users)
+        .where(or(inArray(users.id, idList), inArray(users.mobile, idList))!);
+
+      const metaById = new Map<string, (typeof metaRows)[number]>();
+      for (const row of metaRows) {
+        if (row.id) metaById.set(row.id, row);
+        if (row.mobile) metaById.set(row.mobile, row);
+      }
+
+      const activityById = new Map(activityRows.map((row) => [row.userId, row]));
+      const latestListingById = new Map<
+        string,
+        { location: string | null; createdAt: Date | null; contactPhone: string | null }
+      >();
+      for (const row of listingRows) {
+        const existing = latestListingById.get(row.userId);
+        if (!existing || (row.createdAt && existing.createdAt && row.createdAt > existing.createdAt)) {
+          latestListingById.set(row.userId, {
+            location: row.location || null,
+            createdAt: row.createdAt || null,
+            contactPhone: row.contactPhone || null,
+          });
+        } else if (!existing) {
+          latestListingById.set(row.userId, {
+            location: row.location || null,
+            createdAt: row.createdAt || null,
+            contactPhone: row.contactPhone || null,
+          });
+        }
+      }
+
+      const deduped = new Map<
+        string,
+        {
+          id: string;
+          username: string;
+          mobile: string;
+          location: string;
+          createdAt: string;
+        }
+      >();
+      idList.forEach((id) => {
+          const meta = metaById.get(id);
+          const activity = activityById.get(id);
+          const latestListing = latestListingById.get(id);
+          const mobile = normalizeMobile(meta?.mobile || latestListing?.contactPhone || id);
+          if (!mobile) {
+            return;
+          }
+          const existing = deduped.get(mobile);
+          const candidate = {
+            id: mobile,
+            username: mobile, // Canonical: username == mobile to avoid identity duplication.
+            mobile,
+            location: latestListing?.location || meta?.location || '-',
+            createdAt:
+              activity?.firstSeenAt?.toISOString() ||
+              latestListing?.createdAt?.toISOString() ||
+              meta?.createdAt?.toISOString() ||
+              new Date().toISOString(),
+          };
+          if (!existing || new Date(candidate.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
+            deduped.set(mobile, candidate);
+          }
+        });
+
+      const safeUsers = [...deduped.values()]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       res.json({
         success: true,
@@ -40,19 +138,42 @@ export function registerAdminUsersRoutes(app: Express) {
   app.get('/api/admin/users/:id', async (req: AuthRequest, res: Response) => {
     try {
       const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
+      const [meta, activity, latestListing] = await Promise.all([
+        db
+          .select()
+          .from(users)
+          .where(or(eq(users.id, id), eq(users.mobile, id))!)
+          .limit(1),
+        db
+          .select()
+          .from(userActivity)
+          .where(eq(userActivity.userId, id))
+          .limit(1),
+        db
+          .select({ location: listings.location, createdAt: listings.createdAt })
+          .from(listings)
+          .where(eq(listings.sellerId, id))
+          .orderBy(listings.createdAt)
+          .limit(1),
+      ]);
 
-      const [user] = await db.select().from(users).where(eq(users.id, id));
-
-      if (!user) {
+      if (meta.length === 0 && activity.length === 0 && latestListing.length === 0) {
         return notFound(res, 'User');
       }
 
+      const userMeta = meta[0];
+      const userActivityRow = activity[0];
+      const latestListingRow = latestListing[0];
       const safeUser = {
-        id: user.id,
-        username: user.username,
-        mobile: user.mobile || '-',
-        location: user.location || '-',
-        createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
+        id,
+        username: normalizeMobile(userMeta?.mobile || id) || id,
+        mobile: normalizeMobile(userMeta?.mobile || id) || '-',
+        location: latestListingRow?.location || userMeta?.location || '-',
+        createdAt:
+          userActivityRow?.firstSeenAt?.toISOString() ||
+          latestListingRow?.createdAt?.toISOString() ||
+          userMeta?.createdAt?.toISOString() ||
+          new Date().toISOString(),
       };
 
       res.json({
@@ -72,16 +193,13 @@ export function registerAdminUsersRoutes(app: Express) {
   app.delete('/api/admin/users/:id', async (req: AuthRequest, res: Response) => {
     try {
       const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
-
-      const result = await db.delete(users).where(eq(users.id, id)).returning();
-
-      if (result.length === 0) {
-        return notFound(res, 'User');
-      }
+      const impact = await deleteUserDataByAdmin(id);
+      await db.delete(users).where(or(eq(users.id, id), eq(users.mobile, id))!);
 
       res.json({
         success: true,
-        message: 'User deleted successfully',
+        message: 'User and related data deleted successfully',
+        impact,
       });
     } catch (error) {
       console.error('[Admin Users] Error deleting user:', error);
@@ -97,29 +215,35 @@ export function registerAdminUsersRoutes(app: Express) {
     try {
       const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
       const { username, mobile, location } = req.body;
+      const normalizedMobile = normalizeMobile(mobile || id);
 
-      if (!username || !mobile || !location) {
+      if (!normalizedMobile || !location) {
         return res.status(400).json({
           success: false,
-          message: 'Username, mobile, and location are required',
+          message: 'Valid mobile number and location are required',
         });
       }
 
-      const result = await db
-        .update(users)
-        .set({
-          username,
-          mobile,
+      const upserted = await db
+        .insert(users)
+        .values({
+          id: normalizedMobile,
+          username: normalizedMobile,
+          password: 'admin-managed',
+          mobile: normalizedMobile,
           location,
         })
-        .where(eq(users.id, id))
+        .onConflictDoUpdate({
+          target: users.id,
+          set: {
+            username: normalizedMobile,
+            mobile: normalizedMobile,
+            location,
+          },
+        })
         .returning();
 
-      if (result.length === 0) {
-        return notFound(res, 'User');
-      }
-
-      const updatedUser = result[0];
+      const updatedUser = upserted[0];
       const safeUser = {
         id: updatedUser.id,
         username: updatedUser.username,

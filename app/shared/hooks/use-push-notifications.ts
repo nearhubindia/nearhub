@@ -202,9 +202,18 @@ function handleNotificationNavigation(data: PushNotificationData): void {
   // Import router dynamically to avoid circular dependencies
   import('expo-router').then(({ router }) => {
     if (data?.type === 'new_listing' && data.listingId) {
-      router.push(`/listings/${data.listingId}`);
+      router.push({
+        pathname: '/listing/[id]',
+        params: { id: data.listingId },
+      });
     } else if (data?.type === 'message' && data.conversationId) {
-      router.push(`/chat/${data.conversationId}`);
+      router.push({
+        pathname: '/chat/[listingId]',
+        params: {
+          listingId: data.conversationId,
+          conversationId: data.conversationId,
+        },
+      });
     } else if (data?.url) {
       router.push(data.url);
     }

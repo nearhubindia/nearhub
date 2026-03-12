@@ -18,6 +18,7 @@ import * as WebBrowser from 'expo-web-browser';
 import colors from '@/constants/colors';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { getApiUrl } from '@/lib/query-client';
+import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const INVOICES_STORAGE_KEY = '@nearhub_invoices';
@@ -66,10 +67,7 @@ export default function InvoicesScreen() {
       if (user?.id) {
         try {
           const response = await fetch(`${apiUrl}/api/users/invoices`, {
-            headers: {
-              'Content-Type': 'application/json',
-              'x-user-id': user.id,
-            },
+            headers: buildUserAuthHeaders({ id: user.id, phone: user.phone || '' }),
           });
           const data = await response.json();
           if (response.ok && data?.success && Array.isArray(data?.invoices)) {

@@ -296,7 +296,8 @@ const styles = createResponsiveStyles({
     marginBottom: 28,
   },
   phoneHighlight: {
-    fontFamily: 'Inter_600SemiBold',
+    fontSize: 16,
+    fontFamily: 'Inter_700Bold',
     color: Colors.text,
   },
   otpRow: {
@@ -325,7 +326,7 @@ const styles = createResponsiveStyles({
     alignSelf: 'stretch',
   },
   verifyButton: {
-    borderRadius: 14,
+    borderRadius: 12,
     overflow: 'hidden',
     alignSelf: 'stretch',
     shadowColor: Colors.primaryDark,
@@ -342,6 +343,7 @@ const styles = createResponsiveStyles({
     opacity: 0.5,
   },
   verifyGradient: {
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

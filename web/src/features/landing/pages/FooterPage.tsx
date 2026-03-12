@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Download, Smartphone } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 
 interface FooterPageSection {
@@ -18,92 +18,124 @@ interface FooterPageConfig {
 const footerPageConfigs: Record<string, FooterPageConfig> = {
   'browse-listings': {
     title: 'Browse Listings',
-    subtitle: 'Explore fresh, trusted listings across categories and locations.',
+    subtitle: 'Explore app-first listings designed for faster local discovery and buyer action.',
     tag: 'Platform',
     sections: [
       {
-        heading: 'Smart Discovery',
+        heading: 'Home Feed + Search Module',
         points: [
-          'Search by category, city, and local relevance.',
-          'Filter by price, media type, and posting freshness.',
-          'View detailed listing pages with seller context.',
+          'Personalized home feed ranks listings by freshness, relevance, and local demand.',
+          'Search supports category, city, pincode, and distance-based filtering for better intent.',
+          'Listing cards surface key details quickly to reduce drop-off before first contact.',
         ],
       },
       {
-        heading: 'High Intent UX',
+        heading: 'Listing Details + Conversion Module',
         points: [
-          'Designed for quick scanning and confident actions.',
-          'Consistent cards, clean hierarchy, and conversion-first flow.',
-          'Mobile-friendly layout with fast interactions.',
+          'Detail pages combine photos, video shorts, pricing, and trust signals in one view.',
+          'Call and chat actions are placed for one-tap response from interested buyers.',
+          'Saved listings and history modules help users return and convert faster.',
+        ],
+      },
+      {
+        heading: 'Mobile Buyer Journey',
+        points: [
+          'Everything is optimized for quick thumb navigation inside the mobile app.',
+          'Lightweight modules keep browsing smooth even on slower networks.',
+          'Designed to maximize quality enquiries instead of passive impressions.',
         ],
       },
     ],
   },
   'post-an-ad': {
     title: 'Post an Ad',
-    subtitle: 'Publish image or video listings in a guided seller workflow.',
+    subtitle: 'Publish from the app with a guided seller module built for speed and trust.',
     tag: 'Platform',
     sections: [
       {
-        heading: 'Seller Workflow',
+        heading: 'Create Listing Module',
         points: [
-          'Simple listing creation with category-specific structure.',
-          'Media upload support for images and videos.',
-          'Pricing, availability, and contact readiness in one flow.',
+          'Category-smart form flow reduces errors and speeds up listing completion.',
+          'Supports image sets and video shorts for higher response-quality leads.',
+          'Price, condition, and location inputs are structured for better discovery ranking.',
         ],
       },
       {
-        heading: 'Boost Visibility',
+        heading: 'Seller Growth Module',
         points: [
-          'Use featured options and boosts for higher reach.',
-          'Track listing impact through admin insights.',
-          'Promote strategically by category demand.',
+          'Promote listings with boosts and featured visibility windows.',
+          'Track enquiry quality and listing performance from seller-facing insights.',
+          'Use campaign-style promotion controls directly from mobile workflows.',
+        ],
+      },
+      {
+        heading: 'Trust + Quality Module',
+        points: [
+          'Verified seller signals improve confidence before buyers initiate contact.',
+          'Moderation and report handling keep marketplace quality high.',
+          'Listing quality checks reduce spam and low-value posting behavior.',
         ],
       },
     ],
   },
   categories: {
     title: 'Categories',
-    subtitle: 'Built to support diverse commerce and service needs at scale.',
+    subtitle: 'App-native category architecture built for local commerce and service discovery.',
     tag: 'Platform',
     sections: [
       {
-        heading: 'Popular Verticals',
+        heading: 'Category Structure Module',
         points: [
-          'Electronics, vehicles, real estate, and jobs.',
-          'Services, education, fashion, home, and more.',
-          'Extensible catalog for future category growth.',
+          'Supports core verticals like electronics, vehicles, services, jobs, and real estate.',
+          'Each category has tailored fields to improve listing quality and buyer clarity.',
+          'Architecture is extensible for future categories without changing app flow.',
         ],
       },
       {
-        heading: 'Category Intelligence',
+        heading: 'Relevance + Ranking Module',
         points: [
-          'Tailored listing fields per category.',
-          'Improved search relevance and discovery quality.',
-          'Better buyer confidence with structured details.',
+          'Category-specific attributes improve search ranking precision.',
+          'Structured data supports cleaner filters and higher-intent discovery.',
+          'Smarter category matching helps buyers find relevant listings faster.',
+        ],
+      },
+      {
+        heading: 'Mobile Experience Module',
+        points: [
+          'Category browse and switch flows are built for mobile-first interaction.',
+          'Visual hierarchy and media cards make scanning easier on smaller screens.',
+          'Designed to reduce taps and speed up buyer decision time.',
         ],
       },
     ],
   },
   'mobile-app': {
     title: 'Mobile App',
-    subtitle: 'NearHub mobile experience optimized for speed and reliability.',
+    subtitle: 'NearHub is a mobile-first platform engineered for fast local buying and selling.',
     tag: 'Platform',
     sections: [
       {
-        heading: 'Performance',
+        heading: 'Core App Modules',
         points: [
-          'Fast loading with optimized media pipelines.',
-          'Responsive interactions for listing and search flows.',
-          'Reliable notifications and session continuity.',
+          'Home discovery, create listing, chat, profile, and saved modules in one app.',
+          'Notification module keeps sellers updated on enquiries in real time.',
+          'In-app moderation and trust workflows protect listing quality.',
         ],
       },
       {
-        heading: 'User Experience',
+        heading: 'Speed + Reliability Layer',
         points: [
-          'Clean navigation built for local buying and selling.',
-          'Consistent visual language across app and web.',
-          'Designed for daily use by high-intent users.',
+          'Optimized media pipeline for smooth photo/video rendering on mobile devices.',
+          'Session continuity and fast navigation built for daily active usage.',
+          'Engineered for high-intent interactions, not passive feed consumption.',
+        ],
+      },
+      {
+        heading: 'Business Impact Module',
+        points: [
+          'Video-first listings drive faster responses than text-only posts.',
+          'Verified business badges increase trust and conversion probability.',
+          'Hyperlocal ranking improves lead quality for sellers and service teams.',
         ],
       },
     ],
@@ -363,37 +395,54 @@ const footerPageConfigs: Record<string, FooterPageConfig> = {
   },
 };
 
+const mobileAppFocusedPageKeys = new Set([
+  'browse-listings',
+  'post-an-ad',
+  'categories',
+  'mobile-app',
+]);
+const playStoreUrl = 'https://play.google.com/store/apps/details?id=host.exp.exponent';
+
 export default function FooterPage(): ReactElement {
   const { pageKey } = useParams();
   const config = pageKey ? footerPageConfigs[pageKey] : undefined;
+  const isMobileAppFocusedPage = Boolean(pageKey && mobileAppFocusedPageKeys.has(pageKey));
 
   if (!config) {
     return <Navigate to="/" replace />;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-slate-50 to-[#fff7ef] text-slate-900">
-      <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_8%_15%,rgba(30,93,168,0.12),transparent_45%),radial-gradient(circle_at_90%_20%,rgba(255,153,51,0.14),transparent_40%)]" />
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f7fbff_0%,#edf5ff_46%,#fff5ea_100%)] text-slate-900">
+      <div className="fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_8%_10%,rgba(30,93,168,0.16),transparent_34%),radial-gradient(circle_at_92%_14%,rgba(255,153,51,0.18),transparent_32%),radial-gradient(circle_at_50%_92%,rgba(30,93,168,0.09),transparent_40%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(30,93,168,0.03)_1px,transparent_1px),linear-gradient(0deg,rgba(255,153,51,0.035)_1px,transparent_1px)] bg-[size:44px_44px]" />
+      </div>
 
       <LandingHeader active="home" />
 
-      <main className="px-4 pb-20 pt-28 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl space-y-8">
-          <section className="rounded-3xl border border-[#1e5da8]/10 bg-gradient-to-br from-[#1e5da8]/8 via-white to-[#ff9933]/12 p-6 shadow-sm sm:p-10">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ff9933]">
+      <main className="pt-20">
+        <div className="w-full px-4 pb-16 pt-8 sm:px-8 lg:px-12">
+          <section className="rounded-[2rem] border border-[#1e5da8]/20 bg-[linear-gradient(125deg,#0f4684_0%,#1e5da8_42%,#ff9933_165%)] px-6 py-8 text-white shadow-[0_34px_72px_-40px_rgba(14,63,120,0.78)] sm:px-9 sm:py-10">
+            <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em]">
               {config.tag}
             </p>
-            <h1 className="mt-3 text-4xl font-black sm:text-5xl">{config.title}</h1>
-            <p className="mt-3 max-w-3xl text-slate-600">{config.subtitle}</p>
+            <h1 className="mt-4 max-w-5xl text-3xl font-bold leading-tight sm:text-5xl">
+              {config.title}
+            </h1>
+            <p className="mt-4 max-w-4xl text-sm leading-relaxed text-blue-50/95 sm:text-base">
+              {config.subtitle}
+            </p>
           </section>
 
-          <section className="grid gap-5 md:grid-cols-2">
+          <section className="mt-8 grid gap-5 md:grid-cols-2">
             {config.sections.map((section) => (
               <article
                 key={section.heading}
-                className="rounded-2xl border border-[#1e5da8]/10 bg-white p-6 shadow-sm"
+                className="group relative overflow-hidden rounded-xl border border-[#1e5da8]/14 bg-[linear-gradient(180deg,#ffffff_0%,#f3f8ff_100%)] p-6 shadow-[0_16px_34px_-26px_rgba(14,63,120,0.52)] transition duration-300 hover:-translate-y-1 hover:border-[#1e5da8]/30 hover:shadow-[0_24px_42px_-24px_rgba(30,93,168,0.66)]"
               >
-                <h2 className="text-2xl font-black text-slate-900">{section.heading}</h2>
+                <div className="pointer-events-none absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-[#ff9933]/12 blur-2xl transition group-hover:bg-[#ff9933]/18" />
+                <h2 className="text-2xl font-bold text-[#113965]">{section.heading}</h2>
                 <ul className="mt-4 space-y-2">
                   {section.points.map((point) => (
                     <li key={point} className="flex items-start gap-2 text-slate-600">
@@ -406,19 +455,50 @@ export default function FooterPage(): ReactElement {
             ))}
           </section>
 
-          <section className="rounded-3xl border border-[#1e5da8]/10 bg-white p-6 shadow-sm sm:p-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          {isMobileAppFocusedPage && (
+            <section className="mt-9 overflow-hidden rounded-[2rem] border border-[#1e5da8]/18 bg-[linear-gradient(120deg,#0f3f78_0%,#1e5da8_58%,#ff9933_165%)] px-6 py-8 text-white shadow-[0_30px_62px_-38px_rgba(15,63,120,0.8)] sm:px-9 lg:flex lg:items-center lg:justify-between lg:gap-10">
               <div>
-                <h3 className="text-2xl font-black text-slate-900 sm:text-3xl">
+                <p className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-[#ffe2bf]">
+                  <Smartphone size={14} />
+                  Mobile App Focused
+                </p>
+                <h3 className="mt-2 text-3xl font-bold leading-tight sm:text-4xl">
+                  Download NearHub On Google Play
+                </h3>
+                <p className="mt-3 max-w-3xl text-sm leading-relaxed text-blue-50/95 sm:text-base">
+                  These modules are designed for the mobile app experience with faster posting,
+                  video-first discovery, verified trust signals, and real-time enquiry handling.
+                </p>
+              </div>
+              <div className="mt-5 lg:mt-0">
+                <a
+                  href={playStoreUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#ff9933] px-6 py-3 text-sm font-semibold text-slate-900 shadow-[0_14px_34px_-18px_rgba(255,153,51,0.95)] transition hover:bg-[#ffad57]"
+                >
+                  <Download size={18} />
+                  Download On Play Store
+                </a>
+              </div>
+            </section>
+          )}
+
+          <section className="mt-9 overflow-hidden rounded-[2rem] border border-[#1e5da8]/18 bg-[linear-gradient(120deg,#0f3f78_0%,#1e5da8_58%,#ff9933_165%)] px-6 py-8 text-white shadow-[0_30px_62px_-38px_rgba(15,63,120,0.8)] sm:px-9 lg:flex lg:items-center lg:justify-between lg:gap-10">
+            <div>
+              <div>
+                <h3 className="text-3xl font-bold leading-tight sm:text-4xl">
                   Need More Information?
                 </h3>
-                <p className="mt-2 text-slate-600">
+                <p className="mt-3 max-w-3xl text-sm leading-relaxed text-blue-50/95 sm:text-base">
                   Reach out and our team can guide you through this section in detail.
                 </p>
               </div>
+            </div>
+            <div className="mt-5 lg:mt-0">
               <Link
                 to="/contact"
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#1e5da8] to-[#ff9933] px-6 py-3 font-bold text-white transition hover:brightness-110"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#ff9933] px-6 py-3 text-sm font-semibold text-slate-900 shadow-[0_14px_34px_-18px_rgba(255,153,51,0.95)] transition hover:bg-[#ffad57]"
               >
                 Contact Team
                 <ArrowRight size={18} />

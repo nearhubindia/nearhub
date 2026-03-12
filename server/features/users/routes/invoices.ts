@@ -8,6 +8,7 @@ import InvoiceService, { InvoiceItem, InvoiceData } from '../services/invoice';
 import { db } from '../../../data/db';
 import { invoices } from '../../admin/models/admin-settings';
 import { and, desc, eq } from 'drizzle-orm';
+import { getRequestUserId } from '../../../lib/request-user';
 
 async function resolveInvoiceData(
   invoiceNumber: string,
@@ -212,7 +213,7 @@ export function registerInvoiceRoutes(app: Express) {
    */
   app.get('/api/users/invoices', async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).userId || req.get('x-user-id') || req.query.userId;
+      const userId = getRequestUserId(req) || String(req.query.userId || '');
       if (!userId) {
         return res.status(400).json({
           success: false,

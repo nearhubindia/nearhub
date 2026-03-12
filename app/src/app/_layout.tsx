@@ -1,3 +1,4 @@
+import '@/lib/button-style-normalizer';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import React, { useEffect, useCallback } from 'react';

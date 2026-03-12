@@ -56,8 +56,17 @@ export default function HomeScreen() {
   const MIN_RADIUS_KM = 1;
   const MAX_RADIUS_KM = 500;
   const insets = useSafeAreaInsets();
-  const { listings, savedIds, toggleSaved, isLoading, refreshListings, loadMore, hasMore } =
-    useListings();
+  const {
+    listings,
+    savedIds,
+    toggleSaved,
+    isLoading,
+    isRefreshing,
+    isFetchingMore,
+    refreshListings,
+    loadMore,
+    hasMore,
+  } = useListings();
   const { user, setUserSearchRadius } = useAuth();
   const { interests, trackSave } = useUserInterests();
   const { geoRadiusKm } = useAdminSettings();
@@ -67,8 +76,6 @@ export default function HomeScreen() {
     refreshBanners,
   } = useAppScreenBanners('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>('All');
-  const [refreshing, setRefreshing] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Location selection state
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -410,29 +417,29 @@ export default function HomeScreen() {
   );
 
   const onRefresh = useCallback(async () => {
-    setRefreshing(true);
     await Promise.all([refreshListings(), refreshBanners()]);
-    setRefreshing(false);
   }, [refreshListings, refreshBanners]);
 
   const handleLoadMore = useCallback(async () => {
     if (
       !hasMore ||
       isLoading ||
-      isLoadingMore ||
-      refreshing ||
+      isFetchingMore ||
+      isRefreshing ||
       filteredListingsByLocation.length === 0
     ) {
       return;
     }
 
-    setIsLoadingMore(true);
-    try {
-      await loadMore();
-    } finally {
-      setIsLoadingMore(false);
-    }
-  }, [hasMore, isLoading, isLoadingMore, refreshing, loadMore, filteredListingsByLocation.length]);
+    await loadMore();
+  }, [
+    hasMore,
+    isLoading,
+    isFetchingMore,
+    isRefreshing,
+    loadMore,
+    filteredListingsByLocation.length,
+  ]);
 
   const handleSave = useCallback(
     (id: string, category: string) => {
@@ -492,7 +499,7 @@ export default function HomeScreen() {
         scrollEnabled={true}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
+            refreshing={isRefreshing}
             onRefresh={onRefresh}
             tintColor={Colors.primary}
           />
@@ -670,7 +677,7 @@ export default function HomeScreen() {
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         ListFooterComponent={
-          filteredListingsByLocation.length > 0 && hasMore && isLoadingMore ? (
+          filteredListingsByLocation.length > 0 && hasMore && isFetchingMore ? (
             <View style={styles.loadingFooter}>
               <ActivityIndicator size="small" color={Colors.primary} />
               <Text style={styles.loadingText}>Loading more listings...</Text>

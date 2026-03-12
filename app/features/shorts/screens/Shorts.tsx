@@ -131,6 +131,20 @@ export default function ShortsScreen() {
         ]);
         return;
       }
+
+      const normalizedUserId = String(user?.id || '')
+        .replace(/[\s+-]/g, '')
+        .toLowerCase();
+      const normalizedListingUserId = String((item as any)?.userId || '')
+        .replace(/[\s+-]/g, '')
+        .toLowerCase();
+      const isOwner = !!normalizedUserId && normalizedUserId === normalizedListingUserId;
+
+      if (isOwner) {
+        Alert.alert('Not Allowed', 'You cannot message your own listing.');
+        return;
+      }
+
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       trackContact(item.id, item.category).catch(console.error);
       router.push({
@@ -143,7 +157,7 @@ export default function ShortsScreen() {
         },
       });
     },
-    [isAuthenticated, trackContact]
+    [isAuthenticated, trackContact, user?.id]
   );
 
   const onViewableItemsChanged = useCallback(

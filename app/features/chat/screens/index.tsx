@@ -23,6 +23,7 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
       pathname: '/chat/[listingId]',
       params: {
         listingId: thread.listingId,
+        conversationId: thread.conversationId,
         sellerName: thread.sellerName,
         listingTitle: thread.listingTitle,
         listingImage: thread.listingImage,
@@ -33,6 +34,7 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
   const timeAgo = getTimeAgo(thread.lastTimestamp);
   const preview =
     thread.lastMessage.substring(0, 60) + (thread.lastMessage.length > 60 ? '...' : '');
+  const initial = (thread.sellerName || 'U').trim().charAt(0).toUpperCase();
 
   return (
     <Pressable
@@ -40,20 +42,23 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
       onPress={handlePress}
     >
       <View style={styles.threadContent}>
-        {/* Listing Image */}
-        {thread.listingImage ? (
-          <Image
-            source={{ uri: thread.listingImage }}
-            style={styles.listingImage}
-            contentFit="cover"
-          />
-        ) : (
-          <View style={[styles.listingImage, styles.noImage]}>
-            <Feather name="image" size={20} color={Colors.textTertiary} />
+        <View style={styles.mediaWrap}>
+          {thread.listingImage ? (
+            <Image
+              source={{ uri: thread.listingImage }}
+              style={styles.listingImage}
+              contentFit="cover"
+            />
+          ) : (
+            <View style={[styles.listingImage, styles.noImage]}>
+              <Feather name="image" size={20} color={Colors.textTertiary} />
+            </View>
+          )}
+          <View style={styles.avatarBadge}>
+            <Text style={styles.avatarBadgeText}>{initial}</Text>
           </View>
-        )}
+        </View>
 
-        {/* Chat Info */}
         <View style={styles.chatInfo}>
           <View style={styles.headerRow}>
             <Text style={styles.sellerName} numberOfLines={1}>
@@ -70,7 +75,6 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
         </View>
       </View>
 
-      <Feather name="chevron-right" size={20} color={Colors.textTertiary} />
     </Pressable>
   );
 }
@@ -112,7 +116,10 @@ export default function MessagesScreen() {
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Feather name="arrow-left" size={22} color={Colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Inbox</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Inbox</Text>
+          <Text style={styles.headerSubtitle}>{sortedThreads.length} conversations</Text>
+        </View>
         <View style={styles.headerPlaceholder} />
       </View>
 
@@ -125,7 +132,7 @@ export default function MessagesScreen() {
         <FlatList
           data={sortedThreads}
           renderItem={({ item }) => <ChatThreadItem thread={item} />}
-          keyExtractor={(item) => item.listingId}
+          keyExtractor={(item) => item.conversationId}
           scrollEnabled={true}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -147,7 +154,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     backgroundColor: Colors.background,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
@@ -159,10 +166,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerCenter: {
+    alignItems: 'center',
+  },
   headerTitle: {
     fontSize: 20,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_700Bold',
     color: Colors.text,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textTertiary,
+    marginTop: 2,
   },
   headerPlaceholder: {
     width: 40,
@@ -173,21 +189,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   listContent: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   threadItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    marginBottom: 10,
+    borderRadius: 16,
     backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 1,
   },
   threadItemPressed: {
-    backgroundColor: Colors.border,
+    opacity: 0.85,
   },
   threadContent: {
     flexDirection: 'row',
@@ -195,15 +218,36 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 12,
   },
+  mediaWrap: {
+    position: 'relative',
+  },
   listingImage: {
-    width: 56,
-    height: 56,
-    borderRadius: 8,
+    width: 58,
+    height: 58,
+    borderRadius: 12,
   },
   noImage: {
     backgroundColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarBadge: {
+    position: 'absolute',
+    right: -6,
+    bottom: -6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    borderWidth: 2,
+    borderColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
   },
   chatInfo: {
     flex: 1,
@@ -216,8 +260,8 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   sellerName: {
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
+    fontSize: 16,
+    fontFamily: 'Inter_700Bold',
     color: Colors.text,
     flex: 1,
   },
@@ -228,15 +272,15 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   listingTitle: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textSecondary,
+    marginBottom: 5,
+  },
+  lastMessage: {
     fontSize: 13,
     fontFamily: 'Inter_500Medium',
     color: Colors.textSecondary,
-    marginBottom: 4,
-  },
-  lastMessage: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: Colors.textTertiary,
   },
   emptyContainer: {
     flex: 1,

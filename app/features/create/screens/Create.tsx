@@ -55,6 +55,7 @@ import * as ImageStorage from '@/lib/image-storage';
 import * as ImageHasher from '@/lib/image-hasher';
 import RichTextEditor from '@/shared/components/RichTextEditor';
 import { createResponsiveStyles } from '@/lib/responsive';
+import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 
 interface LocationSuggestion {
   pincode: string;
@@ -508,11 +509,7 @@ export default function CreateScreen() {
         const apiUrl = getApiUrl();
         const timestamp = Date.now();
         const response = await fetch(`${apiUrl}/api/subscriptions?t=${timestamp}`, {
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': user.id,
-            'x-user-phone': user.phone || '',
-          },
+          headers: buildUserAuthHeaders({ id: user.id, phone: user.phone || '' }),
           cache: 'no-store',
         });
 
@@ -760,7 +757,7 @@ export default function CreateScreen() {
         uri,
         mediaType: 'image',
         fileName,
-        userId: user?.id || user?.phone || undefined,
+        userId: user?.id || undefined,
       });
 
       uploaded.push(media.url);
@@ -1170,7 +1167,7 @@ export default function CreateScreen() {
           uri: videoUri,
           mediaType: 'video',
           fileName,
-          userId: user?.id || user?.phone || undefined,
+          userId: user?.id || undefined,
         });
 
         finalVideoUrl = uploadResult.url;
@@ -1246,7 +1243,7 @@ export default function CreateScreen() {
 
       await addListing(
         {
-          userId: user?.id || user?.phone || '',
+          userId: user?.id || '',
           title: title.trim(),
           description: description.trim(),
           price: Number(price),
@@ -1316,6 +1313,16 @@ export default function CreateScreen() {
         error?.message?.includes('HTTP 429')
       ) {
         showDailyLimitAlert(error);
+      } else if (error?.code === 'SUBSCRIPTION_STARTER_OR_COUPON_REQUIRED') {
+        Alert.alert(
+          'Plan Required',
+          error?.message ||
+            'You need an active subscription, starter listing credit, or valid coupon to post.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'View Plans', onPress: () => router.push('/subscriptions') },
+          ]
+        );
       } else {
         Alert.alert('Error', error.message || 'Failed to create listing. Please try again.');
       }
@@ -1356,23 +1363,8 @@ export default function CreateScreen() {
       return;
     }
 
-    // Allow listing with paid subscription OR starter listing credits.
-    if ((!selectedSubscription || !selectedSubscription.tier) && !hasStarterListingsAvailable) {
-      Alert.alert(
-        'Plan Required',
-        'You need an active subscription or starter credits to create a listing.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'View Plans',
-            onPress: () => router.push('/subscriptions'),
-          },
-        ]
-      );
-      return;
-    }
-
-    // No paid plan selected, but starter listing credits are available.
+    // If no paid plan is selected, let backend decide starter/coupon eligibility.
+    // This avoids stale local subscription state blocking valid starter-credit posts.
     if (!selectedSubscription || !selectedSubscription.tier) {
       await submitListing();
       return;
@@ -2222,9 +2214,12 @@ export default function CreateScreen() {
                 {completedSteps}/{totalSteps}
               </Text>
             </View>
-            <Text style={styles.publishPanelSubtitle}>
-              Your listing will appear after admin verification.
-            </Text>
+            <View style={styles.publishWarningRow}>
+              <Feather name="alert-triangle" size={13} color="#B45309" />
+              <Text style={styles.publishWarningText}>
+                Your listing will appear after admin verification.
+              </Text>
+            </View>
             <Pressable
               style={({ pressed }) => [
                 styles.submitButton,
@@ -3956,12 +3951,15 @@ const styles = createResponsiveStyles({
     color: '#475569',
   },
   submitButton: {
-    borderRadius: 14,
+    borderRadius: 12,
     overflow: 'hidden',
     marginTop: 10,
     marginBottom: 2,
+    backgroundColor: '#2563EB',
   },
   submitGradient: {
+    borderRadius: 12,
+    overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -4019,6 +4017,26 @@ const styles = createResponsiveStyles({
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: '#64748B',
+  },
+  publishWarningRow: {
+    marginTop: 8,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  publishWarningText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#92400E',
+    lineHeight: 16,
   },
   authGate: {
     flex: 1,

@@ -8,6 +8,7 @@ export default function SettingsView() {
   const [featuredListingEnabled, setFeaturedListingEnabled] = useState(true);
   const [topSearchEnabled, setTopSearchEnabled] = useState(true);
   const [geoRadiusKm, setGeoRadiusKm] = useState(50);
+  const [inactiveUserReviewDays, setInactiveUserReviewDays] = useState(90);
   const [starterCreditsEnabled, setStarterCreditsEnabled] = useState(true);
   const [starterListingsCount, setStarterListingsCount] = useState(2);
   const [starterBoostsCount, setStarterBoostsCount] = useState(2);
@@ -31,6 +32,9 @@ export default function SettingsView() {
           const data = await response.json();
           if (typeof data.settings?.geoRadiusKm === 'number') {
             setGeoRadiusKm(data.settings.geoRadiusKm);
+          }
+          if (typeof data.settings?.inactiveUserReviewDays === 'number') {
+            setInactiveUserReviewDays(Math.max(1, data.settings.inactiveUserReviewDays));
           }
           if (typeof data.settings?.starterCreditsEnabled === 'boolean') {
             setStarterCreditsEnabled(data.settings.starterCreditsEnabled);
@@ -72,6 +76,7 @@ export default function SettingsView() {
         },
         body: JSON.stringify({
           geoRadiusKm: geoRadiusKm,
+          inactiveUserReviewDays,
           starterCreditsEnabled,
           starterListingsCount,
           starterBoostsCount,
@@ -270,6 +275,26 @@ export default function SettingsView() {
                   />
                   <p className="text-sm text-slate-600 mt-1">
                     Set the default search radius for location-based listing searches (1-500 km)
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-900 mb-2">
+                    Inactive User Review Days
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={3650}
+                    value={inactiveUserReviewDays}
+                    onChange={(e) =>
+                      setInactiveUserReviewDays(
+                        Math.max(1, Math.min(3650, Number(e.target.value) || 1))
+                      )
+                    }
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                  />
+                  <p className="text-sm text-slate-600 mt-1">
+                    Users inactive for this many days move to admin deletion review queue
                   </p>
                 </div>
               </div>

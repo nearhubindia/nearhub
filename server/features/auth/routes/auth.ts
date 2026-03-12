@@ -1,28 +1,43 @@
 import type { Express, Request, Response } from 'express';
+import { eq } from 'drizzle-orm';
 import { otpService } from '../../../shared/utils/otp';
 import { validateImageWithPhi2, validateVideoWithPhi2 } from '../../../shared/ai/ai';
 import { authLimiter } from '../../../lib/rate-limiter';
 import { grantStarterCreditsIfEligible } from '../../subscriptions/services/starter-credits';
+import { db } from '../../../data/db';
+import {
+  listings,
+  userStarterCredits,
+  userSubscriptions,
+} from '../../admin/models/admin-settings';
+import {
+  getStableUserIdFromPhone,
+  getUserByPhone,
+  normalizePhone,
+  upsertUserFromAuth,
+} from '../../users/services/user-profiles';
+import { touchUserActivity } from '../../users/services/user-lifecycle';
 
-type AppUser = {
-  id: string;
-  phone: string;
-  name: string;
-  email: string;
-  gender: 'male' | 'female' | 'other';
-  createdAt: string;
-  updatedAt?: string;
-};
+async function hasExistingAccountFootprint(userId: string): Promise<boolean> {
+  const [starterRow, listingRow, subscriptionRow] = await Promise.all([
+    db
+      .select({ id: userStarterCredits.id })
+      .from(userStarterCredits)
+      .where(eq(userStarterCredits.userId, userId))
+      .limit(1),
+    db
+      .select({ id: listings.id })
+      .from(listings)
+      .where(eq(listings.sellerId, userId))
+      .limit(1),
+    db
+      .select({ id: userSubscriptions.id })
+      .from(userSubscriptions)
+      .where(eq(userSubscriptions.userId, userId))
+      .limit(1),
+  ]);
 
-const usersByPhone = new Map<string, AppUser>();
-
-function generateUserId(): string {
-  return `${Date.now().toString()}${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function normalizePhone(phone: unknown): string {
-  if (typeof phone !== 'string') return '';
-  return phone.replace(/\D/g, '').slice(-10);
+  return starterRow.length > 0 || listingRow.length > 0 || subscriptionRow.length > 0;
 }
 
 export function registerAuthRoutes(app: Express) {
@@ -54,31 +69,55 @@ export function registerAuthRoutes(app: Express) {
     try {
       const { phone, otp, name, email, gender } = req.body;
       const normalizedPhone = normalizePhone(phone);
+      const userId = getStableUserIdFromPhone(normalizedPhone);
       const verifyResult = otpService.verifyOTP(normalizedPhone, otp);
 
       if (!verifyResult.isValid) {
         return res.json({ success: verifyResult.success, message: verifyResult.message });
       }
 
-      const existingUser = usersByPhone.get(normalizedPhone);
+      const existingUser = getUserByPhone(normalizedPhone);
       if (existingUser) {
+        await touchUserActivity({
+          userId: existingUser.id,
+          ip: (req.ip || req.socket.remoteAddress || '').replace('::ffff:', ''),
+          userAgent: req.get('user-agent') || '',
+        }).catch((error) => console.error('[Auth] Failed to update user activity:', error));
         return res.json({ success: true, user: existingUser, isNewUser: false });
       }
 
-      const user: AppUser = {
-        id: generateUserId(),
+      const hasFootprint = await hasExistingAccountFootprint(userId);
+      if (hasFootprint) {
+        const user = upsertUserFromAuth({
+          phone: normalizedPhone,
+          name: typeof name === 'string' ? name.trim() : '',
+          email: typeof email === 'string' ? email.trim() : '',
+          gender: gender === 'male' || gender === 'female' || gender === 'other' ? gender : 'other',
+        });
+        await touchUserActivity({
+          userId: user.id,
+          ip: (req.ip || req.socket.remoteAddress || '').replace('::ffff:', ''),
+          userAgent: req.get('user-agent') || '',
+        }).catch((error) => console.error('[Auth] Failed to update user activity:', error));
+        return res.json({ success: true, user, isNewUser: false });
+      }
+
+      const user = upsertUserFromAuth({
         phone: normalizedPhone,
-        name: typeof name === 'string' && name.trim() ? name.trim() : 'User',
+        name: typeof name === 'string' ? name.trim() : '',
         email: typeof email === 'string' ? email.trim() : '',
         gender: gender === 'male' || gender === 'female' || gender === 'other' ? gender : 'other',
-        createdAt: new Date().toISOString(),
-      };
-      usersByPhone.set(normalizedPhone, user);
+      });
       try {
         await grantStarterCreditsIfEligible(user.id, { grantedBy: 'system' });
       } catch (starterError) {
         console.error('[Auth] Failed to grant starter credits on verify-otp:', starterError);
       }
+      await touchUserActivity({
+        userId: user.id,
+        ip: (req.ip || req.socket.remoteAddress || '').replace('::ffff:', ''),
+        userAgent: req.get('user-agent') || '',
+      }).catch((error) => console.error('[Auth] Failed to update user activity:', error));
 
       res.json({ success: true, user, isNewUser: true });
     } catch (error) {
@@ -111,25 +150,27 @@ export function registerAuthRoutes(app: Express) {
         return res.status(400).json({ success: false, message: 'Valid gender is required' });
       }
 
-      const existingUser = usersByPhone.get(normalizedPhone);
+      const existingUser = getUserByPhone(normalizedPhone);
       const nowIso = new Date().toISOString();
 
-      const updatedUser: AppUser = {
-        id: existingUser?.id || generateUserId(),
+      const updatedUser = upsertUserFromAuth({
         phone: normalizedPhone,
         name,
         email,
-        gender,
+        gender: gender as 'male' | 'female' | 'other',
         createdAt: existingUser?.createdAt || nowIso,
         updatedAt: nowIso,
-      };
-
-      usersByPhone.set(normalizedPhone, updatedUser);
+      });
       try {
         await grantStarterCreditsIfEligible(updatedUser.id, { grantedBy: 'system' });
       } catch (starterError) {
         console.error('[Auth] Failed to grant starter credits on complete-profile:', starterError);
       }
+      await touchUserActivity({
+        userId: updatedUser.id,
+        ip: (req.ip || req.socket.remoteAddress || '').replace('::ffff:', ''),
+        userAgent: req.get('user-agent') || '',
+      }).catch((error) => console.error('[Auth] Failed to update user activity:', error));
       return res.json({ success: true, user: updatedUser, isNewUser: false });
     } catch (error) {
       console.error('Error completing profile:', error);

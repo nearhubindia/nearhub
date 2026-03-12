@@ -22,6 +22,7 @@ import Colors from '@/constants/colors';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { getApiUrl } from '@/lib/query-client';
 import { extractInvoiceFromResponse, storeInvoice } from '@/lib/invoice-storage';
+import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 
 interface SubscriptionTier {
   id: string;
@@ -224,11 +225,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
     try {
       const apiUrl = await getApiUrl();
       const response = await fetch(`${apiUrl}/api/subscriptions`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.id,
-          'x-user-phone': user.phone || '',
-        },
+        headers: buildUserAuthHeaders({ id: user.id, phone: user.phone || '' }),
       });
       const data = await response.json();
       setStarterCredits(data?.starterCredits || null);
@@ -527,10 +524,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
       // Step 1: Create subscription
       const subRes = await fetch(`${apiUrl}/api/subscriptions`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.id,
-        },
+        headers: buildUserAuthHeaders({ id: user.id, phone: user.phone || '' }),
         body: JSON.stringify({ tierId: selectedTierId, duration }),
       });
       const subData = await subRes.json();
@@ -545,10 +539,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
       // Step 2: Checkout — get Razorpay order
       const checkoutRes = await fetch(`${apiUrl}/api/subscriptions/checkout`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.id,
-        },
+        headers: buildUserAuthHeaders({ id: user.id, phone: user.phone || '' }),
         body: JSON.stringify({
           subscriptionId,
           userId: user.id,
@@ -608,10 +599,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
       // Step 4: Verify payment
       const verifyRes = await fetch(`${apiUrl}/api/subscriptions/verify-payment`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.id,
-        },
+        headers: buildUserAuthHeaders({ id: user.id, phone: user.phone || '' }),
         body: JSON.stringify({
           razorpay_order_id: paymentResult.razorpay_order_id,
           razorpay_payment_id: paymentResult.razorpay_payment_id,
@@ -1214,27 +1202,22 @@ export default function SubscriptionsScreen(): React.JSX.Element {
               <Feather name="check-circle" size={22} color="#fff" />
             </View>
 
-            <Text style={styles.successTitle}>Payment Successful</Text>
+            <Text style={styles.successTitle}>Subscription Updated Successfully</Text>
             <Text style={styles.successSubtitle}>
               Your {paymentSuccessModal.planName} {paymentSuccessModal.duration}-day plan is now
               active.
             </Text>
 
-            {!!paymentSuccessModal.invoiceNumber && (
-              <View style={styles.successInvoiceBox}>
-                <Text style={styles.successInvoiceLabel}>Invoice Generated</Text>
-                <Text style={styles.successInvoiceNumber}>{paymentSuccessModal.invoiceNumber}</Text>
-                {typeof paymentSuccessModal.totalAmount === 'number' && (
-                  <Text style={styles.successInvoiceAmount}>
-                    ₹{paymentSuccessModal.totalAmount.toFixed(2)}
-                  </Text>
-                )}
-              </View>
-            )}
+            <View style={styles.successInvoiceBox}>
+              <Text style={styles.successInvoiceLabel}>Invoice Access</Text>
+              <Text style={styles.successInvoiceNumber}>
+                You can download your invoice anytime from the Invoices screen.
+              </Text>
+            </View>
 
             {paymentSuccessModal.invoiceFailed && (
               <Text style={styles.successInvoiceWarning}>
-                Invoice generation failed. Please contact support if needed.
+                Your subscription is active. Invoice sync may take a moment.
               </Text>
             )}
 
@@ -1320,7 +1303,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                   <Text style={styles.subscribeButtonText}>
                     {couponDiscount?.coupon.discountPercentage === 100
                       ? 'Activate Free Plan'
-                      : 'Pay'}
+                      : 'Buy Now'}
                   </Text>
                 </>
               )}
@@ -1830,7 +1813,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   subscribeButton: {
-    borderRadius: 14,
+    borderRadius: 12,
     overflow: 'hidden',
     flex: 1,
     minHeight: 50,
@@ -1843,6 +1826,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     gap: 8,
+    borderRadius: 12,
   },
   subscribeButtonText: {
     fontSize: 16,
@@ -2105,9 +2089,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   successInvoiceNumber: {
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-    color: Colors.text,
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textSecondary,
+    lineHeight: 20,
   },
   successInvoiceAmount: {
     fontSize: 15,

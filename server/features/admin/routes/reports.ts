@@ -37,7 +37,8 @@ export function registerReportsRoutes(app: Express) {
 
         return {
           id: row.id,
-          user: row.username || row.sellerId || 'Unknown user',
+          user: row.username || 'Unknown user',
+          userId: row.sellerId,
           action,
           listingTitle: row.title || '',
           timestamp: row.createdAt ? new Date(row.createdAt).toISOString() : null,

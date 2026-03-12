@@ -53,6 +53,13 @@ const MENU_ITEMS: MenuItem[] = [
     color: '#E11D48',
   },
   {
+    icon: 'message-circle',
+    label: 'Messages',
+    subtitle: 'Chats & replies',
+    route: '/messages',
+    color: '#0EA5E9',
+  },
+  {
     icon: 'credit-card',
     label: 'Subscriptions',
     subtitle: 'Plans & billing',
@@ -101,6 +108,7 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
     // Map to existing routes
     const routeMap: { [key: string]: string } = {
       '/saved': '/(tabs)/saved',
+      '/messages': '/(tabs)/messages',
       '/invoices': '/(tabs)/invoices',
       // Other routes will be handled as-is when implemented
     };

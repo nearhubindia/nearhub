@@ -230,48 +230,64 @@ export async function recordCouponUsage(
 }> {
   try {
     const couponCode_ = couponCode.toUpperCase().trim();
+    await db.transaction(async (tx) => {
+      const coupon = await tx.query.coupons.findFirst({
+        where: eq(coupons.code, couponCode_),
+      });
 
-    // Find coupon
-    const coupon = await db.query.coupons.findFirst({
-      where: eq(coupons.code, couponCode_),
+      if (!coupon) {
+        throw new Error('COUPON_NOT_FOUND');
+      }
+
+      if (!coupon.isActive) {
+        throw new Error('COUPON_INACTIVE');
+      }
+
+      if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
+        throw new Error('COUPON_EXPIRED');
+      }
+
+      const alreadyUsed = await tx.query.couponUsage.findFirst({
+        where: and(eq(couponUsage.couponId, coupon.id), eq(couponUsage.userId, userId)),
+      });
+      if (alreadyUsed) {
+        throw new Error('COUPON_ALREADY_USED');
+      }
+
+      const updated = await tx
+        .update(coupons)
+        .set({
+          usageCount: sql`usage_count + 1`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(coupons.id, coupon.id), sql`usage_count < max_usage_count`))
+        .returning({ id: coupons.id });
+
+      if (updated.length === 0) {
+        throw new Error('COUPON_LIMIT_REACHED');
+      }
+
+      await tx.insert(couponUsage).values({
+        couponId: coupon.id,
+        listingId,
+        subscriptionId,
+        userId,
+        discountAmount: discountAmount.toString(),
+      });
     });
-
-    if (!coupon) {
-      return {
-        success: false,
-        error: 'Coupon not found',
-      };
-    }
-
-    // Check if user already used this coupon
-    const alreadyUsed = await hasUserUsedCoupon(couponCode_, userId);
-    if (alreadyUsed) {
-      return {
-        success: false,
-        error: 'You have already used this coupon',
-      };
-    }
-
-    // Record usage in coupon_usage table
-    await db.insert(couponUsage).values({
-      couponId: coupon.id,
-      listingId,
-      subscriptionId,
-      userId,
-      discountAmount: discountAmount.toString(),
-    });
-
-    // Increment usage count
-    await db
-      .update(coupons)
-      .set({
-        usageCount: sql`usage_count + 1`,
-        updatedAt: new Date(),
-      })
-      .where(eq(coupons.id, coupon.id));
 
     return { success: true };
   } catch (error) {
+    const msg = error instanceof Error ? error.message : '';
+    if (msg === 'COUPON_NOT_FOUND') return { success: false, error: 'Coupon not found' };
+    if (msg === 'COUPON_ALREADY_USED') {
+      return { success: false, error: 'You have already used this coupon' };
+    }
+    if (msg === 'COUPON_LIMIT_REACHED') {
+      return { success: false, error: 'Coupon usage limit reached' };
+    }
+    if (msg === 'COUPON_INACTIVE') return { success: false, error: 'Coupon is no longer active' };
+    if (msg === 'COUPON_EXPIRED') return { success: false, error: 'Coupon has expired' };
     console.error('[Coupons] Error recording coupon usage:', error);
     return {
       success: false,
@@ -643,42 +659,83 @@ export async function useFreeListingFromCoupon(
 }> {
   try {
     const code = couponCode.toUpperCase().trim();
+    let durationDays = 0;
+    let remaining = 0;
 
-    // First check remaining
-    const freeCheck = await getRemainingFreeListings(code, userId);
-    if (freeCheck.error || freeCheck.remaining <= 0) {
+    await db.transaction(async (tx) => {
+      const coupon = await tx.query.coupons.findFirst({
+        where: eq(coupons.code, code),
+      });
+
+      if (!coupon) throw new Error('COUPON_NOT_FOUND');
+      if (!coupon.isActive) throw new Error('COUPON_INACTIVE');
+      if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
+        throw new Error('COUPON_EXPIRED');
+      }
+
+      const totalFreeListings = coupon.freeListings ?? 0;
+      if (totalFreeListings <= 0) throw new Error('NO_FREE_LISTINGS');
+
+      const usedRows = await tx.query.couponUsage.findMany({
+        where: and(eq(couponUsage.couponId, coupon.id), eq(couponUsage.userId, userId)),
+      });
+      const used = usedRows.length;
+      if (used >= totalFreeListings) throw new Error('FREE_LISTING_LIMIT_REACHED');
+
+      const updated = await tx
+        .update(coupons)
+        .set({
+          usageCount: sql`usage_count + 1`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(coupons.id, coupon.id), sql`usage_count < max_usage_count`))
+        .returning({ id: coupons.id });
+
+      if (updated.length === 0) throw new Error('COUPON_LIMIT_REACHED');
+
+      await tx.insert(couponUsage).values({
+        couponId: coupon.id,
+        listingId,
+        subscriptionId: 'free-listing',
+        userId,
+        discountAmount: '0',
+      });
+
+      durationDays = coupon.freeListingDurationDays ?? 30;
+      remaining = Math.max(0, totalFreeListings - (used + 1));
+    });
+
+    return { success: true, durationDays, remaining };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : '';
+    if (msg === 'COUPON_NOT_FOUND') {
+      return { success: false, durationDays: 0, remaining: 0, error: 'Coupon not found' };
+    }
+    if (msg === 'COUPON_INACTIVE') {
+      return { success: false, durationDays: 0, remaining: 0, error: 'Coupon is no longer active' };
+    }
+    if (msg === 'COUPON_EXPIRED') {
+      return { success: false, durationDays: 0, remaining: 0, error: 'Coupon has expired' };
+    }
+    if (msg === 'NO_FREE_LISTINGS') {
       return {
         success: false,
         durationDays: 0,
         remaining: 0,
-        error: freeCheck.error || 'No free listings remaining on this coupon',
+        error: 'This coupon does not grant free listings',
       };
     }
-
-    // Record usage (use discountAmount = 0 for free listing tracking)
-    await db.insert(couponUsage).values({
-      couponId: freeCheck.couponId!,
-      listingId,
-      subscriptionId: 'free-listing', // marker for free listing usage
-      userId,
-      discountAmount: '0',
-    });
-
-    // Increment global usage count on coupon
-    await db
-      .update(coupons)
-      .set({
-        usageCount: sql`usage_count + 1`,
-        updatedAt: new Date(),
-      })
-      .where(eq(coupons.id, freeCheck.couponId!));
-
-    return {
-      success: true,
-      durationDays: freeCheck.durationDays,
-      remaining: freeCheck.remaining - 1,
-    };
-  } catch (error) {
+    if (msg === 'FREE_LISTING_LIMIT_REACHED') {
+      return {
+        success: false,
+        durationDays: 0,
+        remaining: 0,
+        error: 'No free listings remaining on this coupon',
+      };
+    }
+    if (msg === 'COUPON_LIMIT_REACHED') {
+      return { success: false, durationDays: 0, remaining: 0, error: 'Coupon usage limit reached' };
+    }
     console.error('[Coupons] Error using free listing from coupon:', error);
     return {
       success: false,

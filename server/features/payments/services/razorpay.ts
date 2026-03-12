@@ -8,6 +8,7 @@ import crypto from 'crypto';
 interface RazorpayConfig {
   keyId: string;
   keySecret: string;
+  webhookSecret?: string;
 }
 
 interface CreateOrderParams {
@@ -32,11 +33,13 @@ interface PaymentVerificationParams {
 export class RazorpayService {
   private keyId: string;
   private keySecret: string;
+  private webhookSecret: string;
   private baseUrl = 'https://api.razorpay.com/v1';
 
   constructor(config: RazorpayConfig) {
     this.keyId = config.keyId;
     this.keySecret = config.keySecret;
+    this.webhookSecret = config.webhookSecret || config.keySecret;
 
     if (!this.keyId || !this.keySecret) {
       throw new Error(
@@ -180,7 +183,10 @@ export class RazorpayService {
    */
   verifyWebhookSignature(payload: string, razorpaySignature: string): boolean {
     try {
-      const signature = crypto.createHmac('sha256', this.keySecret).update(payload).digest('hex');
+      const signature = crypto
+        .createHmac('sha256', this.webhookSecret)
+        .update(payload)
+        .digest('hex');
 
       return signature === razorpaySignature;
     } catch (error) {
@@ -207,7 +213,8 @@ export function initializeRazorpay(): RazorpayService {
   if (!razorpayInstance) {
     const keyId = process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_API_KEY || '';
     const keySecret = process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_API_SECRET || '';
-    razorpayInstance = new RazorpayService({ keyId, keySecret });
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || keySecret;
+    razorpayInstance = new RazorpayService({ keyId, keySecret, webhookSecret });
   }
   return razorpayInstance;
 }
