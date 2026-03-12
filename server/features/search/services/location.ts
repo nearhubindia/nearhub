@@ -33,11 +33,32 @@ function toNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function sanitizeLocationLabel(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const raw = value.trim();
+  if (!raw) return '';
+
+  const withoutBrackets = raw.replace(/\s*\([^)]*\)\s*/g, ' ');
+  const withoutPostalSuffix = withoutBrackets.replace(
+    /\b(?:S\s*\.?\s*O|B\s*\.?\s*O|H\s*\.?\s*O)\b\.?/gi,
+    ' '
+  );
+
+  return withoutPostalSuffix
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+,/g, ',')
+    .replace(/,\s*,/g, ',')
+    .replace(/^[,.\-\s]+|[,.\-\s]+$/g, '')
+    .trim();
+}
+
 function toLocationRecord(row: typeof locationIndex.$inferSelect): LocationRecord {
+  const cleanLocationName = sanitizeLocationLabel(row.locationName);
+  const cleanCity = sanitizeLocationLabel(row.city);
   return {
-    locationName: row.locationName,
+    locationName: cleanLocationName || cleanCity || row.locationName,
     pincode: row.pincode,
-    city: row.city,
+    city: cleanCity || row.city,
     state: row.state,
     district: row.district,
     latitude: toNumber(row.latitude),
