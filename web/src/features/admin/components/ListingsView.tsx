@@ -63,6 +63,22 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
     }
   };
 
+  const formatPostedDate = (listing: Listing): string => {
+    const raw = listing.createdAt || listing.date;
+    if (!raw) return '-';
+
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return String(raw);
+
+    return parsed.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   return (
     <div>
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
@@ -218,7 +234,9 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
                                 {listing.status}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-sm text-slate-600">{listing.date}</td>
+                            <td className="px-6 py-4 text-sm text-slate-600">
+                              {formatPostedDate(listing)}
+                            </td>
                             <td className="px-6 py-4 text-sm flex gap-2">
                               <button
                                 onClick={() => onEditListing && onEditListing(listing)}
