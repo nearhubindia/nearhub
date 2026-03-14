@@ -247,12 +247,12 @@ export default function PushNotificationsView() {
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">Push Notifications</h1>
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">Push Notifications</h1>
         <p className="text-slate-300">Send push notifications to your users</p>
       </div>
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
@@ -324,7 +324,7 @@ export default function PushNotificationsView() {
                   📤 Manual Templates
                   <span className="ml-2 text-xs font-normal text-slate-500">(You send these)</span>
                 </label>
-                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2">
                   {quickTemplates
                     .filter((template) => template.manual)
                     .map((template, index) => (
@@ -359,7 +359,7 @@ export default function PushNotificationsView() {
                     (System sends automatically)
                   </span>
                 </label>
-                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2">
                   {quickTemplates
                     .filter((template) => !template.manual)
                     .map((template, index) => (

@@ -346,15 +346,15 @@ export default function InAppNotificationsView() {
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">In-App Notifications</h1>
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">In-App Notifications</h1>
         <p className="text-slate-300">Manage persistent notification feed visible in the app</p>
       </div>
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white p-4 rounded-lg shadow">
               <div className="text-2xl font-bold text-slate-900">{stats.total}</div>
               <div className="text-sm text-slate-600">Total Notifications</div>
@@ -465,7 +465,7 @@ export default function InAppNotificationsView() {
             </div>
 
             {/* Type & Priority */}
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Type</label>
                 <select
@@ -537,7 +537,7 @@ export default function InAppNotificationsView() {
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Action Button (Optional)
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   type="text"
                   value={actionLabel}

@@ -111,18 +111,18 @@ export default function ReportsView() {
   if (selectedReport === 'growth') {
     return (
       <div>
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
           <button
             onClick={() => setSelectedReport(null)}
             className="text-teal-400 hover:text-teal-300 mb-4 font-bold"
           >
             ← Back to Reports
           </button>
-          <h1 className="text-4xl font-black mb-2">📈 User Growth Report</h1>
+          <h1 className="text-3xl sm:text-4xl font-black mb-2">📈 User Growth Report</h1>
           <p className="text-slate-300">Monthly user acquisition and subscription growth trends</p>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-6">
           <div className="grid md:grid-cols-3 gap-6">
             <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-6">
               <p className="text-slate-600 text-sm mb-2">Total Users (Jun)</p>
@@ -210,18 +210,18 @@ export default function ReportsView() {
   if (selectedReport === 'performance') {
     return (
       <div>
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
           <button
             onClick={() => setSelectedReport(null)}
             className="text-teal-400 hover:text-teal-300 mb-4 font-bold"
           >
             ← Back to Reports
           </button>
-          <h1 className="text-4xl font-black mb-2">⭐ Listing Performance Report</h1>
+          <h1 className="text-3xl sm:text-4xl font-black mb-2">⭐ Listing Performance Report</h1>
           <p className="text-slate-300">Top performing listings by views, saves, and inquiries</p>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-6">
           <div className="grid md:grid-cols-3 gap-6">
             <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 rounded-lg p-6">
               <p className="text-slate-600 text-sm mb-2">Total Views</p>
@@ -257,7 +257,7 @@ export default function ReportsView() {
                       #{i + 1}
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
                     <div>
                       <p className="text-xs text-slate-600">Views</p>
                       <p className="text-lg font-bold text-blue-600">
@@ -289,20 +289,20 @@ export default function ReportsView() {
   if (selectedReport === 'transactions') {
     return (
       <div>
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
           <button
             onClick={() => setSelectedReport(null)}
             className="text-teal-400 hover:text-teal-300 mb-4 font-bold"
           >
             ← Back to Reports
           </button>
-          <h1 className="text-4xl font-black mb-2">💳 Transaction Report</h1>
+          <h1 className="text-3xl sm:text-4xl font-black mb-2">💳 Transaction Report</h1>
           <p className="text-slate-300">
             Revenue breakdown by subscription and listing enhancements
           </p>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-6">
           <div className="grid md:grid-cols-3 gap-6">
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
               <p className="text-slate-600 text-sm mb-2">Total Revenue (June)</p>
@@ -374,18 +374,18 @@ export default function ReportsView() {
   if (selectedReport === 'moderation') {
     return (
       <div>
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
           <button
             onClick={() => setSelectedReport(null)}
             className="text-teal-400 hover:text-teal-300 mb-4 font-bold"
           >
             ← Back to Reports
           </button>
-          <h1 className="text-4xl font-black mb-2">🚨 Content Moderation Report</h1>
+          <h1 className="text-3xl sm:text-4xl font-black mb-2">🚨 Content Moderation Report</h1>
           <p className="text-slate-300">Content flagged, removed, and reviewed by moderators</p>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-6">
           <div className="grid md:grid-cols-3 gap-6">
             <div className="bg-gradient-to-br from-red-50 to-orange-50 border border-red-200 rounded-lg p-6">
               <p className="text-slate-600 text-sm mb-2">Total Issues</p>
@@ -461,12 +461,12 @@ export default function ReportsView() {
   // Default: Report Selection View
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">Reports</h1>
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">Reports</h1>
         <p className="text-slate-300">View and analyze platform performance reports</p>
       </div>
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="grid md:grid-cols-2 gap-6">
           {reports.map((report) => (
             <button

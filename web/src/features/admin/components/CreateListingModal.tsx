@@ -346,7 +346,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                 </div>
 
                 {formData.images && formData.images.length > 0 && (
-                  <div className="mt-4 grid grid-cols-3 gap-3">
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {formData.images.map((img: string, index: number) => (
                       <div key={index} className="group relative">
                         <img
@@ -393,7 +393,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                 </div>
 
                 {formData.videos && formData.videos.length > 0 && (
-                  <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {formData.videos.map((video: string, index: number) => (
                       <div key={index} className="group relative">
                         <video

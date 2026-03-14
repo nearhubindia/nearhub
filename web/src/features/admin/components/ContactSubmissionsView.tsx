@@ -54,12 +54,12 @@ export default function ContactSubmissionsView() {
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">Enquries</h1>
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">Enquries</h1>
         <p className="text-slate-300">View and manage enquiries submitted from the web form</p>
       </div>
 
-      <div className="p-6 space-y-4">
+      <div className="p-4 sm:p-6 space-y-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-3 text-slate-400" size={18} />
@@ -186,7 +186,7 @@ export default function ContactSubmissionsView() {
                           </button>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="space-y-3 min-w-[300px]">
+                          <div className="min-w-[240px] space-y-3 sm:min-w-[300px]">
                             {comments.map((commentItem) => {
                               const isEditing = editingCommentIds[commentItem.id] || false;
                               return (

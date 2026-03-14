@@ -24,12 +24,12 @@ export default function RevenueView() {
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">Revenue Analytics</h1>
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">Revenue Analytics</h1>
         <p className="text-slate-300">Track your platform earnings</p>
       </div>
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="grid md:grid-cols-3 gap-6 mb-6">
           <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
             <p className="text-slate-600 text-sm mb-2">Total Revenue</p>

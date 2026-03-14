@@ -228,12 +228,12 @@ export default function SubscriptionPlansView() {
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">Subscription Tiers</h1>
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">Subscription Tiers</h1>
         <p className="text-slate-300">Create and manage bundled subscription tiers with features</p>
       </div>
 
-      <div className="p-6 space-y-8">
+      <div className="p-4 sm:p-6 space-y-8">
         <button
           onClick={openCreateModal}
           className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 hover:shadow-lg hover:scale-105 transition inline-flex items-center gap-2 font-bold cursor-pointer"
@@ -249,8 +249,8 @@ export default function SubscriptionPlansView() {
             {tiers.length > 0 ? (
               <div>
                 <h2 className="text-2xl font-bold text-slate-900 mb-4">📊 Subscription Tiers</h2>
-                <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-                  <table className="w-full">
+                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                  <table className="w-full min-w-[1280px]">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">

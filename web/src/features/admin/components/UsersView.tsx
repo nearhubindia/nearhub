@@ -137,14 +137,14 @@ export default function UsersView() {
   return (
     <div>
       <div className="border-b border-slate-700 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 text-white">
-        <h1 className="mb-2 text-4xl font-black">Users Management</h1>
+        <h1 className="mb-2 text-3xl font-black sm:text-4xl">Users Management</h1>
         <p className="text-slate-300">
           Display name, auto-detected location, listing footprint, and trust controls.
         </p>
       </div>
 
-      <div className="p-6">
-        <div className="mb-6 flex items-center gap-3">
+      <div className="p-4 sm:p-6">
+        <div className="mb-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-3 text-slate-400" size={18} />
             <input
@@ -157,7 +157,7 @@ export default function UsersView() {
           </div>
           <button
             onClick={() => setSearchTerm('')}
-            className="rounded-lg bg-slate-200 px-4 py-2 font-medium text-slate-900 transition hover:bg-slate-300"
+            className="rounded-lg bg-slate-200 px-4 py-2 font-medium text-slate-900 transition hover:bg-slate-300 sm:w-auto"
           >
             Clear
           </button>

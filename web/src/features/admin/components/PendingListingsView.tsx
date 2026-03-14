@@ -108,12 +108,12 @@ export default function PendingListingsView() {
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-amber-700 to-orange-700 text-white p-6 border-b border-amber-800">
-        <h1 className="text-4xl font-black mb-2">Approval Pending</h1>
+      <div className="bg-gradient-to-r from-amber-700 to-orange-700 text-white p-4 sm:p-6 border-b border-amber-800">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">Approval Pending</h1>
         <p className="text-amber-100">Review and approve/reject new listings</p>
       </div>
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="flex items-center gap-4 mb-6">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-3 text-slate-400" size={20} />
@@ -265,7 +265,7 @@ export default function PendingListingsView() {
                         {String(detailsListing.status || 'pending').toUpperCase()}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
                       <p className="text-slate-500">Listing ID</p>
                       <p className="font-medium text-slate-900 break-all">{detailsListing.id}</p>
                       <p className="text-slate-500">User ID</p>
@@ -313,7 +313,7 @@ export default function PendingListingsView() {
                     {detailImages.length === 0 ? (
                       <p className="text-sm text-slate-500">No images uploaded.</p>
                     ) : (
-                      <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 xl:grid-cols-3">
                         {detailImages.map((src, idx) => (
                           <img
                             key={`${src}-${idx}`}

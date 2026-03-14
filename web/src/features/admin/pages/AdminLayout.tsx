@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import {
   Menu,
@@ -19,14 +19,53 @@ import {
   Inbox,
   Image,
   MessagesSquare,
+  X,
 } from 'lucide-react';
 import { useListings } from '@/features/admin/hooks';
 
+const MOBILE_QUERY = '(max-width: 1023px)';
+
 export default function AdminLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches,
+  );
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => typeof window !== 'undefined' && !window.matchMedia(MOBILE_QUERY).matches,
+  );
   const navigate = useNavigate();
   const location = useLocation();
   const { data: pendingListingsData } = useListings({ status: 'pending', limit: 500 });
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(MOBILE_QUERY);
+
+    const handleViewportChange = (event: MediaQueryListEvent): void => {
+      setIsMobile(event.matches);
+      setSidebarOpen(!event.matches);
+    };
+
+    setIsMobile(mediaQuery.matches);
+    setSidebarOpen(!mediaQuery.matches);
+
+    mediaQuery.addEventListener('change', handleViewportChange);
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleViewportChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) {
+      document.body.style.overflow = '';
+      return;
+    }
+
+    document.body.style.overflow = sidebarOpen ? 'hidden' : '';
+
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobile, sidebarOpen]);
 
   const pendingCount = Array.isArray(pendingListingsData?.data)
     ? pendingListingsData.data.length
@@ -58,16 +97,31 @@ export default function AdminLayout() {
     { path: '/admin/settings', name: 'Settings', icon: Settings },
   ];
 
+  const isExpanded = isMobile || sidebarOpen;
+
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
+      {isMobile && sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-30 bg-slate-950/45"
+        />
+      )}
+
       {/* Sidebar */}
       <div
         className={`${
-          sidebarOpen ? 'w-64' : 'w-20'
+          isMobile
+            ? `fixed inset-y-0 left-0 z-40 w-72 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+            : sidebarOpen
+              ? 'w-64'
+              : 'w-20'
         } bg-gradient-to-b from-slate-900 to-slate-950 text-white transition-all duration-300 flex flex-col shadow-2xl overflow-hidden`}
       >
         <div className="p-4 flex items-center justify-between border-b border-slate-700">
-          {sidebarOpen && (
+          {isExpanded && (
             <span className="text-xl font-black bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent">
               nearhub Admin
             </span>
@@ -75,8 +129,9 @@ export default function AdminLayout() {
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2 hover:bg-slate-800 rounded transition cursor-pointer"
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
-            {sidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
+            {isMobile ? <X size={20} /> : sidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
           </button>
         </div>
 
@@ -88,7 +143,12 @@ export default function AdminLayout() {
             return (
               <button
                 key={item.path}
-                onClick={() => navigate(item.path)}
+                onClick={() => {
+                  navigate(item.path);
+                  if (isMobile) {
+                    setSidebarOpen(false);
+                  }
+                }}
                 className={`relative w-full flex items-center gap-3 px-4 py-3 rounded-lg transition font-semibold cursor-pointer ${
                   isActive
                     ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white'
@@ -96,7 +156,7 @@ export default function AdminLayout() {
                 }`}
               >
                 <Icon size={20} />
-                {sidebarOpen && (
+                {isExpanded && (
                   <div className="flex items-center justify-between w-full">
                     <span>{item.name}</span>
                     {item.path === '/admin/listings/pending' && pendingCount > 0 && (
@@ -106,7 +166,7 @@ export default function AdminLayout() {
                     )}
                   </div>
                 )}
-                {!sidebarOpen && item.path === '/admin/listings/pending' && pendingCount > 0 && (
+                {!isExpanded && item.path === '/admin/listings/pending' && pendingCount > 0 && (
                   <span className="absolute right-2 top-2 min-w-5 h-5 px-1 rounded-full bg-amber-500 text-slate-900 text-[10px] font-black inline-flex items-center justify-center">
                     {pendingCount > 99 ? '99+' : pendingCount}
                   </span>
@@ -122,14 +182,30 @@ export default function AdminLayout() {
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-red-600/20 hover:text-red-400 transition font-semibold cursor-pointer"
           >
             <LogOut size={20} />
-            {sidebarOpen && <span>Logout</span>}
+            {isExpanded && <span>Logout</span>}
           </button>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        <Outlet />
+      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+        {isMobile && (
+          <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 text-slate-700"
+              aria-label="Open menu"
+            >
+              <Menu size={18} />
+            </button>
+            <span className="text-sm font-bold text-slate-800">nearhub Admin</span>
+          </div>
+        )}
+
+        <div className="min-w-0 flex-1">
+          <Outlet />
+        </div>
       </div>
     </div>
   );

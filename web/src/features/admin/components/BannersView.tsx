@@ -162,12 +162,12 @@ export default function BannersView() {
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">App Banners</h1>
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">App Banners</h1>
         <p className="text-slate-300">Upload and manage banners shown on app screens</p>
       </div>
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <button
           onClick={openCreateForm}
           className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 hover:shadow-lg hover:scale-105 transition flex items-center gap-2 mb-6 font-bold cursor-pointer"
@@ -183,8 +183,8 @@ export default function BannersView() {
             No banners yet. Create your first banner.
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-            <table className="w-full">
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <table className="w-full min-w-[860px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">Preview</th>
@@ -252,7 +252,7 @@ export default function BannersView() {
               </h2>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
               {submitError && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
                   {submitError}
@@ -273,7 +273,7 @@ export default function BannersView() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-slate-900 mb-2">Screen</label>
                   <select

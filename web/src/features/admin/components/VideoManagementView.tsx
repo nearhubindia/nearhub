@@ -75,8 +75,8 @@ export default function VideoManagementView() {
   return (
     <div>
       {/* Header */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">
           <Video className="inline-block mr-2 h-8 w-8" />
           Video Management
         </h1>
@@ -84,25 +84,25 @@ export default function VideoManagementView() {
       </div>
 
       {/* Content */}
-      <div className="p-6 space-y-6">
-        <div className="flex gap-4 mb-6">
+      <div className="p-4 sm:p-6 space-y-6">
+        <div className="mb-6 flex flex-wrap gap-2 sm:gap-4">
           {filterTabs.map((tab) => (
             <button
               key={tab}
               onClick={() => setFilter(tab)}
-              className={`px-6 py-2 rounded-lg font-bold transition ${
-                filter === tab
-                  ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white'
-                  : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
-              }`}
-            >
+                className={`rounded-lg px-4 py-2 text-sm font-bold transition sm:px-6 ${
+                  filter === tab
+                    ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white'
+                    : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
+                }`}
+              >
               {tab.charAt(0).toUpperCase() + tab.slice(1)} ({filteredVideos.length})
             </button>
           ))}
         </div>
 
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full">
+        <div className="overflow-x-auto rounded-lg bg-white shadow">
+          <table className="w-full min-w-[900px]">
             <thead className="bg-gradient-to-r from-slate-100 to-slate-200">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Title</th>
@@ -197,7 +197,7 @@ export default function VideoManagementView() {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-mx">
+          <div className="w-full max-w-md rounded-lg bg-white p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">Delete Video</h3>
             <p className="text-slate-600 mb-6">
               Are you sure you want to delete "{videoToDelete?.title}"? This action cannot be

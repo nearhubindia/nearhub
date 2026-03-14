@@ -61,8 +61,8 @@ export default function SpamDetectionView() {
   return (
     <div>
       {/* Header */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">
           <AlertTriangle className="inline-block mr-2 h-8 w-8" />
           Spam Detection
         </h1>
@@ -70,13 +70,13 @@ export default function SpamDetectionView() {
       </div>
 
       {/* Content */}
-      <div className="p-6 space-y-6">
-        <div className="flex gap-4 mb-6">
+      <div className="p-4 sm:p-6 space-y-6">
+        <div className="mb-6 flex flex-wrap gap-2 sm:gap-4">
           {['pending', 'trending'].map((tab) => (
             <button
               key={tab}
               onClick={() => setFilter(tab as 'pending' | 'trending')}
-              className={`px-6 py-2 rounded-lg font-bold transition ${
+              className={`rounded-lg px-4 py-2 text-sm font-bold transition sm:px-6 ${
                 filter === tab
                   ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white'
                   : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
@@ -87,8 +87,8 @@ export default function SpamDetectionView() {
           ))}
         </div>
 
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full">
+        <div className="overflow-x-auto rounded-lg bg-white shadow">
+          <table className="w-full min-w-[760px]">
             <thead className="bg-gradient-to-r from-slate-100 to-slate-200">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">

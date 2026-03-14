@@ -59,13 +59,13 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">Listings Management</h1>
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">Listings Management</h1>
         <p className="text-slate-300">View and manage all listings</p>
       </div>
 
-      <div className="p-6">
-        <div className="flex items-center gap-4 mb-6">
+      <div className="p-4 sm:p-6">
+        <div className="mb-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-3 text-slate-400" size={20} />
             <input
@@ -78,7 +78,7 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
           </div>
           <button
             onClick={onCreateListing}
-            className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:shadow-lg hover:scale-105 transition cursor-pointer"
+            className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-6 py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:shadow-lg hover:scale-105 transition cursor-pointer sm:w-auto"
           >
             <Plus size={20} /> New Listing
           </button>
@@ -113,7 +113,7 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
                     Showing {filteredListings.length} of {listings.length} listings
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full min-w-[1200px]">
                       <thead className="bg-slate-100 border-b border-slate-200">
                         <tr>
                           <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">

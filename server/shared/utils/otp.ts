@@ -49,6 +49,29 @@ class OTPService {
   private readonly MAX_ATTEMPTS = 3;
   private readonly RATE_LIMIT_ATTEMPTS = 5; // Max OTP send requests
   private readonly RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
+  private readonly DEMO_LOGIN_ENABLED = process.env.DEMO_LOGIN_ENABLED !== 'false';
+  private readonly DEMO_LOGIN_PHONE = this.normalizeDemoPhone(
+    process.env.DEMO_LOGIN_PHONE || '9876543210'
+  );
+  private readonly DEMO_LOGIN_OTP = /^\d{6}$/.test(process.env.DEMO_LOGIN_OTP || '')
+    ? String(process.env.DEMO_LOGIN_OTP)
+    : '123456';
+
+  private normalizeDemoPhone(phone: string): string {
+    return String(phone || '')
+      .replace(/\D/g, '')
+      .slice(-10);
+  }
+
+  private isDemoPhone(phone: string): boolean {
+    if (!this.DEMO_LOGIN_ENABLED) return false;
+    return this.normalizeDemoPhone(phone) === this.DEMO_LOGIN_PHONE;
+  }
+
+  private isDemoOtp(phone: string, otp: string): boolean {
+    if (!this.isDemoPhone(phone)) return false;
+    return String(otp || '') === this.DEMO_LOGIN_OTP;
+  }
 
   /**
    * Generate a secure OTP
@@ -102,8 +125,30 @@ class OTPService {
    * }
    */
   async sendOTP(phone: string): Promise<SendOTPResponse> {
+    const normalizedPhone = this.normalizeDemoPhone(phone);
+
+    if (this.isDemoPhone(normalizedPhone)) {
+      // Keep a record so UX stays consistent with normal OTP flow.
+      this.otpStore.set(normalizedPhone, {
+        otp: this.DEMO_LOGIN_OTP,
+        phone: normalizedPhone,
+        expiresAt: Date.now() + this.OTP_VALIDITY,
+        attempts: 0,
+        maxAttempts: this.MAX_ATTEMPTS,
+        createdAt: Date.now(),
+        sentVia: 'console',
+      });
+      console.log(`[OTP] Demo login requested for +91${normalizedPhone}`);
+      return {
+        success: true,
+        message: 'Demo OTP configured for review account',
+        expiresIn: Math.ceil(this.OTP_VALIDITY / 1000),
+        sentVia: 'console',
+      };
+    }
+
     // Validate phone number
-    if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
+    if (!normalizedPhone || !/^[6-9]\d{9}$/.test(normalizedPhone)) {
       return {
         success: false,
         message: 'Invalid phone number format',
@@ -112,7 +157,7 @@ class OTPService {
     }
 
     // Check rate limiting
-    if (this.isRateLimited(phone)) {
+    if (this.isRateLimited(normalizedPhone)) {
       return {
         success: false,
         message: 'Too many OTP requests. Please try again in 1 hour.',
@@ -123,7 +168,7 @@ class OTPService {
     try {
       // Generate OTP
       const otp = this.generateOTP();
-      console.log(`[OTP] Code for +91${phone}: ${otp}`);
+      console.log(`[OTP] Code for +91${normalizedPhone}: ${otp}`);
 
       // Determine delivery method (MSG91 only)
       const msg91Status = msg91.getStatus();
@@ -133,32 +178,36 @@ class OTPService {
       if (msg91Status.enabled && msg91Status.configured) {
         try {
           const msg91Response = await msg91.sendOTP({
-            phone,
+            phone: normalizedPhone,
             otp,
           });
 
           if (msg91Response.success) {
             sentVia = 'msg91';
-            console.log(`[OTP] Sent via MSG91 to +91${phone} (ID: ${msg91Response.messageId})`);
+            console.log(
+              `[OTP] Sent via MSG91 to +91${normalizedPhone} (ID: ${msg91Response.messageId})`
+            );
           } else {
             console.warn(`[OTP] MSG91 failed: ${msg91Response.error}`);
             console.log(
-              `[OTP] OTP not sent by MSG91; available only in server logs for +91${phone}`
+              `[OTP] OTP not sent by MSG91; available only in server logs for +91${normalizedPhone}`
             );
           }
         } catch (msg91Error) {
           console.error('[OTP] Error with MSG91:', msg91Error);
-          console.log(`[OTP] OTP not sent by MSG91; available only in server logs for +91${phone}`);
+          console.log(
+            `[OTP] OTP not sent by MSG91; available only in server logs for +91${normalizedPhone}`
+          );
         }
       } else {
         // MSG91 not configured, log OTP for debugging
-        console.log(`[OTP] MSG91 not configured for +91${phone}`);
+        console.log(`[OTP] MSG91 not configured for +91${normalizedPhone}`);
       }
 
       // Store OTP
-      this.otpStore.set(phone, {
+      this.otpStore.set(normalizedPhone, {
         otp,
-        phone,
+        phone: normalizedPhone,
         expiresAt: Date.now() + this.OTP_VALIDITY,
         attempts: 0,
         maxAttempts: this.MAX_ATTEMPTS,
@@ -167,7 +216,7 @@ class OTPService {
       });
 
       // Increment rate limit
-      this.incrementRateLimit(phone);
+      this.incrementRateLimit(normalizedPhone);
 
       return {
         success: true,
@@ -198,8 +247,10 @@ class OTPService {
    * }
    */
   verifyOTP(phone: string, otp: string): VerifyOTPResponse {
+    const normalizedPhone = this.normalizeDemoPhone(phone);
+
     // Validate inputs
-    if (!phone || !otp) {
+    if (!normalizedPhone || !otp) {
       return {
         success: false,
         message: 'Phone and OTP required',
@@ -207,8 +258,17 @@ class OTPService {
       };
     }
 
+    if (this.isDemoOtp(normalizedPhone, otp)) {
+      this.otpStore.delete(normalizedPhone);
+      return {
+        success: true,
+        message: 'OTP verified successfully',
+        isValid: true,
+      };
+    }
+
     // Check if OTP exists
-    const record = this.otpStore.get(phone);
+    const record = this.otpStore.get(normalizedPhone);
     if (!record) {
       return {
         success: false,

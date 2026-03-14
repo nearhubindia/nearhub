@@ -109,12 +109,12 @@ export default function SettingsView() {
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">Settings</h1>
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">Settings</h1>
         <p className="text-slate-300">Configure your platform and listing features</p>
       </div>
 
-      <div className="p-6 max-w-6xl space-y-6">
+      <div className="p-4 sm:p-6 max-w-6xl space-y-6">
         {isLoading && (
           <div className="text-center py-8">
             <p className="text-slate-600">Loading settings...</p>

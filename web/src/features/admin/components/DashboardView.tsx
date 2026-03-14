@@ -84,13 +84,13 @@ export default function DashboardView() {
   return (
     <div>
       {/* Header */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">Dashboard</h1>
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">Dashboard</h1>
         <p className="text-slate-300">Welcome back! Here's your platform overview.</p>
       </div>
 
       {/* Content */}
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         {/* Stats Grid */}
         <div className="grid md:grid-cols-4 gap-6">
           {stats.map((stat: Stat) => {
@@ -176,7 +176,7 @@ export default function DashboardView() {
               activities.map((activity, i) => (
                 <div
                   key={activity.id ?? i}
-                  className="flex items-center justify-between py-3 border-b last:border-0 last:pb-0"
+                  className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between border-b last:border-0 last:pb-0"
                 >
                   <div>
                     <p className="text-slate-900 font-medium">{activity.user || 'Unknown user'}</p>

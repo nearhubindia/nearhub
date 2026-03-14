@@ -125,12 +125,12 @@ export default function CouponsView() {
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 border-b border-slate-700">
-        <h1 className="text-4xl font-black mb-2">Coupons</h1>
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">Coupons</h1>
         <p className="text-slate-300">Create and manage discount coupons</p>
       </div>
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <button
           onClick={() => {
             setEditingCoupon(null);
@@ -150,8 +150,8 @@ export default function CouponsView() {
             No coupons yet. Create one to get started!
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-            <table className="w-full">
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <table className="w-full min-w-[860px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">Code</th>
@@ -222,7 +222,7 @@ export default function CouponsView() {
               </h2>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
               {formErrors.submit && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
                   {formErrors.submit}
@@ -252,7 +252,7 @@ export default function CouponsView() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-slate-900 mb-2">Discount %</label>
                   <input
@@ -316,7 +316,7 @@ export default function CouponsView() {
                 )}
               </div>
 
-              <div className="flex gap-3 bg-slate-100 border-t p-6 -mx-6 -mb-6">
+              <div className="flex flex-col gap-3 bg-slate-100 border-t p-6 -mx-6 -mb-6 sm:flex-row">
                 <button
                   type="button"
                   onClick={closeCouponModal}
