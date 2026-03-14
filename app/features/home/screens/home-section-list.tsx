@@ -28,8 +28,8 @@ export default function HomeSectionListScreen() {
   const lonParam = Array.isArray(lon) ? lon[0] : lon;
   const radiusParam = Array.isArray(radius) ? radius[0] : radius;
 
-  const userLat = latParam ? Number(latParam) : user?.location?.latitude ?? null;
-  const userLon = lonParam ? Number(lonParam) : user?.location?.longitude ?? null;
+  const userLat = latParam ? Number(latParam) : (user?.location?.latitude ?? null);
+  const userLon = lonParam ? Number(lonParam) : (user?.location?.longitude ?? null);
   const selectedRadiusKm = radiusParam
     ? Number(radiusParam)
     : (user?.preferences?.searchRadiusKm ?? 50);
@@ -52,7 +52,12 @@ export default function HomeSectionListScreen() {
     if (userLat === null || userLon === null) return visibleListings;
 
     return visibleListings.filter((item) => {
-      const distance = calculateDistance(userLat, userLon, item.location.latitude, item.location.longitude);
+      const distance = calculateDistance(
+        userLat,
+        userLon,
+        item.location.latitude,
+        item.location.longitude
+      );
       return distance <= selectedRadiusKm;
     });
   }, [visibleListings, userLat, userLon, selectedRadiusKm]);

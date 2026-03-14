@@ -595,7 +595,7 @@ export default function HomeScreen() {
                   style={styles.nearYouScroll}
                   contentContainerStyle={styles.horizontalResultsContent}
                 >
-                  {nearYouListings.map((item) => (
+                  {nearYouListings.map((item) =>
                     (() => {
                       const basePrice = Number(item.price) || 0;
                       const parsedOfferPrice = Number(item.offerPrice);
@@ -622,7 +622,9 @@ export default function HomeScreen() {
                             {item.title}
                           </Text>
                           <View style={styles.cardPriceRow}>
-                            <Text style={styles.cardPrice}>₹{displayPrice.toLocaleString('en-IN')}</Text>
+                            <Text style={styles.cardPrice}>
+                              ₹{displayPrice.toLocaleString('en-IN')}
+                            </Text>
                             {hasValidOfferPrice ? (
                               <Text style={styles.cardOriginalPrice}>
                                 ₹{basePrice.toLocaleString('en-IN')}
@@ -645,7 +647,7 @@ export default function HomeScreen() {
                         </Pressable>
                       );
                     })()
-                  ))}
+                  )}
                 </ScrollView>
               </View>
             )}
@@ -682,7 +684,7 @@ export default function HomeScreen() {
                   style={styles.featuredScroll}
                   contentContainerStyle={styles.horizontalResultsContent}
                 >
-                  {boostedListings.map((item) => (
+                  {boostedListings.map((item) =>
                     (() => {
                       const basePrice = Number(item.price) || 0;
                       const parsedOfferPrice = Number(item.offerPrice);
@@ -709,7 +711,9 @@ export default function HomeScreen() {
                             {item.title}
                           </Text>
                           <View style={styles.cardPriceRow}>
-                            <Text style={styles.cardPrice}>₹{displayPrice.toLocaleString('en-IN')}</Text>
+                            <Text style={styles.cardPrice}>
+                              ₹{displayPrice.toLocaleString('en-IN')}
+                            </Text>
                             {hasValidOfferPrice ? (
                               <Text style={styles.cardOriginalPrice}>
                                 ₹{basePrice.toLocaleString('en-IN')}
@@ -722,7 +726,7 @@ export default function HomeScreen() {
                         </Pressable>
                       );
                     })()
-                  ))}
+                  )}
                 </ScrollView>
               </View>
             )}
