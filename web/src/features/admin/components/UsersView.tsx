@@ -30,33 +30,32 @@ export default function UsersView() {
     isVerified: false,
   });
   const [saveError, setSaveError] = useState('');
-
   const allUsers: UserRow[] = Array.isArray(usersData?.data) ? (usersData.data as UserRow[]) : [];
 
-  const filteredUsers = useMemo(
-    () =>
-      allUsers.filter((user) => {
-        const listingLocations = Array.isArray(user.listingLocations)
-          ? user.listingLocations.join(' ')
-          : '';
-        return (
-          String(user.displayName || '')
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          String(user.username || '')
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          String(user.mobile || '')
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          String(user.autoDetectedLocation || user.location || '')
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          listingLocations.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      }),
-    [allUsers, searchTerm]
-  );
+  const filteredUsers = useMemo(() => {
+    const allUsers: UserRow[] = Array.isArray(usersData?.data) ? (usersData.data as UserRow[]) : [];
+
+    return allUsers.filter((user) => {
+      const listingLocations = Array.isArray(user.listingLocations)
+        ? user.listingLocations.join(' ')
+        : '';
+      return (
+        String(user.displayName || '')
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        String(user.username || '')
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        String(user.mobile || '')
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        String(user.autoDetectedLocation || user.location || '')
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        listingLocations.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    });
+  }, [usersData, searchTerm]);
 
   const handleEditClick = (user: UserRow): void => {
     setSelectedUser(user);

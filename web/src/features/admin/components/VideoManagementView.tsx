@@ -90,12 +90,12 @@ export default function VideoManagementView() {
             <button
               key={tab}
               onClick={() => setFilter(tab)}
-                className={`rounded-lg px-4 py-2 text-sm font-bold transition sm:px-6 ${
-                  filter === tab
-                    ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white'
-                    : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
-                }`}
-              >
+              className={`rounded-lg px-4 py-2 text-sm font-bold transition sm:px-6 ${
+                filter === tab
+                  ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white'
+                  : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
+              }`}
+            >
               {tab.charAt(0).toUpperCase() + tab.slice(1)} ({filteredVideos.length})
             </button>
           ))}

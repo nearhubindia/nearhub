@@ -403,7 +403,7 @@ export async function invalidateQueries(patterns: string[]): Promise<void> {
     );
 
     if (keysToDelete.length > 0) {
-      await AsyncStorage.multiRemove(keysToDelete);
+      await Promise.all(keysToDelete.map((key) => AsyncStorage.removeItem(key)));
       console.log(`[Cache] Invalidated ${keysToDelete.length} entries`);
     }
   } catch (err) {
@@ -420,7 +420,7 @@ export async function clearAllCache(): Promise<void> {
     const cacheKeys = keys.filter((key) => key.startsWith('cache:'));
 
     if (cacheKeys.length > 0) {
-      await AsyncStorage.multiRemove(cacheKeys);
+      await Promise.all(cacheKeys.map((key) => AsyncStorage.removeItem(key)));
       console.log(`[Cache] Cleared ${cacheKeys.length} cache entries`);
     }
   } catch (err) {

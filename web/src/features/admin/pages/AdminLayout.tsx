@@ -27,10 +27,10 @@ const MOBILE_QUERY = '(max-width: 1023px)';
 
 export default function AdminLayout() {
   const [isMobile, setIsMobile] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches,
+    () => typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches
   );
   const [sidebarOpen, setSidebarOpen] = useState(
-    () => typeof window !== 'undefined' && !window.matchMedia(MOBILE_QUERY).matches,
+    () => typeof window !== 'undefined' && !window.matchMedia(MOBILE_QUERY).matches
   );
   const navigate = useNavigate();
   const location = useLocation();
@@ -43,9 +43,6 @@ export default function AdminLayout() {
       setIsMobile(event.matches);
       setSidebarOpen(!event.matches);
     };
-
-    setIsMobile(mediaQuery.matches);
-    setSidebarOpen(!mediaQuery.matches);
 
     mediaQuery.addEventListener('change', handleViewportChange);
 
@@ -131,7 +128,13 @@ export default function AdminLayout() {
             className="p-2 hover:bg-slate-800 rounded transition cursor-pointer"
             aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           >
-            {isMobile ? <X size={20} /> : sidebarOpen ? <ChevronLeft size={20} /> : <Menu size={20} />}
+            {isMobile ? (
+              <X size={20} />
+            ) : sidebarOpen ? (
+              <ChevronLeft size={20} />
+            ) : (
+              <Menu size={20} />
+            )}
           </button>
         </div>
 
