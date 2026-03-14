@@ -15,6 +15,10 @@ buildscript {
 
 allprojects {
   repositories {
+    maven {
+      // Required by @react-native-async-storage/async-storage (storage-android:1.0.0)
+      url("$rootDir/../node_modules/@react-native-async-storage/async-storage/android/local_repo")
+    }
     google()
     mavenCentral()
     maven { url 'https://www.jitpack.io' }

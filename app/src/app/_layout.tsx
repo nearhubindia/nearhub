@@ -45,6 +45,13 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="home-section-list"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
         name="categories"
         options={{
           headerShown: false,

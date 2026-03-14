@@ -28,6 +28,8 @@ export interface Listing {
   category?: string;
   location?: string;
   userId?: string;
+  displayName?: string;
+  mobileNumber?: string;
   contactPhone?: string;
   images?: string[];
   videos?: string[];

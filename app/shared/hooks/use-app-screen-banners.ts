@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/query-client';
+import { getDebug } from '@/lib/config';
 
 export type BannerScreen = 'home' | 'search' | 'profile' | 'shorts' | 'listings';
 
@@ -27,6 +28,26 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function buildApiUrlCandidates(baseUrl: string): string[] {
+  const normalized = baseUrl.replace(/\/+$/, '');
+  const candidates = [normalized];
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.hostname.startsWith('www.')) {
+      parsed.hostname = parsed.hostname.replace(/^www\./, '');
+      candidates.push(parsed.toString().replace(/\/+$/, ''));
+    } else if (!parsed.hostname.startsWith('www.') && parsed.hostname.includes('.')) {
+      parsed.hostname = `www.${parsed.hostname}`;
+      candidates.push(parsed.toString().replace(/\/+$/, ''));
+    }
+  } catch {
+    // Ignore malformed URL and use the base candidate only.
+  }
+
+  return [...new Set(candidates)];
+}
+
 export function useAppScreenBanners(screen: BannerScreen): {
   banners: AppScreenBanner[];
   isLoading: boolean;
@@ -38,48 +59,59 @@ export function useAppScreenBanners(screen: BannerScreen): {
   const fetchBanners = useCallback(
     async (retryCount = 0): Promise<AppScreenBanner[]> => {
       const apiUrl = getApiUrl();
-      const url = `${apiUrl}/api/banners?screen=${screen}`;
+      const apiUrlCandidates = buildApiUrlCandidates(apiUrl);
       const maxRetries = 3;
 
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        const response = await fetch(url, {
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
+        for (const candidate of apiUrlCandidates) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 8000);
+          try {
+            const url = `${candidate}/api/banners?screen=${screen}`;
+            const response = await fetch(url, {
+              headers: { 'Content-Type': 'application/json' },
+              signal: controller.signal,
+            });
 
-        if (!response.ok) {
-          const errorText = await response.text();
+            if (!response.ok) {
+              if (RETRYABLE_STATUS.has(response.status) && retryCount < maxRetries) {
+                const backoffMs = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+                await delay(backoffMs);
+                return fetchBanners(retryCount + 1);
+              }
 
-          if (RETRYABLE_STATUS.has(response.status) && retryCount < maxRetries) {
-            const backoffMs = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
-            await delay(backoffMs);
-            return fetchBanners(retryCount + 1);
+              // For non-retryable responses, quietly keep UX stable using cached data.
+              if (getDebug()) {
+                const errorText = await response.text();
+                console.log(
+                  `[useAppScreenBanners] ${screen} banners request failed:`,
+                  response.status,
+                  errorText
+                );
+              }
+              continue;
+            }
+
+            const data = (await response.json()) as BannersResponse;
+            return Array.isArray(data.banners) ? data.banners : [];
+          } finally {
+            clearTimeout(timeout);
           }
-
-          if (RETRYABLE_STATUS.has(response.status)) {
-            return bannerCache[screen] ?? [];
-          }
-
-          const errorMsg = `Failed to fetch ${screen} banners: ${response.status} ${errorText}`;
-          console.error('[useAppScreenBanners]', errorMsg);
-          throw new Error(errorMsg);
         }
 
-        const data = (await response.json()) as BannersResponse;
-        return Array.isArray(data.banners) ? data.banners : [];
+        return bannerCache[screen] ?? [];
       } catch (error) {
         if (retryCount < maxRetries) {
           const backoffMs = Math.pow(2, retryCount) * 1000;
           await delay(backoffMs);
           return fetchBanners(retryCount + 1);
         }
-        console.warn(
-          '[useAppScreenBanners] Using cached banners due to network/parse error:',
-          error instanceof Error ? error.message : String(error)
-        );
+        if (getDebug()) {
+          console.log(
+            '[useAppScreenBanners] Using cached banners due to network/parse error:',
+            error instanceof Error ? error.message : String(error)
+          );
+        }
         return bannerCache[screen] ?? [];
       }
     },
@@ -92,8 +124,7 @@ export function useAppScreenBanners(screen: BannerScreen): {
       const nextBanners = await fetchBanners();
       bannerCache[screen] = nextBanners;
       setBanners(nextBanners);
-    } catch (error: unknown) {
-      console.warn('[useAppScreenBanners] Failed to fetch banners, keeping previous state', error);
+    } catch {
       // Preserve existing UI state when request fails
       setBanners((prev) => (prev.length > 0 ? prev : (bannerCache[screen] ?? [])));
     } finally {

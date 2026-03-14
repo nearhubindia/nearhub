@@ -1,10 +1,12 @@
 import type { Express, Response } from 'express';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, inArray } from 'drizzle-orm';
 import { db } from '../../../data/db';
 import { listings } from '../../admin/models/admin-settings';
+import { users } from '../../users/models/users';
 import type { AuthRequest } from '../../../lib/types';
 import { handleError, notFound } from '../../../lib/error-handler';
 import { createListing, getListingById } from '../../listings/services/listings';
+import { getUserById, getUserByPhone } from '../../users/services/user-profiles';
 import {
   notifyListingApproved,
   notifyListingRejected,
@@ -51,6 +53,8 @@ export function registerAdminListingsRoutes(app: Express) {
     return raw;
   };
 
+  const looksLikePhone = (value: string): boolean => /^\d{10,15}$/.test(value.replace(/\D/g, ''));
+
   /**
    * GET /api/admin/listings
    * Get all listings (admin only) - includes inactive listings
@@ -86,6 +90,23 @@ export function registerAdminListingsRoutes(app: Express) {
         filtered = filtered.filter((l) => l.sellerId === ownerId);
       }
 
+      const sellerIds = [...new Set(filtered.map((l) => String(l.sellerId || '').trim()))].filter(
+        Boolean
+      );
+      const dbUsers =
+        sellerIds.length > 0
+          ? await db
+              .select({
+                id: users.id,
+                username: users.username,
+                displayName: users.displayName,
+                mobile: users.mobile,
+              })
+              .from(users)
+              .where(inArray(users.id, sellerIds))
+          : [];
+      const dbUserById = new Map(dbUsers.map((u) => [String(u.id), u]));
+
       // Get total count
       const totalResult = await db.select({ count: listings.id }).from(listings);
       const total =
@@ -93,25 +114,45 @@ export function registerAdminListingsRoutes(app: Express) {
 
       res.json({
         success: true,
-        data: filtered.map((listing) => ({
-          id: listing.id,
-          title: listing.title,
-          description: listing.description,
-          category: listing.category,
-          price: listing.price,
-          condition: listing.condition,
-          location: listing.location,
-          status: listing.status,
-          userId: listing.sellerId,
-          contactPhone: listing.contactPhone,
-          isActive: listing.isActive,
-          featured: listing.featured,
-          sponsored: listing.sponsored,
-          createdAt: listing.createdAt?.toISOString(),
-          expiresAt: listing.expiresAt?.toISOString(),
-          images: parseJsonField(listing.images),
-          videos: parseJsonField(listing.videos),
-        })),
+        data: filtered.map((listing) => {
+          const sellerId = String(listing.sellerId || '').trim();
+          const dbUser = dbUserById.get(sellerId);
+          const profileUser = getUserById(sellerId) || getUserByPhone(sellerId);
+
+          const displayName =
+            (typeof dbUser?.displayName === 'string' && dbUser.displayName.trim()) ||
+            (typeof dbUser?.username === 'string' && dbUser.username.trim()) ||
+            (typeof profileUser?.name === 'string' && profileUser.name.trim()) ||
+            null;
+
+          const mobileNumber =
+            normalizeContactPhone(listing.contactPhone) ||
+            normalizeContactPhone(dbUser?.mobile) ||
+            normalizeContactPhone(profileUser?.phone) ||
+            (looksLikePhone(sellerId) ? sellerId : null);
+
+          return {
+            id: listing.id,
+            title: listing.title,
+            description: listing.description,
+            category: listing.category,
+            price: listing.price,
+            condition: listing.condition,
+            location: listing.location,
+            status: listing.status,
+            userId: listing.sellerId,
+            displayName,
+            mobileNumber,
+            contactPhone: mobileNumber,
+            isActive: listing.isActive,
+            featured: listing.featured,
+            sponsored: listing.sponsored,
+            createdAt: listing.createdAt?.toISOString(),
+            expiresAt: listing.expiresAt?.toISOString(),
+            images: parseJsonField(listing.images),
+            videos: parseJsonField(listing.videos),
+          };
+        }),
         total,
       });
     } catch (error) {

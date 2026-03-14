@@ -381,7 +381,7 @@ export default function HomeScreen() {
     });
   }, [visibleListings, userLat, userLon, selectedSearchRadiusKm]);
 
-  const nearYouListings = useMemo(() => {
+  const allNearYouListings = useMemo(() => {
     if (!userLat || !userLon) return [];
     return visibleListings
       .filter((l) => {
@@ -407,14 +407,16 @@ export default function HomeScreen() {
           b.location.longitude
         );
         return distA - distB;
-      })
-      .slice(0, 5);
+      });
   }, [visibleListings, userLat, userLon, selectedSearchRadiusKm]);
 
-  const boostedListings = useMemo(
-    () => filteredListingsByLocation.filter((listing) => Boolean(listing.featured)).slice(0, 5),
+  const nearYouListings = useMemo(() => allNearYouListings.slice(0, 5), [allNearYouListings]);
+
+  const allBoostedListings = useMemo(
+    () => filteredListingsByLocation.filter((listing) => Boolean(listing.featured)),
     [filteredListingsByLocation]
   );
+  const boostedListings = useMemo(() => allBoostedListings.slice(0, 5), [allBoostedListings]);
 
   const onRefresh = useCallback(async () => {
     await Promise.all([refreshListings(), refreshBanners()]);
@@ -565,8 +567,27 @@ export default function HomeScreen() {
             {nearYouListings.length > 0 && (
               <View style={styles.nearYouSection}>
                 <View style={styles.sectionHeader}>
-                  <Feather name="map-pin" size={16} color={Colors.primary} />
-                  <Text style={styles.sectionTitle}>Near You</Text>
+                  <View style={styles.sectionHeaderLeft}>
+                    <Feather name="map-pin" size={16} color={Colors.primary} />
+                    <Text style={styles.sectionTitle}>Near You</Text>
+                  </View>
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/home-section-list',
+                        params: {
+                          section: 'nearby',
+                          lat: userLat?.toString() || '',
+                          lon: userLon?.toString() || '',
+                          radius: selectedSearchRadiusKm.toString(),
+                          city: userCity,
+                        },
+                      })
+                    }
+                    style={styles.viewAllButton}
+                  >
+                    <Text style={styles.viewAllText}>View All</Text>
+                  </Pressable>
                 </View>
                 <ScrollView
                   horizontal
@@ -575,36 +596,55 @@ export default function HomeScreen() {
                   contentContainerStyle={styles.horizontalResultsContent}
                 >
                   {nearYouListings.map((item) => (
-                    <Pressable
-                      key={item.id}
-                      onPress={() =>
-                        router.push({ pathname: '/listing/[id]', params: { id: item.id } })
-                      }
-                      style={[styles.nearYouCard, { width: alignedResultCardWidth }]}
-                    >
-                      <Image
-                        source={{ uri: item.images[0] }}
-                        style={styles.cardImage}
-                        contentFit="cover"
-                      />
-                      <Text style={styles.cardTitle} numberOfLines={2}>
-                        {item.title}
-                      </Text>
-                      <Text style={styles.cardPrice}>₹{item.price.toLocaleString('en-IN')}</Text>
-                      <Text style={styles.cardDistance}>
-                        {userLat && userLon
-                          ? Math.round(
-                              calculateDistance(
-                                userLat,
-                                userLon,
-                                item.location.latitude,
-                                item.location.longitude
-                              )
-                            )
-                          : '?'}{' '}
-                        km away
-                      </Text>
-                    </Pressable>
+                    (() => {
+                      const basePrice = Number(item.price) || 0;
+                      const parsedOfferPrice = Number(item.offerPrice);
+                      const hasValidOfferPrice =
+                        Number.isFinite(parsedOfferPrice) &&
+                        parsedOfferPrice > 0 &&
+                        parsedOfferPrice < basePrice;
+                      const displayPrice = hasValidOfferPrice ? parsedOfferPrice : basePrice;
+
+                      return (
+                        <Pressable
+                          key={item.id}
+                          onPress={() =>
+                            router.push({ pathname: '/listing/[id]', params: { id: item.id } })
+                          }
+                          style={[styles.nearYouCard, { width: alignedResultCardWidth }]}
+                        >
+                          <Image
+                            source={{ uri: item.images[0] }}
+                            style={styles.cardImage}
+                            contentFit="cover"
+                          />
+                          <Text style={styles.cardTitle} numberOfLines={2}>
+                            {item.title}
+                          </Text>
+                          <View style={styles.cardPriceRow}>
+                            <Text style={styles.cardPrice}>₹{displayPrice.toLocaleString('en-IN')}</Text>
+                            {hasValidOfferPrice ? (
+                              <Text style={styles.cardOriginalPrice}>
+                                ₹{basePrice.toLocaleString('en-IN')}
+                              </Text>
+                            ) : null}
+                          </View>
+                          <Text style={styles.cardDistance}>
+                            {userLat && userLon
+                              ? Math.round(
+                                  calculateDistance(
+                                    userLat,
+                                    userLon,
+                                    item.location.latitude,
+                                    item.location.longitude
+                                  )
+                                )
+                              : '?'}{' '}
+                            km away
+                          </Text>
+                        </Pressable>
+                      );
+                    })()
                   ))}
                 </ScrollView>
               </View>
@@ -614,8 +654,27 @@ export default function HomeScreen() {
             {boostedListings.length > 0 && (
               <View style={styles.featuredSection}>
                 <View style={styles.sectionHeader}>
-                  <Feather name="star" size={16} color={Colors.primary} />
-                  <Text style={styles.sectionTitle}>Featured Deals</Text>
+                  <View style={styles.sectionHeaderLeft}>
+                    <Feather name="star" size={16} color={Colors.primary} />
+                    <Text style={styles.sectionTitle}>Featured Deals</Text>
+                  </View>
+                  <Pressable
+                    onPress={() =>
+                      router.push({
+                        pathname: '/home-section-list',
+                        params: {
+                          section: 'featured',
+                          lat: userLat?.toString() || '',
+                          lon: userLon?.toString() || '',
+                          radius: selectedSearchRadiusKm.toString(),
+                          city: userCity,
+                        },
+                      })
+                    }
+                    style={styles.viewAllButton}
+                  >
+                    <Text style={styles.viewAllText}>View All</Text>
+                  </Pressable>
                 </View>
                 <ScrollView
                   horizontal
@@ -624,26 +683,45 @@ export default function HomeScreen() {
                   contentContainerStyle={styles.horizontalResultsContent}
                 >
                   {boostedListings.map((item) => (
-                    <Pressable
-                      key={item.id}
-                      onPress={() =>
-                        router.push({ pathname: '/listing/[id]', params: { id: item.id } })
-                      }
-                      style={[styles.featuredCard, { width: alignedResultCardWidth }]}
-                    >
-                      <Image
-                        source={{ uri: item.images[0] }}
-                        style={styles.cardImage}
-                        contentFit="cover"
-                      />
-                      <Text style={styles.cardTitle} numberOfLines={2}>
-                        {item.title}
-                      </Text>
-                      <Text style={styles.cardPrice}>₹{item.price.toLocaleString('en-IN')}</Text>
-                      <View style={styles.cardBadge}>
-                        <Text style={styles.badgeText}>Boost</Text>
-                      </View>
-                    </Pressable>
+                    (() => {
+                      const basePrice = Number(item.price) || 0;
+                      const parsedOfferPrice = Number(item.offerPrice);
+                      const hasValidOfferPrice =
+                        Number.isFinite(parsedOfferPrice) &&
+                        parsedOfferPrice > 0 &&
+                        parsedOfferPrice < basePrice;
+                      const displayPrice = hasValidOfferPrice ? parsedOfferPrice : basePrice;
+
+                      return (
+                        <Pressable
+                          key={item.id}
+                          onPress={() =>
+                            router.push({ pathname: '/listing/[id]', params: { id: item.id } })
+                          }
+                          style={[styles.featuredCard, { width: alignedResultCardWidth }]}
+                        >
+                          <Image
+                            source={{ uri: item.images[0] }}
+                            style={styles.cardImage}
+                            contentFit="cover"
+                          />
+                          <Text style={styles.cardTitle} numberOfLines={2}>
+                            {item.title}
+                          </Text>
+                          <View style={styles.cardPriceRow}>
+                            <Text style={styles.cardPrice}>₹{displayPrice.toLocaleString('en-IN')}</Text>
+                            {hasValidOfferPrice ? (
+                              <Text style={styles.cardOriginalPrice}>
+                                ₹{basePrice.toLocaleString('en-IN')}
+                              </Text>
+                            ) : null}
+                          </View>
+                          <View style={styles.cardBadge}>
+                            <Text style={styles.badgeText}>Boost</Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })()
                   ))}
                 </ScrollView>
               </View>
@@ -1135,14 +1213,28 @@ const styles = createResponsiveStyles({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 12,
     marginBottom: 4,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
   sectionTitle: {
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
     color: Colors.text,
+  },
+  viewAllButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  viewAllText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.primary,
   },
   nearYouScroll: {
     marginTop: 2,
@@ -1169,6 +1261,18 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_700Bold',
     color: Colors.primary,
     paddingHorizontal: 8,
+  },
+  cardPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    gap: 6,
+  },
+  cardOriginalPrice: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textSecondary,
+    textDecorationLine: 'line-through',
   },
   cardDistance: {
     fontSize: 10,

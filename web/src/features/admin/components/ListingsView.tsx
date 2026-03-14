@@ -40,6 +40,12 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
       String(listing.contactPhone || '')
         .toLowerCase()
         .includes(query) ||
+      String(listing.mobileNumber || '')
+        .toLowerCase()
+        .includes(query) ||
+      String(listing.displayName || '')
+        .toLowerCase()
+        .includes(query) ||
       String(listing.userId || '')
         .toLowerCase()
         .includes(query)
@@ -129,10 +135,10 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
                             Location
                           </th>
                           <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                            User ID
+                            Display Name
                           </th>
                           <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                            Phone
+                            Mobile Number
                           </th>
                           <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
                             Status
@@ -189,10 +195,15 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
                               {listing.location || 'N/A'}
                             </td>
                             <td className="px-6 py-4 text-sm text-slate-600">
-                              {listing.userId || 'N/A'}
+                              <div className="flex flex-col">
+                                <span>{listing.displayName || '-'}</span>
+                                <span className="text-xs text-slate-400">
+                                  ID: {listing.userId || 'N/A'}
+                                </span>
+                              </div>
                             </td>
                             <td className="px-6 py-4 text-sm text-slate-600">
-                              {listing.contactPhone || '-'}
+                              {listing.mobileNumber || listing.contactPhone || '-'}
                             </td>
                             <td className="px-6 py-4 text-sm">
                               <span
