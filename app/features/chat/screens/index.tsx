@@ -89,17 +89,11 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
 
         <View style={styles.chatInfo}>
           <View style={styles.headerRow}>
-            <Pressable
-              onPress={(event) => {
-                event.stopPropagation?.();
-                handleOpenProfile();
-              }}
-              style={styles.namePress}
-            >
-              <Text style={styles.sellerName} numberOfLines={1}>
-                {thread.sellerName}
+            <View style={styles.namePress}>
+              <Text style={styles.productName} numberOfLines={1}>
+                {thread.listingTitle || 'Product'}
               </Text>
-            </Pressable>
+            </View>
             <View style={styles.trailingMeta}>
               <Text style={styles.timestamp}>{timeAgo}</Text>
               {unreadCount > 0 ? (
@@ -111,8 +105,12 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
               ) : null}
             </View>
           </View>
-          <Text style={styles.listingTitle} numberOfLines={1}>
-            {thread.listingTitle}
+          <Text
+            style={[styles.sellerName, unreadCount > 0 && styles.sellerNameUnread]}
+            numberOfLines={1}
+            onPress={handleOpenProfile}
+          >
+            {thread.sellerName || 'User'}
           </Text>
           <Text
             style={[styles.lastMessage, unreadCount > 0 && styles.lastMessageUnread]}
@@ -317,11 +315,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 2,
   },
-  sellerName: {
+  productName: {
     fontSize: 15,
     fontFamily: 'Inter_700Bold',
     color: Colors.text,
     flex: 1,
+  },
+  sellerName: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textSecondary,
+    marginBottom: 4,
+  },
+  sellerNameUnread: {
+    color: Colors.text,
+    fontFamily: 'Inter_600SemiBold',
   },
   timestamp: {
     fontSize: 11,
@@ -332,12 +340,6 @@ const styles = StyleSheet.create({
   trailingMeta: {
     alignItems: 'flex-end',
     gap: 4,
-  },
-  listingTitle: {
-    fontSize: 11,
-    fontFamily: 'Inter_500Medium',
-    color: Colors.textSecondary,
-    marginBottom: 4,
   },
   lastMessage: {
     fontSize: 12,
