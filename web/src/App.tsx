@@ -41,6 +41,7 @@ function App() {
           <Route path="/refund-policy" element={<CompliancePage pageKey="refund-policy" />} />
           <Route path="/about" element={<CompliancePage pageKey="about" />} />
           <Route path="/payment-security" element={<CompliancePage pageKey="payment-security" />} />
+          <Route path="/delete-account" element={<CompliancePage pageKey="delete-account" />} />
           <Route path="/footer/:pageKey" element={<FooterPage />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route

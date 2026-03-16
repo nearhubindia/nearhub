@@ -93,11 +93,20 @@ android {
         applicationId 'com.synvide.nearhub'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0.0"
+        def configuredVersionCode = (findProperty('VERSION_CODE') ?: System.getenv('VERSION_CODE') ?: "2").toInteger()
+        def configuredVersionName = (findProperty('VERSION_NAME') ?: System.getenv('VERSION_NAME') ?: "1.0.1").toString()
+        versionCode configuredVersionCode
+        versionName configuredVersionName
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
+
+    def releaseStoreFile = findProperty('NEARHUB_UPLOAD_STORE_FILE') ?: System.getenv('NEARHUB_UPLOAD_STORE_FILE')
+    def releaseStorePassword = findProperty('NEARHUB_UPLOAD_STORE_PASSWORD') ?: System.getenv('NEARHUB_UPLOAD_STORE_PASSWORD')
+    def releaseKeyAlias = findProperty('NEARHUB_UPLOAD_KEY_ALIAS') ?: System.getenv('NEARHUB_UPLOAD_KEY_ALIAS')
+    def releaseKeyPassword = findProperty('NEARHUB_UPLOAD_KEY_PASSWORD') ?: System.getenv('NEARHUB_UPLOAD_KEY_PASSWORD')
+    def hasReleaseSigning = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -105,15 +114,28 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            def allowDebugReleaseSigning = (findProperty('ALLOW_DEBUG_RELEASE_SIGNING') ?: System.getenv('ALLOW_DEBUG_RELEASE_SIGNING') ?: 'false').toBoolean()
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else if (allowDebugReleaseSigning) {
+                signingConfig signingConfigs.debug
+            } else {
+                throw new GradleException("Release signing is not configured. Set NEARHUB_UPLOAD_* properties (or use EAS local build) to avoid debug-signed release bundles.")
+            }
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds

@@ -41,6 +41,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://nearhub.in/delete-account</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://nearhub.in/footer/browse-listings</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>

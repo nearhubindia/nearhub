@@ -8,7 +8,8 @@ type CompliancePageKey =
   | 'terms'
   | 'refund-policy'
   | 'about'
-  | 'payment-security';
+  | 'payment-security'
+  | 'delete-account';
 
 interface ComplianceSection {
   heading: string;
@@ -230,6 +231,48 @@ const compliancePages: Record<CompliancePageKey, CompliancePageConfig> = {
           'For payment issues, contact support@nearhub.com with order ID and payment ID.',
           'For unresolved disputes, users can also raise tickets through Razorpay channels.',
         ],
+      },
+    ],
+  },
+  'delete-account': {
+    tag: 'Account',
+    title: 'Delete Account',
+    subtitle: 'Request permanent deletion of your NearHub account and associated personal data.',
+    effectiveDate: 'Updated: March 16, 2026',
+    sections: [
+      {
+        heading: 'How To Request Deletion',
+        points: [
+          'Open the NearHub app and go to Settings -> Delete Account.',
+          'Tap Request Account Deletion and confirm the request.',
+          'If you cannot access the app, email support@nearhub.com from your registered account email/phone.',
+        ],
+      },
+      {
+        heading: 'What Is Deleted',
+        points: [
+          'Your profile information and account access credentials.',
+          'Your active listings and associated public profile visibility.',
+          'Your app session tokens and notification registrations.',
+        ],
+      },
+      {
+        heading: 'What May Be Retained',
+        points: [
+          'Transaction/invoice records retained for legal, tax, fraud, and compliance obligations.',
+          'Minimal audit logs required for security and dispute resolution.',
+        ],
+      },
+      {
+        heading: 'Deletion Timeline',
+        points: [
+          'Most account data is removed within 7 business days after verification.',
+          'Compliance-related records are retained only for the legally required duration.',
+        ],
+      },
+      {
+        heading: 'Support Contact',
+        points: ['Email: support@nearhub.com'],
       },
     ],
   },

@@ -18,6 +18,7 @@
     "format:check": "prettier --check .",
     "quality-check": "npm run type-check && npm run lint && npm run format:check",
     "pre-build": "npm run quality-check",
+    "build:aab": "bash ./scripts/build-aab.sh",
     "postinstall": "patch-package"
   },
   "dependencies": {

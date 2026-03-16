@@ -76,8 +76,26 @@ npm run android:dev
 | --------------------- | ---------------------------------------------------------- |
 | `npm run dev`         | Start Metro bundler (run daily)                            |
 | `npm run android:dev` | Build and install app (first time or after native changes) |
+| `npm run build:aab`   | Build Play-ready AAB via Expo local + signing verification |
 | `npm run type-check`  | Check TypeScript errors                                    |
 | `npm run lint`        | Check code quality                                         |
+
+---
+
+## Release AAB (Play Store)
+
+Use one command for every release build:
+
+```bash
+cd /home/pavanprasad/Downloads/nearhub/app
+npm run build:aab
+```
+
+This command always:
+
+1. Runs `eas build --platform android --profile production --local --non-interactive`
+2. Verifies signing certificate SHA1 matches Play expected upload key
+3. Writes checksum file next to the generated `.aab`
 
 ---
 
