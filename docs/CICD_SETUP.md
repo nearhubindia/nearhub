@@ -18,6 +18,7 @@ Set these in `GitHub -> Settings -> Secrets and variables -> Actions`.
 - `HOSTINGER_VPS_SSH_KEY` (private key content)
 - `HOSTINGER_APP_DIR` (example: `/opt/nearhub-server`)
 - `HOSTINGER_SERVICE_NAME` (example: `nearhub-server`)
+- `HOSTINGER_PM2_APP_NAME` (optional; default: `nearhub-server`)
 
 ### Web deploy (Cloudflare Pages)
 
@@ -36,15 +37,22 @@ sudo mkdir -p /opt/nearhub-server/releases
 sudo chown -R $USER:$USER /opt/nearhub-server
 ```
 
-2. Ensure Node.js is installed (same major as CI, currently Node 20).
-3. Ensure your service uses `/opt/nearhub-server/current/dist/index.js`.
-4. Ensure service restart works with:
+2. Create shared env file used by artifact releases:
+
+```bash
+sudo mkdir -p /opt/nearhub-server/shared
+sudo cp /path/to/your/server/.env /opt/nearhub-server/shared/.env
+```
+
+3. Ensure Node.js is installed (same major as CI, currently Node 20).
+4. Ensure your service or PM2 process uses `/opt/nearhub-server/current/dist/index.js`.
+5. Ensure service restart works with:
 
 ```bash
 sudo systemctl restart nearhub-server
 ```
 
-5. If using DB migrations on deploy, configure env/db access for runtime user.
+6. If using DB migrations on deploy, configure env/db access for runtime user.
 
 ## 3. How Deploy Works
 
@@ -57,9 +65,10 @@ sudo systemctl restart nearhub-server
   - extracts into new timestamped release
   - validates `DEPLOYMENT_MANIFEST`
   - refuses deploy if `.git` metadata is present in release
-  - runs `npm ci --omit=dev`
+  - links `current/server/.env` from `/opt/nearhub-server/shared/.env`
+  - runs `npm ci --omit=dev` (or full install + migration + prune when `run_migrations=true`)
   - switches `current` symlink
-  - restarts systemd service
+  - restarts systemd service, or falls back to PM2 (`HOSTINGER_PM2_APP_NAME`)
 
 No `git pull` is done on VPS.
 

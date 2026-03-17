@@ -55,6 +55,8 @@ jobs:
           cp package.json package-lock.json ../release/
           cp -R dist ../release/
           cp -R migrations ../release/
+          cp drizzle.config.js ../release/
+          if [ -d data ]; then cp -R data ../release/; fi
           {
             echo "mode=artifact_only"
             echo "commit_sha=${GITHUB_SHA}"
@@ -106,8 +108,9 @@ jobs:
 
             APP_DIR="${{ secrets.HOSTINGER_APP_DIR }}"
             SERVICE_NAME="${{ secrets.HOSTINGER_SERVICE_NAME }}"
+            PM2_APP_NAME="${{ secrets.HOSTINGER_PM2_APP_NAME || 'nearhub-server' }}"
 
-            mkdir -p "$APP_DIR/releases"
+            mkdir -p "$APP_DIR/releases" "$APP_DIR/shared"
             RELEASE_DIR="$APP_DIR/releases/$(date +%Y%m%d%H%M%S)"
             mkdir -p "$RELEASE_DIR"
 
@@ -128,15 +131,25 @@ jobs:
             echo "[INFO] Deploy manifest:"
             cat "$RELEASE_DIR/DEPLOYMENT_MANIFEST"
 
-            cd "$RELEASE_DIR"
-            npm ci --omit=dev
+            if [ -f "$APP_DIR/shared/.env" ]; then
+              mkdir -p "$RELEASE_DIR/server"
+              ln -sfn "$APP_DIR/shared/.env" "$RELEASE_DIR/server/.env"
+            else
+              echo "[WARN] Missing $APP_DIR/shared/.env. Runtime may fail without DATABASE_URL."
+            fi
 
+            cd "$RELEASE_DIR"
             if [ "${RUN_MIGRATIONS}" = "true" ]; then
-              npm run db:migrate || true
+              npm ci
+              npm run db:migrate
+              npm prune --omit=dev
+            else
+              npm ci --omit=dev
             fi
 
             ln -sfn "$RELEASE_DIR" "$APP_DIR/current"
 
+            # Restart runtime process.
             if [ -n "$SERVICE_NAME" ]; then
               UNIT_NAME="$SERVICE_NAME"
               case "$UNIT_NAME" in
@@ -150,7 +163,18 @@ jobs:
               else
                 echo "[WARN] Systemd unit '$UNIT_NAME' not found. Skipping restart."
                 echo "[WARN] Set HOSTINGER_SERVICE_NAME to an existing service unit name."
+                SERVICE_NAME=""
               fi
             else
               echo "[WARN] HOSTINGER_SERVICE_NAME is empty. Skipping service restart."
+            fi
+
+            # PM2 fallback for hosts not using systemd service.
+            if [ -z "$SERVICE_NAME" ] && command -v pm2 >/dev/null 2>&1; then
+              if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
+                pm2 restart "$PM2_APP_NAME" --update-env
+              else
+                pm2 start "$APP_DIR/current/dist/index.js" --name "$PM2_APP_NAME" --cwd "$APP_DIR/current" --time
+              fi
+              pm2 save
             fi
