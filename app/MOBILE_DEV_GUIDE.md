@@ -1,126 +1,77 @@
-# Mobile App Development Guide
+# Mobile Development Guide
 
-## Running the App on Your Physical Device
+## Daily Workflow
 
-### First Time Setup (Already Done)
-
-```bash
-cd /home/pavanprasad/Downloads/nearhub/app
-npm run android:dev  # Builds and installs the app on your device
-```
-
-### Daily Development Workflow
-
-#### Step 1: Start Metro Bundler (Keep this running)
+### 1. Start Metro
 
 ```bash
-cd /home/pavanprasad/Downloads/nearhub/app
+cd app
 npm run dev
 ```
 
-This will:
+### 2. Run on Android Device/Emulator
 
-- Start Metro bundler on your local network
-- Display a QR code and connection URL
-- Show: `Metro waiting on http://192.168.29.58:8081`
+```bash
+cd app
+npx expo run:android
+```
 
-**Keep this terminal open and running!**
+If multiple devices are connected:
 
-#### Step 2: Open the App
+```bash
+adb devices -l
+npx expo run:android --device
+```
 
-- The NearHub app is already installed on your device
-- Just tap the app icon to open it
-- The app will automatically connect to Metro bundler at `192.168.29.58:8081`
+## Native Changes
 
-#### Step 3: Reload When Making Changes
+If you changed native config/plugins/splash/icons:
 
-When you edit code:
+```bash
+cd app
+npx expo prebuild -p android --clean
+npx expo run:android
+```
 
-- Press **`r`** in the Metro terminal to reload
-- OR shake your device and select "Reload"
+## USB Debugging Checklist (Android)
 
----
+- Enable Developer options
+- Enable USB debugging
+- Accept RSA prompt on phone
+- Verify device:
+
+```bash
+adb devices -l
+```
 
 ## Troubleshooting
 
-### App shows white screen or "Unable to connect"
-
-1. **Check Metro is running**: Look for `Metro waiting on http://192.168.29.58:8081` in terminal
-2. **Check same WiFi**: Ensure your phone and computer are on the same WiFi network
-3. **Check IP address**: Your current IP is `192.168.29.58` - if it changes, update `.env.local`
-4. **Reload the app**: Press `r` in Metro terminal or shake device → Reload
-
-### Metro bundler won't start
+### Device not detected
 
 ```bash
-# Kill any stuck processes
-pkill -f "expo start"
-pkill -f metro
-
-# Clear cache and restart
-npm run dev
+adb kill-server
+adb start-server
+adb devices -l
 ```
 
-### Need to rebuild the app
+### Clean and rebuild Android app
 
 ```bash
-# Only needed if you change native code or dependencies
-npm run android:dev
+cd app/android
+./gradlew clean
+cd ..
+npx expo run:android
 ```
 
----
-
-## Quick Commands
-
-| Command               | Purpose                                                    |
-| --------------------- | ---------------------------------------------------------- |
-| `npm run dev`         | Start Metro bundler (run daily)                            |
-| `npm run android:dev` | Build and install app (first time or after native changes) |
-| `npm run build:aab`   | Build Play-ready AAB via Expo local + signing verification |
-| `npm run type-check`  | Check TypeScript errors                                    |
-| `npm run lint`        | Check code quality                                         |
-
----
-
-## Release AAB (Play Store)
-
-Use one command for every release build:
+### Type-check before build
 
 ```bash
-cd /home/pavanprasad/Downloads/nearhub/app
-npm run build:aab
+cd app
+npm run type-check
 ```
 
-This command always:
+## Notes
 
-1. Runs `eas build --platform android --profile production --local --non-interactive`
-2. Verifies signing certificate SHA1 matches Play expected upload key
-3. Writes checksum file next to the generated `.aab`
-
----
-
-## Environment Variables
-
-Your app is configured to connect to:
-
-- **Backend API**: `http://192.168.29.58:5000`
-- **Metro Bundler**: `http://192.168.29.58:8081`
-
-These are set in `/home/pavanprasad/Downloads/nearhub/app/.env.local`
-
-If your IP address changes:
-
-1. Find new IP: `hostname -I | awk '{print $1}'`
-2. Update `.env.local` with new IP
-3. Restart Metro bundler
-
----
-
-## Current Setup
-
-✅ Server running on: `http://192.168.29.58:5000`  
-✅ Cleartext HTTP enabled in Android manifest  
-✅ CORS configured for local network  
-✅ Development build installed on device
-
-**You're all set! Just run `npm run dev` and open the app.**
+- New architecture is enabled for Android.
+- Splash and Shorts layout fixes were tuned for Android 11+ behavior.
+- Listing cards now read live `Views`, `Likes` (favorites/saves), and `Chats` from backend data.

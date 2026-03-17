@@ -1,16 +1,23 @@
 # NearHub
 
-Independent multi-project repository with three runnable applications:
+NearHub is a multi-app repo with three independently runnable projects:
 
 - `app/` - Expo React Native mobile app
-- `web/` - Vite React web/admin app
-- `server/` - Express TypeScript API server
+- `server/` - Express + TypeScript API
+- `web/` - Vite + React admin web app
 
-Each project is intentionally executable on its own with its own dependencies and scripts.
+## Quick Start
 
-## Run Projects Independently
+### 1. Server
 
-### Mobile App
+```bash
+cd server
+npm install
+npm run db:migrate
+npm run dev
+```
+
+### 2. Mobile App
 
 ```bash
 cd app
@@ -18,7 +25,15 @@ npm install
 npm run dev
 ```
 
-### Web App
+For native Android build/install:
+
+```bash
+cd app
+npx expo prebuild -p android
+npx expo run:android
+```
+
+### 3. Web Admin
 
 ```bash
 cd web
@@ -26,26 +41,32 @@ npm install
 npm run dev
 ```
 
-### Server
+## Current Important Notes
+
+- Listings now expose live metrics:
+  - `viewCount`
+  - `chatCount`
+  - `likeCount` / `saveCount`
+- Likes/Saves are now persisted in DB via `listing_likes` table.
+- Run server migration before testing likes:
 
 ```bash
 cd server
-npm install
-npm run dev
+npm run db:migrate
 ```
 
-## Feature-Based Organization Rules
+## Quality Checks
 
-- Place domain logic inside each project `features/` directory.
-- Keep cross-feature/common code inside that project's `shared/` directory.
-- Keep global utilities/config in that project's `lib/` directory.
-- Avoid duplicate shared modules in multiple folder trees.
-- Import from feature public APIs (`index.ts`) instead of deep internal paths where possible.
+Run per project:
 
-## Quality Checks (Per Project)
+```bash
+npm run type-check
+npm run lint
+npm run format:check
+```
 
-- `npm run type-check`
-- `npm run lint`
-- `npm run format:check`
+## Key Docs
 
-Git hooks at repo root now run checks per changed project (`app`, `web`, `server`) instead of assuming a single root package.
+- Mobile dev workflow: `app/MOBILE_DEV_GUIDE.md`
+- AI moderation setup: `server/AI_MODERATION_SETUP.md`
+- Architecture overview: `docs/ARCHITECTURE.md`
