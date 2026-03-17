@@ -119,6 +119,19 @@ jobs:
             ln -sfn "$RELEASE_DIR" "$APP_DIR/current"
 
             if [ -n "$SERVICE_NAME" ]; then
-              sudo systemctl restart "$SERVICE_NAME"
-              sudo systemctl status "$SERVICE_NAME" --no-pager -l | head -n 40 || true
+              UNIT_NAME="$SERVICE_NAME"
+              case "$UNIT_NAME" in
+                *.service) ;;
+                *) UNIT_NAME="${UNIT_NAME}.service" ;;
+              esac
+
+              if sudo systemctl cat "$UNIT_NAME" >/dev/null 2>&1; then
+                sudo systemctl restart "$UNIT_NAME"
+                sudo systemctl status "$UNIT_NAME" --no-pager -l | head -n 40 || true
+              else
+                echo "[WARN] Systemd unit '$UNIT_NAME' not found. Skipping restart."
+                echo "[WARN] Set HOSTINGER_SERVICE_NAME to an existing service unit name."
+              fi
+            else
+              echo "[WARN] HOSTINGER_SERVICE_NAME is empty. Skipping service restart."
             fi
