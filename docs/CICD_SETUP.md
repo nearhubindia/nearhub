@@ -55,6 +55,8 @@ sudo systemctl restart nearhub-server
 - Artifact is copied to VPS via SCP.
 - VPS deploy step:
   - extracts into new timestamped release
+  - validates `DEPLOYMENT_MANIFEST`
+  - refuses deploy if `.git` metadata is present in release
   - runs `npm ci --omit=dev`
   - switches `current` symlink
   - restarts systemd service

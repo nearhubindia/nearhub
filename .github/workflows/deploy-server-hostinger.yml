@@ -55,6 +55,11 @@ jobs:
           cp package.json package-lock.json ../release/
           cp -R dist ../release/
           cp -R migrations ../release/
+          {
+            echo "mode=artifact_only"
+            echo "commit_sha=${GITHUB_SHA}"
+            echo "built_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > ../release/DEPLOYMENT_MANIFEST
           tar -C ../release -czf ../server-release.tgz .
 
       - name: Upload artifact
@@ -108,6 +113,20 @@ jobs:
 
             tar -xzf /tmp/server-release.tgz -C "$RELEASE_DIR"
             rm -f /tmp/server-release.tgz
+
+            # Artifact-only guard: deployment bundle must not contain a git checkout.
+            if [ -d "$RELEASE_DIR/.git" ] || [ -f "$RELEASE_DIR/.git" ]; then
+              echo "[ERROR] Artifact contains .git metadata. Refusing deploy."
+              exit 1
+            fi
+
+            if [ ! -f "$RELEASE_DIR/DEPLOYMENT_MANIFEST" ]; then
+              echo "[ERROR] DEPLOYMENT_MANIFEST missing. Refusing deploy."
+              exit 1
+            fi
+
+            echo "[INFO] Deploy manifest:"
+            cat "$RELEASE_DIR/DEPLOYMENT_MANIFEST"
 
             cd "$RELEASE_DIR"
             npm ci --omit=dev
