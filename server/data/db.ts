@@ -29,7 +29,7 @@ console.log(
 );
 
 // Create PostgreSQL connection pool
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: databaseUrl,
   max: maxConnections,
   min: minConnections,
@@ -40,3 +40,7 @@ const pool = new Pool({
 // Create Drizzle instance
 const schema = { ...adminSchema, users };
 export const db = drizzle(pool, { schema });
+
+export async function closeDatabasePool(): Promise<void> {
+  await pool.end();
+}

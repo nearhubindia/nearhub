@@ -1,0 +1,181 @@
+{
+  "siteUrlFallback": "https://nearhub.in",
+  "defaultImagePath": "/nearhub.png",
+  "keywords": "nearhub, classifieds, buy and sell, local marketplace, hyperlocal listings, ads",
+  "defaultMeta": {
+    "title": "NearHub",
+    "description": "NearHub hyperlocal classifieds platform."
+  },
+  "noindexPrefixes": ["/admin"],
+  "disallowPaths": ["/admin", "/admin/"],
+  "routes": [
+    {
+      "path": "/",
+      "title": "NearHub | Buy, Sell & Discover Near You",
+      "description": "NearHub is a hyperlocal classifieds platform to buy, sell, and discover trusted listings near you.",
+      "changefreq": "weekly",
+      "priority": "1.0"
+    },
+    {
+      "path": "/features",
+      "title": "Features | NearHub",
+      "description": "Explore NearHub features including video-first listings, geo discovery, alerts, and trust controls.",
+      "changefreq": "weekly",
+      "priority": "0.9"
+    },
+    {
+      "path": "/contact",
+      "title": "Contact | NearHub",
+      "description": "Get in touch with NearHub for support, partnerships, and platform enquiries.",
+      "changefreq": "monthly",
+      "priority": "0.8"
+    },
+    {
+      "path": "/privacy-policy",
+      "title": "Privacy Policy | NearHub",
+      "description": "Read how NearHub collects, uses, secures, and shares personal information.",
+      "changefreq": "monthly",
+      "priority": "0.8"
+    },
+    {
+      "path": "/terms",
+      "title": "Terms And Conditions | NearHub",
+      "description": "Review user responsibilities, payment terms, and account rules for NearHub.",
+      "changefreq": "monthly",
+      "priority": "0.8"
+    },
+    {
+      "path": "/refund-policy",
+      "title": "Refund And Cancellation Policy | NearHub",
+      "description": "Learn NearHub refund eligibility, cancellation terms, and processing timelines.",
+      "changefreq": "monthly",
+      "priority": "0.8"
+    },
+    {
+      "path": "/about",
+      "title": "About | NearHub",
+      "description": "Learn about NearHub, our mission, and company information.",
+      "changefreq": "monthly",
+      "priority": "0.7"
+    },
+    {
+      "path": "/payment-security",
+      "title": "Payment Security | NearHub",
+      "description": "Understand how NearHub and Razorpay process payments securely and protect payment data.",
+      "changefreq": "monthly",
+      "priority": "0.6"
+    },
+    {
+      "path": "/delete-account",
+      "title": "Delete Account | NearHub",
+      "description": "Request account deletion and understand what data is removed from NearHub.",
+      "changefreq": "monthly",
+      "priority": "0.6"
+    },
+    {
+      "path": "/footer/browse-listings",
+      "title": "Browse Listings | NearHub",
+      "description": "Explore fresh local listings across categories on NearHub.",
+      "changefreq": "monthly",
+      "priority": "0.6"
+    },
+    {
+      "path": "/footer/post-an-ad",
+      "title": "Post an Ad | NearHub",
+      "description": "Publish your NearHub listing with images or video in minutes.",
+      "changefreq": "monthly",
+      "priority": "0.6"
+    },
+    {
+      "path": "/footer/categories",
+      "title": "Categories | NearHub",
+      "description": "Discover listing categories across jobs, services, vehicles, homes, and more.",
+      "changefreq": "monthly",
+      "priority": "0.6"
+    },
+    {
+      "path": "/footer/mobile-app",
+      "title": "Mobile App | NearHub",
+      "description": "NearHub mobile experience for fast, local buying and selling.",
+      "changefreq": "monthly",
+      "priority": "0.6"
+    },
+    {
+      "path": "/footer/about-us",
+      "title": "About NearHub",
+      "description": "Learn about NearHub and our mission to improve local commerce.",
+      "changefreq": "monthly",
+      "priority": "0.5"
+    },
+    {
+      "path": "/footer/careers",
+      "title": "Careers | NearHub",
+      "description": "Join the NearHub team building the future of hyperlocal marketplaces.",
+      "changefreq": "monthly",
+      "priority": "0.5"
+    },
+    {
+      "path": "/footer/blog",
+      "title": "Blog | NearHub",
+      "description": "Insights from NearHub on product, growth, and local marketplace operations.",
+      "changefreq": "monthly",
+      "priority": "0.5"
+    },
+    {
+      "path": "/footer/press-kit",
+      "title": "Press Kit | NearHub",
+      "description": "NearHub brand references and media resources.",
+      "changefreq": "monthly",
+      "priority": "0.5"
+    },
+    {
+      "path": "/footer/help-center",
+      "title": "Help Center | NearHub",
+      "description": "Support resources for buyers, sellers, and administrators on NearHub.",
+      "changefreq": "monthly",
+      "priority": "0.5"
+    },
+    {
+      "path": "/footer/safety-tips",
+      "title": "Safety Tips | NearHub",
+      "description": "Practical marketplace safety guidance for secure local transactions.",
+      "changefreq": "monthly",
+      "priority": "0.5"
+    },
+    {
+      "path": "/footer/terms-of-service",
+      "title": "Terms of Service | NearHub",
+      "description": "Read NearHub terms governing platform usage.",
+      "changefreq": "monthly",
+      "priority": "0.5"
+    },
+    {
+      "path": "/footer/privacy-policy",
+      "title": "Privacy Policy | NearHub",
+      "description": "Understand how NearHub handles personal data and privacy.",
+      "changefreq": "monthly",
+      "priority": "0.5"
+    },
+    {
+      "path": "/footer/report-issue",
+      "title": "Report an Issue | NearHub",
+      "description": "Report a NearHub issue with context for faster resolution.",
+      "changefreq": "monthly",
+      "priority": "0.5"
+    },
+    {
+      "path": "/footer/cookies",
+      "title": "Cookie Policy | NearHub",
+      "description": "How NearHub uses cookies for functionality and analytics.",
+      "changefreq": "monthly",
+      "priority": "0.5"
+    },
+    {
+      "path": "/footer/sitemap",
+      "title": "Sitemap | NearHub",
+      "description": "Browse a structured overview of key NearHub routes and sections.",
+      "changefreq": "monthly",
+      "priority": "0.4"
+    }
+  ]
+}

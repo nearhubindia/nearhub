@@ -5,7 +5,10 @@
 
 // Mock environment variables for tests
 process.env.NODE_ENV = 'development'; // Use development to get OTP in responses
-process.env.DATABASE_URL = 'postgresql://postgres:Synvide%40123@localhost:5432/nearhub';
+process.env.DATABASE_URL =
+  process.env.TEST_DATABASE_URL ||
+  process.env.DATABASE_URL ||
+  'postgresql://postgres:Synvide%40123@localhost:5432/nearhub';
 process.env.API_PORT = '3000';
 process.env.EXPO_PUBLIC_API_URL = 'http://localhost:3000';
 process.env.JWT_SECRET = 'test-secret-key';
@@ -33,4 +36,13 @@ jest.setTimeout(10000);
 beforeAll(async () => {
   const { ensureCoreSchema } = await import('../../data/ensure-core-schema');
   await ensureCoreSchema();
+});
+
+afterAll(async () => {
+  const [{ closeDatabasePool }, { redisCache }] = await Promise.all([
+    import('../../data/db'),
+    import('../../shared/cache/redis-cache'),
+  ]);
+
+  await Promise.allSettled([closeDatabasePool(), redisCache.disconnect()]);
 });

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import seoConfigData from '../../../seo/routes.json';
 
 type RouteMeta = {
   title: string;
@@ -7,71 +8,33 @@ type RouteMeta = {
   robots?: 'index,follow' | 'noindex,nofollow';
 };
 
-const SITE_URL = (import.meta.env.VITE_SITE_URL || 'https://nearhub.in').replace(/\/+$/, '');
-const DEFAULT_IMAGE_URL = `${SITE_URL}/nearhub.png`;
-
-const FOOTER_META: Record<string, RouteMeta> = {
-  'browse-listings': {
-    title: 'Browse Listings | NearHub',
-    description: 'Explore fresh local listings across categories on NearHub.',
-  },
-  'post-an-ad': {
-    title: 'Post an Ad | NearHub',
-    description: 'Publish your NearHub listing with images or video in minutes.',
-  },
-  categories: {
-    title: 'Categories | NearHub',
-    description: 'Discover listing categories across jobs, services, vehicles, homes, and more.',
-  },
-  'mobile-app': {
-    title: 'Mobile App | NearHub',
-    description: 'NearHub mobile experience for fast, local buying and selling.',
-  },
-  'about-us': {
-    title: 'About NearHub',
-    description: 'Learn about NearHub and our mission to improve local commerce.',
-  },
-  careers: {
-    title: 'Careers | NearHub',
-    description: 'Join the NearHub team building the future of hyperlocal marketplaces.',
-  },
-  blog: {
-    title: 'Blog | NearHub',
-    description: 'Insights from NearHub on product, growth, and local marketplace operations.',
-  },
-  'press-kit': {
-    title: 'Press Kit | NearHub',
-    description: 'NearHub brand references and media resources.',
-  },
-  'help-center': {
-    title: 'Help Center | NearHub',
-    description: 'Support resources for buyers, sellers, and administrators on NearHub.',
-  },
-  'safety-tips': {
-    title: 'Safety Tips | NearHub',
-    description: 'Practical marketplace safety guidance for secure local transactions.',
-  },
-  'terms-of-service': {
-    title: 'Terms of Service | NearHub',
-    description: 'Read NearHub terms governing platform usage.',
-  },
-  'privacy-policy': {
-    title: 'Privacy Policy | NearHub',
-    description: 'Understand how NearHub handles personal data and privacy.',
-  },
-  'report-issue': {
-    title: 'Report an Issue | NearHub',
-    description: 'Report a NearHub issue with context for faster resolution.',
-  },
-  cookies: {
-    title: 'Cookie Policy | NearHub',
-    description: 'How NearHub uses cookies for functionality and analytics.',
-  },
-  sitemap: {
-    title: 'Sitemap | NearHub',
-    description: 'Browse a structured overview of key NearHub routes and sections.',
-  },
+type SeoRouteConfig = {
+  path: string;
+  title: string;
+  description: string;
 };
+
+type SeoRoutesConfig = {
+  siteUrlFallback: string;
+  defaultImagePath: string;
+  keywords: string;
+  defaultMeta: {
+    title: string;
+    description: string;
+  };
+  noindexPrefixes: string[];
+  routes: SeoRouteConfig[];
+};
+
+const SEO_CONFIG = seoConfigData as SeoRoutesConfig;
+const SITE_URL = (import.meta.env.VITE_SITE_URL || SEO_CONFIG.siteUrlFallback).replace(/\/+$/, '');
+const DEFAULT_IMAGE_URL = `${SITE_URL}${SEO_CONFIG.defaultImagePath}`;
+const ROUTE_META = new Map<string, RouteMeta>(
+  SEO_CONFIG.routes.map((route) => [
+    route.path,
+    { title: route.title, description: route.description },
+  ])
+);
 
 function upsertMeta(
   attr: 'name' | 'property',
@@ -112,7 +75,8 @@ function upsertJsonLd(id: string, data: Record<string, unknown>) {
 }
 
 function resolveMeta(pathname: string): RouteMeta {
-  if (pathname.startsWith('/admin')) {
+  const isNoindexPath = SEO_CONFIG.noindexPrefixes.some((prefix) => pathname.startsWith(prefix));
+  if (isNoindexPath) {
     return {
       title: 'NearHub Admin',
       description: 'NearHub administration portal.',
@@ -120,79 +84,14 @@ function resolveMeta(pathname: string): RouteMeta {
     };
   }
 
-  if (pathname === '/') {
-    return {
-      title: 'NearHub | Buy, Sell & Discover Near You',
-      description:
-        'NearHub is a hyperlocal classifieds platform to buy, sell, and discover trusted listings near you.',
-    };
-  }
-
-  if (pathname === '/features') {
-    return {
-      title: 'Features | NearHub',
-      description:
-        'Explore NearHub features including video-first listings, geo discovery, alerts, and trust controls.',
-    };
-  }
-
-  if (pathname === '/contact') {
-    return {
-      title: 'Contact | NearHub',
-      description: 'Get in touch with NearHub for support, partnerships, and platform enquiries.',
-    };
-  }
-
-  if (pathname === '/privacy-policy') {
-    return {
-      title: 'Privacy Policy | NearHub',
-      description: 'Read how NearHub collects, uses, secures, and shares personal information.',
-    };
-  }
-
-  if (pathname === '/terms') {
-    return {
-      title: 'Terms And Conditions | NearHub',
-      description: 'Review user responsibilities, payment terms, and account rules for NearHub.',
-    };
-  }
-
-  if (pathname === '/refund-policy') {
-    return {
-      title: 'Refund And Cancellation Policy | NearHub',
-      description:
-        'Learn NearHub refund eligibility, cancellation terms, and processing timelines.',
-    };
-  }
-
-  if (pathname === '/about') {
-    return {
-      title: 'About | NearHub',
-      description: 'Learn about NearHub, our mission, and company information.',
-    };
-  }
-
-  if (pathname === '/payment-security') {
-    return {
-      title: 'Payment Security | NearHub',
-      description:
-        'Understand how NearHub and Razorpay process payments securely and protect payment data.',
-    };
-  }
-
-  if (pathname.startsWith('/footer/')) {
-    const key = pathname.split('/')[2] || '';
-    return (
-      FOOTER_META[key] || {
-        title: 'NearHub',
-        description: 'NearHub hyperlocal classifieds platform.',
-      }
-    );
+  const routeMeta = ROUTE_META.get(pathname);
+  if (routeMeta) {
+    return routeMeta;
   }
 
   return {
-    title: 'NearHub',
-    description: 'NearHub hyperlocal classifieds platform.',
+    title: SEO_CONFIG.defaultMeta.title,
+    description: SEO_CONFIG.defaultMeta.description,
   };
 }
 
@@ -301,7 +200,7 @@ export function SeoManager() {
     upsertMeta(
       'name',
       'keywords',
-      'nearhub, classifieds, buy and sell, local marketplace, hyperlocal listings, ads'
+      SEO_CONFIG.keywords
     );
 
     upsertMeta('property', 'og:title', meta.title);

@@ -11,9 +11,14 @@ import {
   adminAuthMiddleware,
 } from '../../features/admin/routes/admin-auth';
 import { registerAdminSettingsRoutes } from '../../features/admin/routes/admin-settings';
+import { registerReportsRoutes } from '../../features/admin/routes/reports';
 import { registerWorkerRoutes } from '../../features/workers/routes/workers';
 import { registerSubscriptionRoutes } from '../../features/subscriptions/routes/subscriptions';
 import { registerListingRoutes } from '../../features/listings/routes/listings';
+import { registerUserRoutes } from '../../features/users/routes/users';
+import { registerInvoiceRoutes } from '../../features/users/routes/invoices';
+import { registerMessageRoutes } from '../../features/messages/routes/messages';
+import { registerInAppNotificationRoutes } from '../../features/notifications/routes/in-app';
 
 /**
  * Create a test application instance
@@ -40,12 +45,18 @@ export function createTestApp(): Express {
   // Admin auth + protected settings middleware
   registerAdminAuthRoutes(app);
   app.use('/api/admin/settings', adminAuthMiddleware);
+  app.use(['/api/admin/reports', '/api/admin/revenue'], adminAuthMiddleware);
   registerAdminSettingsRoutes(app);
+  registerReportsRoutes(app);
   registerCouponRoutes(app);
 
   // Subscription and listing routes
   registerSubscriptionRoutes(app);
   registerListingRoutes(app);
+  registerMessageRoutes(app);
+  registerInAppNotificationRoutes(app);
+  registerUserRoutes(app);
+  registerInvoiceRoutes(app);
 
   // Worker management routes
   registerWorkerRoutes(app);
