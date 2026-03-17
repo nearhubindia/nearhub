@@ -70,3 +70,4 @@ npm run format:check
 - Mobile dev workflow: `app/MOBILE_DEV_GUIDE.md`
 - AI moderation setup: `server/AI_MODERATION_SETUP.md`
 - Architecture overview: `docs/ARCHITECTURE.md`
+- CI/CD setup: `docs/CICD_SETUP.md`
