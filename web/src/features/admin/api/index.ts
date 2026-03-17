@@ -209,7 +209,7 @@ export const couponsApi = {
 
   async updateCoupon(id: string, data: Record<string, unknown>): Promise<unknown> {
     const response = await fetch(`${API_BASE_URL}/api/admin/coupons/${id}`, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });

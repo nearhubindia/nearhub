@@ -8,15 +8,6 @@ on:
       - "server/**"
       - ".github/workflows/deploy-server-hostinger.yml"
   workflow_dispatch:
-    inputs:
-      run_migrations:
-        description: "Run `npm run db:migrate` on VPS after deploy"
-        required: false
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
 
 concurrency:
   group: deploy-server-main
@@ -95,14 +86,11 @@ jobs:
 
       - name: Deploy release on VPS
         uses: appleboy/ssh-action@v1.2.0
-        env:
-          RUN_MIGRATIONS: ${{ github.event.inputs.run_migrations || 'false' }}
         with:
           host: ${{ secrets.HOSTINGER_VPS_HOST }}
           username: ${{ secrets.HOSTINGER_VPS_USER }}
           key: ${{ secrets.HOSTINGER_VPS_SSH_KEY }}
           port: ${{ secrets.HOSTINGER_VPS_PORT || '22' }}
-          envs: RUN_MIGRATIONS
           script: |
             set -euo pipefail
 
@@ -133,19 +121,18 @@ jobs:
 
             if [ -f "$APP_DIR/shared/.env" ]; then
               mkdir -p "$RELEASE_DIR/server"
+              ln -sfn "$APP_DIR/shared/.env" "$RELEASE_DIR/.env"
               ln -sfn "$APP_DIR/shared/.env" "$RELEASE_DIR/server/.env"
             else
               echo "[WARN] Missing $APP_DIR/shared/.env. Runtime may fail without DATABASE_URL."
             fi
 
             cd "$RELEASE_DIR"
-            if [ "${RUN_MIGRATIONS}" = "true" ]; then
-              npm ci
-              npm run db:migrate
-              npm prune --omit=dev
-            else
-              npm ci --omit=dev
-            fi
+            # Always run DB migrations before switching current release.
+            # We install dev deps temporarily because drizzle-kit is a dev dependency.
+            npm ci
+            npm run db:migrate
+            npm prune --omit=dev
 
             ln -sfn "$RELEASE_DIR" "$APP_DIR/current"
 

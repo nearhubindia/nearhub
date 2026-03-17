@@ -52,7 +52,7 @@ sudo cp /path/to/your/server/.env /opt/nearhub-server/shared/.env
 sudo systemctl restart nearhub-server
 ```
 
-6. If using DB migrations on deploy, configure env/db access for runtime user.
+6. Ensure DB credentials in `/opt/nearhub-server/shared/.env` have permission to run migrations.
 
 ## 3. How Deploy Works
 
@@ -65,8 +65,8 @@ sudo systemctl restart nearhub-server
   - extracts into new timestamped release
   - validates `DEPLOYMENT_MANIFEST`
   - refuses deploy if `.git` metadata is present in release
-  - links `current/server/.env` from `/opt/nearhub-server/shared/.env`
-  - runs `npm ci --omit=dev` (or full install + migration + prune when `run_migrations=true`)
+  - links both `current/.env` and `current/server/.env` from `/opt/nearhub-server/shared/.env`
+  - runs `npm ci`, then `npm run db:migrate` (Drizzle), then `npm prune --omit=dev`
   - switches `current` symlink
   - restarts systemd service, or falls back to PM2 (`HOSTINGER_PM2_APP_NAME`)
 
