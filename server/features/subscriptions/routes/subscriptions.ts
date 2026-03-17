@@ -42,6 +42,7 @@ import {
   getListingById,
   getListingsByUser,
 } from '../../listings/services/listings';
+import { getListingConversationCountMap, getListingLikeCountMap } from '../../listings/services/analytics';
 import {
   notifyPaymentSuccess,
   notifyPaymentFailed,
@@ -277,11 +278,19 @@ function getSellerDisplayName(listing: any, sellerMeta?: SellerMeta): string {
   return 'Seller';
 }
 
-function toPublicListing(listing: any, sellerMetaMap?: Map<string, SellerMeta>) {
+function toPublicListing(
+  listing: any,
+  sellerMetaMap?: Map<string, SellerMeta>,
+  chatCountMap?: Map<string, number>,
+  likeCountMap?: Map<string, number>
+) {
   const { sellerId: rawSellerId, ...rest } = listing || {};
   const sellerId = typeof rawSellerId === 'string' ? rawSellerId : '';
+  const listingId = String(listing?.id || '').trim();
   const contactPhone = resolveContactPhone(rest, sellerId);
   const sellerMeta = sellerMetaMap?.get(sellerId);
+  const chatCount = Number(chatCountMap?.get(listingId) || 0);
+  const likeCount = Number(likeCountMap?.get(listingId) || 0);
 
   return {
     ...rest,
@@ -292,6 +301,9 @@ function toPublicListing(listing: any, sellerMetaMap?: Map<string, SellerMeta>) 
     sellerVerified: Boolean(sellerMeta?.isVerified),
     contactPhone,
     sellerPhone: contactPhone,
+    chatCount,
+    likeCount,
+    saveCount: likeCount,
     images: parseMediaField(listing?.images),
     videos: parseMediaField(listing?.videos),
   };
@@ -1833,7 +1845,15 @@ export function registerSubscriptionRoutes(app: Express) {
     try {
       const listings = await getListingsByUser(ownerIdParam);
       const sellerMetaMap = await getSellerMetaMap(listings.map((listing) => listing.sellerId));
-      const formattedListings = listings.map((listing) => toPublicListing(listing, sellerMetaMap));
+      const chatCountMap = await getListingConversationCountMap(
+        listings.map((listing) => String(listing.id || ''))
+      );
+      const likeCountMap = await getListingLikeCountMap(
+        listings.map((listing) => String(listing.id || ''))
+      );
+      const formattedListings = listings.map((listing) =>
+        toPublicListing(listing, sellerMetaMap, chatCountMap, likeCountMap)
+      );
 
       // Attach latest rejection reason for rejected listings so seller can edit + resubmit
       const rejectedListingIds = formattedListings

@@ -11,6 +11,9 @@ import {
   getListingAnalytics,
   getUserAnalytics,
   getViewMilestones,
+  getListingConversationCountMap,
+  getListingLikeCountMap,
+  setListingLike,
 } from '../services/analytics';
 import {
   notifyViewMilestone,
@@ -307,13 +310,19 @@ function toPublicListing(
   req: Request,
   listing: any,
   sellerMetaMap?: Map<string, SellerMeta>,
-  options?: { includeSellerIdentity?: boolean }
+  options?: {
+    includeSellerIdentity?: boolean;
+    chatCountMap?: Map<string, number>;
+    likeCountMap?: Map<string, number>;
+  }
 ) {
   const { sellerId: rawSellerId, ...rest } = listing || {};
   const sellerId = typeof rawSellerId === 'string' ? rawSellerId : '';
   const listingId = String(listing?.id || '').trim();
   const sellerMeta = sellerMetaMap?.get(sellerId);
   const includeSellerIdentity = Boolean(options?.includeSellerIdentity);
+  const chatCount = Number(options?.chatCountMap?.get(listingId) || 0);
+  const likeCount = Number(options?.likeCountMap?.get(listingId) || 0);
   const images = parseJsonField(listing?.images);
   const videos = parseJsonField(listing?.videos);
 
@@ -327,6 +336,9 @@ function toPublicListing(
     // Never expose raw phone numbers in public listing payloads.
     contactPhone: '',
     sellerPhone: '',
+    chatCount,
+    likeCount,
+    saveCount: likeCount,
     images: sanitizeMediaForPublic(req, listingId, 'images', images),
     videos: sanitizeMediaForPublic(req, listingId, 'videos', videos),
   };
@@ -409,11 +421,17 @@ export function registerListingRoutes(app: Express) {
         return true;
       });
       const sellerMetaMap = await getSellerMetaMap(priceFilteredListings.map((l) => l.sellerId));
+      const chatCountMap = await getListingConversationCountMap(
+        priceFilteredListings.map((l) => String(l.id || ''))
+      );
+      const likeCountMap = await getListingLikeCountMap(
+        priceFilteredListings.map((l) => String(l.id || ''))
+      );
 
       const response = {
         success: true,
         data: priceFilteredListings.map((l) =>
-          toPublicListing(req, l, sellerMetaMap, { includeSellerIdentity })
+          toPublicListing(req, l, sellerMetaMap, { includeSellerIdentity, chatCountMap, likeCountMap })
         ),
         limit,
         offset,
@@ -448,12 +466,20 @@ export function registerListingRoutes(app: Express) {
 
       const listings = await getActiveListing({ limit, offset, category });
       const sellerMetaMap = await getSellerMetaMap(listings.map((l) => l.sellerId));
+      const chatCountMap = await getListingConversationCountMap(
+        listings.map((l) => String(l.id || ''))
+      );
+      const likeCountMap = await getListingLikeCountMap(listings.map((l) => String(l.id || '')));
 
       return res.json({
         success: true,
         category,
         listings: listings.map((l) =>
-          toPublicListing(req, l, sellerMetaMap, { includeSellerIdentity: Boolean(requesterId) })
+          toPublicListing(req, l, sellerMetaMap, {
+            includeSellerIdentity: Boolean(requesterId),
+            chatCountMap,
+            likeCountMap,
+          })
         ),
         pagination: { limit, offset, total: listings.length },
       });
@@ -546,9 +572,15 @@ export function registerListingRoutes(app: Express) {
 
       const page = filtered.slice(offset, offset + limit);
       const sellerMetaMap = await getSellerMetaMap(page.map((listing) => listing.sellerId));
+      const chatCountMap = await getListingConversationCountMap(
+        page.map((listing) => String(listing.id || ''))
+      );
+      const likeCountMap = await getListingLikeCountMap(page.map((listing) => String(listing.id || '')));
       const results = page.map((listing) =>
         toPublicListing(req, listing, sellerMetaMap, {
           includeSellerIdentity: Boolean(requesterId),
+          chatCountMap,
+          likeCountMap,
         })
       );
 
@@ -721,10 +753,14 @@ export function registerListingRoutes(app: Express) {
         return res.status(404).json({ success: false, error: 'Listing not found' });
       }
       const sellerMetaMap = await getSellerMetaMap([listing.sellerId]);
+      const chatCountMap = await getListingConversationCountMap([String(listing.id || '')]);
+      const likeCountMap = await getListingLikeCountMap([String(listing.id || '')]);
       return res.json({
         success: true,
         listing: toPublicListing(req, listing, sellerMetaMap, {
           includeSellerIdentity: Boolean(requesterId),
+          chatCountMap,
+          likeCountMap,
         }),
       });
     } catch (error) {
@@ -971,6 +1007,64 @@ export function registerListingRoutes(app: Express) {
     } catch (error) {
       console.error('[Listings] Error tracking view:', error);
       return res.status(500).json({ success: false, error: 'Failed to track view' });
+    }
+  });
+
+  /**
+   * POST /api/listings/:id/like
+   * Like/save a listing (authenticated)
+   */
+  app.post('/api/listings/:id/like', async (req: Request, res: Response) => {
+    try {
+      const userId = String(getRequestUserId(req) || '').trim();
+      if (!userId) {
+        return res.status(401).json({ success: false, error: 'Authentication required' });
+      }
+
+      const listingId = String(req.params.id || '').trim();
+      if (!listingId) {
+        return res.status(400).json({ success: false, error: 'Invalid listing id' });
+      }
+
+      const listing = await getListingById(listingId);
+      if (!listing) {
+        return res.status(404).json({ success: false, error: 'Listing not found' });
+      }
+
+      const result = await setListingLike(listingId, userId, true);
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('[Listings] Error liking listing:', error);
+      return res.status(500).json({ success: false, error: 'Failed to like listing' });
+    }
+  });
+
+  /**
+   * DELETE /api/listings/:id/like
+   * Unlike/unsave a listing (authenticated)
+   */
+  app.delete('/api/listings/:id/like', async (req: Request, res: Response) => {
+    try {
+      const userId = String(getRequestUserId(req) || '').trim();
+      if (!userId) {
+        return res.status(401).json({ success: false, error: 'Authentication required' });
+      }
+
+      const listingId = String(req.params.id || '').trim();
+      if (!listingId) {
+        return res.status(400).json({ success: false, error: 'Invalid listing id' });
+      }
+
+      const listing = await getListingById(listingId);
+      if (!listing) {
+        return res.status(404).json({ success: false, error: 'Listing not found' });
+      }
+
+      const result = await setListingLike(listingId, userId, false);
+      return res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('[Listings] Error unliking listing:', error);
+      return res.status(500).json({ success: false, error: 'Failed to unlike listing' });
     }
   });
 

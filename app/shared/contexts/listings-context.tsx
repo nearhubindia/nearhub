@@ -292,6 +292,18 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                     listing.boostCount !== undefined && listing.boostCount !== null
                       ? Number(listing.boostCount)
                       : undefined,
+                  chatCount:
+                    listing.chatCount !== undefined && listing.chatCount !== null
+                      ? Number(listing.chatCount)
+                      : undefined,
+                  likeCount:
+                    listing.likeCount !== undefined && listing.likeCount !== null
+                      ? Number(listing.likeCount)
+                      : undefined,
+                  saveCount:
+                    listing.saveCount !== undefined && listing.saveCount !== null
+                      ? Number(listing.saveCount)
+                      : undefined,
                   duration: Number(listing.durationDays || listing.duration || 0) || undefined,
                   durationDays: Number(listing.durationDays || listing.duration || 0) || undefined,
                   status: listing.status || 'active',
@@ -620,14 +632,69 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   };
 
   const toggleSaved = async (id: string) => {
+    const wasSaved = savedIds.has(id);
     const next = new Set(savedIds);
-    if (next.has(id)) {
+    if (wasSaved) {
       next.delete(id);
     } else {
       next.add(id);
     }
+
     setSavedIds(next);
     await AsyncStorage.setItem(SAVED_KEY, JSON.stringify([...next]));
+
+    const delta = wasSaved ? -1 : 1;
+    setListings((prev) =>
+      prev.map((listing) => {
+        if (listing.id !== id) return listing;
+        const currentCount = Number(listing.likeCount ?? listing.saveCount ?? 0) || 0;
+        const nextCount = Math.max(0, currentCount + delta);
+        return {
+          ...listing,
+          likeCount: nextCount,
+          saveCount: nextCount,
+        };
+      })
+    );
+
+    try {
+      const userDataStr = await AsyncStorage.getItem('@nearhub_auth_user');
+      const userData = userDataStr ? JSON.parse(userDataStr) : null;
+      const authUserId = String(userData?.id || '').trim();
+      const authUserPhone = String(userData?.phone || '').trim();
+      if (!authUserId) return;
+
+      const backendURL = getBackendURL();
+      const method = wasSaved ? 'DELETE' : 'POST';
+      const response = await fetch(`${backendURL}/api/listings/${encodeURIComponent(id)}/like`, {
+        method,
+        headers: buildUserAuthHeaders({ id: authUserId, phone: authUserPhone }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.warn('[Listings] Failed to sync listing like:', response.status, errorText);
+        return;
+      }
+
+      const data = await response.json().catch(() => null);
+      const serverLikeCount = Number(data?.likeCount);
+      if (Number.isFinite(serverLikeCount)) {
+        setListings((prev) =>
+          prev.map((listing) =>
+            listing.id === id
+              ? {
+                  ...listing,
+                  likeCount: serverLikeCount,
+                  saveCount: serverLikeCount,
+                }
+              : listing
+          )
+        );
+      }
+    } catch (error) {
+      console.warn('[Listings] Failed to sync listing like:', error);
+    }
   };
 
   const getListingById = (id: string) => listings.find((l) => l.id === id);
@@ -725,6 +792,18 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
             boostCount:
               listing.boostCount !== undefined && listing.boostCount !== null
                 ? Number(listing.boostCount)
+                : undefined,
+            chatCount:
+              listing.chatCount !== undefined && listing.chatCount !== null
+                ? Number(listing.chatCount)
+                : undefined,
+            likeCount:
+              listing.likeCount !== undefined && listing.likeCount !== null
+                ? Number(listing.likeCount)
+                : undefined,
+            saveCount:
+              listing.saveCount !== undefined && listing.saveCount !== null
+                ? Number(listing.saveCount)
                 : undefined,
             duration: Number(listing.durationDays || listing.duration || 0) || undefined,
             durationDays: Number(listing.durationDays || listing.duration || 0) || undefined,

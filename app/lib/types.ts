@@ -39,6 +39,9 @@ export interface Listing {
   durationDays?: number; // Server-side canonical duration field
   sellerAvatar?: string;
   viewCount?: number; // Total views for analytics
+  chatCount?: number; // Total chat conversations for this listing
+  likeCount?: number; // Optional server-provided likes/saves metric
+  saveCount?: number; // Optional server-provided saves metric
 }
 
 export type PriceUnit =

@@ -1,4 +1,13 @@
-import { pgTable, text, varchar, decimal, integer, timestamp, boolean } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  text,
+  varchar,
+  decimal,
+  integer,
+  timestamp,
+  boolean,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createInsertSchema } from 'drizzle-zod';
 import { z } from 'zod';
@@ -766,13 +775,50 @@ export const listingViews = pgTable('listing_views', {
     .notNull(),
 });
 
+/**
+ * Listing Likes Table
+ * Tracks user likes/saves per listing (one like per user per listing).
+ */
+export const listingLikes = pgTable(
+  'listing_likes',
+  {
+    id: varchar('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+
+    listingId: varchar('listing_id')
+      .notNull()
+      .references(() => listings.id, { onDelete: 'cascade' }),
+
+    userId: varchar('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+
+    createdAt: timestamp('created_at')
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    listingUserUnique: uniqueIndex('listing_likes_listing_user_unique').on(
+      table.listingId,
+      table.userId
+    ),
+  })
+);
+
 export const insertListingViewSchema = createInsertSchema(listingViews).omit({
   id: true,
   viewedAt: true,
 });
+export const insertListingLikeSchema = createInsertSchema(listingLikes).omit({
+  id: true,
+  createdAt: true,
+});
 
 export type ListingView = typeof listingViews.$inferSelect;
 export type InsertListingView = z.infer<typeof insertListingViewSchema>;
+export type ListingLike = typeof listingLikes.$inferSelect;
+export type InsertListingLike = z.infer<typeof insertListingLikeSchema>;
 
 export type UserSubscription = typeof userSubscriptions.$inferSelect;
 export type InsertUserSubscription = z.infer<typeof insertUserSubscriptionSchema>;

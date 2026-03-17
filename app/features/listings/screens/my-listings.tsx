@@ -476,6 +476,16 @@ export default function MyListingsScreen() {
     return `${hh}:${mm}:${ss}`;
   };
 
+  const getMetricValue = (item: any, candidates: string[]): number => {
+    for (const key of candidates) {
+      const value = Number(item?.[key]);
+      if (Number.isFinite(value) && value >= 0) {
+        return value;
+      }
+    }
+    return 0;
+  };
+
   const processUpgrade = async (listingId: string, duration: number, price: number) => {
     try {
       setUpgradingDuration(duration);
@@ -834,13 +844,17 @@ export default function MyListingsScreen() {
                   <View style={styles.analyticsRow}>
                     <View style={styles.analyticsItem}>
                       <Feather name="eye" size={18} color="#6b7280" />
-                      <Text style={styles.analyticsValue}>{item.viewCount || 0}</Text>
+                      <Text style={styles.analyticsValue}>
+                        {getMetricValue(item, ['viewCount', 'views', 'totalViews'])}
+                      </Text>
                       <Text style={styles.analyticsLabel}>Views</Text>
                     </View>
                     <View style={styles.analyticsDivider} />
                     <View style={styles.analyticsItem}>
                       <Feather name="heart" size={18} color="#6b7280" />
-                      <Text style={styles.analyticsValue}>3</Text>
+                      <Text style={styles.analyticsValue}>
+                        {getMetricValue(item, ['likeCount', 'likes', 'saveCount', 'savedCount'])}
+                      </Text>
                       <Text style={styles.analyticsLabel}>Likes</Text>
                     </View>
                     <View style={styles.analyticsDivider} />
@@ -853,7 +867,9 @@ export default function MyListingsScreen() {
                       }}
                     >
                       <Feather name="message-circle" size={18} color="#6b7280" />
-                      <Text style={styles.analyticsValue}>2</Text>
+                      <Text style={styles.analyticsValue}>
+                        {getMetricValue(item, ['chatCount', 'chats', 'messageCount', 'inquiryCount'])}
+                      </Text>
                       <Text style={styles.analyticsLabel}>Chats</Text>
                     </Pressable>
                   </View>

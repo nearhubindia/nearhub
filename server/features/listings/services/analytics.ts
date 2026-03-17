@@ -2,11 +2,15 @@ import { db } from '../../../data/db';
 import {
   listings,
   listingViews,
+  chatConversations,
+  listingLikes,
   insertListingViewSchema,
+  insertListingLikeSchema,
   type ListingView,
   type InsertListingView,
+  type InsertListingLike,
 } from '../../admin/models/admin-settings';
-import { eq, and, desc, sql, gte } from 'drizzle-orm';
+import { eq, and, desc, sql, gte, inArray } from 'drizzle-orm';
 
 /**
  * Track a listing view with IP-based deduplication
@@ -169,6 +173,126 @@ export async function getUserAnalytics(userId: string) {
 }
 
 export const getSellerAnalytics = getUserAnalytics;
+
+/**
+ * Get chat conversation counts grouped by listing id.
+ */
+export async function getListingConversationCountMap(
+  listingIds: string[]
+): Promise<Map<string, number>> {
+  const normalizedIds = [
+    ...new Set(
+      listingIds
+        .map((id) => String(id || '').trim())
+        .filter(Boolean)
+    ),
+  ];
+
+  if (normalizedIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = await db
+    .select({
+      listingId: chatConversations.listingId,
+      chatCount: sql<number>`COUNT(*)::int`,
+    })
+    .from(chatConversations)
+    .where(inArray(chatConversations.listingId, normalizedIds))
+    .groupBy(chatConversations.listingId);
+
+  const chatCountMap = new Map<string, number>();
+  normalizedIds.forEach((id) => chatCountMap.set(id, 0));
+
+  rows.forEach((row) => {
+    const listingId = String(row.listingId || '').trim();
+    if (!listingId) return;
+    chatCountMap.set(listingId, Number(row.chatCount) || 0);
+  });
+
+  return chatCountMap;
+}
+
+/**
+ * Get like/save counts grouped by listing id.
+ */
+export async function getListingLikeCountMap(listingIds: string[]): Promise<Map<string, number>> {
+  const normalizedIds = [
+    ...new Set(
+      listingIds
+        .map((id) => String(id || '').trim())
+        .filter(Boolean)
+    ),
+  ];
+
+  if (normalizedIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = await db
+    .select({
+      listingId: listingLikes.listingId,
+      likeCount: sql<number>`COUNT(*)::int`,
+    })
+    .from(listingLikes)
+    .where(inArray(listingLikes.listingId, normalizedIds))
+    .groupBy(listingLikes.listingId);
+
+  const likeCountMap = new Map<string, number>();
+  normalizedIds.forEach((id) => likeCountMap.set(id, 0));
+
+  rows.forEach((row) => {
+    const listingId = String(row.listingId || '').trim();
+    if (!listingId) return;
+    likeCountMap.set(listingId, Number(row.likeCount) || 0);
+  });
+
+  return likeCountMap;
+}
+
+export async function setListingLike(
+  listingId: string,
+  userId: string,
+  liked: boolean
+): Promise<{ liked: boolean; likeCount: number }> {
+  const normalizedListingId = String(listingId || '').trim();
+  const normalizedUserId = String(userId || '').trim();
+  if (!normalizedListingId || !normalizedUserId) {
+    return { liked: false, likeCount: 0 };
+  }
+
+  if (liked) {
+    const payload = insertListingLikeSchema.parse({
+      listingId: normalizedListingId,
+      userId: normalizedUserId,
+    });
+
+    await db
+      .insert(listingLikes)
+      .values(payload as InsertListingLike)
+      .onConflictDoNothing({
+        target: [listingLikes.listingId, listingLikes.userId],
+      });
+  } else {
+    await db
+      .delete(listingLikes)
+      .where(
+        and(eq(listingLikes.listingId, normalizedListingId), eq(listingLikes.userId, normalizedUserId))
+      );
+  }
+
+  const likeCountRows = await db
+    .select({
+      count: sql<number>`COUNT(*)::int`,
+    })
+    .from(listingLikes)
+    .where(eq(listingLikes.listingId, normalizedListingId));
+
+  return {
+    liked,
+    likeCount: Number(likeCountRows[0]?.count || 0),
+  };
+}
 
 /**
  * Get view milestones for notifications
