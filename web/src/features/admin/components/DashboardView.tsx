@@ -61,17 +61,17 @@ export default function DashboardView() {
   const [nowTimestamp, setNowTimestamp] = useState(0);
   const growthData = unwrapData<GrowthData>(reportData) ?? {};
   const usersTotalFromUsersPage = Number(
-    usersData?.total ??
-      (Array.isArray(usersData?.data) ? usersData.data.length : 0)
+    usersData?.total ?? (Array.isArray(usersData?.data) ? usersData.data.length : 0)
   );
-  const dashboardStats =
-    (dashboardStatsData &&
+  const dashboardStats = (
+    dashboardStatsData &&
     typeof dashboardStatsData === 'object' &&
     'stats' in dashboardStatsData &&
     dashboardStatsData.stats &&
     typeof dashboardStatsData.stats === 'object'
       ? dashboardStatsData.stats
-      : {}) as { totalUsers?: number; activeListings?: number };
+      : {}
+  ) as { totalUsers?: number; activeListings?: number };
 
   const resolvedTotalUsers = Number(
     growthData?.totalUsers ?? usersTotalFromUsersPage ?? dashboardStats.totalUsers ?? 0

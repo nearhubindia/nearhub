@@ -128,14 +128,15 @@ export default function ReportsView() {
   const { data: moderationRaw, isLoading: moderationLoading } = useModerationReport();
 
   const growth = unwrapData<GrowthData>(growthRaw) ?? {};
-  const dashboardStats =
-    (dashboardStatsRaw &&
+  const dashboardStats = (
+    dashboardStatsRaw &&
     typeof dashboardStatsRaw === 'object' &&
     'stats' in dashboardStatsRaw &&
     dashboardStatsRaw.stats &&
     typeof dashboardStatsRaw.stats === 'object'
       ? dashboardStatsRaw.stats
-      : {}) as { totalUsers?: number; activeListings?: number };
+      : {}
+  ) as { totalUsers?: number; activeListings?: number };
   const performance = unwrapData<PerformanceData>(performanceRaw) ?? {};
   const transaction = unwrapData<TransactionData>(transactionRaw) ?? {};
   const moderation = unwrapData<ModerationData>(moderationRaw) ?? {};
@@ -157,18 +158,36 @@ export default function ReportsView() {
   const transactions = Array.isArray(transaction.transactions) ? transaction.transactions : [];
   const moderationReports = Array.isArray(moderation.reports) ? moderation.reports : [];
 
-  const monthlyRevenueData = Array.isArray(transaction.monthlyData)
-    ? transaction.monthlyData
-    : [];
+  const monthlyRevenueData = Array.isArray(transaction.monthlyData) ? transaction.monthlyData : [];
 
   const isAnyLoading =
     growthLoading || performanceLoading || transactionLoading || moderationLoading;
 
   const reports = [
-    { id: 'growth' as const, title: 'User Growth Report', desc: 'Monthly user/listing trends', icon: '📈' },
-    { id: 'performance' as const, title: 'Listing Performance', desc: 'Top listings and categories', icon: '⭐' },
-    { id: 'transactions' as const, title: 'Transaction Report', desc: 'Revenue and payment activity', icon: '💳' },
-    { id: 'moderation' as const, title: 'Content Moderation', desc: 'Pending/resolved moderation issues', icon: '🚨' },
+    {
+      id: 'growth' as const,
+      title: 'User Growth Report',
+      desc: 'Monthly user/listing trends',
+      icon: '📈',
+    },
+    {
+      id: 'performance' as const,
+      title: 'Listing Performance',
+      desc: 'Top listings and categories',
+      icon: '⭐',
+    },
+    {
+      id: 'transactions' as const,
+      title: 'Transaction Report',
+      desc: 'Revenue and payment activity',
+      icon: '💳',
+    },
+    {
+      id: 'moderation' as const,
+      title: 'Content Moderation',
+      desc: 'Pending/resolved moderation issues',
+      icon: '🚨',
+    },
   ];
 
   if (isAnyLoading && !selectedReport) {
@@ -183,7 +202,10 @@ export default function ReportsView() {
     return (
       <div>
         <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
-          <button onClick={() => setSelectedReport(null)} className="text-teal-400 hover:text-teal-300 mb-4 font-bold">
+          <button
+            onClick={() => setSelectedReport(null)}
+            className="text-teal-400 hover:text-teal-300 mb-4 font-bold"
+          >
             ← Back to Reports
           </button>
           <h1 className="text-3xl sm:text-4xl font-black mb-2">📈 User Growth Report</h1>
@@ -207,12 +229,18 @@ export default function ReportsView() {
             </div>
             <div className="bg-white border border-slate-200 rounded-lg p-6">
               <p className="text-slate-600 text-sm mb-2">Transactions</p>
-              <p className="text-3xl font-black text-amber-600">{asNumber(growth.totalTransactions).toLocaleString()}</p>
-              <p className="text-sm text-amber-600 mt-2">{String(growth.transactionsTrend || '+0%')}</p>
+              <p className="text-3xl font-black text-amber-600">
+                {asNumber(growth.totalTransactions).toLocaleString()}
+              </p>
+              <p className="text-sm text-amber-600 mt-2">
+                {String(growth.transactionsTrend || '+0%')}
+              </p>
             </div>
             <div className="bg-white border border-slate-200 rounded-lg p-6">
               <p className="text-slate-600 text-sm mb-2">Revenue</p>
-              <p className="text-3xl font-black text-green-600">₹{asNumber(growth.revenue).toLocaleString()}</p>
+              <p className="text-3xl font-black text-green-600">
+                ₹{asNumber(growth.revenue).toLocaleString()}
+              </p>
               <p className="text-sm text-green-600 mt-2">{String(growth.revenueTrend || '+0%')}</p>
             </div>
           </div>
@@ -226,8 +254,20 @@ export default function ReportsView() {
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
-                  <Line type="monotone" dataKey="users" stroke="#0D9488" name="Users" strokeWidth={2} />
-                  <Line type="monotone" dataKey="listings" stroke="#0F766E" name="Listings" strokeWidth={2} />
+                  <Line
+                    type="monotone"
+                    dataKey="users"
+                    stroke="#0D9488"
+                    name="Users"
+                    strokeWidth={2}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="listings"
+                    stroke="#0F766E"
+                    name="Listings"
+                    strokeWidth={2}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -240,9 +280,16 @@ export default function ReportsView() {
             {categoryData.length > 0 ? (
               <div className="space-y-3">
                 {categoryData.map((row: CategoryPoint, i: number) => (
-                  <div key={`${row.name}-${i}`} className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-slate-800">{String(row.name || 'Other')}</span>
-                    <span className="font-bold text-slate-900">{asNumber(row.value).toLocaleString()}</span>
+                  <div
+                    key={`${row.name}-${i}`}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <span className="font-medium text-slate-800">
+                      {String(row.name || 'Other')}
+                    </span>
+                    <span className="font-bold text-slate-900">
+                      {asNumber(row.value).toLocaleString()}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -265,7 +312,10 @@ export default function ReportsView() {
     return (
       <div>
         <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
-          <button onClick={() => setSelectedReport(null)} className="text-teal-400 hover:text-teal-300 mb-4 font-bold">
+          <button
+            onClick={() => setSelectedReport(null)}
+            className="text-teal-400 hover:text-teal-300 mb-4 font-bold"
+          >
             ← Back to Reports
           </button>
           <h1 className="text-3xl sm:text-4xl font-black mb-2">⭐ Listing Performance Report</h1>
@@ -295,10 +345,16 @@ export default function ReportsView() {
                   <div key={listing.id || i} className="border border-slate-200 rounded-lg p-4">
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className="font-bold text-slate-900">{String(listing.title || 'Untitled')}</h3>
-                        <p className="text-sm text-slate-600">{String(listing.category || 'Other')}</p>
+                        <h3 className="font-bold text-slate-900">
+                          {String(listing.title || 'Untitled')}
+                        </h3>
+                        <p className="text-sm text-slate-600">
+                          {String(listing.category || 'Other')}
+                        </p>
                       </div>
-                      <span className="font-bold text-blue-600">{asNumber(listing.views).toLocaleString()} views</span>
+                      <span className="font-bold text-blue-600">
+                        {asNumber(listing.views).toLocaleString()} views
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -334,7 +390,10 @@ export default function ReportsView() {
     return (
       <div>
         <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
-          <button onClick={() => setSelectedReport(null)} className="text-teal-400 hover:text-teal-300 mb-4 font-bold">
+          <button
+            onClick={() => setSelectedReport(null)}
+            className="text-teal-400 hover:text-teal-300 mb-4 font-bold"
+          >
             ← Back to Reports
           </button>
           <h1 className="text-3xl sm:text-4xl font-black mb-2">💳 Transaction Report</h1>
@@ -344,15 +403,21 @@ export default function ReportsView() {
           <div className="grid md:grid-cols-3 gap-6">
             <div className="bg-white border border-slate-200 rounded-lg p-6">
               <p className="text-slate-600 text-sm mb-2">Total Revenue</p>
-              <p className="text-3xl font-black text-green-600">₹{asNumber(summary.totalRevenue).toLocaleString()}</p>
+              <p className="text-3xl font-black text-green-600">
+                ₹{asNumber(summary.totalRevenue).toLocaleString()}
+              </p>
             </div>
             <div className="bg-white border border-slate-200 rounded-lg p-6">
               <p className="text-slate-600 text-sm mb-2">Completed Transactions</p>
-              <p className="text-3xl font-black text-blue-600">{asNumber(summary.totalTransactions).toLocaleString()}</p>
+              <p className="text-3xl font-black text-blue-600">
+                {asNumber(summary.totalTransactions).toLocaleString()}
+              </p>
             </div>
             <div className="bg-white border border-slate-200 rounded-lg p-6">
               <p className="text-slate-600 text-sm mb-2">Avg Transaction Value</p>
-              <p className="text-3xl font-black text-purple-600">₹{asNumber(summary.avgTransactionValue).toLocaleString()}</p>
+              <p className="text-3xl font-black text-purple-600">
+                ₹{asNumber(summary.avgTransactionValue).toLocaleString()}
+              </p>
             </div>
           </div>
 
@@ -369,7 +434,9 @@ export default function ReportsView() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-sm text-slate-500">No monthly transaction trend data available yet.</p>
+              <p className="text-sm text-slate-500">
+                No monthly transaction trend data available yet.
+              </p>
             )}
           </div>
 
@@ -393,7 +460,9 @@ export default function ReportsView() {
                         <td className="px-4 py-3 font-mono text-xs">{String(row.id || '-')}</td>
                         <td className="px-4 py-3">{String(row.sellerId || '-')}</td>
                         <td className="px-4 py-3">{String(row.status || '-')}</td>
-                        <td className="px-4 py-3 font-bold">₹{asNumber(row.amount).toLocaleString()}</td>
+                        <td className="px-4 py-3 font-bold">
+                          ₹{asNumber(row.amount).toLocaleString()}
+                        </td>
                         <td className="px-4 py-3">
                           {row.createdAt ? new Date(String(row.createdAt)).toLocaleString() : '-'}
                         </td>
@@ -416,7 +485,10 @@ export default function ReportsView() {
     return (
       <div>
         <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
-          <button onClick={() => setSelectedReport(null)} className="text-teal-400 hover:text-teal-300 mb-4 font-bold">
+          <button
+            onClick={() => setSelectedReport(null)}
+            className="text-teal-400 hover:text-teal-300 mb-4 font-bold"
+          >
             ← Back to Reports
           </button>
           <h1 className="text-3xl sm:text-4xl font-black mb-2">🚨 Content Moderation Report</h1>
@@ -426,15 +498,21 @@ export default function ReportsView() {
           <div className="grid md:grid-cols-3 gap-6">
             <div className="bg-white border border-slate-200 rounded-lg p-6">
               <p className="text-slate-600 text-sm mb-2">Pending Reports</p>
-              <p className="text-3xl font-black text-amber-600">{asNumber(summary.pendingReports).toLocaleString()}</p>
+              <p className="text-3xl font-black text-amber-600">
+                {asNumber(summary.pendingReports).toLocaleString()}
+              </p>
             </div>
             <div className="bg-white border border-slate-200 rounded-lg p-6">
               <p className="text-slate-600 text-sm mb-2">Resolved Reports</p>
-              <p className="text-3xl font-black text-green-600">{asNumber(summary.resolvedReports).toLocaleString()}</p>
+              <p className="text-3xl font-black text-green-600">
+                {asNumber(summary.resolvedReports).toLocaleString()}
+              </p>
             </div>
             <div className="bg-white border border-slate-200 rounded-lg p-6">
               <p className="text-slate-600 text-sm mb-2">Chat Conversations</p>
-              <p className="text-3xl font-black text-blue-600">{asNumber(summary.chatConversations).toLocaleString()}</p>
+              <p className="text-3xl font-black text-blue-600">
+                {asNumber(summary.chatConversations).toLocaleString()}
+              </p>
             </div>
           </div>
 
@@ -443,12 +521,21 @@ export default function ReportsView() {
             {moderationReports.length > 0 ? (
               <div className="space-y-3">
                 {moderationReports.map((item: ModerationRow, i: number) => (
-                  <div key={`${item.category}-${i}`} className="flex items-center justify-between border border-slate-200 rounded-lg p-4">
+                  <div
+                    key={`${item.category}-${i}`}
+                    className="flex items-center justify-between border border-slate-200 rounded-lg p-4"
+                  >
                     <div>
-                      <h3 className="font-bold text-slate-900">{String(item.category || 'Other')}</h3>
-                      <p className="text-xs text-slate-500">{String(item.action || 'Pending review')}</p>
+                      <h3 className="font-bold text-slate-900">
+                        {String(item.category || 'Other')}
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        {String(item.action || 'Pending review')}
+                      </p>
                     </div>
-                    <span className="font-bold text-red-600">{asNumber(item.count).toLocaleString()}</span>
+                    <span className="font-bold text-red-600">
+                      {asNumber(item.count).toLocaleString()}
+                    </span>
                   </div>
                 ))}
               </div>

@@ -197,11 +197,7 @@ export function SeoManager() {
 
     upsertMeta('name', 'description', meta.description);
     upsertMeta('name', 'robots', robots);
-    upsertMeta(
-      'name',
-      'keywords',
-      SEO_CONFIG.keywords
-    );
+    upsertMeta('name', 'keywords', SEO_CONFIG.keywords);
 
     upsertMeta('property', 'og:title', meta.title);
     upsertMeta('property', 'og:description', meta.description);

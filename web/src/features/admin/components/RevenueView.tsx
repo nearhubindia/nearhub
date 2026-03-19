@@ -28,7 +28,9 @@ function unwrapData<T>(payload: unknown): T | undefined {
 export default function RevenueView() {
   const { data: revenueData, isLoading } = useRevenueStats();
   const resolvedRevenue = unwrapData<RevenueData>(revenueData) ?? {};
-  const monthlyData = Array.isArray(resolvedRevenue?.monthlyData) ? resolvedRevenue.monthlyData : [];
+  const monthlyData = Array.isArray(resolvedRevenue?.monthlyData)
+    ? resolvedRevenue.monthlyData
+    : [];
 
   const stats = {
     total: Number(resolvedRevenue?.totalRevenue || 0),
