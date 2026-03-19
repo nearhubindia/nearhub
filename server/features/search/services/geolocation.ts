@@ -79,7 +79,6 @@ class GeolocationService {
 
       // Use streaming approach for large files
       const chunkSize = 1024 * 1024; // 1MB chunks
-      let buffer = '';
       const fd = fs.openSync(geoJsonPath, 'r');
       const chunk = Buffer.alloc(chunkSize);
       let bytesRead;

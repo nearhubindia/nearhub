@@ -15,7 +15,8 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/gif',
 ]);
 
-const ALLOWED_VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm']);
+// Keep video uploads Android-safe by accepting only MP4 container uploads.
+const ALLOWED_VIDEO_MIME_TYPES = new Set(['video/mp4']);
 
 const MIME_EXTENSION_MAP: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -26,8 +27,6 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
   'image/heif': 'heif',
   'image/gif': 'gif',
   'video/mp4': 'mp4',
-  'video/quicktime': 'mov',
-  'video/webm': 'webm',
 };
 
 function getRequiredEnv(name: string, value: string): string {

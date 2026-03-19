@@ -137,7 +137,7 @@ export default function CouponsView() {
             setFormData({ code: '', discountPercentage: '', maxUsageCount: '', expiresAt: '' });
             setShowCouponModal(true);
           }}
-          className="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 hover:shadow-lg hover:scale-105 transition flex items-center gap-2 mb-6 font-bold cursor-pointer"
+          className="mb-6 flex w-full items-center justify-center gap-2 rounded-lg bg-teal-500 px-6 py-2 font-bold text-white transition hover:scale-105 hover:bg-teal-600 hover:shadow-lg sm:w-auto"
         >
           <Plus size={20} />
           New Coupon
@@ -151,7 +151,7 @@ export default function CouponsView() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-            <table className="w-full min-w-[860px]">
+            <table className="w-full min-w-[760px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">Code</th>

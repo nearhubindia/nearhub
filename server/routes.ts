@@ -80,6 +80,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerAdminListingsRoutes(app);
   registerAdminBannersRoutes(app);
   registerAdminContactSubmissionRoutes(app);
+  app.use(['/api/admin/reports', '/api/admin/revenue'], adminAuthMiddleware);
   registerReportsRoutes(app);
   registerAdminUserLifecycleRoutes(app);
   registerListingRoutes(app);

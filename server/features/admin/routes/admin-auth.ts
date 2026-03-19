@@ -13,6 +13,9 @@ import {
   initializeDefaultAdmin,
 } from '../services/admin-auth';
 
+type AdminTokenPayload = { id: string; email: string; role: string };
+type AdminRequest = Request & { admin?: AdminTokenPayload };
+
 /**
  * Middleware to verify admin token
  */
@@ -37,7 +40,7 @@ export function adminAuthMiddleware(req: Request, res: Response, next: NextFunct
     }
 
     // Attach admin to request for use in route handlers
-    (req as any).admin = admin;
+    (req as AdminRequest).admin = admin;
     next();
   } catch (error) {
     console.error('[Admin Auth] Middleware error:', error);
@@ -120,7 +123,13 @@ export function registerAdminAuthRoutes(app: Express) {
    */
   app.get('/api/admin/me', adminAuthMiddleware, (req: Request, res: Response) => {
     try {
-      const adminData = (req as any).admin;
+      const adminData = (req as AdminRequest).admin;
+      if (!adminData?.id) {
+        return res.status(401).json({
+          success: false,
+          error: 'Admin context missing',
+        });
+      }
       const admin = getAdminById(adminData.id);
 
       if (!admin) {
@@ -161,7 +170,13 @@ export function registerAdminAuthRoutes(app: Express) {
     async (req: Request, res: Response) => {
       try {
         const { oldPassword, newPassword, confirmPassword } = req.body;
-        const adminData = (req as any).admin;
+        const adminData = (req as AdminRequest).admin;
+        if (!adminData?.id) {
+          return res.status(401).json({
+            success: false,
+            error: 'Admin context missing',
+          });
+        }
 
         // Validate new passwords match
         if (newPassword !== confirmPassword) {
@@ -227,7 +242,7 @@ export function registerAdminAuthRoutes(app: Express) {
     res.json({
       success: true,
       message: 'Token is valid',
-      admin: (req as any).admin,
+      admin: (req as AdminRequest).admin,
     });
   });
 

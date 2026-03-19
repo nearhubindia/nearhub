@@ -10,6 +10,8 @@ import {
   type UserDeletionReviewStatus,
 } from '../../users/services/user-lifecycle';
 
+type AdminAuthRequest = Request & { admin?: { email?: string; id?: string } };
+
 export function registerAdminUserLifecycleRoutes(app: Express): void {
   app.get(
     '/api/admin/user-lifecycle/reviews',
@@ -67,7 +69,8 @@ export function registerAdminUserLifecycleRoutes(app: Express): void {
           .trim()
           .toLowerCase() as 'pending' | 'approved' | 'rejected';
         const notes = typeof req.body?.notes === 'string' ? req.body.notes : undefined;
-        const reviewedBy = (req as any).admin?.email || (req as any).admin?.id || 'admin';
+        const reviewedBy =
+          (req as AdminAuthRequest).admin?.email || (req as AdminAuthRequest).admin?.id || 'admin';
 
         if (!reviewId) {
           return res.status(400).json({ success: false, error: 'Review id is required' });

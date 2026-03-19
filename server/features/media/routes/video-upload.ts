@@ -89,7 +89,7 @@ export function registerVideoUploadRoutes(app: Express) {
 
       const progress = getUploadProgress(uploadId);
       res.json(progress);
-    } catch (error) {
+    } catch {
       res.status(404).json({
         success: false,
         message: 'Upload session not found',
@@ -203,7 +203,7 @@ export function registerVideoUploadRoutes(app: Express) {
           duration: metadata.duration,
         },
       });
-    } catch (error) {
+    } catch {
       res.status(500).json({
         success: false,
         message: 'Failed to get video metadata',
@@ -226,7 +226,7 @@ export function registerVideoUploadRoutes(app: Express) {
         success: true,
         message: 'Video deleted and cache invalidated',
       });
-    } catch (error) {
+    } catch {
       res.status(500).json({
         success: false,
         message: 'Failed to delete video',
@@ -245,7 +245,7 @@ export function registerVideoUploadRoutes(app: Express) {
         success: true,
         stats,
       });
-    } catch (error) {
+    } catch {
       res.status(500).json({
         success: false,
         message: 'Failed to get streaming stats',

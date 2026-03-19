@@ -1,8 +1,6 @@
 import type { Express } from 'express';
 import {
-  cleanupListingMedia,
   cleanupMultipleListingsMedia,
-  shouldDeleteMedia,
   filterListingsForCleanup,
   runScheduledMediaCleanup,
   type ListingForCleanup,

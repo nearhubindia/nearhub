@@ -113,6 +113,15 @@ interface GrowthReportData {
   revenueTrend?: string;
 }
 
+interface DashboardStatsData {
+  stats?: {
+    totalUsers?: number;
+    activeListings?: number;
+    spamReports?: number;
+    videoUploads?: number;
+  };
+}
+
 interface RecentActivityItem {
   id?: string;
   user?: string;
@@ -126,6 +135,7 @@ interface RecentActivityQueryData {
 }
 
 interface UsersQueryData {
+  total?: number;
   data?: Array<{
     id: string;
     username: string;
@@ -455,6 +465,15 @@ export function useModerationReport() {
   return useQuery({
     queryKey: adminKeys.reportModeration(),
     queryFn: () => reportsApi.getModerationReport(),
+    staleTime: STALE_TIME,
+    gcTime: CACHE_TIME,
+  });
+}
+
+export function useDashboardStats() {
+  return useQuery<DashboardStatsData>({
+    queryKey: adminKeys.dashboardStats(),
+    queryFn: () => reportsApi.getDashboardStats() as Promise<DashboardStatsData>,
     staleTime: STALE_TIME,
     gcTime: CACHE_TIME,
   });

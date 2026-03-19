@@ -6,7 +6,6 @@ import {
   listingLikes,
   insertListingViewSchema,
   insertListingLikeSchema,
-  type ListingView,
   type InsertListingView,
   type InsertListingLike,
 } from '../../admin/models/admin-settings';

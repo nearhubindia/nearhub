@@ -12,7 +12,6 @@ import {
   deleteNotification,
   getNotificationStats,
   deleteExpiredNotifications,
-  broadcastInAppNotification,
 } from '../../../shared/services/in-app-notifications';
 import { db } from '../../../data/db';
 import { inAppNotifications } from '../../admin/models/admin-settings';

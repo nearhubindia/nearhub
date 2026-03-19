@@ -40,6 +40,17 @@ body,
   overflow-x: hidden;
 }
 
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
 .scroll-banner {
   position: relative;
   overflow: hidden;

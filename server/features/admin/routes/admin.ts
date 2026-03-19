@@ -21,6 +21,9 @@ import {
 } from '../../../shared/services/auto-notifications';
 
 export function registerAdminRoutes(app: Express) {
+  const getErrorMessage = (error: unknown, fallback: string): string =>
+    error instanceof Error && error.message ? error.message : fallback;
+
   // ==================== SPAM / REPORTING ====================
 
   app.post('/api/report-user', (req: Request, res: Response) => {
@@ -35,8 +38,8 @@ export function registerAdminRoutes(app: Express) {
       }
       const report = reportUser(reportedUserId, reporterUserId, reason, description, listingId);
       res.json({ success: true, report });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message || 'Failed to report user' });
+    } catch (error: unknown) {
+      res.status(400).json({ error: getErrorMessage(error, 'Failed to report user') });
     }
   });
 
@@ -91,7 +94,7 @@ export function registerAdminRoutes(app: Express) {
       ).catch((err) => console.error('[Admin] Failed to send report reviewed notification:', err));
 
       res.json({ success: true, report });
-    } catch (error: any) {
+    } catch {
       res.status(500).json({ error: 'Failed to review report' });
     }
   });
@@ -108,7 +111,7 @@ export function registerAdminRoutes(app: Express) {
       );
 
       res.json({ success: true, profile });
-    } catch (error: any) {
+    } catch {
       res.status(500).json({ error: 'Failed to block user' });
     }
   });
@@ -125,7 +128,7 @@ export function registerAdminRoutes(app: Express) {
       );
 
       res.json({ success: true, profile });
-    } catch (error: any) {
+    } catch {
       res.status(500).json({ error: 'Failed to unblock user' });
     }
   });

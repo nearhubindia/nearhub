@@ -38,7 +38,7 @@ export async function initializeElasticsearch(): Promise<void> {
 
     // Create or update index mapping
     await createOrUpdateIndexMapping();
-  } catch (error) {
+  } catch {
     console.warn(
       '[Elasticsearch] Connection failed - Search will be disabled.',
       process.env.ELASTICSEARCH_URL

@@ -88,7 +88,7 @@ export default function ContactSubmissionsView() {
             <div className="p-12 text-center text-slate-600">No enquries found</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px]">
+              <table className="w-full min-w-[860px]">
                 <thead className="bg-slate-100 border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">
@@ -186,7 +186,7 @@ export default function ContactSubmissionsView() {
                           </button>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="min-w-[240px] space-y-3 sm:min-w-[300px]">
+                          <div className="min-w-[200px] space-y-3 sm:min-w-[280px]">
                             {comments.map((commentItem) => {
                               const isEditing = editingCommentIds[commentItem.id] || false;
                               return (

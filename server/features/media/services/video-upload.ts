@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import crypto from 'crypto';
-import { pipeline } from 'stream/promises';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/tmp/video-uploads';
 const CHUNK_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours
@@ -132,7 +131,7 @@ export async function finalizeUpload(uploadId: string): Promise<string> {
     for (let i = 0; i < session.totalChunks; i++) {
       const chunkPath = path.join(UPLOAD_DIR, `${uploadId}_chunk_${i}`);
 
-      // Use stream pipeline for efficient async copy (no blocking)
+      // Stream-copy each chunk into the final file without loading all chunks into memory.
       const readStream = fs.createReadStream(chunkPath);
       await new Promise<void>((resolve, reject) => {
         readStream.on('data', (chunk) => writeStream.write(chunk));

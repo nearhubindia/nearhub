@@ -165,7 +165,7 @@ export function registerListingExpirationRoutes(app: Express) {
         180: settings.imageDuration180Days ?? '17820',
       };
 
-      let baseFee = parseFloat(durations[duration] || '0');
+      const baseFee = parseFloat(durations[duration] || '0');
 
       // Apply reactivation price multiplier
       const reactivationPrice = baseFee * parseFloat(settings.reactivationPricingMultiplier ?? '1');
@@ -197,58 +197,6 @@ export function registerListingExpirationRoutes(app: Express) {
     } catch (error) {
       console.error('[Listing Reactivation] Error reactivating listing:', error);
       res.status(500).json({ error: 'Failed to reactivate listing' });
-    }
-  });
-
-  /**
-   * GET /api/listings/search
-   * Search active listings (filters expired listings automatically)
-   * Query: ?category=electronics&location=mumbai&minPrice=1000&maxPrice=100000
-   */
-  app.get('/api/listings/search', async (req: Request, res: Response) => {
-    try {
-      const { category, location, minPrice, maxPrice } = req.query;
-
-      const settings = await getAdminSettings();
-
-      // TODO: Build query with filters
-      // Query should include:
-      // - is_active = true
-      // - If hideFromSearchOnExpiry is true:
-      //     (is_paid = false) OR (is_paid = true AND expires_at > NOW())
-
-      // Mock results
-      const mockResults = [
-        {
-          id: 'list-1',
-          title: 'Active Listing',
-          price: 50000,
-          category: 'Electronics',
-          isPaid: true,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          isActive: true,
-        },
-        {
-          id: 'list-2',
-          title: 'Free Listing',
-          price: 2000,
-          category: 'Fashion',
-          isPaid: false,
-          isActive: true,
-        },
-      ];
-
-      return res.json({
-        success: true,
-        config: {
-          hideExpiredFromSearch: settings.hideFromSearchOnExpiry,
-          resultsCount: mockResults.length,
-        },
-        results: mockResults,
-      });
-    } catch (error) {
-      console.error('[Listings Search] Error searching listings:', error);
-      res.status(500).json({ error: 'Failed to search listings' });
     }
   });
 

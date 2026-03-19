@@ -14,7 +14,7 @@ import {
   type InsertSubscriptionTier,
   type UserSubscription,
 } from '../../admin/models/admin-settings';
-import { eq, and, gt, lt, sql, asc } from 'drizzle-orm';
+import { eq, and, gt, sql, asc } from 'drizzle-orm';
 
 function toDecimalString(value: unknown): string | null | undefined {
   if (value === null || value === undefined || value === '') return value as null | undefined;

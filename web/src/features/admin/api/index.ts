@@ -57,6 +57,7 @@ export const adminKeys = {
   reportPerformance: () => [...adminKeys.reports(), 'performance'] as const,
   reportTransaction: () => [...adminKeys.reports(), 'transaction'] as const,
   reportModeration: () => [...adminKeys.reports(), 'moderation'] as const,
+  dashboardStats: () => [...adminKeys.reports(), 'dashboard-stats'] as const,
 
   // Users
   users: () => [...adminKeys.all, 'users'] as const,
@@ -394,6 +395,13 @@ export const reportsApi = {
 
   async getModerationReport(): Promise<unknown> {
     const response = await fetch(`${API_BASE_URL}/api/admin/reports/moderation`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  async getDashboardStats(): Promise<unknown> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/dashboard/stats`, {
       headers: getAuthHeaders(),
     });
     return handleResponse(response);

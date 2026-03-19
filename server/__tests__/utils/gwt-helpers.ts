@@ -6,6 +6,22 @@
 import type { Express } from 'express';
 import request from 'supertest';
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && UUID_REGEX.test(value.trim());
+}
+
+function attachAuthHeaders(req: request.Test, context: TestContext): void {
+  if (context.token) {
+    req.set('Authorization', `Bearer ${context.token}`);
+  }
+  if (isUuid(context.userId)) {
+    req.set('x-user-id', context.userId);
+  }
+}
+
 /**
  * Test context for managing test state
  */
@@ -92,10 +108,7 @@ export const when = {
   ): Promise<TestContext> => {
     try {
       const req = request(context.app).post(endpoint);
-
-      if (context.token) {
-        req.set('Authorization', `Bearer ${context.token}`);
-      }
+      attachAuthHeaders(req, context);
 
       const response = await req.send(body);
 
@@ -119,10 +132,7 @@ export const when = {
   get: async (context: TestContext, endpoint: string): Promise<TestContext> => {
     try {
       const req = request(context.app).get(endpoint);
-
-      if (context.token) {
-        req.set('Authorization', `Bearer ${context.token}`);
-      }
+      attachAuthHeaders(req, context);
 
       const response = await req;
 
@@ -150,10 +160,7 @@ export const when = {
   ): Promise<TestContext> => {
     try {
       const req = request(context.app).patch(endpoint);
-
-      if (context.token) {
-        req.set('Authorization', `Bearer ${context.token}`);
-      }
+      attachAuthHeaders(req, context);
 
       const response = await req.send(body);
 
@@ -177,10 +184,7 @@ export const when = {
   delete: async (context: TestContext, endpoint: string): Promise<TestContext> => {
     try {
       const req = request(context.app).delete(endpoint);
-
-      if (context.token) {
-        req.set('Authorization', `Bearer ${context.token}`);
-      }
+      attachAuthHeaders(req, context);
 
       const response = await req;
 
@@ -208,10 +212,7 @@ export const when = {
   ): Promise<TestContext> => {
     try {
       const req = request(context.app).put(endpoint);
-
-      if (context.token) {
-        req.set('Authorization', `Bearer ${context.token}`);
-      }
+      attachAuthHeaders(req, context);
 
       const response = await req.send(body);
 

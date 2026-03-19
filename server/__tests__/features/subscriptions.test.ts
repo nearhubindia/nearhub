@@ -10,7 +10,7 @@ import request from 'supertest';
 describe('Subscriptions API - GWT Tests', () => {
   let context: TestContext;
   let userToken: string = 'user-token';
-  let userId: string = 'user-id-123';
+  let userId: string = '11111111-1111-4111-8111-111111111111';
 
   beforeEach(() => {
     const app = createTestApp();

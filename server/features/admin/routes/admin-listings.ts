@@ -2,6 +2,7 @@ import type { Express, Response } from 'express';
 import { eq, desc, inArray } from 'drizzle-orm';
 import { db } from '../../../data/db';
 import { listings } from '../../admin/models/admin-settings';
+import type { InsertListing } from '../../admin/models/admin-settings';
 import { users } from '../../users/models/users';
 import type { AuthRequest } from '../../../lib/types';
 import { handleError, notFound } from '../../../lib/error-handler';
@@ -14,6 +15,8 @@ import {
 import { createInAppNotification } from '../../../shared/services/in-app-notifications';
 
 export function registerAdminListingsRoutes(app: Express) {
+  type AdminAuthRequest = AuthRequest & { admin?: { id?: string } };
+
   const parseJsonField = (value: unknown): unknown[] => {
     if (Array.isArray(value)) return value;
     if (value == null) return [];
@@ -228,7 +231,7 @@ export function registerAdminListingsRoutes(app: Express) {
         featured: typeof featured === 'boolean' ? featured : false,
         sponsored: typeof sponsored === 'boolean' ? sponsored : false,
         durationDays: Number(durationDays) > 0 ? Number(durationDays) : 30,
-      } as any);
+      } as InsertListing);
 
       return res.status(201).json({
         success: true,
@@ -360,7 +363,7 @@ export function registerAdminListingsRoutes(app: Express) {
           priority: 'high',
           actionLabel: 'Edit Listing',
           actionUrl: `/listings/edit?id=${listing.id}`,
-          createdBy: ((req as any).admin?.id as string | undefined) || 'admin',
+          createdBy: (req as AdminAuthRequest).admin?.id || 'admin',
         }).catch((error) =>
           console.error('[Admin Listings] Failed to create in-app rejection notification:', error)
         );
@@ -445,7 +448,7 @@ export function registerAdminListingsRoutes(app: Express) {
         contactPhone,
       } = req.body;
 
-      const updateData: any = {};
+      const updateData: Partial<typeof listings.$inferInsert> = {};
       if (title !== undefined) updateData.title = title;
       if (description !== undefined) updateData.description = description;
       if (category !== undefined) updateData.category = category;

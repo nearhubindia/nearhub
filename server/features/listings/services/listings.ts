@@ -5,7 +5,7 @@ import {
   type Listing,
   type InsertListing,
 } from '../../admin/models/admin-settings';
-import { eq, and, desc, or, gte, lt, isNull, isNotNull } from 'drizzle-orm';
+import { eq, and, desc, or, gte, lt, isNull } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
 function coerceMediaToArray(value: unknown): unknown {
@@ -125,7 +125,7 @@ export async function getActiveListing(
   }
 
   // Build base query
-  let query = db
+  const query = db
     .select()
     .from(listings)
     .where(and(...conditions))
@@ -143,14 +143,6 @@ export async function getActiveListing(
     // Distance in km = 6371 * 2 * ASIN(SQRT(POWER(SIN((lat2 - lat1) * PI() / 180 / 2), 2) +
     //                COS(lat1 * PI() / 180) * COS(lat2 * PI() / 180) *
     //                POWER(SIN((lon2 - lon1) * PI() / 180 / 2), 2)))
-    const distanceFormula = sql`(
-      6371 * 2 * ASIN(SQRT(
-        POWER(SIN((CAST(${listings.latitude} AS NUMERIC) - ${latitude}) * PI() / 180 / 2), 2) +
-        COS(${latitude} * PI() / 180) * COS(CAST(${listings.latitude} AS NUMERIC) * PI() / 180) *
-        POWER(SIN((CAST(${listings.longitude} AS NUMERIC) - ${longitude}) * PI() / 180 / 2), 2)
-      ))
-    )`;
-
     const allResults = await query;
 
     // Filter results by distance (since we can't use HAVING without GROUP BY)
@@ -340,6 +332,7 @@ export async function searchListingsByLocation(opts?: {
   limit?: number;
 }): Promise<Listing[]> {
   const { latitude, longitude, radiusKm = 50, limit = 50 } = opts || {};
+  void radiusKm;
 
   if (!latitude || !longitude) {
     return [];

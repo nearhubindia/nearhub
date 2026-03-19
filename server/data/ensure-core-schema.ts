@@ -15,6 +15,36 @@ async function applyCoreSchemaPatches(): Promise<void> {
     sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified boolean NOT NULL DEFAULT false`
   );
   await db.execute(sql`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS read_at timestamp`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS transactions (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      subscription_id varchar,
+      seller_id varchar NOT NULL,
+      amount numeric(12, 2) NOT NULL DEFAULT 0,
+      payment_status text NOT NULL DEFAULT 'pending',
+      payment_id varchar,
+      order_id varchar,
+      razorpay_data text,
+      failure_reason text,
+      refund_id varchar,
+      refund_status text,
+      refunded_at timestamp,
+      created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      completed_at timestamp
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS listing_likes (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      listing_id varchar NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+      user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS listing_likes_listing_user_unique
+      ON listing_likes (listing_id, user_id)
+  `);
 
   // Keep display_name useful when legacy rows only had username.
   await db.execute(sql`

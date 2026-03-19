@@ -8,7 +8,6 @@ import { adminAuthMiddleware } from '../../admin/routes/admin-auth';
 import {
   validateCouponCode,
   applyCouponDiscount,
-  recordCouponUsage,
   createCoupon,
   getAllCoupons,
   getCouponById,

@@ -31,6 +31,24 @@ export interface AdminLoginResponse {
   message?: string;
 }
 
+type VerifiedAdminToken = {
+  id: string;
+  email: string;
+  role: string;
+  type: 'admin';
+};
+
+function isVerifiedAdminToken(value: unknown): value is VerifiedAdminToken {
+  if (!value || typeof value !== 'object') return false;
+  const token = value as Record<string, unknown>;
+  return (
+    typeof token.id === 'string' &&
+    typeof token.email === 'string' &&
+    typeof token.role === 'string' &&
+    token.type === 'admin'
+  );
+}
+
 // In-memory admin store (replace with database in production)
 const admins = new Map<string, { user: AdminUser; passwordHash: string }>();
 
@@ -135,8 +153,8 @@ export function verifyAdminToken(
   token: string
 ): { id: string; email: string; role: string } | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
-    if (decoded.type !== 'admin') {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!isVerifiedAdminToken(decoded)) {
       return null;
     }
     return {
@@ -144,7 +162,7 @@ export function verifyAdminToken(
       email: decoded.email,
       role: decoded.role,
     };
-  } catch (error) {
+  } catch {
     // Token verification failed (invalid signature, expired, etc.)
     return null;
   }
@@ -202,8 +220,9 @@ export async function createAdmin(
  * Logout admin (invalidate token server-side if needed)
  * In a real system, this would add token to blacklist
  */
-export function logoutAdmin(token: string): boolean {
+export function logoutAdmin(_token: string): boolean {
   try {
+    void _token;
     // In production, add token to redis blacklist:
     // await redisCache.set(`admin_blacklist:${token}`, 1, { ttl: 604800 }) // 7 days
     console.log('[Admin Auth] Admin logged out');
@@ -217,7 +236,8 @@ export function logoutAdmin(token: string): boolean {
 /**
  * Check if token is blacklisted
  */
-export async function isTokenBlacklisted(token: string): Promise<boolean> {
+export async function isTokenBlacklisted(_token: string): Promise<boolean> {
+  void _token;
   // TODO: Implement with Redis
   // return await redisCache.get(`admin_blacklist:${token}`) !== null;
   return false;

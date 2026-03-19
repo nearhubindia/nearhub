@@ -88,7 +88,7 @@ export default function SpamDetectionView() {
         </div>
 
         <div className="overflow-x-auto rounded-lg bg-white shadow">
-          <table className="w-full min-w-[760px]">
+          <table className="w-full min-w-[680px]">
             <thead className="bg-gradient-to-r from-slate-100 to-slate-200">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">

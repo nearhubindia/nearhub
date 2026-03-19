@@ -171,7 +171,7 @@ export default function UsersView() {
             <div className="p-12 text-center text-slate-600">No users match your search</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px]">
+              <table className="w-full min-w-[860px]">
                 <thead className="sticky top-0 border-b border-slate-200 bg-slate-100">
                   <tr>
                     <th className="px-6 py-4 text-left text-sm font-bold text-slate-900">

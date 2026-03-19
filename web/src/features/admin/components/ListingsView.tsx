@@ -135,7 +135,7 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
                     Showing {filteredListings.length} of {listings.length} listings
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1200px]">
+                    <table className="w-full min-w-[900px]">
                       <thead className="bg-slate-100 border-b border-slate-200">
                         <tr>
                           <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">

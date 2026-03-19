@@ -4,7 +4,6 @@
  */
 
 import { redisCache } from '../../../shared/cache/redis-cache';
-import type { SubscriptionTier, UserSubscription } from '../../admin/models/admin-settings';
 
 // Cache TTLs (in seconds)
 const CACHE_TTL = {

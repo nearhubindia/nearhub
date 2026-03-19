@@ -5,7 +5,7 @@
 
 import { db } from '../../../data/db';
 import { coupons, couponUsage } from '../../admin/models/admin-settings';
-import { eq, and, lt, gt } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
 export interface CouponValidationResult {

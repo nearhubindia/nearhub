@@ -4,6 +4,8 @@ import { db } from '../../../data/db';
 import { contactSubmissionComments, contactSubmissions } from '../models/admin-settings';
 import { adminAuthMiddleware } from './admin-auth';
 
+type AdminRequest = Request & { admin?: { id?: string } };
+
 export function registerAdminContactSubmissionRoutes(app: Express) {
   /**
    * GET /api/admin/contact-submissions
@@ -151,7 +153,7 @@ export function registerAdminContactSubmissionRoutes(app: Express) {
       try {
         const submissionId = String(req.params.id || '').trim();
         const comment = typeof req.body?.comment === 'string' ? req.body.comment.trim() : '';
-        const adminId = (req as any)?.admin?.id || null;
+        const adminId = (req as AdminRequest).admin?.id || null;
 
         if (!submissionId || !comment) {
           return res.status(400).json({

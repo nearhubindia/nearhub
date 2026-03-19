@@ -135,8 +135,6 @@ export async function getCachedUserListings<T>(
  * Invalidate listing cache
  */
 export async function invalidateListingCache(listingId: string): Promise<void> {
-  const keys = [`listing:${listingId}`, 'listings:active:*', 'listings:category:*'];
-
   try {
     // Delete specific listing
     await redisCache.delete(`listing:${listingId}`);
