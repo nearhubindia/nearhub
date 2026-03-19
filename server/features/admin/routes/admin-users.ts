@@ -9,8 +9,6 @@ import { adminAuthMiddleware } from './admin-auth';
 import {
   listings,
   userActivity,
-  userStarterCredits,
-  userSubscriptions,
 } from '../models/admin-settings';
 import { deleteUserDataByAdmin } from '../../users/services/user-lifecycle';
 
@@ -57,7 +55,8 @@ export function registerAdminUsersRoutes(app: Express) {
    */
   app.get('/api/admin/users', adminAuthMiddleware, async (req: AuthRequest, res: Response) => {
     try {
-      const [activityRows, listingRows, subscriptionRows, starterRows] = await Promise.all([
+      const [metaRows, activityRows, listingRows] = await Promise.all([
+        db.select().from(users).orderBy(desc(users.createdAt)).limit(5000),
         db
           .select({ userId: userActivity.userId, firstSeenAt: userActivity.firstSeenAt })
           .from(userActivity),
@@ -69,38 +68,18 @@ export function registerAdminUsersRoutes(app: Express) {
             contactPhone: listings.contactPhone,
           })
           .from(listings),
-        db.select({ userId: userSubscriptions.userId }).from(userSubscriptions),
-        db.select({ userId: userStarterCredits.userId }).from(userStarterCredits),
       ]);
 
-      const userIds = new Set<string>();
-      activityRows.forEach((row) => userIds.add(row.userId));
-      listingRows.forEach((row) => userIds.add(row.userId));
-      subscriptionRows.forEach((row) => userIds.add(row.userId));
-      starterRows.forEach((row) => userIds.add(row.userId));
-
-      const idList = [...userIds].filter(Boolean).slice(0, 1000);
-      if (idList.length === 0) {
+      if (metaRows.length === 0) {
         return res.json({ success: true, data: [], total: 0 });
       }
 
-      const metaRows = await db
-        .select()
-        .from(users)
-        .where(or(inArray(users.id, idList), inArray(users.mobile, idList))!);
-
-      const metaById = new Map<string, (typeof metaRows)[number]>();
-      for (const row of metaRows) {
-        if (row.id) metaById.set(row.id, row);
-        if (row.mobile) metaById.set(row.mobile, row);
-      }
-
       const activityById = new Map(activityRows.map((row) => [row.userId, row]));
-      const listingAggregateById = new Map<string, ListingAggregate>();
+      const listingAggregateByKey = new Map<string, ListingAggregate>();
       for (const row of listingRows) {
         const key = String(row.userId || '').trim();
         if (!key) continue;
-        const existing = listingAggregateById.get(key) || {
+        const existing = listingAggregateByKey.get(key) || {
           count: 0,
           latestCreatedAt: null,
           latestLocation: null,
@@ -125,53 +104,31 @@ export function registerAdminUsersRoutes(app: Express) {
           existing.latestLocation = location || null;
           existing.latestContactPhone = contactPhone || null;
         }
-        listingAggregateById.set(key, existing);
+        listingAggregateByKey.set(key, existing);
       }
 
-      const deduped = new Map<
-        string,
-        {
-          id: string;
-          displayName: string;
-          username: string;
-          mobile: string;
-          autoDetectedLocation: string;
-          location: string;
-          listingsCount: number;
-          listings: number;
-          listingLocations: string[];
-          isVerified: boolean;
-          createdAt: string;
-        }
-      >();
-      idList.forEach((id) => {
-        const meta = metaById.get(id);
-        const activity = activityById.get(id);
-        const listingAggregateForId = listingAggregateById.get(id);
-        const mobile = normalizeMobile(
-          meta?.mobile || listingAggregateForId?.latestContactPhone || id
-        );
-        if (!mobile) {
-          return;
-        }
+      const safeUsers = metaRows.map((meta) => {
+        const normalizedMobile = normalizeMobile(meta.mobile || meta.username || meta.id);
+        const fallbackMobile = String(meta.mobile || meta.username || '').trim();
+        const userMobile = normalizedMobile || fallbackMobile || '-';
         const listingAggregate =
-          listingAggregateForId || listingAggregateById.get(mobile) || undefined;
-
+          listingAggregateByKey.get(String(meta.id)) ||
+          (normalizedMobile ? listingAggregateByKey.get(normalizedMobile) : undefined) ||
+          (meta.username ? listingAggregateByKey.get(meta.username) : undefined);
         const listingLocations = listingAggregate
           ? [...listingAggregate.locations].sort((a, b) => a.localeCompare(b))
           : [];
         const autoDetectedLocation = listingAggregate?.latestLocation || meta?.location || '-';
         const displayName = resolveDisplayName({
-          mobile,
+          mobile: userMobile,
           username: meta?.username,
           displayName: meta?.displayName,
         });
-        const existing = deduped.get(mobile);
-        const candidate = {
-          id: mobile,
-          username: mobile, // Canonical: username == mobile to avoid identity duplication.
+        return {
+          id: String(meta.id),
+          username: meta.username || userMobile,
           displayName,
-          mobile,
+          mobile: userMobile,
           autoDetectedLocation,
           location: autoDetectedLocation, // Backward compatibility for old admin UI.
           listingsCount: listingAggregate?.count || 0,
@@ -179,27 +136,20 @@ export function registerAdminUsersRoutes(app: Express) {
           listingLocations,
           isVerified: Boolean(meta?.isVerified),
           createdAt:
-            activity?.firstSeenAt?.toISOString() ||
+            activityById.get(String(meta.id))?.firstSeenAt?.toISOString() ||
             listingAggregate?.latestCreatedAt?.toISOString() ||
             meta?.createdAt?.toISOString() ||
             new Date().toISOString(),
         };
-        if (
-          !existing ||
-          new Date(candidate.createdAt).getTime() > new Date(existing.createdAt).getTime()
-        ) {
-          deduped.set(mobile, candidate);
-        }
       });
-
-      const safeUsers = [...deduped.values()].sort(
+      const sortedUsers = safeUsers.sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
 
       res.json({
         success: true,
-        data: safeUsers,
-        total: safeUsers.length,
+        data: sortedUsers,
+        total: sortedUsers.length,
       });
     } catch (error) {
       console.error('[Admin Users] Error fetching users:', error);
