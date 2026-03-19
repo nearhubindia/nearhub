@@ -431,7 +431,11 @@ export function registerListingRoutes(app: Express) {
       const response = {
         success: true,
         data: priceFilteredListings.map((l) =>
-          toPublicListing(req, l, sellerMetaMap, { includeSellerIdentity, chatCountMap, likeCountMap })
+          toPublicListing(req, l, sellerMetaMap, {
+            includeSellerIdentity,
+            chatCountMap,
+            likeCountMap,
+          })
         ),
         limit,
         offset,
@@ -575,7 +579,9 @@ export function registerListingRoutes(app: Express) {
       const chatCountMap = await getListingConversationCountMap(
         page.map((listing) => String(listing.id || ''))
       );
-      const likeCountMap = await getListingLikeCountMap(page.map((listing) => String(listing.id || '')));
+      const likeCountMap = await getListingLikeCountMap(
+        page.map((listing) => String(listing.id || ''))
+      );
       const results = page.map((listing) =>
         toPublicListing(req, listing, sellerMetaMap, {
           includeSellerIdentity: Boolean(requesterId),

@@ -71,7 +71,9 @@ describe('Messages API', () => {
 
     const conversationId = String(send.body.data.conversationId);
 
-    const sellerThreads = await request(app).get('/api/messages/threads').set('x-user-id', sellerId);
+    const sellerThreads = await request(app)
+      .get('/api/messages/threads')
+      .set('x-user-id', sellerId);
     expect(sellerThreads.status).toBe(200);
     expect(sellerThreads.body?.success).toBe(true);
     expect(Array.isArray(sellerThreads.body?.data)).toBe(true);

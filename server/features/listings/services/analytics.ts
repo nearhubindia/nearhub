@@ -180,11 +180,7 @@ export async function getListingConversationCountMap(
   listingIds: string[]
 ): Promise<Map<string, number>> {
   const normalizedIds = [
-    ...new Set(
-      listingIds
-        .map((id) => String(id || '').trim())
-        .filter(Boolean)
-    ),
+    ...new Set(listingIds.map((id) => String(id || '').trim()).filter(Boolean)),
   ];
 
   if (normalizedIds.length === 0) {
@@ -217,11 +213,7 @@ export async function getListingConversationCountMap(
  */
 export async function getListingLikeCountMap(listingIds: string[]): Promise<Map<string, number>> {
   const normalizedIds = [
-    ...new Set(
-      listingIds
-        .map((id) => String(id || '').trim())
-        .filter(Boolean)
-    ),
+    ...new Set(listingIds.map((id) => String(id || '').trim()).filter(Boolean)),
   ];
 
   if (normalizedIds.length === 0) {
@@ -276,7 +268,10 @@ export async function setListingLike(
     await db
       .delete(listingLikes)
       .where(
-        and(eq(listingLikes.listingId, normalizedListingId), eq(listingLikes.userId, normalizedUserId))
+        and(
+          eq(listingLikes.listingId, normalizedListingId),
+          eq(listingLikes.userId, normalizedUserId)
+        )
       );
   }
 

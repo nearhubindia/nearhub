@@ -56,7 +56,9 @@ describe('In-App Notifications API', () => {
       )
     ).toBe(true);
 
-    const unreadBefore = await request(app).get('/api/notifications/unread-count').query({ userId });
+    const unreadBefore = await request(app)
+      .get('/api/notifications/unread-count')
+      .query({ userId });
     expect(unreadBefore.status).toBe(200);
     expect(unreadBefore.body?.success).toBe(true);
     expect(typeof unreadBefore.body?.count).toBe('number');
@@ -73,7 +75,8 @@ describe('In-App Notifications API', () => {
     expect(afterRead.body?.success).toBe(true);
     expect(
       afterRead.body.data.some(
-        (item: { id?: string; isRead?: boolean }) => item.id === notificationId && item.isRead === true
+        (item: { id?: string; isRead?: boolean }) =>
+          item.id === notificationId && item.isRead === true
       )
     ).toBe(true);
   });
@@ -83,16 +86,20 @@ describe('In-App Notifications API', () => {
     const userId = randomUUID();
     await seedUser(userId, 'Notify User Two');
 
-    const n1 = await request(app).post('/api/admin/notifications/create').send({
-      userId,
-      title: `N1-${Date.now()}`,
-      message: 'One',
-    });
-    const n2 = await request(app).post('/api/admin/notifications/create').send({
-      userId,
-      title: `N2-${Date.now()}`,
-      message: 'Two',
-    });
+    const n1 = await request(app)
+      .post('/api/admin/notifications/create')
+      .send({
+        userId,
+        title: `N1-${Date.now()}`,
+        message: 'One',
+      });
+    const n2 = await request(app)
+      .post('/api/admin/notifications/create')
+      .send({
+        userId,
+        title: `N2-${Date.now()}`,
+        message: 'Two',
+      });
 
     expect(n1.status).toBe(200);
     expect(n2.status).toBe(200);

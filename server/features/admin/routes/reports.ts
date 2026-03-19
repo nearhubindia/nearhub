@@ -117,7 +117,9 @@ export function registerReportsRoutes(app: Express) {
         db
           .select({ count: sql<number>`count(*)::int` })
           .from(users)
-          .where(and(gte(users.createdAt, previousMonthStart), lt(users.createdAt, currentMonthStart))),
+          .where(
+            and(gte(users.createdAt, previousMonthStart), lt(users.createdAt, currentMonthStart))
+          ),
         db
           .select({ count: sql<number>`count(*)::int` })
           .from(listings)
@@ -126,7 +128,10 @@ export function registerReportsRoutes(app: Express) {
           .select({ count: sql<number>`count(*)::int` })
           .from(listings)
           .where(
-            and(gte(listings.createdAt, previousMonthStart), lt(listings.createdAt, currentMonthStart))
+            and(
+              gte(listings.createdAt, previousMonthStart),
+              lt(listings.createdAt, currentMonthStart)
+            )
           ),
         db
           .select({ count: sql<number>`count(*)::int` })
@@ -503,7 +508,12 @@ export function registerReportsRoutes(app: Express) {
             revenue: sql<number>`coalesce(sum(cast(${transactions.amount} as numeric)), 0)`,
           })
           .from(transactions)
-          .where(and(eq(transactions.paymentStatus, 'completed'), gte(transactions.createdAt, sixMonthsAgo)))
+          .where(
+            and(
+              eq(transactions.paymentStatus, 'completed'),
+              gte(transactions.createdAt, sixMonthsAgo)
+            )
+          )
           .groupBy(sql`date_trunc('month', ${transactions.createdAt})`)
           .orderBy(sql`date_trunc('month', ${transactions.createdAt}) asc`),
       ]);

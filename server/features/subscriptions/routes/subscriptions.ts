@@ -42,7 +42,10 @@ import {
   getListingById,
   getListingsByUser,
 } from '../../listings/services/listings';
-import { getListingConversationCountMap, getListingLikeCountMap } from '../../listings/services/analytics';
+import {
+  getListingConversationCountMap,
+  getListingLikeCountMap,
+} from '../../listings/services/analytics';
 import {
   notifyPaymentSuccess,
   notifyPaymentFailed,
