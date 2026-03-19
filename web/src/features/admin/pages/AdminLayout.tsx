@@ -13,6 +13,7 @@ import {
   Film,
   Tag,
   CircleDollarSign,
+  HandCoins,
   BarChart3,
   Settings,
   Bell,
@@ -90,6 +91,7 @@ export default function AdminLayout() {
     { path: '/admin/in-app', name: 'In-App Nfns', icon: Inbox },
     { path: '/admin/contact-submissions', name: 'Enquries', icon: MessagesSquare },
     { path: '/admin/revenue', name: 'Revenue', icon: CircleDollarSign },
+    { path: '/admin/transactions', name: 'Transactions', icon: HandCoins },
     { path: '/admin/reports', name: 'Reports', icon: BarChart3 },
     { path: '/admin/settings', name: 'Settings', icon: Settings },
   ];

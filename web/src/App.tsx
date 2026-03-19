@@ -21,6 +21,7 @@ import PushNotificationsPage from './features/admin/pages/PushNotificationsPage'
 import InAppNotificationsPage from './features/admin/pages/InAppNotificationsPage';
 import RevenuePage from './features/admin/pages/RevenuePage';
 import ReportsPage from './features/admin/pages/ReportsPage';
+import TransactionsPage from './features/admin/pages/TransactionsPage';
 import SettingsPage from './features/admin/pages/SettingsPage';
 import ContactSubmissionsPage from './features/admin/pages/ContactSubmissionsPage';
 import AdminLogin from './features/admin/pages/AdminLogin';
@@ -64,6 +65,7 @@ function App() {
             <Route path="push" element={<PushNotificationsPage />} />
             <Route path="in-app" element={<InAppNotificationsPage />} />
             <Route path="revenue" element={<RevenuePage />} />
+            <Route path="transactions" element={<TransactionsPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="contact-submissions" element={<ContactSubmissionsPage />} />
             <Route path="settings" element={<SettingsPage />} />

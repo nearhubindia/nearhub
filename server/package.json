@@ -36,6 +36,7 @@
     "migrate:starter-credits": "tsx scripts/apply-starter-credits-migration.ts",
     "seed:expired-listing": "tsx scripts/seed-expired-listing.ts",
     "search:sync": "tsx scripts/sync-elasticsearch.ts",
+    "backfill:transactions": "tsx scripts/backfill-transactions.ts",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write .",

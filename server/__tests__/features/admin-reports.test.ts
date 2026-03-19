@@ -1,5 +1,7 @@
 import request from 'supertest';
 import { createTestApp } from '../setup/test-app';
+import { db } from '../../data/db';
+import { sql } from 'drizzle-orm';
 
 describe('Admin Reports API', () => {
   const reportEndpoints = [
@@ -146,6 +148,69 @@ describe('Admin Reports API', () => {
       expect(typeof response.body?.totalTrend).toBe('string');
       expect(Array.isArray(response.body?.monthlyData)).toBe(true);
       expect(response.body?.data).toBeDefined();
+    });
+
+    it('includes completed transactions in growth and revenue totals', async () => {
+      const app = createTestApp();
+      const token = await loginAsAdmin(app);
+      const paymentId = `test_pay_${Date.now()}`;
+      const orderId = `test_order_${Date.now()}`;
+      try {
+        const beforeGrowth = await request(app)
+          .get('/api/admin/reports/growth')
+          .set('Authorization', `Bearer ${token}`);
+        expect(beforeGrowth.status).toBe(200);
+
+        const beforeRevenue = await request(app)
+          .get('/api/admin/revenue')
+          .set('Authorization', `Bearer ${token}`);
+        expect(beforeRevenue.status).toBe(200);
+
+        const beforeTransactions = Number(beforeGrowth.body?.totalTransactions || 0);
+        const beforeTotalRevenue = Number(beforeRevenue.body?.totalRevenue || 0);
+
+        await db.execute(sql`
+          INSERT INTO transactions (
+            subscription_id,
+            seller_id,
+            amount,
+            payment_status,
+            payment_id,
+            order_id,
+            created_at,
+            completed_at
+          )
+          VALUES (
+            ${`sub_${Date.now()}`},
+            ${'11111111-1111-4111-8111-111111111111'},
+            ${'123.45'},
+            ${'completed'},
+            ${paymentId},
+            ${orderId},
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+          )
+        `);
+
+        const afterGrowth = await request(app)
+          .get('/api/admin/reports/growth')
+          .set('Authorization', `Bearer ${token}`);
+        expect(afterGrowth.status).toBe(200);
+
+        const afterRevenue = await request(app)
+          .get('/api/admin/revenue')
+          .set('Authorization', `Bearer ${token}`);
+        expect(afterRevenue.status).toBe(200);
+
+        expect(Number(afterGrowth.body?.totalTransactions || 0)).toBeGreaterThanOrEqual(
+          beforeTransactions + 1
+        );
+        expect(Number(afterRevenue.body?.totalRevenue || 0)).toBeGreaterThanOrEqual(
+          beforeTotalRevenue + 123.45
+        );
+      } finally {
+        await db.execute(sql`DELETE FROM transactions WHERE payment_id = ${paymentId}`);
+      }
     });
   });
 });

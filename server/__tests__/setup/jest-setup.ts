@@ -21,6 +21,10 @@ process.env.SERVER_PORT = '5000';
 process.env.SERVER_HOST = 'localhost';
 process.env.RAZORPAY_KEY_ID = 'test_key';
 process.env.RAZORPAY_KEY_SECRET = 'test_secret';
+process.env.DB_MAX_CONNECTIONS = process.env.DB_MAX_CONNECTIONS || '5';
+process.env.DB_MIN_CONNECTIONS = process.env.DB_MIN_CONNECTIONS || '0';
+process.env.DB_IDLE_TIMEOUT_MS = process.env.DB_IDLE_TIMEOUT_MS || '1000';
+process.env.DB_CONNECTION_TIMEOUT_MS = process.env.DB_CONNECTION_TIMEOUT_MS || '1000';
 
 // Suppress console warnings during tests (but keep errors for debugging)
 const originalWarn = console.warn;

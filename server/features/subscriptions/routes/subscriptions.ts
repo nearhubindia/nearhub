@@ -8,7 +8,7 @@ import type { Express, NextFunction, Request, Response } from 'express';
 import { db } from '../../../data/db';
 import { users } from '../../users/models/users';
 import { resolveUserDisplayName } from '../../users/services/user-profiles';
-import { eq, inArray, or } from 'drizzle-orm';
+import { and, eq, inArray, or } from 'drizzle-orm';
 import {
   calculateCheckout,
   getListingCheckoutSummary,
@@ -74,6 +74,7 @@ import {
   releaseStarterListingCredit,
 } from '../services/starter-credits';
 import { getActiveListingCount, getSubscriptionById } from '../services/subscription-tiers';
+import { transactions } from '../models/subscription';
 import { listingCreationLimiter } from '../../../lib/rate-limiter';
 import { SERVER_CONFIG } from '../../../lib/config';
 
@@ -84,6 +85,61 @@ function getAuthenticatedUserId(req: Request): string {
 
 function roundToTwo(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+async function upsertCompletedTransaction(params: {
+  subscriptionId: string;
+  userId: string;
+  amount: number;
+  paymentId: string;
+  orderId: string;
+  razorpayData?: unknown;
+}): Promise<void> {
+  const { subscriptionId, userId, amount, paymentId, orderId, razorpayData } = params;
+  const amountString = roundToTwo(amount).toFixed(2);
+  const now = new Date();
+  const serializedGatewayData =
+    razorpayData !== undefined ? JSON.stringify(razorpayData) : JSON.stringify({});
+
+  const existing = await db
+    .select({
+      id: transactions.id,
+    })
+    .from(transactions)
+    .where(
+      or(
+        eq(transactions.paymentId, paymentId),
+        and(eq(transactions.subscriptionId, subscriptionId), eq(transactions.orderId, orderId))
+      )
+    )
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(transactions)
+      .set({
+        sellerId: userId,
+        amount: amountString,
+        paymentStatus: 'completed',
+        paymentId,
+        orderId,
+        razorpayData: serializedGatewayData,
+        completedAt: now,
+      })
+      .where(eq(transactions.id, existing[0].id));
+    return;
+  }
+
+  await db.insert(transactions).values({
+    subscriptionId,
+    sellerId: userId,
+    amount: amountString,
+    paymentStatus: 'completed',
+    paymentId,
+    orderId,
+    razorpayData: serializedGatewayData,
+    completedAt: now,
+  });
 }
 
 function hasLocalDeviceUri(value: unknown): boolean {
@@ -1309,6 +1365,42 @@ export function registerSubscriptionRoutes(app: Express) {
         subscription.paymentId === razorpay_payment_id &&
         subscription.orderId === razorpay_order_id
       ) {
+        try {
+          const idempotentTierAmount = Number(
+            subscription.tier.offerPrice != null
+              ? subscription.tier.offerPrice
+              : subscription.tier.price
+          );
+          let transactionAmount = Number.isFinite(idempotentTierAmount) ? idempotentTierAmount : 0;
+          try {
+            const razorpay = getRazorpayService();
+            const paymentDetails = await razorpay.getPaymentDetails(razorpay_payment_id);
+            const paidAmountPaise = Number(paymentDetails?.amount || 0);
+            if (Number.isFinite(paidAmountPaise) && paidAmountPaise > 0) {
+              transactionAmount = paidAmountPaise / 100;
+            }
+          } catch (gatewayReadError) {
+            console.error(
+              '[Subscriptions] Failed to fetch payment details for idempotent backfill:',
+              gatewayReadError
+            );
+          }
+
+          await upsertCompletedTransaction({
+            subscriptionId: safeSubscriptionId,
+            userId: authenticatedUserId,
+            amount: transactionAmount,
+            paymentId: razorpay_payment_id,
+            orderId: razorpay_order_id,
+            razorpayData: { source: 'idempotent-verify-payment' },
+          });
+        } catch (transactionBackfillError) {
+          console.error(
+            '[Subscriptions] Failed to backfill transaction during idempotent verify-payment:',
+            transactionBackfillError
+          );
+        }
+
         return res.json({
           success: true,
           message: '✓ Payment already verified',
@@ -1638,6 +1730,20 @@ export function registerSubscriptionRoutes(app: Express) {
           console.error('[Subscriptions] Activation error stack:', activationError.stack);
         }
         // Don't fail the verification, just log the error
+      }
+
+      // Persist transaction so admin revenue/dashboard reflects successful purchases.
+      try {
+        await upsertCompletedTransaction({
+          subscriptionId: safeSubscriptionId,
+          userId: authenticatedUserId,
+          amount: expectedFinalAmount,
+          paymentId: razorpay_payment_id,
+          orderId: razorpay_order_id,
+          razorpayData: paymentDetails || undefined,
+        });
+      } catch (transactionError) {
+        console.error('[Subscriptions] Failed to persist transaction record:', transactionError);
       }
 
       // Send payment success notification
