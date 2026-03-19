@@ -157,7 +157,9 @@ export default function TransactionsView() {
 
                     return (
                       <tr key={`${tx.id || 'tx'}-${index}`} className="border-t border-slate-100">
-                        <td className="px-5 py-4 font-mono text-xs text-slate-800">{tx.id || 'N/A'}</td>
+                        <td className="px-5 py-4 font-mono text-xs text-slate-800">
+                          {tx.id || 'N/A'}
+                        </td>
                         <td className="px-5 py-4 font-mono text-xs text-slate-700">
                           {tx.sellerId || 'N/A'}
                         </td>
