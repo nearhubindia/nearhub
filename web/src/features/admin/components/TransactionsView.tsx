@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useTransactionReport } from '@/features/admin/hooks';
 
@@ -57,14 +56,11 @@ export default function TransactionsView() {
   const summary = resolved.summary ?? {};
   const transactions = Array.isArray(resolved.transactions) ? resolved.transactions : [];
 
-  const stats = useMemo(
-    () => ({
-      totalRevenue: toNumber(summary.totalRevenue),
-      totalTransactions: toNumber(summary.totalTransactions),
-      avgTransactionValue: toNumber(summary.avgTransactionValue),
-    }),
-    [summary.avgTransactionValue, summary.totalRevenue, summary.totalTransactions]
-  );
+  const stats = {
+    totalRevenue: toNumber(summary.totalRevenue),
+    totalTransactions: toNumber(summary.totalTransactions),
+    avgTransactionValue: toNumber(summary.avgTransactionValue),
+  };
 
   if (isLoading) {
     return (
