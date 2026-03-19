@@ -6,10 +6,7 @@ import { users } from '../../users/models/users';
 import type { AuthRequest } from '../../../lib/types';
 import { handleError, notFound } from '../../../lib/error-handler';
 import { adminAuthMiddleware } from './admin-auth';
-import {
-  listings,
-  userActivity,
-} from '../models/admin-settings';
+import { listings, userActivity } from '../models/admin-settings';
 import { deleteUserDataByAdmin } from '../../users/services/user-lifecycle';
 
 function normalizeMobile(value: unknown): string {
