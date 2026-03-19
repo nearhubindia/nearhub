@@ -73,11 +73,14 @@ export default function DashboardView() {
       : {}
   ) as { totalUsers?: number; activeListings?: number };
 
-  const resolvedTotalUsers = Number(
-    growthData?.totalUsers ?? usersTotalFromUsersPage ?? dashboardStats.totalUsers ?? 0
+  const resolvedTotalUsers = Math.max(
+    Number(growthData?.totalUsers ?? 0),
+    Number(usersTotalFromUsersPage ?? 0),
+    Number(dashboardStats.totalUsers ?? 0)
   );
-  const resolvedActiveListings = Number(
-    growthData?.activeListings ?? dashboardStats.activeListings ?? 0
+  const resolvedActiveListings = Math.max(
+    Number(growthData?.activeListings ?? 0),
+    Number(dashboardStats.activeListings ?? 0)
   );
   const chartSeries = Array.isArray(growthData?.chartData) ? growthData.chartData : [];
   const categorySeries = Array.isArray(growthData?.categoryData) ? growthData.categoryData : [];

@@ -144,11 +144,14 @@ export default function ReportsView() {
     usersData?.total ?? (Array.isArray(usersData?.data) ? usersData.data.length : 0)
   );
 
-  const resolvedGrowthTotalUsers = asNumber(
-    growth.totalUsers ?? usersTotalFromUsersPage ?? dashboardStats.totalUsers
+  const resolvedGrowthTotalUsers = Math.max(
+    asNumber(growth.totalUsers),
+    asNumber(usersTotalFromUsersPage),
+    asNumber(dashboardStats.totalUsers)
   );
-  const resolvedGrowthActiveListings = asNumber(
-    growth.activeListings ?? dashboardStats.activeListings
+  const resolvedGrowthActiveListings = Math.max(
+    asNumber(growth.activeListings),
+    asNumber(dashboardStats.activeListings)
   );
 
   const growthChartData = Array.isArray(growth.chartData) ? growth.chartData : [];

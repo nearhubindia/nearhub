@@ -155,19 +155,22 @@ export function registerAdminRoutes(app: Express) {
 
   app.get('/api/admin/dashboard/stats', async (_req: Request, res: Response) => {
     try {
-      const { listings } = await import('../../admin/models/admin-settings');
+      const [{ listings }, { users }] = await Promise.all([
+        import('../../admin/models/admin-settings'),
+        import('../../users/models/users'),
+      ]);
 
-      const [activeListingsResult, videoUploadsResult, allListings] = await Promise.all([
+      const [activeListingsResult, videoUploadsResult, totalUsersResult] = await Promise.all([
         db.select({ value: count() }).from(listings).where(eq(listings.isActive, true)),
         db.select({ value: count() }).from(listings).where(eq(listings.listingType, 'video')),
-        db.select({ userId: listings.sellerId }).from(listings),
+        db.select({ value: count() }).from(users),
       ]);
 
       res.json({
         success: true,
         stats: {
           activeListings: activeListingsResult[0]?.value || 0,
-          totalUsers: new Set(allListings.map((l) => l.userId)).size,
+          totalUsers: totalUsersResult[0]?.value || 0,
           spamReports: getReportsByStatus('pending').length,
           videoUploads: videoUploadsResult[0]?.value || 0,
         },
