@@ -14,6 +14,7 @@ interface BackfillCandidateSummary {
 
 interface BackfillPreviewRow {
   subscription_id: string;
+  mapped_subscription_id: string | null;
   user_id: string;
   payment_id: string;
   order_id: string;
@@ -22,7 +23,7 @@ interface BackfillPreviewRow {
 
 interface BackfillInsertRow {
   id: string;
-  subscription_id: string;
+  subscription_id: string | null;
   payment_id: string;
   amount: string;
 }
@@ -60,7 +61,7 @@ export async function runBackfill(options: BackfillOptions): Promise<BackfillRes
       SELECT 1
       FROM transactions t
       WHERE (t.payment_id IS NOT NULL AND t.payment_id = us.payment_id)
-         OR (t.subscription_id = us.id AND t.order_id = us.order_id)
+         OR (t.order_id IS NOT NULL AND t.order_id = us.order_id)
     )
   `;
 
@@ -81,6 +82,7 @@ export async function runBackfill(options: BackfillOptions): Promise<BackfillRes
   const previewResult = (await executor.execute(sql`
     SELECT
       us.id AS subscription_id,
+      mapped_sub.subscription_id AS mapped_subscription_id,
       us.user_id,
       us.payment_id,
       us.order_id,
@@ -96,6 +98,14 @@ export async function runBackfill(options: BackfillOptions): Promise<BackfillRes
       ) AS amount
     FROM user_subscriptions us
     LEFT JOIN subscription_tiers st ON st.id = us.subscription_tier_id
+    LEFT JOIN LATERAL (
+      SELECT s.id AS subscription_id
+      FROM subscriptions s
+      WHERE (s.razorpay_payment_id IS NOT NULL AND s.razorpay_payment_id = us.payment_id)
+         OR (s.razorpay_order_id IS NOT NULL AND s.razorpay_order_id = us.order_id)
+      ORDER BY s.updated_at DESC
+      LIMIT 1
+    ) mapped_sub ON true
     WHERE ${candidatePredicate}
     ORDER BY us.updated_at DESC
     LIMIT 10
@@ -104,7 +114,7 @@ export async function runBackfill(options: BackfillOptions): Promise<BackfillRes
   console.log('[Backfill] Preview (up to 10 rows):');
   previewResult.rows.forEach((row, index) => {
     console.log(
-      `  ${index + 1}. subscription=${row.subscription_id} user=${row.user_id} payment=${row.payment_id} amount=${row.amount}`
+      `  ${index + 1}. userSubscription=${row.subscription_id} mappedSubscription=${row.mapped_subscription_id ?? 'NULL'} user=${row.user_id} payment=${row.payment_id} amount=${row.amount}`
     );
   });
 
@@ -126,7 +136,7 @@ export async function runBackfill(options: BackfillOptions): Promise<BackfillRes
       completed_at
     )
     SELECT
-      us.id AS subscription_id,
+      mapped_sub.subscription_id,
       us.user_id AS seller_id,
       COALESCE(
         (
@@ -144,8 +154,10 @@ export async function runBackfill(options: BackfillOptions): Promise<BackfillRes
       json_build_object(
         'source',
         'backfill-user-subscriptions',
-        'subscriptionId',
+        'userSubscriptionId',
         us.id,
+        'mappedSubscriptionId',
+        mapped_sub.subscription_id,
         'backfilledAt',
         CURRENT_TIMESTAMP
       )::text AS razorpay_data,
@@ -153,6 +165,14 @@ export async function runBackfill(options: BackfillOptions): Promise<BackfillRes
       COALESCE(us.updated_at, CURRENT_TIMESTAMP) AS completed_at
     FROM user_subscriptions us
     LEFT JOIN subscription_tiers st ON st.id = us.subscription_tier_id
+    LEFT JOIN LATERAL (
+      SELECT s.id AS subscription_id
+      FROM subscriptions s
+      WHERE (s.razorpay_payment_id IS NOT NULL AND s.razorpay_payment_id = us.payment_id)
+         OR (s.razorpay_order_id IS NOT NULL AND s.razorpay_order_id = us.order_id)
+      ORDER BY s.updated_at DESC
+      LIMIT 1
+    ) mapped_sub ON true
     WHERE ${candidatePredicate}
     RETURNING id, subscription_id, payment_id, amount::text
   `)) as unknown as { rows: BackfillInsertRow[] };

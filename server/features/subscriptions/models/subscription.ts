@@ -85,9 +85,9 @@ export const transactions = pgTable('transactions', {
   id: varchar('id')
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  subscriptionId: varchar('subscription_id')
-    .notNull()
-    .references(() => subscriptions.id, { onDelete: 'cascade' }),
+  subscriptionId: varchar('subscription_id').references(() => subscriptions.id, {
+    onDelete: 'cascade',
+  }),
   sellerId: varchar('seller_id').notNull(),
 
   // Payment details

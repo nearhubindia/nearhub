@@ -46,6 +46,7 @@ jobs:
           cp package.json package-lock.json ../release/
           cp -R dist ../release/
           cp -R migrations ../release/
+          cp -R scripts ../release/
           cp drizzle.config.js ../release/
           if [ -d data ]; then cp -R data ../release/; fi
           {
