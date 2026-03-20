@@ -265,7 +265,9 @@ async function main() {
     alternateBrandNames: Array.isArray(config.alternateBrandNames)
       ? config.alternateBrandNames.filter(Boolean)
       : [],
-    socialProfiles: Array.isArray(config.socialProfiles) ? config.socialProfiles.filter(Boolean) : [],
+    socialProfiles: Array.isArray(config.socialProfiles)
+      ? config.socialProfiles.filter(Boolean)
+      : [],
     siteUrl,
     defaultImageUrl: `${siteUrl}${defaultImagePath}`,
     keywords: config.keywords || '',
