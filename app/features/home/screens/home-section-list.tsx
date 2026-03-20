@@ -78,6 +78,13 @@ export default function HomeSectionListScreen() {
   );
 
   const data = sectionParam === 'featured' ? featuredListings : nearYouListings;
+  const gridData = useMemo(
+    () =>
+      data.length % 2 === 0
+        ? data
+        : [...data, ({ id: '__spacer__', __placeholder: true } as unknown as (typeof listings)[0])],
+    [data, listings]
+  );
 
   const handleSave = useCallback(
     (id: string, category: string) => {
@@ -89,27 +96,35 @@ export default function HomeSectionListScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item, index }: { item: (typeof listings)[0]; index: number }) => (
-      <View style={index % 2 === 0 ? styles.leftColumn : styles.rightColumn}>
-        <ListingCard
-          id={item.id}
-          title={item.title}
-          description={item.description}
-          price={item.price}
-          offerPrice={item.offerPrice}
-          priceUnit={item.priceUnit}
-          image={item.images[0]}
-          location={item.location.city}
-          condition={formatCondition(item.condition)}
-          sellerVerified={Boolean(item.sellerVerified)}
-          isBoosted={Boolean(item.featured)}
-          isSponsored={Boolean((item as any).sponsored)}
-          isSaved={savedIds.has(item.id)}
-          onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
-          onSave={() => handleSave(item.id, item.category)}
-        />
-      </View>
-    ),
+    ({ item, index }: { item: (typeof listings)[0]; index: number }) => {
+      const columnStyle = index % 2 === 0 ? styles.leftColumn : styles.rightColumn;
+      if ((item as any).__placeholder) {
+        return <View style={[columnStyle, styles.placeholderColumn]} pointerEvents="none" />;
+      }
+
+      return (
+        <View style={columnStyle}>
+          <ListingCard
+            id={item.id}
+            title={item.title}
+            titleMaxChars={28}
+            description={item.description}
+            price={item.price}
+            offerPrice={item.offerPrice}
+            priceUnit={item.priceUnit}
+            image={item.images[0]}
+            location={item.location.city}
+            condition={formatCondition(item.condition)}
+            sellerVerified={Boolean(item.sellerVerified)}
+            isBoosted={Boolean(item.featured)}
+            isSponsored={Boolean((item as any).sponsored)}
+            isSaved={savedIds.has(item.id)}
+            onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
+            onSave={() => handleSave(item.id, item.category)}
+          />
+        </View>
+      );
+    },
     [savedIds, handleSave]
   );
 
@@ -130,9 +145,9 @@ export default function HomeSectionListScreen() {
       </View>
 
       <FlatList
-        data={data}
+        data={gridData}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
         numColumns={2}
         columnWrapperStyle={styles.row}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
@@ -201,12 +216,17 @@ const styles = createResponsiveStyles({
     justifyContent: 'space-between',
   },
   leftColumn: {
-    flex: 1,
+    flexBasis: '48.5%',
+    maxWidth: '48.5%',
     marginRight: 6,
   },
   rightColumn: {
-    flex: 1,
+    flexBasis: '48.5%',
+    maxWidth: '48.5%',
     marginLeft: 6,
+  },
+  placeholderColumn: {
+    opacity: 0,
   },
   emptyState: {
     alignItems: 'center',

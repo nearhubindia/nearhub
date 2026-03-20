@@ -3,12 +3,11 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Config plugin for a single full-screen splash on Android.
+ * Config plugin for a consistent Android splash on all API levels.
  *
- * Shows near_hub_splash.png as the entire windowBackground so it fills
- * the screen edge-to-edge. The Android 12+ SplashScreen API icon is made
- * invisible (tiny dark circle matching bg color) so the user only sees
- * our full-screen image. No AnimatedSplash component needed.
+ * Android 12+ uses the system splash with a centered icon, while Android 11
+ * and below use windowBackground. We intentionally keep both paths aligned:
+ * dark background + centered splashscreen_logo with no stretching.
  */
 module.exports = function withFullScreenSplash(config) {
   config = withDangerousMod(config, [
@@ -19,34 +18,24 @@ module.exports = function withFullScreenSplash(config) {
       const drawableDir = path.join(resDir, 'drawable');
       const valuesDir = path.join(resDir, 'values');
 
-      const splashSrc = path.join(projectRoot, 'assets', 'images', 'near_hub_splash.png');
-      if (!fs.existsSync(splashSrc)) {
-        console.warn('[withFullScreenSplash] Splash image not found');
-        return config;
-      }
-
       if (!fs.existsSync(drawableDir)) fs.mkdirSync(drawableDir, { recursive: true });
       if (!fs.existsSync(valuesDir)) fs.mkdirSync(valuesDir, { recursive: true });
 
-      // Copy splash image
-      fs.copyFileSync(splashSrc, path.join(drawableDir, 'splash_fullscreen.png'));
-      console.log('[withFullScreenSplash] Copied splash image');
-
-      // Full-screen layer-list: bg color + image filling entire screen
+      // Legacy splash for Android 11 and below: centered logo, no scale/crop artifacts.
       const drawableXml = `<?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/splashscreen_background" />
     <item>
         <bitmap
-            android:src="@drawable/splash_fullscreen"
-            android:gravity="fill" />
+            android:src="@drawable/splashscreen_logo"
+            android:gravity="center" />
     </item>
 </layer-list>
 `;
       fs.writeFileSync(path.join(drawableDir, 'splash_fullscreen_bg.xml'), drawableXml);
-      console.log('[withFullScreenSplash] Created fullscreen drawable');
+      console.log('[withFullScreenSplash] Created centered legacy splash drawable');
 
-      // Tiny invisible icon (matches bg color) to hide the Android 12+ centered icon
+      // Optional tiny icon asset (kept for compatibility with older generated resources).
       const transparentIconXml = `<?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
     <solid android:color="#0A0F1A" />
@@ -56,7 +45,7 @@ module.exports = function withFullScreenSplash(config) {
       fs.writeFileSync(path.join(drawableDir, 'splash_transparent_icon.xml'), transparentIconXml);
       console.log('[withFullScreenSplash] Created transparent icon');
 
-      // Override theme: visible splash (no blank screen)
+      // Override theme that keeps legacy and Android 12+ splash visuals consistent.
       const overrideThemeXml = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
   <style name="Theme.App.SplashScreen.FullScreen" parent="Theme.App.SplashScreen">

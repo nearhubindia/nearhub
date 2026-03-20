@@ -2945,7 +2945,7 @@ const styles = createResponsiveStyles({
     marginBottom: 20,
   },
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     width: '100%',
     maxWidth: 920,
     alignSelf: 'center',
@@ -2957,9 +2957,10 @@ const styles = createResponsiveStyles({
     letterSpacing: 0.2,
   },
   heroContainer: {
-    marginHorizontal: -16,
+    // Slight overdraw prevents thin edge seams on some device pixel ratios.
+    marginHorizontal: -10,
     marginTop: -16,
-    marginBottom: 18,
+    marginBottom: 10,
   },
   heroCard: {
     borderRadius: 0,
@@ -3049,7 +3050,7 @@ const styles = createResponsiveStyles({
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 9,
+    gap: 8,
   },
   typeButton: {
     width: '48%',
@@ -3138,12 +3139,12 @@ const styles = createResponsiveStyles({
     color: '#fff',
   },
   section: {
-    marginBottom: 14,
+    marginBottom: 8,
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    padding: 14,
+    padding: 10,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.06,
@@ -3154,7 +3155,7 @@ const styles = createResponsiveStyles({
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
     color: '#0F172A',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   sectionHeaderRow: {
     flexDirection: 'row' as const,
@@ -3289,7 +3290,7 @@ const styles = createResponsiveStyles({
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: '#64748B',
-    marginBottom: 10,
+    marginBottom: 8,
     marginTop: -2,
   },
   addVideoButton: {
@@ -3461,8 +3462,8 @@ const styles = createResponsiveStyles({
     color: Colors.error,
   },
   imageRow: {
-    gap: 10,
-    paddingVertical: 4,
+    gap: 8,
+    paddingVertical: 2,
   },
   addImageButton: {
     width: 88,
@@ -4151,7 +4152,7 @@ const styles = createResponsiveStyles({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   stepBadge: {
     width: 26,

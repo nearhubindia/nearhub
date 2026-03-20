@@ -2,10 +2,12 @@ import '@/lib/button-style-normalizer';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import React, { useEffect, useCallback } from 'react';
-import { Platform, View } from 'react-native';
+import { LogBox, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
+import * as NavigationBar from 'expo-navigation-bar';
 // import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import {
   useFonts,
   Inter_400Regular,
@@ -25,6 +27,26 @@ import { NotificationCenter } from '@/shared/components/NotificationCenter';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
+if (__DEV__) {
+  const globalKey = '__nearhubSafeAreaWarnPatched__';
+  const globalRef = globalThis as unknown as Record<string, unknown>;
+  if (!globalRef[globalKey]) {
+    const originalWarn = console.warn.bind(console);
+    console.warn = (...args: unknown[]) => {
+      const firstArg = typeof args[0] === 'string' ? args[0] : '';
+      if (firstArg.includes('SafeAreaView has been deprecated')) {
+        return;
+      }
+      originalWarn(...args);
+    };
+    globalRef[globalKey] = true;
+  }
+}
+LogBox.ignoreLogs([
+  'SafeAreaView has been deprecated',
+  '`SafeAreaView` has been deprecated',
+  "SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead.",
+]);
 
 function RootLayoutNav() {
   return (
@@ -157,27 +179,37 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+  const hasHiddenSplash = React.useRef(false);
+
+  const hideSplashOnce = useCallback(async () => {
+    if (hasHiddenSplash.current) return;
+    hasHiddenSplash.current = true;
+    await SplashScreen.hideAsync();
+  }, []);
+
   useEffect(() => {
     async function prepare() {
       if (fontsLoaded) {
+        if (Platform.OS === 'android') {
+          try {
+            // Edge-to-edge mode does not support setBackgroundColorAsync.
+            await NavigationBar.setButtonStyleAsync('dark');
+          } catch (error) {
+            console.warn('[SystemUI] Failed to apply Android navigation bar style:', error);
+          }
+        }
+
         // Show the native splash for ~2 seconds then hide
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        await SplashScreen.hideAsync();
+        await hideSplashOnce();
       }
     }
     prepare();
-  }, [fontsLoaded]);
+  }, [fontsLoaded, hideSplashOnce]);
 
   const onLayoutRootView = useCallback(async () => {
-    if (fontsLoaded) {
-      // This tells the splash screen to hide immediately! If we call this after
-      // `setAppIsReady`, then we may see a blank screen while the app is
-      // loading its initial state and rendering its initial pixels. So instead,
-      // we hide the splash screen once we know the root view has already
-      // performed layout.
-      await SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded]);
+    // Intentionally no-op: splash hide is handled in a single controlled path above.
+  }, []);
 
   if (!fontsLoaded) {
     return null;
@@ -187,27 +219,29 @@ export default function RootLayout() {
   const GestureWrapper = Platform.OS === 'web' ? View : GestureHandlerRootView;
 
   return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <GestureWrapper style={{ flex: 1 }} onLayout={onLayoutRootView}>
-          <AppProviders style={{ flex: 1 }}>
-            <AuthProvider>
-              <SearchHistoryProvider>
-                <UserInterestsProvider>
-                  <ListingsProvider>
-                    <MessagesProvider>
-                      <NotificationsProvider>
-                        <RootLayoutNav />
-                        <NotificationCenter />
-                      </NotificationsProvider>
-                    </MessagesProvider>
-                  </ListingsProvider>
-                </UserInterestsProvider>
-              </SearchHistoryProvider>
-            </AuthProvider>
-          </AppProviders>
-        </GestureWrapper>
-      </QueryClientProvider>
-    </ErrorBoundary>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <GestureWrapper style={{ flex: 1 }} onLayout={onLayoutRootView}>
+            <AppProviders style={{ flex: 1 }}>
+              <AuthProvider>
+                <SearchHistoryProvider>
+                  <UserInterestsProvider>
+                    <ListingsProvider>
+                      <MessagesProvider>
+                        <NotificationsProvider>
+                          <RootLayoutNav />
+                          <NotificationCenter />
+                        </NotificationsProvider>
+                      </MessagesProvider>
+                    </ListingsProvider>
+                  </UserInterestsProvider>
+                </SearchHistoryProvider>
+              </AuthProvider>
+            </AppProviders>
+          </GestureWrapper>
+        </QueryClientProvider>
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }

@@ -1,10 +1,15 @@
 # App-specific ignores
 node_modules/
 .expo/
+.tmp/
 dist/
 build/
 *.apk
 *.aab
+build-*.apk.sha256
+build-*.aab.sha256
+build-*-mapping.txt
+build-*-mapping.txt.sha256
 android/.gradle/
 android/.cxx/
 android/local.properties
@@ -13,6 +18,7 @@ ios/build/
 .env
 .env.*
 !.env.example
+!.env.local-apk.example
 .env.local
 .env.*.local
 npm-debug.log

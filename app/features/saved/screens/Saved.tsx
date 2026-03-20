@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View, FlatList, Platform, Pressable, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -17,6 +17,16 @@ export default function SavedScreen() {
   const { savedIds, toggleSaved, getSavedListings } = useListings();
   const { user, isAuthenticated, logout } = useAuth();
   const savedListings = getSavedListings();
+  const savedGridData = useMemo(() => {
+    if (savedListings.length % 2 === 0) return savedListings;
+    return [
+      ...savedListings,
+      {
+        id: 'saved-grid-placeholder',
+        __placeholder: true,
+      } as unknown as (typeof savedListings)[number] & { __placeholder: true },
+    ];
+  }, [savedListings]);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -97,28 +107,35 @@ export default function SavedScreen() {
       </View>
 
       <FlatList
-        data={savedListings}
-        renderItem={({ item, index }) => (
-          <View style={index % 2 === 0 ? styles.leftCol : styles.rightCol}>
-            <ListingCard
-              id={item.id}
-              title={item.title}
-              description={item.description}
-              price={item.price}
-              offerPrice={item.offerPrice}
-              priceUnit={item.priceUnit}
-              image={item.images[0]}
-              location={item.location.city}
-              condition={formatCondition(item.condition)}
-              sellerVerified={Boolean(item.sellerVerified)}
-              isSponsored={Boolean((item as any).sponsored)}
-              isSaved={savedIds.has(item.id)}
-              onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
-              onSave={() => handleSave(item.id)}
-            />
-          </View>
-        )}
-        keyExtractor={(item) => item.id}
+        data={savedGridData}
+        renderItem={({ item, index }: { item: (typeof savedListings)[number] & { __placeholder?: boolean }; index: number }) => {
+          const columnStyle = index % 2 === 0 ? styles.leftCol : styles.rightCol;
+          if (item.__placeholder) {
+            return <View style={[columnStyle, styles.placeholderColumn]} pointerEvents="none" />;
+          }
+
+          return (
+            <View style={columnStyle}>
+              <ListingCard
+                id={item.id}
+                title={item.title}
+                description={item.description}
+                price={item.price}
+                offerPrice={item.offerPrice}
+                priceUnit={item.priceUnit}
+                image={item.images[0]}
+                location={item.location.city}
+                condition={formatCondition(item.condition)}
+                sellerVerified={Boolean(item.sellerVerified)}
+                isSponsored={Boolean((item as any).sponsored)}
+                isSaved={savedIds.has(item.id)}
+                onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
+                onSave={() => handleSave(item.id)}
+              />
+            </View>
+          );
+        }}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
         numColumns={2}
         columnWrapperStyle={styles.row}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
@@ -254,10 +271,17 @@ const styles = createResponsiveStyles({
     paddingHorizontal: 16,
   },
   leftCol: {
+    flexBasis: '48.5%',
+    maxWidth: '48.5%',
     marginRight: 6,
   },
   rightCol: {
+    flexBasis: '48.5%',
+    maxWidth: '48.5%',
     marginLeft: 6,
+  },
+  placeholderColumn: {
+    opacity: 0,
   },
   listContent: {
     paddingTop: 12,

@@ -1,11 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { View, FlatList, Dimensions, StyleSheet, Text, Pressable } from 'react-native';
+import { View, FlatList, StyleSheet, Text, Pressable, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Feather } from '@expo/vector-icons';
 import { getApiUrl } from '@/lib/query-client';
-
-const { width } = Dimensions.get('window');
 
 function remapLoopbackUrl(url: string): string {
   try {
@@ -69,6 +67,7 @@ export default function MediaCarousel({
   height,
   isFocused = true,
 }: MediaCarouselProps) {
+  const { width: windowWidth } = useWindowDimensions();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [activePlayers, setActivePlayers] = useState<Set<string>>(new Set());
   const flatListRef = useRef<FlatList>(null);
@@ -117,7 +116,7 @@ export default function MediaCarousel({
 
   const handleMomentumScrollEnd = (e: any) => {
     const contentOffsetX = e.nativeEvent.contentOffset.x;
-    const index = Math.round(contentOffsetX / width);
+    const index = Math.round(contentOffsetX / windowWidth);
     setCurrentIndex(index);
 
     // Auto-play video when scrolled into view (only if screen is focused)
@@ -135,7 +134,7 @@ export default function MediaCarousel({
   const renderMediaItem = ({ item }: { item: MediaItem }) => {
     if (item.type === 'image') {
       return (
-        <View style={[styles.mediaContainer, { height }]}>
+        <View style={[styles.mediaContainer, { height, width: windowWidth }]}>
           <Image
             source={{ uri: item.uri }}
             style={StyleSheet.absoluteFill}
@@ -152,6 +151,7 @@ export default function MediaCarousel({
         videoUri={item.uri}
         itemId={item.id}
         height={height}
+        width={windowWidth}
         activePlayers={activePlayers}
         setActivePlayers={setActivePlayers}
       />
@@ -165,12 +165,21 @@ export default function MediaCarousel({
         data={mediaItems}
         renderItem={renderMediaItem}
         keyExtractor={(item) => item.id}
+        extraData={windowWidth}
         horizontal
         pagingEnabled
+        snapToInterval={windowWidth}
+        snapToAlignment="start"
+        disableIntervalMomentum
         scrollEventThrottle={16}
         onMomentumScrollEnd={handleMomentumScrollEnd}
         showsHorizontalScrollIndicator={false}
         scrollEnabled={totalMedia > 1}
+        getItemLayout={(_, index) => ({
+          length: windowWidth,
+          offset: windowWidth * index,
+          index,
+        })}
       />
 
       {/* Media counter badge */}
@@ -194,12 +203,14 @@ function VideoPlayer({
   videoUri,
   itemId,
   height,
+  width,
   activePlayers,
   setActivePlayers,
 }: {
   videoUri: string;
   itemId: string;
   height: number;
+  width: number;
   activePlayers: Set<string>;
   setActivePlayers: (players: Set<string>) => void;
 }) {
@@ -313,7 +324,7 @@ function VideoPlayer({
   }, []);
 
   return (
-    <View style={[styles.mediaContainer, { height }]}>
+    <View style={[styles.mediaContainer, { height, width }]}>
       {videoError ? (
         <View style={[styles.errorContainer, { height }]}>
           <Feather name="alert-circle" size={40} color="#ff6b6b" />
@@ -358,7 +369,6 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   mediaContainer: {
-    width,
     backgroundColor: '#000',
   },
   placeholder: {

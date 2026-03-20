@@ -77,6 +77,14 @@ function buildFileName(uri: string, mediaType: MediaType): string {
   return `${mediaType}_${Date.now()}.${extension}`;
 }
 
+function assertSupportedVideoMime(contentType: string): void {
+  if (contentType === 'video/mp4') return;
+
+  throw new Error(
+    'Only MP4 videos are supported for reliable Android playback. Please upload/export MP4 (H.264 + AAC).'
+  );
+}
+
 async function requestPresignedUpload(params: PresignRequest): Promise<PresignResponse> {
   const response = await fetch(`${getApiUrl()}/api/media/presign-upload`, {
     method: 'POST',
@@ -209,6 +217,9 @@ export async function uploadMediaToCloudflare(params: {
 
   const fileName = params.fileName || buildFileName(sourceUri, params.mediaType);
   const contentType = params.mimeType || inferMimeType(params.uri, params.mediaType);
+  if (params.mediaType === 'video') {
+    assertSupportedVideoMime(contentType);
+  }
   const fileSizeBytes = await getFileSizeBytes(params.uri);
 
   try {

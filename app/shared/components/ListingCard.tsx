@@ -1,16 +1,14 @@
 import React from 'react';
-import { StyleSheet, Text, View, Pressable, Dimensions } from 'react-native';
+import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
 import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
 
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 48) / 2;
-
 interface ListingCardProps {
   id: string;
   title: string;
+  titleMaxChars?: number;
   description?: string;
   price: number;
   offerPrice?: number;
@@ -28,6 +26,7 @@ interface ListingCardProps {
 
 export default function ListingCard({
   title,
+  titleMaxChars,
   description,
   price,
   offerPrice,
@@ -48,6 +47,14 @@ export default function ListingCard({
     !image || hasUnreachablePlaceholder ? require('../../assets/images/icon.png') : { uri: image };
   const hasValidOfferPrice = typeof offerPrice === 'number' && offerPrice > 0 && offerPrice < price;
   const displayPrice = hasValidOfferPrice ? offerPrice : price;
+  const normalizedTitle = title.trim();
+  const shouldTruncateTitle =
+    typeof titleMaxChars === 'number' &&
+    titleMaxChars > 0 &&
+    normalizedTitle.length > titleMaxChars;
+  const displayTitle = shouldTruncateTitle
+    ? `${normalizedTitle.slice(0, titleMaxChars).trimEnd()}...`
+    : normalizedTitle;
 
   return (
     <Pressable
@@ -63,25 +70,26 @@ export default function ListingCard({
             color={isSaved ? Colors.accent : '#fff'}
           />
         </Pressable>
+        <View style={styles.badgeStack}>
+          {isBoosted && (
+            <View style={styles.boostBadge}>
+              <Ionicons name="rocket" size={11} color="#fff" />
+            </View>
+          )}
+          {sellerVerified && (
+            <View style={styles.verifiedBadge}>
+              <Feather name="check-circle" size={11} color="#fff" />
+            </View>
+          )}
+          {isSponsored && (
+            <View style={styles.sponsoredBadge}>
+              <Text style={styles.sponsoredText}>Ad</Text>
+            </View>
+          )}
+        </View>
         <View style={styles.conditionBadge}>
           <Text style={styles.conditionText}>{condition}</Text>
         </View>
-        {isBoosted && (
-          <View style={styles.boostBadge}>
-            <Text style={styles.boostText}>Boost</Text>
-          </View>
-        )}
-        {isSponsored && (
-          <View style={styles.sponsoredBadge}>
-            <Text style={styles.sponsoredText}>Sponsored</Text>
-          </View>
-        )}
-        {sellerVerified && (
-          <View style={styles.verifiedBadge}>
-            <Feather name="check-circle" size={11} color="#fff" />
-            <Text style={styles.verifiedText}>Verified</Text>
-          </View>
-        )}
       </View>
       <View style={styles.info}>
         <View style={styles.priceRow}>
@@ -92,7 +100,7 @@ export default function ListingCard({
           )}
         </View>
         <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-          {title}
+          {displayTitle}
         </Text>
         <Text style={styles.description} numberOfLines={1} ellipsizeMode="tail">
           {description || title}
@@ -108,7 +116,7 @@ export default function ListingCard({
 
 const styles = StyleSheet.create({
   card: {
-    width: CARD_WIDTH,
+    width: '100%',
     backgroundColor: Colors.surface,
     borderRadius: 0,
     overflow: 'hidden',
@@ -125,7 +133,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    height: CARD_WIDTH * 1.1,
+    aspectRatio: 1.1,
     position: 'relative',
   },
   image: {
@@ -157,24 +165,22 @@ const styles = StyleSheet.create({
     fontSize: responsiveFont(10),
     fontFamily: 'Inter_500Medium',
   },
-  boostBadge: {
+  badgeStack: {
     position: 'absolute',
     top: responsiveModerateScale(8),
     left: responsiveModerateScale(8),
-    backgroundColor: Colors.primary,
-    paddingHorizontal: responsiveModerateScale(7),
-    paddingVertical: responsiveModerateScale(2),
-    borderRadius: responsiveModerateScale(8),
+    alignItems: 'flex-start',
+    gap: responsiveModerateScale(4),
   },
-  boostText: {
-    color: '#fff',
-    fontSize: responsiveFont(10),
-    fontFamily: 'Inter_700Bold',
+  boostBadge: {
+    backgroundColor: Colors.primary,
+    width: responsiveModerateScale(22),
+    height: responsiveModerateScale(22),
+    borderRadius: responsiveModerateScale(11),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sponsoredBadge: {
-    position: 'absolute',
-    top: responsiveModerateScale(8),
-    left: responsiveModerateScale(58),
     backgroundColor: '#F59E0B',
     paddingHorizontal: responsiveModerateScale(7),
     paddingVertical: responsiveModerateScale(2),
@@ -186,24 +192,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
   },
   verifiedBadge: {
-    position: 'absolute',
-    top: responsiveModerateScale(34),
-    left: responsiveModerateScale(8),
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
     backgroundColor: '#0F766E',
-    paddingHorizontal: responsiveModerateScale(7),
-    paddingVertical: responsiveModerateScale(2),
-    borderRadius: responsiveModerateScale(8),
-  },
-  verifiedText: {
-    color: '#fff',
-    fontSize: responsiveFont(10),
-    fontFamily: 'Inter_700Bold',
+    width: responsiveModerateScale(22),
+    height: responsiveModerateScale(22),
+    borderRadius: responsiveModerateScale(11),
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   info: {
     padding: responsiveModerateScale(8),
+    minHeight: responsiveModerateScale(76),
   },
   price: {
     fontSize: responsiveFont(15),

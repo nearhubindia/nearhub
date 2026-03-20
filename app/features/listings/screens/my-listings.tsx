@@ -868,7 +868,12 @@ export default function MyListingsScreen() {
                     >
                       <Feather name="message-circle" size={18} color="#6b7280" />
                       <Text style={styles.analyticsValue}>
-                        {getMetricValue(item, ['chatCount', 'chats', 'messageCount', 'inquiryCount'])}
+                        {getMetricValue(item, [
+                          'chatCount',
+                          'chats',
+                          'messageCount',
+                          'inquiryCount',
+                        ])}
                       </Text>
                       <Text style={styles.analyticsLabel}>Chats</Text>
                     </Pressable>

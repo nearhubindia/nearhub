@@ -1,19 +1,24 @@
-import React, { useCallback, useRef, useState, useMemo, useEffect } from 'react';
+import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   FlatList,
   Text,
-  Pressable,
   Platform,
   Alert,
   useWindowDimensions,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  LayoutChangeEvent,
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
+import { getTabBarHeight } from '@/constants/layout';
 import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useUserInterests } from '@/shared/contexts/user-interests-context';
@@ -21,8 +26,8 @@ import { getPersonalizedShortsFeed, hasEnoughDataForPersonalization } from '@/li
 import { calculateDistance } from '@/lib/location-data';
 import { formatCondition } from '@/lib/utils';
 import { useAdminSettings } from '@/lib/use-admin-settings';
+import { getShortsSwipeHapticsEnabled } from '@/lib/config';
 import ShortsCard from '@/shared/components/ShortsCard';
-const TAB_BAR_HEIGHT = Platform.OS === 'web' ? 84 : 50;
 
 export default function ShortsScreen() {
   const insets = useSafeAreaInsets();
@@ -30,26 +35,27 @@ export default function ShortsScreen() {
   const { listings, savedIds, toggleSaved } = useListings();
   const { isAuthenticated, user } = useAuth();
   const { interests, trackView, trackSave, trackContact } = useUserInterests();
+  const isTabFocused = useIsFocused();
+  const tabBarHeight = useBottomTabBarHeight();
   const { geoRadiusKm } = useAdminSettings();
   const effectiveGeoRadiusKm = user?.preferences?.searchRadiusKm ?? geoRadiusKm;
+  const [listHeight, setListHeight] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [viewStartTime, setViewStartTime] = useState<number>(Date.now());
-  const [showOnlyVideos, setShowOnlyVideos] = useState(false);
-  const [isFocused, setIsFocused] = useState(true);
-
-  // Pause videos when tab loses focus
-  useFocusEffect(
-    useCallback(() => {
-      setIsFocused(true);
-      return () => {
-        setIsFocused(false);
-      };
-    }, [])
-  );
+  const shortsSwipeHapticsEnabled = getShortsSwipeHapticsEnabled();
 
   const bottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
-  // Full screen height minus tab bar only
-  const cardHeight = windowHeight - TAB_BAR_HEIGHT;
+  const topInset = Platform.OS === 'web' ? 0 : insets.top;
+  // Use measured list viewport height to avoid page-size drift across items/devices.
+  const cardHeight = Math.max(1, Math.round(listHeight || windowHeight));
+  // Use a single, stable anchor for all cards: tab bar height + small fixed padding.
+  const overlayBottomPadding = 4;
+  const fallbackTabBarHeight = Math.max(0, Math.round(getTabBarHeight(bottomInset)));
+  const measuredTabBarHeight = Math.max(0, Math.round(tabBarHeight || 0));
+  const stableTabBarHeight =
+    measuredTabBarHeight > 0 ? measuredTabBarHeight : fallbackTabBarHeight;
+  const cardUiBottomInset = stableTabBarHeight + overlayBottomPadding;
+  const listLayoutKey = `shorts-${cardHeight}-${cardUiBottomInset}`;
 
   // Get personalized shorts feed using AI
   const personalizedShorts = useMemo(() => {
@@ -57,9 +63,10 @@ export default function ShortsScreen() {
 
     let filtered = listings;
 
-    // Filter by location (within geoRadiusKm)
     const userLat = user?.location?.latitude;
     const userLon = user?.location?.longitude;
+
+    // Filter by location (within geo radius)
     if (userLat && userLon) {
       filtered = filtered.filter((l) => {
         const distance = calculateDistance(
@@ -72,16 +79,8 @@ export default function ShortsScreen() {
       });
     }
 
-    // Filter based on content type
-    if (showOnlyVideos) {
-      // Show only items with videos
-      filtered = filtered.filter((l) => l.videos && l.videos.length > 0);
-    } else {
-      // Show videos and image slideshows (default)
-      filtered = filtered.filter(
-        (l) => (l.videos && l.videos.length > 0) || (l.images && l.images.length > 0)
-      );
-    }
+    // Shorts feed is video-only
+    filtered = filtered.filter((l) => l.videos && l.videos.length > 0);
 
     if (hasEnoughData) {
       // Use AI-powered personalization
@@ -91,7 +90,7 @@ export default function ShortsScreen() {
       // New user - show filtered shorts
       return filtered;
     }
-  }, [listings, interests, user?.location, showOnlyVideos, effectiveGeoRadiusKm]);
+  }, [listings, interests, user?.location, effectiveGeoRadiusKm]);
 
   // Track view time when user changes shorts
   useEffect(() => {
@@ -161,39 +160,28 @@ export default function ShortsScreen() {
     [isAuthenticated, trackContact, user?.id]
   );
 
-  const onViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: any[] }) => {
-      if (viewableItems.length > 0) {
-        // Find the item with the most coverage (not just the first viewable item)
-        let maxCoverageIndex = 0;
-        let maxCoverage = 0;
+  const handleMomentumScrollEnd = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const rawOffsetY = event.nativeEvent.contentOffset.y;
+      const clampedIndex = Math.min(
+        personalizedShorts.length - 1,
+        Math.max(0, Math.round(rawOffsetY / cardHeight))
+      );
 
-        for (const item of viewableItems) {
-          const coverage = item.viewablePercentage || 0;
-          if (coverage > maxCoverage) {
-            maxCoverage = coverage;
-            maxCoverageIndex = item.index;
-          }
-        }
-
-        // Only update if we found a clearly visible item (> 50% visible)
-        if (maxCoverage > 50 && maxCoverageIndex !== currentIndex) {
-          setCurrentIndex(maxCoverageIndex);
+      if (clampedIndex !== currentIndex) {
+        setCurrentIndex(clampedIndex);
+        if (shortsSwipeHapticsEnabled) {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
       }
     },
-    [currentIndex]
+    [cardHeight, currentIndex, personalizedShorts.length, shortsSwipeHapticsEnabled]
   );
 
-  const viewabilityConfig = useRef({
-    viewAreaCoveragePercentThreshold: 60, // Increased from 50 to 60 for better accuracy
-    minimumViewTime: 200, // Minimum time (ms) item must be visible
-  }).current;
-
-  const webTopInset = Platform.OS === 'web' ? 67 : 0;
-
-  const hasEnoughData = hasEnoughDataForPersonalization(interests);
+  const handleContainerLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = Math.max(1, Math.round(event.nativeEvent.layout.height));
+    setListHeight((prev) => (prev !== nextHeight ? nextHeight : prev));
+  }, []);
 
   if (personalizedShorts.length === 0) {
     return (
@@ -210,50 +198,51 @@ export default function ShortsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={handleContainerLayout}>
       <FlatList
+        key={listLayoutKey}
         data={personalizedShorts}
+        extraData={cardUiBottomInset}
         renderItem={({ item, index }) => (
           <ShortsCard
-            title={item.title}
-            price={item.price}
-            image={item.images[0]}
+            title={item.title?.trim() || 'Untitled listing'}
+            price={Number(item.price) || 0}
+            image={item.images?.[0] || ''}
             images={item.images}
             videos={item.videos}
-            sellerName={item.sellerName}
+            sellerName={item.sellerName?.trim() || 'NearHub Seller'}
             sellerAvatar={item.sellerAvatar}
             sellerVerified={Boolean(item.sellerVerified)}
-            location={item.location.city}
+            location={item.location?.city || 'Unknown location'}
             category={item.category}
             condition={formatCondition(item.condition)}
             isSaved={savedIds.has(item.id)}
-            isActive={index === currentIndex && isFocused}
+            isActive={index === currentIndex && isTabFocused}
             onSave={() => handleSave(item.id, item.category)}
             onContact={() => handleContact(item)}
             onDetails={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
             cardHeight={cardHeight}
             cardWidth={width}
+            uiBottomInset={cardUiBottomInset}
+            uiTopInset={topInset}
           />
         )}
         keyExtractor={(item) => item.id}
         pagingEnabled
+        removeClippedSubviews={Platform.OS === 'android'}
+        initialNumToRender={2}
+        maxToRenderPerBatch={2}
+        updateCellsBatchingPeriod={16}
+        windowSize={3}
         showsVerticalScrollIndicator={false}
-        snapToInterval={cardHeight}
         decelerationRate="fast"
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
+        getItemLayout={(_, index) => ({
+          length: cardHeight,
+          offset: cardHeight * index,
+          index,
+        })}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
       />
-
-      {/* Simple toggle button for images/videos - top right corner */}
-      <Pressable
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          setShowOnlyVideos(!showOnlyVideos);
-        }}
-        style={[styles.floatingToggle, { top: insets.top + 12 }]}
-      >
-        <Feather name={showOnlyVideos ? 'play-circle' : 'image'} size={24} color="#fff" />
-      </Pressable>
     </View>
   );
 }
@@ -262,15 +251,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
-  },
-  floatingToggle: {
-    position: 'absolute',
-    right: 16,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    zIndex: 10,
   },
   emptyContainer: {
     flex: 1,

@@ -19,7 +19,8 @@
     "quality-check": "npm run type-check && npm run lint && npm run format:check",
     "pre-build": "npm run quality-check",
     "build:aab": "bash ./scripts/build-aab.sh",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "build:apk": "bash ./scripts/build-apk-local.sh"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
@@ -49,6 +50,7 @@
     "expo-linking": "~8.0.10",
     "expo-location": "~19.0.8",
     "expo-media-library": "^18.2.1",
+    "expo-navigation-bar": "~5.0.10",
     "expo-notifications": "~0.32.16",
     "expo-router": "~6.0.17",
     "expo-splash-screen": "~31.0.12",

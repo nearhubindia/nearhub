@@ -10,7 +10,7 @@ import {
   Alert,
   Image,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -23,6 +23,12 @@ import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 import { getApiUrl } from '@/lib/query-client';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 
+type ProfileStats = {
+  totalListings: number;
+  soldListings: number;
+  rating: number | null;
+};
+
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, updateUser } = useAuth();
@@ -34,6 +40,11 @@ export default function ProfileScreen() {
   const [bio, setBio] = useState(user?.bio || '');
   const [gstin, setGstin] = useState(user?.gstin || '');
   const [saving, setSaving] = useState(false);
+  const [profileStats, setProfileStats] = useState<ProfileStats>({
+    totalListings: 0,
+    soldListings: 0,
+    rating: null,
+  });
   const lastSyncedUserIdRef = useRef<string | null>(null);
   const lastSavedPayloadRef = useRef<string>('');
 
@@ -62,6 +73,40 @@ export default function ProfileScreen() {
       throw new Error(errorText || `Profile sync failed (${response.status})`);
     }
   };
+
+  const loadProfileStats = React.useCallback(async () => {
+    if (!user?.id) {
+      setProfileStats({ totalListings: 0, soldListings: 0, rating: null });
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${getApiUrl()}/api/users/${encodeURIComponent(user.id)}/stats`,
+        {
+          headers: buildUserAuthHeaders({ id: user.id }),
+        }
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to fetch stats (${response.status})`);
+      }
+
+      const data = await response.json().catch(() => ({}));
+      const stats = data?.stats || {};
+      const totalListings = Number(stats.totalListings ?? 0);
+      const soldListings = Number(stats.soldListings ?? 0);
+      const rawRating = Number(stats.rating ?? stats.averageRating ?? stats.avgRating);
+
+      setProfileStats({
+        totalListings: Number.isFinite(totalListings) ? totalListings : 0,
+        soldListings: Number.isFinite(soldListings) ? soldListings : 0,
+        rating: Number.isFinite(rawRating) ? rawRating : null,
+      });
+    } catch (error) {
+      console.warn('[Profile] Failed to load stats:', error);
+      setProfileStats({ totalListings: 0, soldListings: 0, rating: null });
+    }
+  }, [user?.id]);
 
   const handleChangePhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -163,6 +208,12 @@ export default function ProfileScreen() {
 
     return () => clearTimeout(saveTimer);
   }, [user?.id, name, email, address, bio, gstin, updateUser]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadProfileStats();
+    }, [loadProfileStats])
+  );
 
   return (
     <View style={styles.container}>
@@ -305,15 +356,17 @@ export default function ProfileScreen() {
         {/* Stats */}
         <View style={styles.statsSection}>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statValue}>{profileStats.totalListings}</Text>
             <Text style={styles.statLabel}>Listings</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statValue}>{profileStats.soldListings}</Text>
             <Text style={styles.statLabel}>Sold</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statValue}>
+              {profileStats.rating !== null ? profileStats.rating.toFixed(1) : '0.0'}
+            </Text>
             <Text style={styles.statLabel}>Rating</Text>
           </View>
         </View>

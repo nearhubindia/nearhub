@@ -7,10 +7,10 @@
     "icon": "./assets/images/icon.png",
     "scheme": "nearhub",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/near_hub_splash.png",
-      "resizeMode": "cover",
+      "resizeMode": "contain",
       "backgroundColor": "#0A0F1A"
     },
     "ios": {
@@ -18,7 +18,7 @@
       "bundleIdentifier": "com.synvide.nearhub",
       "splash": {
         "image": "./assets/images/near_hub_splash.png",
-        "resizeMode": "cover",
+        "resizeMode": "contain",
         "backgroundColor": "#0A0F1A"
       }
     },
@@ -32,9 +32,13 @@
       },
       "splash": {
         "image": "./assets/images/near_hub_splash.png",
-        "resizeMode": "cover",
+        "resizeMode": "contain",
         "backgroundColor": "#0A0F1A"
       }
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#ffffff",
+      "barStyle": "dark-content"
     },
     "web": {
       "favicon": "./assets/images/favicon.png"

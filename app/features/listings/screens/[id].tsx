@@ -400,7 +400,7 @@ const styles = createResponsiveStyles({
     backgroundColor: Colors.background,
   },
   imageContainer: {
-    width,
+    width: '100%',
     position: 'relative',
   },
   mainImage: {

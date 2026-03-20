@@ -67,7 +67,7 @@ react {
 /**
  * Set this to true in release builds to optimize the app using [R8](https://developer.android.com/topic/performance/app-optimization/enable-app-optimization).
  */
-def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
+def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: System.getenv('ANDROID_ENABLE_MINIFY_IN_RELEASE_BUILDS') ?: true).toBoolean()
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -91,9 +91,10 @@ android {
     namespace 'com.synvide.nearhub'
     defaultConfig {
         applicationId 'com.synvide.nearhub'
-        minSdkVersion rootProject.ext.minSdkVersion
+        def configuredMinSdkVersion = (findProperty('MIN_SDK_VERSION') ?: System.getenv('MIN_SDK_VERSION') ?: "24").toInteger()
+        minSdkVersion configuredMinSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        def configuredVersionCode = (findProperty('VERSION_CODE') ?: System.getenv('VERSION_CODE') ?: "2").toInteger()
+        def configuredVersionCode = (findProperty('VERSION_CODE') ?: System.getenv('VERSION_CODE') ?: "4").toInteger()
         def configuredVersionName = (findProperty('VERSION_NAME') ?: System.getenv('VERSION_NAME') ?: "1.0.1").toString()
         versionCode configuredVersionCode
         versionName configuredVersionName
@@ -129,9 +130,14 @@ android {
         }
         release {
             def allowDebugReleaseSigning = (findProperty('ALLOW_DEBUG_RELEASE_SIGNING') ?: System.getenv('ALLOW_DEBUG_RELEASE_SIGNING') ?: 'false').toBoolean()
+            def requestedTasks = gradle.startParameter.taskNames.collect { it.toLowerCase(Locale.ROOT) }
+            def isReleaseBuildRequested = requestedTasks.any { it.contains('release') || it.contains('bundle') || it.contains('publish') }
             if (hasReleaseSigning) {
                 signingConfig signingConfigs.release
             } else if (allowDebugReleaseSigning) {
+                signingConfig signingConfigs.debug
+            } else if (!isReleaseBuildRequested) {
+                // Allow debug-only workflows (expo run:android / assembleDebug) without upload keys.
                 signingConfig signingConfigs.debug
             } else {
                 throw new GradleException("Release signing is not configured. Set NEARHUB_UPLOAD_* properties (or use EAS local build) to avoid debug-signed release bundles.")

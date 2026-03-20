@@ -10,6 +10,15 @@ function normalizeBaseUrl(value: string): string {
   return withProtocol.replace(/\/+$/, '');
 }
 
+function isValidBackendUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && Boolean(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function getBackendURL(): string {
   // Try to get from environment variables first
   const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -17,10 +26,16 @@ export function getBackendURL(): string {
 
   if (envApiUrl) {
     const normalized = normalizeBaseUrl(envApiUrl);
-    if (getDebug()) {
-      console.log('[Config] Using EXPO_PUBLIC_API_URL:', normalized);
+    if (!isValidBackendUrl(normalized)) {
+      if (getDebug()) {
+        console.warn('[Config] Ignoring invalid EXPO_PUBLIC_API_URL:', envApiUrl);
+      }
+    } else {
+      if (getDebug()) {
+        console.log('[Config] Using EXPO_PUBLIC_API_URL:', normalized);
+      }
+      return normalized;
     }
-    return normalized;
   }
 
   if (envDomain) {
@@ -30,11 +45,16 @@ export function getBackendURL(): string {
     const protocol = isLocalNetwork ? 'http' : 'https';
     const url = normalizeBaseUrl(`${protocol}://${envDomain}`);
 
-    if (getDebug()) {
-      console.log('[Config] Using EXPO_PUBLIC_DOMAIN:', url);
+    if (!isValidBackendUrl(url)) {
+      if (getDebug()) {
+        console.warn('[Config] Ignoring invalid EXPO_PUBLIC_DOMAIN:', envDomain);
+      }
+    } else {
+      if (getDebug()) {
+        console.log('[Config] Using EXPO_PUBLIC_DOMAIN:', url);
+      }
+      return url;
     }
-
-    return url;
   }
 
   // Final fallback points to production so physical Android devices don't break on localhost.
@@ -88,6 +108,14 @@ export function getSearchPageSize(): number {
 
 export function getInfiniteScrollThreshold(): number {
   return parseInt(process.env.EXPO_PUBLIC_INFINITE_SCROLL_THRESHOLD || '500', 10);
+}
+
+export function getShortsSwipeHapticsEnabled(): boolean {
+  const raw = process.env.EXPO_PUBLIC_SHORTS_SWIPE_HAPTICS;
+  if (typeof raw === 'string') {
+    return raw === 'true';
+  }
+  return false;
 }
 
 export function logDebug(message: string, data?: any): void {

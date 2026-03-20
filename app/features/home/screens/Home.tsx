@@ -23,6 +23,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import Colors from '@/constants/colors';
+import { getTabOverlayContentPadding } from '@/constants/layout';
 import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useUserInterests } from '@/shared/contexts/user-interests-context';
@@ -410,13 +411,13 @@ export default function HomeScreen() {
       });
   }, [visibleListings, userLat, userLon, selectedSearchRadiusKm]);
 
-  const nearYouListings = useMemo(() => allNearYouListings.slice(0, 5), [allNearYouListings]);
+  const nearYouListings = useMemo(() => allNearYouListings.slice(0, 4), [allNearYouListings]);
 
   const allBoostedListings = useMemo(
     () => filteredListingsByLocation.filter((listing) => Boolean(listing.featured)),
     [filteredListingsByLocation]
   );
-  const boostedListings = useMemo(() => allBoostedListings.slice(0, 5), [allBoostedListings]);
+  const boostedListings = useMemo(() => allBoostedListings.slice(0, 4), [allBoostedListings]);
 
   const onRefresh = useCallback(async () => {
     await Promise.all([refreshListings(), refreshBanners()]);
@@ -456,30 +457,49 @@ export default function HomeScreen() {
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const statusStripHeight = Platform.OS === 'web' ? webTopInset : Math.max(insets.top, 12);
-  const alignedResultCardWidth = useMemo(() => (SCREEN_WIDTH - 24 - 3) / 2, []);
+  const tabAwareBottomPadding = getTabOverlayContentPadding(insets.bottom, 20);
+  const alignedResultCardWidth = useMemo(() => (SCREEN_WIDTH - 24 - 9) / 4, []);
+  const listingGridData = useMemo(
+    () =>
+      filteredListingsByLocation.length % 2 === 0
+        ? filteredListingsByLocation
+        : [
+            ...filteredListingsByLocation,
+            ({ id: '__spacer__', __placeholder: true } as unknown as (typeof listings)[0]),
+          ],
+    [filteredListingsByLocation, listings]
+  );
 
   const renderItem = useCallback(
-    ({ item, index }: { item: (typeof listings)[0]; index: number }) => (
-      <View style={index % 2 === 0 ? styles.leftColumn : styles.rightColumn}>
-        <ListingCard
-          id={item.id}
-          title={item.title}
-          description={item.description}
-          price={item.price}
-          offerPrice={item.offerPrice}
-          priceUnit={item.priceUnit}
-          image={item.images[0]}
-          location={item.location.city}
-          condition={formatCondition(item.condition)}
-          sellerVerified={Boolean(item.sellerVerified)}
-          isBoosted={Boolean(item.featured)}
-          isSponsored={Boolean((item as any).sponsored)}
-          isSaved={savedIds.has(item.id)}
-          onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
-          onSave={() => handleSave(item.id, item.category)}
-        />
-      </View>
-    ),
+    ({ item, index }: { item: (typeof listings)[0]; index: number }) => {
+      const columnStyle = index % 2 === 0 ? styles.leftColumn : styles.rightColumn;
+      if ((item as any).__placeholder) {
+        return <View style={[columnStyle, styles.placeholderColumn]} pointerEvents="none" />;
+      }
+
+      return (
+        <View style={columnStyle}>
+          <ListingCard
+            id={item.id}
+            title={item.title}
+            titleMaxChars={28}
+            description={item.description}
+            price={item.price}
+            offerPrice={item.offerPrice}
+            priceUnit={item.priceUnit}
+            image={item.images[0]}
+            location={item.location.city}
+            condition={formatCondition(item.condition)}
+            sellerVerified={Boolean(item.sellerVerified)}
+            isBoosted={Boolean(item.featured)}
+            isSponsored={Boolean((item as any).sponsored)}
+            isSaved={savedIds.has(item.id)}
+            onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
+            onSave={() => handleSave(item.id, item.category)}
+          />
+        </View>
+      );
+    },
     [savedIds, handleSave]
   );
 
@@ -488,12 +508,12 @@ export default function HomeScreen() {
       <View pointerEvents="none" style={styles.topEdgeCover} />
       <StatusBar barStyle="light-content" backgroundColor="#0F172A" translucent={false} />
       <FlatList
-        data={filteredListingsByLocation}
+        data={listingGridData}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
         numColumns={2}
         columnWrapperStyle={styles.row}
-        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[styles.listContent, { paddingBottom: tabAwareBottomPadding }]}
         showsVerticalScrollIndicator={false}
         scrollEnabled={true}
         refreshControl={
@@ -611,7 +631,7 @@ export default function HomeScreen() {
                           onPress={() =>
                             router.push({ pathname: '/listing/[id]', params: { id: item.id } })
                           }
-                          style={[styles.nearYouCard, { width: alignedResultCardWidth }]}
+                          style={[styles.featuredCard, { width: alignedResultCardWidth }]}
                         >
                           <Image
                             source={{ uri: item.images[0] }}
@@ -720,8 +740,15 @@ export default function HomeScreen() {
                               </Text>
                             ) : null}
                           </View>
-                          <View style={styles.cardBadge}>
-                            <Text style={styles.badgeText}>Boost</Text>
+                          <View style={styles.cardBadgeStack}>
+                            {Boolean(item.sellerVerified) ? (
+                              <View style={[styles.cardBadge, styles.verifiedBadge]}>
+                                <Feather name="check-circle" size={10} color="#FFFFFF" />
+                              </View>
+                            ) : null}
+                            <View style={styles.cardBadge}>
+                              <Ionicons name="rocket" size={10} color="#FFFFFF" />
+                            </View>
                           </View>
                         </Pressable>
                       );
@@ -732,9 +759,11 @@ export default function HomeScreen() {
             )}
 
             <View style={styles.allListingsSectionHeader}>
-              <View style={styles.sectionHeader}>
-                <Feather name="grid" size={16} color={Colors.primary} />
-                <Text style={styles.sectionTitle}>All Listings</Text>
+              <View style={styles.sectionHeaderCompact}>
+                <View style={styles.sectionHeaderLeft}>
+                  <Feather name="grid" size={16} color={Colors.primary} />
+                  <Text style={styles.sectionTitle}>All Listings</Text>
+                </View>
               </View>
               <Text style={styles.allListingsSectionSubtitle}>
                 Showing listings within {selectedSearchRadiusKm} km of {userCity}
@@ -1209,10 +1238,8 @@ const styles = createResponsiveStyles({
     gap: 8,
   },
   nearYouSection: {
-    paddingTop: 8,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    marginTop: 8,
+    marginBottom: 8,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1243,47 +1270,44 @@ const styles = createResponsiveStyles({
   nearYouScroll: {
     marginTop: 2,
   },
-  nearYouCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 0,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
   cardImage: {
     width: '100%',
     height: 100,
   },
   cardTitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: 'Inter_600SemiBold',
     color: Colors.text,
-    padding: 8,
+    paddingHorizontal: 6,
+    paddingTop: 6,
+    paddingBottom: 4,
+    lineHeight: 14,
   },
   cardPrice: {
-    fontSize: 13,
+    fontSize: 10,
     fontFamily: 'Inter_700Bold',
     color: Colors.primary,
-    paddingHorizontal: 8,
+    paddingHorizontal: 0,
   },
   cardPriceRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    gap: 6,
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 6,
+    gap: 3,
   },
   cardOriginalPrice: {
-    fontSize: 11,
+    fontSize: 8,
     fontFamily: 'Inter_500Medium',
     color: Colors.textSecondary,
     textDecorationLine: 'line-through',
   },
   cardDistance: {
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
-    paddingHorizontal: 8,
-    paddingBottom: 8,
+    paddingHorizontal: 6,
+    paddingBottom: 6,
   },
   featuredSection: {
     marginTop: 8,
@@ -1299,23 +1323,33 @@ const styles = createResponsiveStyles({
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
-  cardBadge: {
+  cardBadgeStack: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 0,
+    alignItems: 'flex-end',
+    gap: 4,
   },
-  badgeText: {
-    fontSize: 10,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#fff',
+  cardBadge: {
+    backgroundColor: Colors.primary,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verifiedBadge: {
+    backgroundColor: '#0F766E',
   },
   allListingsSectionHeader: {
     marginTop: 2,
     marginBottom: 6,
+  },
+  sectionHeaderCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    marginBottom: 2,
   },
   allListingsSectionSubtitle: {
     fontSize: 12,
@@ -1336,10 +1370,15 @@ const styles = createResponsiveStyles({
     gap: 3,
   },
   leftColumn: {
-    flex: 1,
+    flexBasis: '49%',
+    maxWidth: '49%',
   },
   rightColumn: {
-    flex: 1,
+    flexBasis: '49%',
+    maxWidth: '49%',
+  },
+  placeholderColumn: {
+    opacity: 0,
   },
   emptyState: {
     alignItems: 'center',

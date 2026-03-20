@@ -3,10 +3,10 @@ import { StyleSheet, Text, View, Pressable, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '@/constants/colors';
 import PhotoSlideshow from './PhotoSlideshow';
 import { getApiUrl } from '@/lib/query-client';
+import { createResponsiveStyles, responsiveModerateScale } from '@/lib/responsive';
 
 function remapLoopbackUrl(url: string): string {
   try {
@@ -48,6 +48,8 @@ interface ShortsCardProps {
   onDetails: () => void;
   cardHeight: number;
   cardWidth: number;
+  uiBottomInset?: number;
+  uiTopInset?: number;
 }
 
 function getStreamingUrl(videoUrl: string): string {
@@ -67,30 +69,53 @@ function getStreamingUrl(videoUrl: string): string {
   return `${apiBaseUrl}/api/videos/stream/${videoUrl}`;
 }
 
+function getProxyStreamingUrl(videoUrl: string): string {
+  const apiBaseUrl = getApiUrl();
+  return `${apiBaseUrl}/api/videos/proxy?url=${encodeURIComponent(videoUrl)}`;
+}
+
 function VideoPlayer({
   videoUrl,
   isActive,
   onMuteToggle,
   isMuted,
+  onPlaybackError,
+  uiBottomInset,
 }: {
   videoUrl: string;
   isActive: boolean;
   onMuteToggle: () => void;
   isMuted: boolean;
+  onPlaybackError: () => void;
+  uiBottomInset: number;
 }) {
   const streamingUrl = getStreamingUrl(videoUrl);
+  const isLegacyAndroid = Platform.OS === 'android' && Number(Platform.Version) <= 30;
+  const shouldUseProxy = isLegacyAndroid && /^https?:\/\//i.test(streamingUrl);
+  const playbackUrl = shouldUseProxy ? getProxyStreamingUrl(streamingUrl) : streamingUrl;
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [showControls, setShowControls] = React.useState(false);
   const hideControlsTimeout = React.useRef<NodeJS.Timeout | null>(null);
 
-  const player = useVideoPlayer(streamingUrl, (p) => {
+  const player = useVideoPlayer(playbackUrl, (p) => {
     p.loop = true;
-    p.muted = true;
+    p.muted = false;
   });
 
   React.useEffect(() => {
-    player.muted = isMuted;
-  }, [isMuted, player]);
+    // Force mute when card is not active to avoid lingering audio on tab/screen switches.
+    player.muted = !isActive || isMuted;
+  }, [isActive, isMuted, player]);
+
+  React.useEffect(() => {
+    const sub = player.addListener('statusChange', (status: any) => {
+      if (status?.error) {
+        console.warn('[Video] Playback status error:', status.error);
+        onPlaybackError();
+      }
+    });
+    return () => sub.remove();
+  }, [player, onPlaybackError]);
 
   React.useEffect(() => {
     if (isActive) {
@@ -103,12 +128,23 @@ function VideoPlayer({
     } else {
       try {
         player.pause();
+        player.muted = true;
         setIsPlaying(false);
       } catch (err) {
         console.warn('[Video] Pause error:', err);
       }
     }
   }, [isActive, player]);
+
+  React.useEffect(() => {
+    return () => {
+      try {
+        player.pause();
+      } catch {
+        // Best-effort pause during teardown
+      }
+    };
+  }, [player]);
 
   const handleMuteClick = () => {
     onMuteToggle();
@@ -159,9 +195,13 @@ function VideoPlayer({
           style={StyleSheet.absoluteFill}
           nativeControls={false}
           contentFit="cover"
+          surfaceType="textureView"
         />
       </Pressable>
-      <Pressable style={styles.muteButton} onPress={handleMuteClick}>
+      <Pressable
+        style={[styles.muteButton, { bottom: uiBottomInset + responsiveModerateScale(88) }]}
+        onPress={handleMuteClick}
+      >
         <View style={styles.muteButtonInner}>
           <Feather name={isMuted ? 'volume-x' : 'volume-2'} size={20} color="#fff" />
         </View>
@@ -196,8 +236,11 @@ export default function ShortsCard({
   onDetails,
   cardHeight,
   cardWidth,
+  uiBottomInset = 0,
+  uiTopInset = 0,
 }: ShortsCardProps) {
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [hasPlaybackError, setHasPlaybackError] = useState(false);
   const hasUnreachablePlaceholder = image.includes('via.placeholder.com');
   const imageSource = hasUnreachablePlaceholder
     ? require('../../assets/images/icon.png')
@@ -210,16 +253,32 @@ export default function ShortsCard({
   // Get first video if available
   const videoUrl = videos && videos.length > 0 ? videos[0] : undefined;
 
+  React.useEffect(() => {
+    setHasPlaybackError(false);
+  }, [videoUrl]);
+
+  React.useEffect(() => {
+    if (isActive) {
+      setIsMuted(false);
+    }
+  }, [isActive]);
+
+  const handlePlaybackError = useCallback(() => {
+    setHasPlaybackError(true);
+  }, []);
+
   return (
     <View style={[styles.container, { width: cardWidth, height: cardHeight }]}>
       {/* Media fills entire card - full bleed like TikTok */}
       <View style={StyleSheet.absoluteFill}>
-        {videoUrl && isActive ? (
+        {videoUrl && !hasPlaybackError ? (
           <VideoPlayer
             videoUrl={videoUrl}
             isActive={isActive}
             onMuteToggle={handleMuteToggle}
             isMuted={isMuted}
+            onPlaybackError={handlePlaybackError}
+            uiBottomInset={uiBottomInset}
           />
         ) : images && images.length > 0 ? (
           <PhotoSlideshow
@@ -240,13 +299,13 @@ export default function ShortsCard({
       </View>
 
       {videoUrl && (
-        <View style={styles.videoBadge}>
+        <View style={[styles.videoBadge, { top: uiTopInset + responsiveModerateScale(16) }]}>
           <Feather name="film" size={12} color="#fff" />
         </View>
       )}
 
       {/* Side actions - absolute right */}
-      <View style={styles.sideActions}>
+      <View style={[styles.sideActions, { bottom: uiBottomInset + responsiveModerateScale(44) }]}>
         <Pressable style={styles.actionButton} onPress={onSave}>
           <Ionicons
             name={isSaved ? 'heart' : 'heart-outline'}
@@ -269,11 +328,7 @@ export default function ShortsCard({
 
       {/* Bottom overlay - auto sizes to content, no fixed height */}
       <Pressable style={styles.bottomOverlay} onPress={onDetails}>
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.85)', 'rgba(0,0,0,0.95)']}
-          locations={[0, 0.3, 1]}
-          style={styles.bottomGradient}
-        >
+        <View style={[styles.bottomContent, { paddingBottom: uiBottomInset }]}>
           <View style={styles.priceRow}>
             <Text style={styles.price}>
               {'\u20B9'}
@@ -284,7 +339,7 @@ export default function ShortsCard({
             </View>
           </View>
 
-          <Text style={styles.title} numberOfLines={2}>
+          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
             {title}
           </Text>
 
@@ -300,31 +355,34 @@ export default function ShortsCard({
                 <Text style={styles.avatarText}>{sellerName.charAt(0)}</Text>
               )}
             </View>
-            <Text style={styles.sellerName}>{sellerName}</Text>
+            <Text style={styles.sellerName} numberOfLines={1} ellipsizeMode="tail">
+              {sellerName}
+            </Text>
             {sellerVerified && (
               <View style={styles.verifiedBadge}>
                 <Feather name="check-circle" size={11} color="#fff" />
               </View>
             )}
             <Feather name="map-pin" size={12} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.location}>{location}</Text>
+            <Text style={styles.location} numberOfLines={1} ellipsizeMode="tail">
+              {location}
+            </Text>
           </View>
-        </LinearGradient>
+        </View>
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = createResponsiveStyles({
   container: {
     position: 'relative',
     backgroundColor: '#000',
   },
   videoBadge: {
     position: 'absolute',
-    top: 16,
     right: 16,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
     width: 28,
     height: 28,
     borderRadius: 14,
@@ -335,7 +393,6 @@ const styles = StyleSheet.create({
   sideActions: {
     position: 'absolute',
     right: 12,
-    bottom: 140,
     alignItems: 'center',
     gap: 18,
     zIndex: 5,
@@ -348,9 +405,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 11,
     fontFamily: 'Inter_500Medium',
-    textShadowColor: 'rgba(0,0,0,0.7)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
   },
   bottomOverlay: {
     position: 'absolute',
@@ -359,9 +413,9 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 4,
   },
-  bottomGradient: {
-    paddingTop: 40,
-    paddingBottom: 60,
+  bottomContent: {
+    paddingTop: 8,
+    paddingBottom: 12,
     paddingHorizontal: 14,
     paddingRight: 60,
   },
@@ -372,36 +426,30 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   price: {
-    fontSize: 26,
+    fontSize: 22,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
   },
   viewLink: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 28,
   },
   viewLinkText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
   },
   title: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
     color: 'rgba(255,255,255,0.95)',
-    lineHeight: 20,
-    marginBottom: 8,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    lineHeight: 18,
+    marginBottom: 6,
   },
   sellerRow: {
     flexDirection: 'row',
@@ -432,9 +480,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Inter_500Medium',
     marginRight: 4,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    flexShrink: 1,
   },
   verifiedBadge: {
     width: 18,
@@ -449,18 +495,15 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     fontSize: 11,
     fontFamily: 'Inter_400Regular',
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    flexShrink: 1,
   },
   muteButton: {
     position: 'absolute',
-    bottom: 180,
     left: 14,
     zIndex: 10,
   },
   muteButtonInner: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.2)',
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -477,7 +520,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   playPauseButtonInner: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.22)',
     width: 56,
     height: 56,
     borderRadius: 28,

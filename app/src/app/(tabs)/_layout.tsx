@@ -6,6 +6,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/colors';
+import { TAB_BAR_BASE_HEIGHT, TAB_BAR_MIN_BOTTOM_PADDING } from '@/constants/layout';
 import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
 import ProfileMenuModal from '@/shared/components/ProfileMenuModal';
 
@@ -14,12 +15,13 @@ function ClassicTabLayout() {
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
   const [showProfileMenu, setShowProfileMenu] = React.useState(false);
-  const baseTabHeight =
-    Platform.OS === 'web' ? responsiveModerateScale(74) : responsiveModerateScale(62);
+  const baseTabHeight = responsiveModerateScale(TAB_BAR_BASE_HEIGHT);
   const bottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
   const tabBarHeight = baseTabHeight + bottomInset;
   const tabBarPaddingBottom =
-    Platform.OS === 'web' ? 0 : Math.max(bottomInset, responsiveModerateScale(8));
+    Platform.OS === 'web'
+      ? 0
+      : Math.max(bottomInset, responsiveModerateScale(TAB_BAR_MIN_BOTTOM_PADDING));
 
   return (
     <>
@@ -35,7 +37,7 @@ function ClassicTabLayout() {
             bottom: 0,
             backgroundColor: Platform.select({
               ios: 'transparent',
-              android: isDark ? '#000' : '#fff',
+              android: '#fff',
               web: '#fff',
             }),
             borderTopWidth: 0,
