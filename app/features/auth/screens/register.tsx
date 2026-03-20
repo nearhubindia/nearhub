@@ -20,6 +20,27 @@ import { Logo } from '@/shared/components/Logo';
 import { getApiUrl } from '@/lib/query-client';
 import { createResponsiveStyles } from '@/lib/responsive';
 
+async function parseJsonSafely(
+  res: Response,
+  requestUrl: string
+): Promise<Record<string, any> & { success?: boolean; message?: string }> {
+  const contentType = (res.headers.get('content-type') || '').toLowerCase();
+  const raw = await res.text();
+
+  if (contentType.includes('application/json')) {
+    return JSON.parse(raw);
+  }
+
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('<')) {
+    throw new Error(
+      `Unexpected HTML response from ${requestUrl}. Check EXPO_PUBLIC_API_URL / EXPO_PUBLIC_DOMAIN.`
+    );
+  }
+
+  return JSON.parse(trimmed || '{}');
+}
+
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const [phone, setPhone] = useState('');
@@ -48,7 +69,7 @@ export default function RegisterScreen() {
         body: JSON.stringify({ phone: phoneToSend }),
       });
 
-      const data = await res.json();
+      const data = await parseJsonSafely(res, url.toString());
 
       if (data.success) {
         Alert.alert('OTP Sent', 'OTP sent to your mobile number.');

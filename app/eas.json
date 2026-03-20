@@ -8,8 +8,8 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://www.nearhub.in",
-        "EXPO_PUBLIC_DOMAIN": "www.nearhub.in"
+        "EXPO_PUBLIC_API_URL": "https://nearhub.in",
+        "EXPO_PUBLIC_DOMAIN": "nearhub.in"
       }
     },
     "preview": {
@@ -18,8 +18,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://www.nearhub.in",
-        "EXPO_PUBLIC_DOMAIN": "www.nearhub.in"
+        "EXPO_PUBLIC_API_URL": "https://nearhub.in",
+        "EXPO_PUBLIC_DOMAIN": "nearhub.in"
       }
     },
     "local-apk": {
@@ -29,14 +29,14 @@
         "gradleCommand": ":app:assembleRelease"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://www.nearhub.in",
-        "EXPO_PUBLIC_DOMAIN": "www.nearhub.in"
+        "EXPO_PUBLIC_API_URL": "https://nearhub.in",
+        "EXPO_PUBLIC_DOMAIN": "nearhub.in"
       }
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://www.nearhub.in",
-        "EXPO_PUBLIC_DOMAIN": "www.nearhub.in"
+        "EXPO_PUBLIC_API_URL": "https://nearhub.in",
+        "EXPO_PUBLIC_DOMAIN": "nearhub.in"
       }
     }
   },

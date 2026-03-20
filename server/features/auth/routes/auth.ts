@@ -164,17 +164,39 @@ export function registerAuthRoutes(app: Express) {
    */
   app.post('/api/auth/send-otp', authLimiter, async (req: Request, res: Response) => {
     try {
-      const { phone } = req.body;
-      const result = await otpService.sendOTP(phone);
-      res.json({
+      const body = req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
+      const phoneValue =
+        typeof body.phone === 'string' || typeof body.phone === 'number'
+          ? String(body.phone)
+          : '';
+
+      if (!phoneValue.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number is required',
+          expiresIn: 0,
+        });
+      }
+
+      const result = await otpService.sendOTP(phoneValue);
+      const statusCode = result.success ? 200 : 400;
+      return res.status(statusCode).json({
         success: result.success,
         message: result.message,
         expiresIn: result.expiresIn,
         sentVia: result.sentVia,
       });
     } catch (error) {
-      console.error('Error sending OTP:', error);
-      res.status(500).json({ success: false, message: 'Failed to send OTP' });
+      console.error('Error sending OTP:', {
+        error: error instanceof Error ? error.message : String(error),
+        body: req.body,
+        rawBody: (req as any).rawBody,
+      });
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP due to a server error',
+        expiresIn: 0,
+      });
     }
   });
 
@@ -184,7 +206,20 @@ export function registerAuthRoutes(app: Express) {
    */
   app.post('/api/auth/verify-otp', authLimiter, async (req: Request, res: Response) => {
     try {
-      const { phone, otp, name, email, gender } = req.body;
+      const body = req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
+      const phone = typeof body.phone === 'string' || typeof body.phone === 'number' ? String(body.phone) : '';
+      const otp = typeof body.otp === 'string' || typeof body.otp === 'number' ? String(body.otp) : '';
+      const name = typeof body.name === 'string' ? body.name : undefined;
+      const email = typeof body.email === 'string' ? body.email : undefined;
+      const gender = body.gender;
+
+      if (!phone.trim() || !otp.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone and OTP are required',
+        });
+      }
+
       const normalizedPhone = normalizePhone(phone);
       const verifyResult = otpService.verifyOTP(normalizedPhone, otp);
 

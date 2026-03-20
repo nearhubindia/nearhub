@@ -23,6 +23,27 @@ import { createResponsiveStyles } from '@/lib/responsive';
 
 const OTP_LENGTH = 6;
 
+async function parseJsonSafely(
+  res: Response,
+  requestUrl: string
+): Promise<Record<string, any> & { success?: boolean; message?: string; user?: any }> {
+  const contentType = (res.headers.get('content-type') || '').toLowerCase();
+  const raw = await res.text();
+
+  if (contentType.includes('application/json')) {
+    return JSON.parse(raw);
+  }
+
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('<')) {
+    throw new Error(
+      `Unexpected HTML response from ${requestUrl}. Check EXPO_PUBLIC_API_URL / EXPO_PUBLIC_DOMAIN.`
+    );
+  }
+
+  return JSON.parse(trimmed || '{}');
+}
+
 export default function VerifyOTPScreen() {
   const insets = useSafeAreaInsets();
   const { phone } = useLocalSearchParams<{
@@ -104,7 +125,7 @@ export default function VerifyOTPScreen() {
           otp: otpCode,
         }),
       });
-      const data = await res.json();
+      const data = await parseJsonSafely(res, url.toString());
 
       if (data.success && data.user) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -127,7 +148,8 @@ export default function VerifyOTPScreen() {
         inputRefs.current[0]?.focus();
       }
     } catch (e) {
-      Alert.alert('Error', 'Network error. Please try again.');
+      const errorMsg = e instanceof Error ? e.message : 'Network error. Please try again.';
+      Alert.alert('Error', errorMsg);
     } finally {
       setIsVerifying(false);
     }
@@ -144,7 +166,7 @@ export default function VerifyOTPScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: phoneValue }),
       });
-      const data = await res.json();
+      const data = await parseJsonSafely(res, url.toString());
       if (data.success) {
         Alert.alert('OTP Resent', 'New OTP sent.');
         setResendTimer(30);
@@ -152,7 +174,8 @@ export default function VerifyOTPScreen() {
         inputRefs.current[0]?.focus();
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to resend OTP.');
+      const errorMsg = e instanceof Error ? e.message : 'Failed to resend OTP.';
+      Alert.alert('Error', errorMsg);
     }
   };
 
