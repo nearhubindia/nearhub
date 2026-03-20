@@ -12,6 +12,15 @@ function normalizeSiteUrl(url) {
   return url.replace(/\/+$/, '');
 }
 
+function normalizeRoutePath(routePath) {
+  if (!routePath || routePath === '/') {
+    return '/';
+  }
+
+  const trimmed = routePath.replace(/^\/+/, '').replace(/\/+$/, '');
+  return `/${trimmed}/`;
+}
+
 function escapeHtml(value) {
   return value
     .replaceAll('&', '&amp;')
@@ -149,7 +158,8 @@ function buildJsonLd(pathname, canonicalUrl, meta, siteUrl, defaultImageUrl) {
 }
 
 function renderRouteHtml(templateHtml, route, context) {
-  const canonicalUrl = `${context.siteUrl}${route.path === '/' ? '/' : route.path}`;
+  const canonicalPath = normalizeRoutePath(route.path);
+  const canonicalUrl = `${context.siteUrl}${canonicalPath}`;
   let html = templateHtml;
 
   html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(route.title)}</title>`);
@@ -197,7 +207,7 @@ function buildSitemapXml(config, siteUrl) {
   const today = new Date().toISOString().slice(0, 10);
   const urls = config.routes
     .map((route) => {
-      const loc = `${siteUrl}${route.path === '/' ? '/' : route.path}`;
+      const loc = `${siteUrl}${normalizeRoutePath(route.path)}`;
       const changefreq = route.changefreq || 'monthly';
       const priority = route.priority || '0.5';
 
