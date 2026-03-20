@@ -1,7 +1,10 @@
 {
   "siteUrlFallback": "https://nearhub.in",
+  "brandName": "NearHub",
+  "alternateBrandNames": ["nearhub.in", "Near Hub"],
+  "socialProfiles": [],
   "defaultImagePath": "/nearhub.png",
-  "keywords": "nearhub, classifieds, buy and sell, local marketplace, hyperlocal listings, ads",
+  "keywords": "NearHub, nearhub.in, classifieds, buy and sell, local marketplace, hyperlocal listings, ads",
   "defaultMeta": {
     "title": "NearHub",
     "description": "NearHub hyperlocal classifieds platform."

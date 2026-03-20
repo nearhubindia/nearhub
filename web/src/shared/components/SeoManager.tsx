@@ -16,6 +16,9 @@ type SeoRouteConfig = {
 
 type SeoRoutesConfig = {
   siteUrlFallback: string;
+  brandName?: string;
+  alternateBrandNames?: string[];
+  socialProfiles?: string[];
   defaultImagePath: string;
   keywords: string;
   defaultMeta: {
@@ -28,6 +31,13 @@ type SeoRoutesConfig = {
 
 const SEO_CONFIG = seoConfigData as SeoRoutesConfig;
 const SITE_URL = (import.meta.env.VITE_SITE_URL || SEO_CONFIG.siteUrlFallback).replace(/\/+$/, '');
+const BRAND_NAME = SEO_CONFIG.brandName || 'NearHub';
+const ALTERNATE_BRAND_NAMES = Array.isArray(SEO_CONFIG.alternateBrandNames)
+  ? SEO_CONFIG.alternateBrandNames.filter(Boolean)
+  : [];
+const SOCIAL_PROFILES = Array.isArray(SEO_CONFIG.socialProfiles)
+  ? SEO_CONFIG.socialProfiles.filter(Boolean)
+  : [];
 const DEFAULT_IMAGE_URL = `${SITE_URL}${SEO_CONFIG.defaultImagePath}`;
 const ROUTE_META = new Map<string, RouteMeta>(
   SEO_CONFIG.routes.map((route) => [
@@ -100,33 +110,35 @@ function buildJsonLd(
   canonicalUrl: string,
   meta: RouteMeta
 ): Record<string, unknown> {
+  const organizationNode: Record<string, unknown> = {
+    '@type': 'Organization',
+    '@id': `${SITE_URL}#organization`,
+    name: BRAND_NAME,
+    alternateName: ALTERNATE_BRAND_NAMES,
+    url: SITE_URL,
+    logo: DEFAULT_IMAGE_URL,
+    contactPoint: [
+      {
+        '@type': 'ContactPoint',
+        contactType: 'customer support',
+        email: 'support@nearhub.com',
+        areaServed: 'IN',
+        availableLanguage: ['en'],
+      },
+    ],
+  };
+
+  if (SOCIAL_PROFILES.length > 0) {
+    organizationNode.sameAs = SOCIAL_PROFILES;
+  }
+
   const graph: Record<string, unknown>[] = [
-    {
-      '@type': 'Organization',
-      '@id': `${SITE_URL}#organization`,
-      name: 'NearHub',
-      url: SITE_URL,
-      logo: DEFAULT_IMAGE_URL,
-      sameAs: [
-        'https://x.com',
-        'https://www.facebook.com',
-        'https://www.linkedin.com',
-        'https://www.instagram.com',
-      ],
-      contactPoint: [
-        {
-          '@type': 'ContactPoint',
-          contactType: 'customer support',
-          email: 'support@nearhub.com',
-          areaServed: 'IN',
-          availableLanguage: ['en'],
-        },
-      ],
-    },
+    organizationNode,
     {
       '@type': 'WebSite',
       '@id': `${SITE_URL}#website`,
-      name: 'NearHub',
+      name: BRAND_NAME,
+      alternateName: ALTERNATE_BRAND_NAMES,
       url: SITE_URL,
       potentialAction: {
         '@type': 'SearchAction',
@@ -183,13 +195,21 @@ function buildJsonLd(
   };
 }
 
+function normalizeCanonicalPath(pathname: string) {
+  if (!pathname || pathname === '/') {
+    return '/';
+  }
+  return pathname.endsWith('/') ? pathname : `${pathname}/`;
+}
+
 export function SeoManager() {
   const location = useLocation();
 
   useEffect(() => {
     const { pathname } = location;
     const meta = resolveMeta(pathname);
-    const canonicalUrl = `${SITE_URL}${pathname === '/' ? '' : pathname}`;
+    const canonicalPath = normalizeCanonicalPath(pathname);
+    const canonicalUrl = `${SITE_URL}${canonicalPath}`;
     const robots = meta.robots || 'index,follow';
 
     document.title = meta.title;
@@ -204,7 +224,9 @@ export function SeoManager() {
     upsertMeta('property', 'og:type', 'website');
     upsertMeta('property', 'og:url', canonicalUrl);
     upsertMeta('property', 'og:image', DEFAULT_IMAGE_URL);
-    upsertMeta('property', 'og:site_name', 'NearHub');
+    upsertMeta('property', 'og:site_name', BRAND_NAME);
+    upsertMeta('name', 'application-name', BRAND_NAME);
+    upsertMeta('name', 'apple-mobile-web-app-title', BRAND_NAME);
 
     upsertMeta('name', 'twitter:card', 'summary_large_image');
     upsertMeta('name', 'twitter:title', meta.title);

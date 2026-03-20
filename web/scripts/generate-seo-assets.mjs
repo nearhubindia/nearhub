@@ -74,19 +74,22 @@ function upsertJsonLd(html, jsonLd) {
 }
 
 function buildJsonLd(pathname, canonicalUrl, meta, siteUrl, defaultImageUrl) {
+  const brandName = meta.brandName || 'NearHub';
+  const alternateBrandNames = Array.isArray(meta.alternateBrandNames)
+    ? meta.alternateBrandNames.filter(Boolean)
+    : [];
+  const socialProfiles = Array.isArray(meta.socialProfiles)
+    ? meta.socialProfiles.filter(Boolean)
+    : [];
+
   const graph = [
     {
       '@type': 'Organization',
       '@id': `${siteUrl}#organization`,
-      name: 'NearHub',
+      name: brandName,
       url: siteUrl,
       logo: defaultImageUrl,
-      sameAs: [
-        'https://x.com',
-        'https://www.facebook.com',
-        'https://www.linkedin.com',
-        'https://www.instagram.com',
-      ],
+      alternateName: alternateBrandNames,
       contactPoint: [
         {
           '@type': 'ContactPoint',
@@ -100,7 +103,8 @@ function buildJsonLd(pathname, canonicalUrl, meta, siteUrl, defaultImageUrl) {
     {
       '@type': 'WebSite',
       '@id': `${siteUrl}#website`,
-      name: 'NearHub',
+      name: brandName,
+      alternateName: alternateBrandNames,
       url: siteUrl,
       potentialAction: {
         '@type': 'SearchAction',
@@ -117,6 +121,10 @@ function buildJsonLd(pathname, canonicalUrl, meta, siteUrl, defaultImageUrl) {
       isPartOf: { '@id': `${siteUrl}#website` },
     },
   ];
+
+  if (socialProfiles.length > 0) {
+    graph[0].sameAs = socialProfiles;
+  }
 
   if (pathname === '/') {
     graph.push({
@@ -171,7 +179,9 @@ function renderRouteHtml(templateHtml, route, context) {
   html = upsertMetaTag(html, 'property', 'og:type', 'website');
   html = upsertMetaTag(html, 'property', 'og:url', canonicalUrl);
   html = upsertMetaTag(html, 'property', 'og:image', context.defaultImageUrl);
-  html = upsertMetaTag(html, 'property', 'og:site_name', 'NearHub');
+  html = upsertMetaTag(html, 'property', 'og:site_name', context.brandName);
+  html = upsertMetaTag(html, 'name', 'application-name', context.brandName);
+  html = upsertMetaTag(html, 'name', 'apple-mobile-web-app-title', context.brandName);
   html = upsertMetaTag(html, 'name', 'twitter:card', 'summary_large_image');
   html = upsertMetaTag(html, 'name', 'twitter:title', route.title);
   html = upsertMetaTag(html, 'name', 'twitter:description', route.description);
@@ -181,7 +191,13 @@ function renderRouteHtml(templateHtml, route, context) {
   const jsonLd = buildJsonLd(
     route.path,
     canonicalUrl,
-    { title: route.title, description: route.description },
+    {
+      title: route.title,
+      description: route.description,
+      brandName: context.brandName,
+      alternateBrandNames: context.alternateBrandNames,
+      socialProfiles: context.socialProfiles,
+    },
     context.siteUrl,
     context.defaultImageUrl
   );
@@ -245,6 +261,11 @@ async function main() {
     ? config.defaultImagePath
     : `/${config.defaultImagePath}`;
   const context = {
+    brandName: config.brandName || 'NearHub',
+    alternateBrandNames: Array.isArray(config.alternateBrandNames)
+      ? config.alternateBrandNames.filter(Boolean)
+      : [],
+    socialProfiles: Array.isArray(config.socialProfiles) ? config.socialProfiles.filter(Boolean) : [],
     siteUrl,
     defaultImageUrl: `${siteUrl}${defaultImagePath}`,
     keywords: config.keywords || '',
