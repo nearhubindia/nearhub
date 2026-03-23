@@ -83,6 +83,7 @@ jobs:
           HOST="${{ secrets.HOSTINGER_VPS_HOST }}"
           USER="${{ secrets.HOSTINGER_VPS_USER }}"
 
+          mkdir -p ~/.ssh
           install -m 600 /dev/null ~/.ssh/id_hostinger
           printf '%s\n' "${{ secrets.HOSTINGER_VPS_SSH_KEY }}" > ~/.ssh/id_hostinger
 
