@@ -83,3 +83,17 @@ No `git pull` is done on VPS.
 - `.github/workflows/ci.yml`
 - `.github/workflows/deploy-server-hostinger.yml`
 - `.github/workflows/deploy-web-cloudflare.yml`
+
+## 5. Pre-Release Test Gate (Server)
+
+Before production release, run:
+
+```bash
+cd server
+npm run quality:release
+```
+
+This gate enforces:
+- type-check (`tsc`)
+- lint (`eslint`)
+- strict Jest run with open-handle detection (`jest --detectOpenHandles --runInBand`)

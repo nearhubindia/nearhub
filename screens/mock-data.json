@@ -1,0 +1,62 @@
+{
+  "user": {
+    "name": "Rahul Verma",
+    "city": "Bengaluru",
+    "memberSince": "2024",
+    "rating": 4.8
+  },
+  "listings": [
+    {
+      "title": "iPhone 13 (128GB)",
+      "price": "₹42,000",
+      "distance": "2.1 km",
+      "location": "HSR Layout",
+      "views": 1284,
+      "chats": 96,
+      "saved": 41
+    },
+    {
+      "title": "2BHK Apartment for Rent",
+      "price": "₹18,500/mo",
+      "distance": "1.4 km",
+      "location": "Marathahalli",
+      "views": 954,
+      "chats": 62,
+      "saved": 27
+    },
+    {
+      "title": "Yamaha FZ V3",
+      "price": "₹78,000",
+      "distance": "3.0 km",
+      "location": "BTM Layout",
+      "views": 741,
+      "chats": 44,
+      "saved": 19
+    }
+  ],
+  "featuredDetail": {
+    "title": "Royal Enfield Classic 350",
+    "year": "2022",
+    "kms": "12,400 km",
+    "price": "₹1,62,000",
+    "seller": "Verified Seller",
+    "location": "Indiranagar"
+  },
+  "chat": [
+    { "from": "Buyer", "text": "Is this still available?" },
+    { "from": "Seller", "text": "Yes, available." },
+    { "from": "Buyer", "text": "Is price negotiable?" },
+    { "from": "Seller", "text": "Slightly. Can you pick up today?" }
+  ],
+  "dashboard": {
+    "activeListings": 24,
+    "totalViews": 18420,
+    "leadsThisWeek": 132,
+    "responseRate": "93%"
+  },
+  "plans": [
+    { "name": "Basic", "price": "₹199", "benefit": "1 featured listing" },
+    { "name": "Pro", "price": "₹499", "benefit": "5 featured listings" },
+    { "name": "Max", "price": "₹999", "benefit": "Priority visibility + boosts" }
+  ]
+}
