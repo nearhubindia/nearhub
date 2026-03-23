@@ -1,11 +1,13 @@
 import {
   pgTable,
+  bigserial,
   text,
   varchar,
   decimal,
   integer,
   timestamp,
   boolean,
+  jsonb,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
@@ -918,6 +920,41 @@ export const notificationLogs = pgTable('notification_logs', {
 });
 
 /**
+ * Error Logs Table
+ * Aggregated runtime/app errors from mobile, web, and backend services.
+ */
+export const errorLogs = pgTable('error_logs', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+
+  appName: varchar('app_name', { length: 100 }),
+  environment: varchar('environment', { length: 50 }).notNull().default('production'),
+  level: varchar('level', { length: 20 }).notNull().default('error'),
+  message: text('message').notNull(),
+  stackTrace: text('stack_trace'),
+
+  endpoint: varchar('endpoint', { length: 255 }),
+  method: varchar('method', { length: 20 }),
+  statusCode: integer('status_code'),
+
+  userId: varchar('user_id', { length: 100 }),
+  device: varchar('device', { length: 255 }),
+  os: varchar('os', { length: 100 }),
+  appVersion: varchar('app_version', { length: 50 }),
+  buildNumber: varchar('build_number', { length: 50 }),
+  screen: varchar('screen', { length: 255 }),
+  networkType: varchar('network_type', { length: 50 }),
+  extra: jsonb('extra').notNull().default(sql`'{}'::jsonb`),
+  ipAddress: varchar('ip_address', { length: 100 }),
+  fingerprint: varchar('fingerprint', { length: 64 }),
+  occurrenceCount: integer('occurrence_count').notNull().default(1),
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  resolved: boolean('resolved').notNull().default(false),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
  * Push Token Schemas
  */
 export const insertPushTokenSchema = createInsertSchema(pushTokens).omit({
@@ -931,6 +968,11 @@ export const insertNotificationLogSchema = createInsertSchema(notificationLogs).
   sentAt: true,
 });
 
+export const insertErrorLogSchema = createInsertSchema(errorLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
 /**
  * Type Exports for Push Notifications
  */
@@ -939,6 +981,8 @@ export type InsertPushToken = z.infer<typeof insertPushTokenSchema>;
 
 export type NotificationLog = typeof notificationLogs.$inferSelect;
 export type InsertNotificationLog = z.infer<typeof insertNotificationLogSchema>;
+export type ErrorLog = typeof errorLogs.$inferSelect;
+export type InsertErrorLog = z.infer<typeof insertErrorLogSchema>;
 
 export type AppScreenBanner = typeof appScreenBanners.$inferSelect;
 export type InsertAppScreenBanner = typeof appScreenBanners.$inferInsert;

@@ -12,6 +12,7 @@ import { registerAdminBannersRoutes } from './features/admin/routes/admin-banner
 import { registerAdminContactSubmissionRoutes } from './features/admin/routes/admin-contact-submissions';
 import { registerReportsRoutes } from './features/admin/routes/reports';
 import { registerAdminUserLifecycleRoutes } from './features/admin/routes/admin-user-lifecycle';
+import { registerErrorLogRoutes } from './features/admin/routes/error-logs';
 // Auth feature routes
 import { registerAuthRoutes } from './features/auth/routes/auth';
 // AI feature routes (shared)
@@ -83,6 +84,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(['/api/admin/reports', '/api/admin/revenue'], adminAuthMiddleware);
   registerReportsRoutes(app);
   registerAdminUserLifecycleRoutes(app);
+  registerErrorLogRoutes(app);
   registerListingRoutes(app);
 
   // Location

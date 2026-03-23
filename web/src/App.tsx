@@ -24,6 +24,7 @@ import ReportsPage from './features/admin/pages/ReportsPage';
 import TransactionsPage from './features/admin/pages/TransactionsPage';
 import SettingsPage from './features/admin/pages/SettingsPage';
 import ContactSubmissionsPage from './features/admin/pages/ContactSubmissionsPage';
+import ErrorLogsPage from './features/admin/pages/ErrorLogsPage';
 import AdminLogin from './features/admin/pages/AdminLogin';
 import { ProtectedRoute } from './shared/components/ProtectedRoute';
 import { SeoManager } from './shared/components/SeoManager';
@@ -68,6 +69,7 @@ function App() {
             <Route path="transactions" element={<TransactionsPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="contact-submissions" element={<ContactSubmissionsPage />} />
+            <Route path="error-logs" element={<ErrorLogsPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
           <Route path="/app" element={<Navigate to="/" replace />} />

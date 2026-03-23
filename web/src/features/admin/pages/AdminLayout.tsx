@@ -20,6 +20,7 @@ import {
   Inbox,
   Image,
   MessagesSquare,
+  Bug,
   X,
 } from 'lucide-react';
 import { useListings } from '@/features/admin/hooks';
@@ -90,6 +91,7 @@ export default function AdminLayout() {
     { path: '/admin/push', name: 'Push Nfns', icon: Bell },
     { path: '/admin/in-app', name: 'In-App Nfns', icon: Inbox },
     { path: '/admin/contact-submissions', name: 'Enquries', icon: MessagesSquare },
+    { path: '/admin/error-logs', name: 'Error Logs', icon: Bug },
     { path: '/admin/revenue', name: 'Revenue', icon: CircleDollarSign },
     { path: '/admin/transactions', name: 'Transactions', icon: HandCoins },
     { path: '/admin/reports', name: 'Reports', icon: BarChart3 },

@@ -72,6 +72,20 @@ export const adminKeys = {
   contactSubmissions: () => [...adminKeys.all, 'contact-submissions'] as const,
   contactSubmissionsList: (limit?: number) =>
     [...adminKeys.contactSubmissions(), { limit }] as const,
+
+  // Error Logs
+  errorLogs: () => [...adminKeys.all, 'error-logs'] as const,
+  errorLogsList: (params?: {
+    limit?: number;
+    offset?: number;
+    level?: string;
+    environment?: string;
+    app_name?: string;
+    user_id?: string;
+    search?: string;
+    from?: string;
+    to?: string;
+  }) => [...adminKeys.errorLogs(), { params }] as const,
 };
 
 // ============================================================================
@@ -626,5 +640,174 @@ export const contactSubmissionsApi = {
       }
     );
     return handleResponse<{ success: boolean }>(response);
+  },
+};
+
+// ============================================================================
+// Error Logs API
+// ============================================================================
+
+export interface ErrorLog {
+  id: number;
+  appName: string | null;
+  environment: string;
+  level: string;
+  message: string;
+  stackTrace: string | null;
+  endpoint: string | null;
+  method: string | null;
+  statusCode: number | null;
+  userId: string | null;
+  device: string | null;
+  os: string | null;
+  appVersion: string | null;
+  buildNumber: string | null;
+  screen: string | null;
+  networkType: string | null;
+  extra: Record<string, unknown>;
+  ipAddress: string | null;
+  fingerprint: string | null;
+  occurrenceCount: number;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  resolved: boolean;
+  createdAt: string | null;
+}
+
+interface ErrorLogsResponse {
+  success: boolean;
+  logs: ErrorLog[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+interface ErrorLogResetResponse {
+  success: boolean;
+  affected: number;
+}
+
+interface ErrorLogCleanupResponse {
+  success: boolean;
+  deleted: number;
+}
+
+interface ResolveSingleErrorLogResponse {
+  success: boolean;
+  log: {
+    id: number;
+    resolved: boolean;
+  };
+}
+
+export const errorLogsApi = {
+  async getErrorLogs(params?: {
+    limit?: number;
+    offset?: number;
+    level?: string;
+    environment?: string;
+    app_name?: string;
+    user_id?: string;
+    search?: string;
+    from?: string;
+    to?: string;
+    include_resolved?: boolean;
+  }): Promise<ErrorLogsResponse> {
+    const queryString = new URLSearchParams();
+    if (params?.limit) queryString.append('limit', String(params.limit));
+    if (params?.offset) queryString.append('offset', String(params.offset));
+    if (params?.level) queryString.append('level', params.level);
+    if (params?.environment) queryString.append('environment', params.environment);
+    if (params?.app_name) queryString.append('app_name', params.app_name);
+    if (params?.user_id) queryString.append('user_id', params.user_id);
+    if (params?.search) queryString.append('search', params.search);
+    if (params?.from) queryString.append('from', params.from);
+    if (params?.to) queryString.append('to', params.to);
+    if (params?.include_resolved) queryString.append('include_resolved', 'true');
+
+    const suffix = queryString.toString() ? `?${queryString.toString()}` : '';
+    const response = await fetch(`${API_BASE_URL}/api/admin/error-logs${suffix}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse<ErrorLogsResponse>(response);
+  },
+
+  async resetErrorLogs(params?: {
+    before?: string;
+    level?: string;
+    app_name?: string;
+    include_resolved?: boolean;
+  }): Promise<ErrorLogResetResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/error-logs/reset`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(params || {}),
+    });
+    return handleResponse<ErrorLogResetResponse>(response);
+  },
+
+  async cleanupErrorLogs(params?: {
+    mode?: 'resolved' | 'all';
+    before?: string;
+    level?: string;
+    app_name?: string;
+  }): Promise<ErrorLogCleanupResponse> {
+    const queryString = new URLSearchParams();
+    if (params?.mode) queryString.append('mode', params.mode);
+    if (params?.before) queryString.append('before', params.before);
+    if (params?.level) queryString.append('level', params.level);
+    if (params?.app_name) queryString.append('app_name', params.app_name);
+    const suffix = queryString.toString() ? `?${queryString.toString()}` : '';
+
+    const response = await fetch(`${API_BASE_URL}/api/admin/error-logs${suffix}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse<ErrorLogCleanupResponse>(response);
+  },
+
+  async resolveErrorLog(id: number): Promise<ResolveSingleErrorLogResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/error-logs/${id}/resolve`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse<ResolveSingleErrorLogResponse>(response);
+  },
+
+  async setErrorLogResolved(
+    id: number,
+    resolved: boolean
+  ): Promise<ResolveSingleErrorLogResponse> {
+    // Backward compatibility:
+    // - new backend: PATCH /:id/resolved (supports true/false)
+    // - older backend: POST /:id/resolve (supports true only)
+    if (resolved) {
+      const patchResponse = await fetch(`${API_BASE_URL}/api/admin/error-logs/${id}/resolved`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ resolved: true }),
+      });
+
+      if (patchResponse.ok) {
+        return handleResponse<ResolveSingleErrorLogResponse>(patchResponse);
+      }
+
+      if (patchResponse.status !== 404 && patchResponse.status !== 405) {
+        return handleResponse<ResolveSingleErrorLogResponse>(patchResponse);
+      }
+
+      const legacyResponse = await fetch(`${API_BASE_URL}/api/admin/error-logs/${id}/resolve`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      return handleResponse<ResolveSingleErrorLogResponse>(legacyResponse);
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/admin/error-logs/${id}/resolved`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ resolved: false }),
+    });
+    return handleResponse<ResolveSingleErrorLogResponse>(response);
   },
 };

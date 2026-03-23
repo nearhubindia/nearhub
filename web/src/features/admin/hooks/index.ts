@@ -21,7 +21,9 @@ import {
   usersApi,
   bannersApi,
   contactSubmissionsApi,
+  errorLogsApi,
   type ContactSubmission,
+  type ErrorLog,
 } from '../api';
 import type { BannerPayload, Listing } from '../types/admin-types';
 
@@ -153,6 +155,13 @@ interface UsersQueryData {
 interface ContactSubmissionsQueryData {
   submissions: ContactSubmission[];
   total: number;
+}
+
+interface ErrorLogsQueryData {
+  logs: ErrorLog[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 const STALE_TIME = 5 * 60 * 1000; // 5 minutes
@@ -606,6 +615,67 @@ export function useDeleteContactSubmissionComment() {
       contactSubmissionsApi.deleteComment(submissionId, commentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.contactSubmissions() });
+    },
+  });
+}
+
+export function useErrorLogs(params?: {
+  limit?: number;
+  offset?: number;
+  level?: string;
+  environment?: string;
+  app_name?: string;
+  user_id?: string;
+  search?: string;
+  from?: string;
+  to?: string;
+  include_resolved?: boolean;
+}) {
+  return useQuery<ErrorLogsQueryData>({
+    queryKey: adminKeys.errorLogsList(params),
+    queryFn: () => errorLogsApi.getErrorLogs(params),
+    staleTime: STALE_TIME,
+    gcTime: CACHE_TIME,
+  });
+}
+
+export function useResetErrorLogs() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params?: {
+      before?: string;
+      level?: string;
+      app_name?: string;
+      include_resolved?: boolean;
+    }) => errorLogsApi.resetErrorLogs(params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.errorLogs() });
+    },
+  });
+}
+
+export function useCleanupErrorLogs() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (params?: {
+      mode?: 'resolved' | 'all';
+      before?: string;
+      level?: string;
+      app_name?: string;
+    }) => errorLogsApi.cleanupErrorLogs(params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.errorLogs() });
+    },
+  });
+}
+
+export function useResolveErrorLog() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, resolved }: { id: number; resolved: boolean }) =>
+      errorLogsApi.setErrorLogResolved(id, resolved),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.errorLogs() });
     },
   });
 }
