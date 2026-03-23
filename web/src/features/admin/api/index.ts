@@ -774,10 +774,7 @@ export const errorLogsApi = {
     return handleResponse<ResolveSingleErrorLogResponse>(response);
   },
 
-  async setErrorLogResolved(
-    id: number,
-    resolved: boolean
-  ): Promise<ResolveSingleErrorLogResponse> {
+  async setErrorLogResolved(id: number, resolved: boolean): Promise<ResolveSingleErrorLogResponse> {
     // Backward compatibility:
     // - new backend: PATCH /:id/resolved (supports true/false)
     // - older backend: POST /:id/resolve (supports true only)

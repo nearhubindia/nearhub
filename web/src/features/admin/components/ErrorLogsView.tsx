@@ -159,7 +159,9 @@ export default function ErrorLogsView() {
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">Time</th>
                     <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">Level</th>
-                    <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">Message</th>
+                    <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">
+                      Message
+                    </th>
                     <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">
                       App/Env
                     </th>
@@ -175,7 +177,9 @@ export default function ErrorLogsView() {
                 <tbody>
                   {logs.map((log) => (
                     <tr key={log.id} className="border-b border-slate-200 align-top">
-                      <td className="px-4 py-4 text-sm text-slate-600">{formatDateTime(log.createdAt)}</td>
+                      <td className="px-4 py-4 text-sm text-slate-600">
+                        {formatDateTime(log.createdAt)}
+                      </td>
                       <td className="px-4 py-4">
                         <span
                           className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${levelBadge(log.level)}`}
