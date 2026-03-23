@@ -37,7 +37,9 @@ function asObject(value: unknown): JsonRecord {
 }
 
 function normalizeLevel(value: unknown): 'debug' | 'info' | 'warn' | 'error' | 'fatal' {
-  const normalized = String(value || 'error').trim().toLowerCase();
+  const normalized = String(value || 'error')
+    .trim()
+    .toLowerCase();
   if (normalized === 'debug') return 'debug';
   if (normalized === 'info') return 'info';
   if (normalized === 'warn' || normalized === 'warning') return 'warn';
@@ -228,7 +230,8 @@ export function registerErrorLogRoutes(app: Express) {
       const rawOffset = parseInt(String(req.query.offset || '0'), 10);
       const limit = Number.isNaN(rawLimit) ? 50 : Math.min(Math.max(rawLimit, 1), 200);
       const offset = Number.isNaN(rawOffset) ? 0 : Math.max(rawOffset, 0);
-      const includeResolved = String(req.query.include_resolved || 'false').toLowerCase() === 'true';
+      const includeResolved =
+        String(req.query.include_resolved || 'false').toLowerCase() === 'true';
 
       const fromDate = asDate(req.query.from);
       const toDate = asDate(req.query.to);
@@ -298,44 +301,49 @@ export function registerErrorLogRoutes(app: Express) {
    * POST /api/admin/error-logs/reset
    * Mark logs as resolved (default unresolved only).
    */
-  app.post('/api/admin/error-logs/reset', adminAuthMiddleware, async (req: Request, res: Response) => {
-    try {
-      const before = asDate(req.body?.before || req.query.before);
-      const level = asString(req.body?.level || req.query.level, 20);
-      const appName = asString(req.body?.app_name || req.query.app_name, 100);
-      const includeResolved =
-        String(req.body?.include_resolved || req.query.include_resolved || 'false').toLowerCase() ===
-        'true';
+  app.post(
+    '/api/admin/error-logs/reset',
+    adminAuthMiddleware,
+    async (req: Request, res: Response) => {
+      try {
+        const before = asDate(req.body?.before || req.query.before);
+        const level = asString(req.body?.level || req.query.level, 20);
+        const appName = asString(req.body?.app_name || req.query.app_name, 100);
+        const includeResolved =
+          String(
+            req.body?.include_resolved || req.query.include_resolved || 'false'
+          ).toLowerCase() === 'true';
 
-      const filters: SQL[] = [
-        before ? lte(errorLogs.createdAt, before) : null,
-        level ? eq(errorLogs.level, level) : null,
-        appName ? eq(errorLogs.appName, appName) : null,
-        includeResolved ? null : eq(errorLogs.resolved, false),
-      ].filter((value): value is SQL => value !== null);
+        const filters: SQL[] = [
+          before ? lte(errorLogs.createdAt, before) : null,
+          level ? eq(errorLogs.level, level) : null,
+          appName ? eq(errorLogs.appName, appName) : null,
+          includeResolved ? null : eq(errorLogs.resolved, false),
+        ].filter((value): value is SQL => value !== null);
 
-      const whereClause = filters.length ? and(...filters) : undefined;
+        const whereClause = filters.length ? and(...filters) : undefined;
 
-      const updated = await db
-        .update(errorLogs)
-        .set({
-          resolved: true,
-        })
-        .where(whereClause)
-        .returning({ id: errorLogs.id });
+        const updated = await db
+          .update(errorLogs)
+          .set({
+            resolved: true,
+          })
+          .where(whereClause)
+          .returning({ id: errorLogs.id });
 
-      return res.json({
-        success: true,
-        affected: updated.length,
-      });
-    } catch (error) {
-      console.error('[Admin Error Logs] Failed to reset logs:', error);
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to reset error logs',
-      });
+        return res.json({
+          success: true,
+          affected: updated.length,
+        });
+      } catch (error) {
+        console.error('[Admin Error Logs] Failed to reset logs:', error);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to reset error logs',
+        });
+      }
     }
-  });
+  );
 
   /**
    * POST /api/admin/error-logs/:id/resolve

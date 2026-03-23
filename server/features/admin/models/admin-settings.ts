@@ -943,7 +943,9 @@ export const errorLogs = pgTable('error_logs', {
   buildNumber: varchar('build_number', { length: 50 }),
   screen: varchar('screen', { length: 255 }),
   networkType: varchar('network_type', { length: 50 }),
-  extra: jsonb('extra').notNull().default(sql`'{}'::jsonb`),
+  extra: jsonb('extra')
+    .notNull()
+    .default(sql`'{}'::jsonb`),
   ipAddress: varchar('ip_address', { length: 100 }),
   fingerprint: varchar('fingerprint', { length: 64 }),
   occurrenceCount: integer('occurrence_count').notNull().default(1),

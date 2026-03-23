@@ -164,11 +164,10 @@ export function registerAuthRoutes(app: Express) {
    */
   app.post('/api/auth/send-otp', authLimiter, async (req: Request, res: Response) => {
     try {
-      const body = req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
+      const body =
+        req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
       const phoneValue =
-        typeof body.phone === 'string' || typeof body.phone === 'number'
-          ? String(body.phone)
-          : '';
+        typeof body.phone === 'string' || typeof body.phone === 'number' ? String(body.phone) : '';
 
       if (!phoneValue.trim()) {
         return res.status(400).json({
@@ -206,9 +205,12 @@ export function registerAuthRoutes(app: Express) {
    */
   app.post('/api/auth/verify-otp', authLimiter, async (req: Request, res: Response) => {
     try {
-      const body = req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
-      const phone = typeof body.phone === 'string' || typeof body.phone === 'number' ? String(body.phone) : '';
-      const otp = typeof body.otp === 'string' || typeof body.otp === 'number' ? String(body.otp) : '';
+      const body =
+        req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>) : {};
+      const phone =
+        typeof body.phone === 'string' || typeof body.phone === 'number' ? String(body.phone) : '';
+      const otp =
+        typeof body.otp === 'string' || typeof body.otp === 'number' ? String(body.otp) : '';
       const name = typeof body.name === 'string' ? body.name : undefined;
       const email = typeof body.email === 'string' ? body.email : undefined;
       const gender = body.gender;
