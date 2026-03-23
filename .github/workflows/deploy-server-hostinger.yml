@@ -76,14 +76,27 @@ jobs:
           path: .
 
       - name: Copy artifact to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.HOSTINGER_VPS_HOST }}
-          username: ${{ secrets.HOSTINGER_VPS_USER }}
-          key: ${{ secrets.HOSTINGER_VPS_SSH_KEY }}
-          port: ${{ secrets.HOSTINGER_VPS_PORT || '22' }}
-          source: "server-release.tgz"
-          target: "/tmp"
+        shell: bash
+        run: |
+          set -euo pipefail
+          PORT="${{ secrets.HOSTINGER_VPS_PORT || '22' }}"
+          HOST="${{ secrets.HOSTINGER_VPS_HOST }}"
+          USER="${{ secrets.HOSTINGER_VPS_USER }}"
+
+          install -m 600 /dev/null ~/.ssh/id_hostinger
+          printf '%s\n' "${{ secrets.HOSTINGER_VPS_SSH_KEY }}" > ~/.ssh/id_hostinger
+
+          ssh-keyscan -p "$PORT" -H "$HOST" >> ~/.ssh/known_hosts
+
+          scp \
+            -i ~/.ssh/id_hostinger \
+            -P "$PORT" \
+            -o ConnectTimeout=60 \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=6 \
+            -o StrictHostKeyChecking=yes \
+            ./server-release.tgz \
+            "$USER@$HOST:/tmp/server-release.tgz"
 
       - name: Deploy release on VPS
         uses: appleboy/ssh-action@v1.2.0
