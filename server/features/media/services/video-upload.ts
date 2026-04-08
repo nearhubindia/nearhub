@@ -59,7 +59,11 @@ export function initializeUpload(
 /**
  * Upload a video chunk
  */
-export function uploadChunk(uploadId: string, chunkIndex: number, chunkData: Buffer): boolean {
+export async function uploadChunk(
+  uploadId: string,
+  chunkIndex: number,
+  chunkData: Buffer
+): Promise<boolean> {
   const session = uploadSessions.get(uploadId);
   if (!session) {
     throw new Error('Upload session not found');
@@ -68,7 +72,7 @@ export function uploadChunk(uploadId: string, chunkIndex: number, chunkData: Buf
   const chunkPath = path.join(UPLOAD_DIR, `${uploadId}_chunk_${chunkIndex}`);
 
   try {
-    fs.writeFileSync(chunkPath, chunkData);
+    await fsPromises.writeFile(chunkPath, chunkData);
     session.receivedChunks.add(chunkIndex);
 
     console.log(

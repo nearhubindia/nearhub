@@ -1,43 +1,16 @@
 /**
  * Geo-based Ad Search Service
  * Filters listings by distance from user's location
- * Uses Haversine formula to calculate distances
+ * Uses DB-side geo distance calculation for scalability
  */
 
+import { and, asc, desc, eq, gte, isNull, or, sql } from 'drizzle-orm';
+import { db } from '../../../data/db';
+import { listings } from '../../admin/models/admin-settings';
 import { getAdminSettings } from '../../admin/services/admin-settings';
 import { getActiveListing } from '../../listings/services/listings';
 
-type DBListing = Awaited<ReturnType<typeof getActiveListing>>[number];
-
-/**
- * Calculate distance between two coordinates using Haversine formula
- * @param lat1 User latitude
- * @param lon1 User longitude
- * @param lat2 Listing latitude
- * @param lon2 Listing longitude
- * @returns Distance in kilometers
- */
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371; // Earth's radius in kilometers
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distance = R * c;
-
-  return distance;
-}
-
-/**
- * Convert degrees to radians
- */
-function toRad(degrees: number): number {
-  return degrees * (Math.PI / 180);
-}
+type DBListing = typeof listings.$inferSelect;
 
 export interface GeoSearchOptions {
   userLatitude: number;
@@ -50,6 +23,16 @@ export interface GeoSearchOptions {
 
 export interface SearchResult extends DBListing {
   distanceKm?: number;
+}
+
+function normalizeSort(sortBy: unknown): 'distance' | 'date' | 'price' {
+  return sortBy === 'date' || sortBy === 'price' ? sortBy : 'distance';
+}
+
+function toPositiveLimit(value: unknown, fallback: number, max: number): number {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, max);
 }
 
 function parseJsonField(value: unknown): unknown[] {
@@ -90,85 +73,87 @@ function mapListing(listing: DBListing): SearchResult {
  * Sorted by distance or date
  */
 export async function searchListingsByGeo(options: GeoSearchOptions): Promise<SearchResult[]> {
-  const { userLatitude, userLongitude, category, sortBy = 'distance', limit = 100 } = options;
+  const { category } = options;
+  const sortBy = normalizeSort(options.sortBy);
+  const limit = toPositiveLimit(options.limit, 100, 300);
 
   // Get admin settings for default radius
   const adminSettings = await getAdminSettings();
-  const radiusKm = options.radiusKm || (adminSettings.geoRadiusKm ?? 50);
+  const configuredRadius = Number(adminSettings.geoRadiusKm ?? 50);
+  const requestedRadius = Number(options.radiusKm);
+  const radiusKm =
+    Number.isFinite(requestedRadius) && requestedRadius > 0
+      ? requestedRadius
+      : Number.isFinite(configuredRadius) && configuredRadius > 0
+        ? configuredRadius
+        : 50;
 
   // Validate user coordinates
-  if (!userLatitude || !userLongitude) {
+  const userLatitude = Number(options.userLatitude);
+  const userLongitude = Number(options.userLongitude);
+  if (!Number.isFinite(userLatitude) || !Number.isFinite(userLongitude)) {
     console.error('[GeoSearch] Invalid user coordinates provided');
     return [];
   }
+  if (userLatitude < -90 || userLatitude > 90 || userLongitude < -180 || userLongitude > 180) {
+    return [];
+  }
 
-  console.log(
-    `[GeoSearch] Searching listings within ${radiusKm}km of (${userLatitude}, ${userLongitude})`
-  );
+  const distanceExpression = sql<number>`
+    6371 * acos(
+      least(
+        1,
+        greatest(
+          -1,
+          cos(radians(${userLatitude}))
+            * cos(radians(CAST(${listings.latitude} AS double precision)))
+            * cos(
+              radians(CAST(${listings.longitude} AS double precision))
+              - radians(${userLongitude})
+            )
+            + sin(radians(${userLatitude}))
+            * sin(radians(CAST(${listings.latitude} AS double precision)))
+        )
+      )
+    )
+  `;
 
-  // Get all active listings from database only
-  const allListings = (
-    await getActiveListing({
-      limit: 5000,
-      offset: 0,
-      category,
+  const conditions = [
+    eq(listings.isActive, true),
+    eq(listings.status, 'active'),
+    or(isNull(listings.expiresAt), gte(listings.expiresAt, sql`now()`)),
+    sql`${listings.latitude} IS NOT NULL AND ${listings.longitude} IS NOT NULL`,
+    sql`${distanceExpression} <= ${radiusKm}`,
+  ];
+  if (category) {
+    conditions.push(eq(listings.category, category));
+  }
+
+  const baseQuery = db
+    .select({
+      listing: listings,
+      distanceKm: distanceExpression,
     })
-  ).map(mapListing);
+    .from(listings)
+    .where(and(...conditions));
 
-  // Filter and calculate distances
-  const resultsWithDistance: SearchResult[] = [];
-
-  for (const listing of allListings) {
-    // Skip listings without coordinates
-    if (!listing.latitude || !listing.longitude) {
-      console.log(`[GeoSearch] Skipping listing ${listing.id}: no coordinates`);
-      continue;
-    }
-
-    // Calculate distance
-    const distance = calculateDistance(
-      userLatitude,
-      userLongitude,
-      Number(listing.latitude),
-      Number(listing.longitude)
-    );
-
-    // Filter by radius
-    if (distance > radiusKm) {
-      console.log(
-        `[GeoSearch] Listing ${listing.id} is ${distance.toFixed(1)}km away (exceeds ${radiusKm}km)`
-      );
-      continue;
-    }
-
-    // Filter by category if provided
-    if (category && listing.category !== category) {
-      continue;
-    }
-
-    resultsWithDistance.push({
-      ...listing,
-      distanceKm: parseFloat(distance.toFixed(1)),
-    });
-  }
-
-  console.log(`[GeoSearch] Found ${resultsWithDistance.length} listings within radius`);
-
-  // Sort results
+  let rows: Array<{ listing: DBListing; distanceKm: number | string }>;
   if (sortBy === 'distance') {
-    resultsWithDistance.sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
+    rows = await baseQuery.orderBy(asc(distanceExpression), desc(listings.createdAt)).limit(limit);
   } else if (sortBy === 'date') {
-    resultsWithDistance.sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
-      return dateB - dateA; // Newest first
-    });
-  } else if (sortBy === 'price') {
-    resultsWithDistance.sort((a, b) => Number(a.price) - Number(b.price));
+    rows = await baseQuery.orderBy(desc(listings.createdAt)).limit(limit);
+  } else {
+    rows = await baseQuery.orderBy(asc(listings.price), desc(listings.createdAt)).limit(limit);
   }
 
-  // Apply limit
-  return resultsWithDistance.slice(0, limit);
+  return rows.map((row) => {
+    const mapped = mapListing(row.listing);
+    const numericDistance = Number(row.distanceKm);
+    return {
+      ...mapped,
+      distanceKm: Number.isFinite(numericDistance) ? Number(numericDistance.toFixed(1)) : undefined,
+    };
+  });
 }
 
 /**

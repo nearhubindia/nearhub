@@ -29,6 +29,36 @@ export interface ChunkedUploadResult {
   duration: number;
 }
 
+type ServerUploadProgress = Partial<UploadProgress> & {
+  receivedChunks?: number;
+};
+
+function normalizeUploadProgress(raw: ServerUploadProgress): UploadProgress {
+  const chunksUploaded =
+    typeof raw.chunksUploaded === 'number'
+      ? raw.chunksUploaded
+      : typeof raw.receivedChunks === 'number'
+        ? raw.receivedChunks
+        : 0;
+  const totalChunks = typeof raw.totalChunks === 'number' ? raw.totalChunks : 0;
+
+  return {
+    uploadId: String(raw.uploadId || ''),
+    chunksUploaded,
+    totalChunks,
+    progress:
+      typeof raw.progress === 'number'
+        ? raw.progress
+        : totalChunks > 0
+          ? Math.round((chunksUploaded / totalChunks) * 100)
+          : 0,
+    isComplete:
+      typeof raw.isComplete === 'boolean'
+        ? raw.isComplete
+        : totalChunks > 0 && chunksUploaded >= totalChunks,
+  };
+}
+
 /**
  * Get the size of a video file
  */
@@ -48,15 +78,10 @@ export async function getVideoSize(videoUri: string): Promise<number> {
 async function readVideoChunk(
   videoUri: string,
   startByte: number,
-  endByte: number
+  endByte: number,
+  fileSize: number
 ): Promise<string> {
   try {
-    // For Expo, we need to use the FileSystem API to read binary chunks
-    // Since FileSystem doesn't have direct binary read, we'll read as base64
-    // and convert specific byte range
-
-    const fileSize = await getVideoSize(videoUri);
-
     if (startByte >= fileSize) {
       throw new Error('Start byte exceeds file size');
     }
@@ -64,36 +89,43 @@ async function readVideoChunk(
     const actualEndByte = Math.min(endByte, fileSize);
     const chunkLength = actualEndByte - startByte;
 
-    // Read the entire file is not efficient, but fetch API can handle streaming
-    // Let's use fetch which works in Expo for file:// URIs
-    const response = await fetch(videoUri);
-    const arrayBuffer = await response.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-
-    const chunkData = uint8Array.slice(startByte, actualEndByte);
-
-    // Convert to base64 for transmission (fallback to Buffer if btoa isn't available)
-    const toBase64 = (u8: Uint8Array) => {
-      if (typeof btoa === 'function') {
-        // chunking to avoid call stack limits
-        const CHUNK = 0x8000;
-        let result = '';
-        for (let i = 0; i < u8.length; i += CHUNK) {
-          result += String.fromCharCode.apply(null, Array.from(u8.subarray(i, i + CHUNK)));
-        }
-        return btoa(result);
-      }
-      if (typeof Buffer !== 'undefined') {
-        return Buffer.from(u8).toString('base64');
-      }
-      throw new Error('No base64 encoder available in this environment');
-    };
-
-    return toBase64(chunkData);
+    // Expo supports reading base64 slices directly using position+length.
+    return await FileSystem.readAsStringAsync(videoUri, {
+      encoding: FileSystem.EncodingType.Base64,
+      position: startByte,
+      length: chunkLength,
+    });
   } catch (error) {
     console.error('[ChunkedUpload] Error reading video chunk:', error);
     throw error;
   }
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  if (typeof atob === 'function') {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+
+  const maybeBuffer = (globalThis as unknown as {
+    Buffer?: { from: (value: string, encoding: string) => Uint8Array };
+  }).Buffer;
+
+  if (maybeBuffer) {
+    return new Uint8Array(maybeBuffer.from(base64, 'base64'));
+  }
+
+  throw new Error('No base64 decoder available in this environment');
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const out = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(out).set(bytes);
+  return out;
 }
 
 /**
@@ -150,39 +182,93 @@ async function initiateUpload(
 /**
  * Upload a single chunk to the server
  */
+async function uploadSingleChunkBinary(
+  uploadId: string,
+  chunkIndex: number,
+  chunkBytes: Uint8Array
+): Promise<UploadProgress> {
+  const params = new URLSearchParams({
+    uploadId,
+    chunkIndex: String(chunkIndex),
+  });
+
+  const response = await fetch(getUploadApiUrl(`/api/videos/upload-chunk?${params.toString()}`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: toArrayBuffer(chunkBytes),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`HTTP ${response.status} ${errorBody}`);
+  }
+
+  const data = (await response.json()) as {
+    success?: boolean;
+    message?: string;
+    progress?: ServerUploadProgress;
+  };
+  if (!data.success || !data.progress) {
+    throw new Error(data.message || 'Binary chunk upload failed');
+  }
+
+  return normalizeUploadProgress(data.progress);
+}
+
+async function uploadSingleChunkJson(
+  uploadId: string,
+  chunkIndex: number,
+  chunkBase64: string
+): Promise<UploadProgress> {
+  const response = await fetch(getUploadApiUrl('/api/videos/upload-chunk'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      uploadId,
+      chunkIndex,
+      chunkData: chunkBase64,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`HTTP ${response.status} ${errorBody}`);
+  }
+
+  const data = (await response.json()) as {
+    success?: boolean;
+    message?: string;
+    progress?: ServerUploadProgress;
+  };
+  if (!data.success || !data.progress) {
+    throw new Error(data.message || 'Upload failed');
+  }
+
+  return normalizeUploadProgress(data.progress);
+}
+
 async function uploadSingleChunk(
   uploadId: string,
   chunkIndex: number,
   chunkBase64: string
 ): Promise<UploadProgress> {
   try {
-    const response = await fetch(getUploadApiUrl('/api/videos/upload-chunk'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        uploadId,
-        chunkIndex,
-        chunkData: chunkBase64,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.message || 'Upload failed');
-    }
-
+    const chunkBytes = base64ToUint8Array(chunkBase64);
+    const progress = await uploadSingleChunkBinary(uploadId, chunkIndex, chunkBytes);
     console.log(
-      `[ChunkedUpload] Chunk ${chunkIndex + 1} uploaded, progress: ${data.progress.progress}%`
+      `[ChunkedUpload] Chunk ${chunkIndex + 1} uploaded (binary), progress: ${progress.progress}%`
     );
-
-    return data.progress;
-  } catch (error) {
-    console.error(`[ChunkedUpload] Error uploading chunk ${chunkIndex}:`, error);
-    throw error;
+    return progress;
+  } catch (binaryError) {
+    console.warn(
+      `[ChunkedUpload] Binary upload failed for chunk ${chunkIndex + 1}; falling back to JSON`,
+      binaryError
+    );
+    const progress = await uploadSingleChunkJson(uploadId, chunkIndex, chunkBase64);
+    console.log(
+      `[ChunkedUpload] Chunk ${chunkIndex + 1} uploaded (json fallback), progress: ${progress.progress}%`
+    );
+    return progress;
   }
 }
 
@@ -197,8 +283,8 @@ export async function checkUploadProgress(uploadId: string): Promise<UploadProgr
       throw new Error('Upload session not found');
     }
 
-    const data = await response.json();
-    return data;
+    const data = (await response.json()) as ServerUploadProgress;
+    return normalizeUploadProgress(data);
   } catch (error) {
     console.error('[ChunkedUpload] Error checking progress:', error);
     throw error;
@@ -293,7 +379,7 @@ export async function uploadVideoInChunks(
         `[ChunkedUpload] Reading chunk ${i + 1}/${totalChunks} (bytes ${startByte}-${endByte})`
       );
 
-      const chunkBase64 = await readVideoChunk(videoUri, startByte, endByte);
+      const chunkBase64 = await readVideoChunk(videoUri, startByte, endByte, fileSize);
 
       console.log(
         `[ChunkedUpload] Uploading chunk ${i + 1}/${totalChunks} (${(chunkBase64.length / 1024).toFixed(2)}KB base64)`
@@ -359,7 +445,7 @@ export async function resumeVideoUpload(
       const startByte = i * CHUNK_SIZE;
       const endByte = Math.min((i + 1) * CHUNK_SIZE, fileSize);
 
-      const chunkBase64 = await readVideoChunk(videoUri, startByte, endByte);
+      const chunkBase64 = await readVideoChunk(videoUri, startByte, endByte, fileSize);
       const uploadProgress = await uploadSingleChunk(uploadId, i, chunkBase64);
 
       onProgress?.(uploadProgress);

@@ -1,7 +1,7 @@
 import type { Express } from 'express';
 import { createServer, type Server } from 'node:http';
 // Location routes from search feature
-import { registerLocationRoutes } from './features/search/services/location';
+import { registerLocationRoutes } from './features/search/routes/location';
 // Admin feature routes
 import { registerAdminAuthRoutes, adminAuthMiddleware } from './features/admin/routes/admin-auth';
 import { registerAdminSettingsRoutes } from './features/admin/routes/admin-settings';
@@ -48,19 +48,8 @@ import { registerMessageRoutes } from './features/messages/routes/messages';
 // Worker management routes
 import { registerWorkerRoutes } from './features/workers/routes/workers';
 import { registerApiDocsRoutes } from './shared/routes/api-docs';
-import { resolveUserIdFromRequest } from './features/users/services/user-lifecycle';
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  app.use('/api', async (req, _res, next) => {
-    try {
-      const userId = await resolveUserIdFromRequest(req as any);
-      (req as any).userId = userId || '';
-    } catch {
-      (req as any).userId = '';
-    }
-    next();
-  });
-
   // Health check
   app.get('/api/health', (req, res) => {
     res.json({

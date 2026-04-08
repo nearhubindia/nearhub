@@ -35,6 +35,12 @@ test-output*.txt
 app/.expo/
 app/build-*.apk
 app/build-*.aab
+app/build-*.sha256
+app/build-*-mapping.txt
+app/build-*-mapping.txt.sha256
+
+# Local release archives
+server-release.tgz
 
 # IDEs
 .vscode/

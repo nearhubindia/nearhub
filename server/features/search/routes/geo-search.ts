@@ -63,15 +63,6 @@ export function registerGeoSearchRoutes(app: Express) {
         limit: limitParam,
       };
 
-      console.log('[GeoSearch Route] Searching nearby listings:', {
-        lat,
-        lng,
-        radiusKm: radiusKmParam,
-        category: categoryFilter,
-        sortBy: sortByParam,
-        limit: limitParam,
-      });
-
       const listings = await searchListingsByGeo(options);
 
       return res.json({
@@ -110,11 +101,6 @@ export function registerGeoSearchRoutes(app: Express) {
 
       const categoryFilter = category as string | undefined;
       const limitParam = limit ? parseInt(limit as string) : 100;
-
-      console.log('[Search Route] Searching by category:', {
-        category: categoryFilter || 'all',
-        limit: limitParam,
-      });
 
       const listings = await searchListingsByCategory(categoryFilter, limitParam);
 

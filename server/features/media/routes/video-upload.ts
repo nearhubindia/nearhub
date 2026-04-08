@@ -1,4 +1,4 @@
-import type { Express } from 'express';
+import express, { type Express } from 'express';
 import {
   initializeUpload,
   uploadChunk,
@@ -13,6 +13,16 @@ import {
   getStreamingStats,
   invalidateVideoCache,
 } from '../services/video-streaming';
+
+function readStringParam(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') {
+    return value[0];
+  }
+  return undefined;
+}
 
 export function registerVideoUploadRoutes(app: Express) {
   /**
@@ -45,39 +55,86 @@ export function registerVideoUploadRoutes(app: Express) {
    * POST /api/videos/upload-chunk
    * Upload a video chunk
    */
-  app.post('/api/videos/upload-chunk', (req, res) => {
-    try {
-      const { uploadId, chunkIndex, chunkData } = req.body as {
-        uploadId?: string;
-        chunkIndex?: number;
-        chunkData?: string | null;
-      };
+  app.post(
+    '/api/videos/upload-chunk',
+    express.raw({
+      type: 'application/octet-stream',
+      limit: '10mb',
+    }),
+    async (req, res) => {
+      try {
+        let uploadId: string | undefined;
+        let chunkIndex: number | undefined;
+        let buffer: Buffer | undefined;
 
-      if (!uploadId || chunkIndex === undefined || !chunkData) {
-        return res.status(400).json({
+        if (Buffer.isBuffer(req.body)) {
+          uploadId = readStringParam(req.query.uploadId) || req.get('x-upload-id') || undefined;
+          const chunkIndexRaw =
+            readStringParam(req.query.chunkIndex) || req.get('x-chunk-index') || undefined;
+          chunkIndex = chunkIndexRaw ? Number(chunkIndexRaw) : undefined;
+          buffer = req.body;
+
+          if (
+            !uploadId ||
+            chunkIndex === undefined ||
+            Number.isNaN(chunkIndex) ||
+            !Number.isInteger(chunkIndex) ||
+            chunkIndex < 0 ||
+            !buffer.length
+          ) {
+            return res.status(400).json({
+              success: false,
+              message:
+                'Missing required parameters for binary upload: uploadId, chunkIndex, request body',
+            });
+          }
+        } else {
+          const body = req.body as {
+            uploadId?: string;
+            chunkIndex?: number | string;
+            chunkData?: string | null;
+          };
+
+          uploadId = body.uploadId;
+          chunkIndex =
+            typeof body.chunkIndex === 'number'
+              ? body.chunkIndex
+              : Number(String(body.chunkIndex));
+
+          if (
+            !uploadId ||
+            chunkIndex === undefined ||
+            Number.isNaN(chunkIndex) ||
+            !Number.isInteger(chunkIndex) ||
+            chunkIndex < 0 ||
+            !body.chunkData
+          ) {
+            return res.status(400).json({
+              success: false,
+              message: 'Missing required parameters: uploadId, chunkIndex, chunkData',
+            });
+          }
+
+          // Backward compatibility for clients that still send base64 JSON.
+          buffer = Buffer.from(body.chunkData, 'base64');
+        }
+
+        await uploadChunk(uploadId, chunkIndex, buffer);
+
+        const progress = getUploadProgress(uploadId);
+        res.json({
+          success: true,
+          progress,
+        });
+      } catch (error) {
+        console.error('Error uploading chunk:', error);
+        res.status(500).json({
           success: false,
-          message: 'Missing required parameters: uploadId, chunkIndex, chunkData',
+          message: error instanceof Error ? error.message : 'Failed to upload chunk',
         });
       }
-
-      // chunkData is expected as a base64 string from the client
-      const buffer = Buffer.from(chunkData, 'base64');
-
-      uploadChunk(uploadId, chunkIndex, buffer);
-
-      const progress = getUploadProgress(uploadId);
-      res.json({
-        success: true,
-        progress,
-      });
-    } catch (error) {
-      console.error('Error uploading chunk:', error);
-      res.status(500).json({
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to upload chunk',
-      });
     }
-  });
+  );
 
   /**
    * GET /api/videos/progress/:uploadId

@@ -1,5 +1,5 @@
 import type { Express, Response } from 'express';
-import { eq, desc, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../../data/db';
 import { listings } from '../../admin/models/admin-settings';
 import type { InsertListing } from '../../admin/models/admin-settings';
@@ -64,36 +64,34 @@ export function registerAdminListingsRoutes(app: Express) {
    */
   app.get('/api/admin/listings', async (req: AuthRequest, res: Response) => {
     try {
-      const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
-      const offset = parseInt(req.query.offset as string) || 0;
-      const category = req.query.category as string | undefined;
-      const status = req.query.status as string | undefined;
-      const userId = req.query.userId as string | undefined;
-      const ownerId = userId;
+      const parsedLimit = Number.parseInt(String(req.query.limit ?? ''), 10);
+      const parsedOffset = Number.parseInt(String(req.query.offset ?? ''), 10);
+      const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 500) : 100;
+      const offset = Number.isFinite(parsedOffset) && parsedOffset >= 0 ? parsedOffset : 0;
+      const category =
+        typeof req.query.category === 'string' && req.query.category.trim()
+          ? req.query.category.trim()
+          : undefined;
+      const status =
+        typeof req.query.status === 'string' && req.query.status.trim()
+          ? req.query.status.trim()
+          : undefined;
+      const ownerId =
+        typeof req.query.userId === 'string' && req.query.userId.trim()
+          ? req.query.userId.trim()
+          : undefined;
 
-      const allListings = await db
-        .select()
-        .from(listings)
-        .orderBy(desc(listings.createdAt))
-        .limit(limit)
-        .offset(offset);
+      const filters = [];
+      if (category) filters.push(eq(listings.category, category));
+      if (status) filters.push(eq(listings.status, status));
+      if (ownerId) filters.push(eq(listings.sellerId, ownerId));
+      const whereClause = filters.length > 0 ? and(...filters) : undefined;
 
-      // Filter on the application side if needed
-      let filtered = allListings;
+      const baseListingQuery = db.select().from(listings);
+      const scopedListingQuery = whereClause ? baseListingQuery.where(whereClause) : baseListingQuery;
+      const filteredListings = await scopedListingQuery.orderBy(desc(listings.createdAt)).limit(limit).offset(offset);
 
-      if (category) {
-        filtered = filtered.filter((l) => l.category === category);
-      }
-
-      if (status) {
-        filtered = filtered.filter((l) => l.status === status);
-      }
-
-      if (ownerId) {
-        filtered = filtered.filter((l) => l.sellerId === ownerId);
-      }
-
-      const sellerIds = [...new Set(filtered.map((l) => String(l.sellerId || '').trim()))].filter(
+      const sellerIds = [...new Set(filteredListings.map((l) => String(l.sellerId || '').trim()))].filter(
         Boolean
       );
       const dbUsers =
@@ -110,14 +108,14 @@ export function registerAdminListingsRoutes(app: Express) {
           : [];
       const dbUserById = new Map(dbUsers.map((u) => [String(u.id), u]));
 
-      // Get total count
-      const totalResult = await db.select({ count: listings.id }).from(listings);
-      const total =
-        typeof totalResult[0]?.count === 'number' ? totalResult[0].count : allListings.length;
+      const totalResult = whereClause
+        ? await db.select({ count: sql<number>`count(*)` }).from(listings).where(whereClause)
+        : await db.select({ count: sql<number>`count(*)` }).from(listings);
+      const total = Number(totalResult[0]?.count || 0);
 
       res.json({
         success: true,
-        data: filtered.map((listing) => {
+        data: filteredListings.map((listing) => {
           const sellerId = String(listing.sellerId || '').trim();
           const dbUser = dbUserById.get(sellerId);
           const profileUser = getUserById(sellerId) || getUserByPhone(sellerId);
@@ -157,6 +155,9 @@ export function registerAdminListingsRoutes(app: Express) {
           };
         }),
         total,
+        limit,
+        offset,
+        hasMore: offset + filteredListings.length < total,
       });
     } catch (error) {
       console.error('[Admin Listings] Error fetching listings:', error);

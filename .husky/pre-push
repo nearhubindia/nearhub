@@ -3,6 +3,20 @@
 echo "🔍 Running per-project quality checks before push..."
 echo ""
 
+echo "🏛️  Running architecture gate..."
+node scripts/gates/architecture-gate.mjs || {
+  echo "❌ architecture gate failed!"
+  exit 1
+}
+echo ""
+
+echo "🧱 Running framework gate..."
+node scripts/gates/framework-gate.mjs || {
+  echo "❌ framework gate failed!"
+  exit 1
+}
+echo ""
+
 run_app=0
 run_server=0
 run_web=0

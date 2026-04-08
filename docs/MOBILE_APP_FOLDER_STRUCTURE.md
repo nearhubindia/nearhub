@@ -178,26 +178,22 @@ app/
 │
 ├── android/                     # Android native code
 │
-├── _layout.tsx                  # Root layout (providers wrapper)
-├── (+native-intent).tsx
-├── (+not-found).tsx
-├── my-listings.tsx              # [OLD - to be removed]
-├── profile.tsx                  # [OLD - to be removed]
-├── search-results.tsx           # [OLD - to be removed]
-├── settings.tsx                 # [OLD - to be removed]
-├── subscriptions.tsx            # [OLD - to be removed]
-├── (tabs)/                      # [OLD - to be removed]
-├── auth/                        # [OLD - to be removed]
-├── chat/                        # [OLD - to be removed]
-├── components/                  # [OLD - to be removed]
-├── listing/                     # [OLD - to be removed]
+├── src/
+│   └── app/                     # Expo Router route entry files
+│       ├── _layout.tsx
+│       ├── +native-intent.tsx
+│       ├── +not-found.tsx
+│       ├── (tabs)/
+│       ├── auth/
+│       ├── chat/
+│       ├── listing/
+│       ├── listings/
+│       └── settings/
 ├── app.json                     # Expo config
 ├── babel.config.js
 ├── eas.json                     # EAS build config
-├── expo-env.d.ts
-├── index.js                     # Expo entry point
 ├── metro.config.js
-├── package.json
+├── package.json                 # Uses "main": "expo-router/entry"
 └── tsconfig.json
 ```
 
@@ -326,10 +322,10 @@ const environment = ENV_CONFIG.environment;
 - All imports updated to use new paths
 - TypeScript compilation passing
 
-⚠️ **Cleanup Pending**:
-- Remove old root-level screen files
-- Remove old directory structure
-- Update Expo Router configuration if needed
+✅ **Cleanup Completed**:
+- Removed legacy root-level Expo Router wrappers
+- Kept a single active router tree at `src/app`
+- Reduced wrapper chaining and duplicate route indirection
 
 ## Related Documentation
 
