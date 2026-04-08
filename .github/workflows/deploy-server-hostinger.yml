@@ -13,6 +13,9 @@ concurrency:
   group: deploy-server-main
   cancel-in-progress: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-artifact:
     name: Build server artifact
