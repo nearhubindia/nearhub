@@ -98,7 +98,7 @@ const appBenefits = [
 ];
 
 const homeBanner = '/banner_web_1.png';
-const playStoreUrl = 'https://play.google.com/store/apps/details?id=host.exp.exponent';
+const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.synvide.nearhub';
 
 export default function Landing(): ReactElement {
   return (
