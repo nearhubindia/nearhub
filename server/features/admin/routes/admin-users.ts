@@ -82,7 +82,10 @@ export function registerAdminUsersRoutes(app: Express) {
       const searchFilter = getSearchFilter(search);
 
       const totalRows = searchFilter
-        ? await db.select({ count: sql<number>`count(*)` }).from(users).where(searchFilter)
+        ? await db
+            .select({ count: sql<number>`count(*)` })
+            .from(users)
+            .where(searchFilter)
         : await db.select({ count: sql<number>`count(*)` }).from(users);
       const total = Number(totalRows[0]?.count || 0);
 
@@ -118,7 +121,9 @@ export function registerAdminUsersRoutes(app: Express) {
       for (const meta of metaRows) {
         const normalizedMobile = normalizeMobile(meta.mobile || meta.username || meta.id);
         const rawUsername = String(meta.username || '').trim();
-        const keys = [...new Set([String(meta.id).trim(), normalizedMobile, rawUsername].filter(Boolean))];
+        const keys = [
+          ...new Set([String(meta.id).trim(), normalizedMobile, rawUsername].filter(Boolean)),
+        ];
         listingLookupKeysByUser.set(String(meta.id), keys);
         listingLookupKeys.push(...keys);
       }

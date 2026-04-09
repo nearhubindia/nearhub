@@ -66,7 +66,8 @@ export function registerAdminListingsRoutes(app: Express) {
     try {
       const parsedLimit = Number.parseInt(String(req.query.limit ?? ''), 10);
       const parsedOffset = Number.parseInt(String(req.query.offset ?? ''), 10);
-      const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 500) : 100;
+      const limit =
+        Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 500) : 100;
       const offset = Number.isFinite(parsedOffset) && parsedOffset >= 0 ? parsedOffset : 0;
       const category =
         typeof req.query.category === 'string' && req.query.category.trim()
@@ -88,12 +89,17 @@ export function registerAdminListingsRoutes(app: Express) {
       const whereClause = filters.length > 0 ? and(...filters) : undefined;
 
       const baseListingQuery = db.select().from(listings);
-      const scopedListingQuery = whereClause ? baseListingQuery.where(whereClause) : baseListingQuery;
-      const filteredListings = await scopedListingQuery.orderBy(desc(listings.createdAt)).limit(limit).offset(offset);
+      const scopedListingQuery = whereClause
+        ? baseListingQuery.where(whereClause)
+        : baseListingQuery;
+      const filteredListings = await scopedListingQuery
+        .orderBy(desc(listings.createdAt))
+        .limit(limit)
+        .offset(offset);
 
-      const sellerIds = [...new Set(filteredListings.map((l) => String(l.sellerId || '').trim()))].filter(
-        Boolean
-      );
+      const sellerIds = [
+        ...new Set(filteredListings.map((l) => String(l.sellerId || '').trim())),
+      ].filter(Boolean);
       const dbUsers =
         sellerIds.length > 0
           ? await db
@@ -109,7 +115,10 @@ export function registerAdminListingsRoutes(app: Express) {
       const dbUserById = new Map(dbUsers.map((u) => [String(u.id), u]));
 
       const totalResult = whereClause
-        ? await db.select({ count: sql<number>`count(*)` }).from(listings).where(whereClause)
+        ? await db
+            .select({ count: sql<number>`count(*)` })
+            .from(listings)
+            .where(whereClause)
         : await db.select({ count: sql<number>`count(*)` }).from(listings);
       const total = Number(totalResult[0]?.count || 0);
 

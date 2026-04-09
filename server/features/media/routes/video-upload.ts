@@ -97,9 +97,7 @@ export function registerVideoUploadRoutes(app: Express) {
 
           uploadId = body.uploadId;
           chunkIndex =
-            typeof body.chunkIndex === 'number'
-              ? body.chunkIndex
-              : Number(String(body.chunkIndex));
+            typeof body.chunkIndex === 'number' ? body.chunkIndex : Number(String(body.chunkIndex));
 
           if (
             !uploadId ||

@@ -406,8 +406,9 @@ export function registerSubscriptionRoutes(app: Express) {
         .from(userSubscriptionsTable)
         .where(eq(userSubscriptionsTable.userId, userId));
 
-      const tierIds = [...new Set(result.map((sub) => String(sub.subscriptionTierId || '').trim()))]
-        .filter(Boolean);
+      const tierIds = [
+        ...new Set(result.map((sub) => String(sub.subscriptionTierId || '').trim())),
+      ].filter(Boolean);
       const tiers =
         tierIds.length > 0
           ? await db

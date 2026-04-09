@@ -42,7 +42,8 @@ const activityTouchIntervalMs = Math.max(
   10000,
   Number.isFinite(configuredActivityTouchIntervalMs) ? configuredActivityTouchIntervalMs : 60000
 );
-const captureApiResponseBodyLogs = String(process.env.LOG_API_RESPONSE_BODY || '').trim() === 'true';
+const captureApiResponseBodyLogs =
+  String(process.env.LOG_API_RESPONSE_BODY || '').trim() === 'true';
 const recentUserActivityTouches = new Map<string, number>();
 
 // Log DATABASE_URL to verify it's loaded
@@ -229,9 +230,7 @@ function setupRequestLogging(app: express.Application) {
             : typeof capturedJsonResponse.message === 'string'
               ? capturedJsonResponse.message
               : '';
-        logLine += message
-          ? ` :: success=${success} message=${message}`
-          : ` :: success=${success}`;
+        logLine += message ? ` :: success=${success} message=${message}` : ` :: success=${success}`;
       }
 
       if (logLine.length > 80) {
@@ -253,8 +252,7 @@ function setupUserActivityTracking(app: express.Application): void {
     }
 
     const requestWithUser = req as Request & { userId?: string };
-    let userId =
-      typeof requestWithUser.userId === 'string' ? requestWithUser.userId.trim() : '';
+    let userId = typeof requestWithUser.userId === 'string' ? requestWithUser.userId.trim() : '';
     if (!userId) {
       try {
         userId = await resolveUserIdFromRequest(req as any);
