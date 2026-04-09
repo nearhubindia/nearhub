@@ -27,9 +27,7 @@ const RevenuePage = lazy(() => import('./features/admin/pages/RevenuePage'));
 const ReportsPage = lazy(() => import('./features/admin/pages/ReportsPage'));
 const TransactionsPage = lazy(() => import('./features/admin/pages/TransactionsPage'));
 const SettingsPage = lazy(() => import('./features/admin/pages/SettingsPage'));
-const ContactSubmissionsPage = lazy(
-  () => import('./features/admin/pages/ContactSubmissionsPage')
-);
+const ContactSubmissionsPage = lazy(() => import('./features/admin/pages/ContactSubmissionsPage'));
 const ErrorLogsPage = lazy(() => import('./features/admin/pages/ErrorLogsPage'));
 const AdminLogin = lazy(() => import('./features/admin/pages/AdminLogin'));
 
@@ -53,7 +51,10 @@ function App() {
             <Route path="/terms" element={<CompliancePage pageKey="terms" />} />
             <Route path="/refund-policy" element={<CompliancePage pageKey="refund-policy" />} />
             <Route path="/about" element={<CompliancePage pageKey="about" />} />
-            <Route path="/payment-security" element={<CompliancePage pageKey="payment-security" />} />
+            <Route
+              path="/payment-security"
+              element={<CompliancePage pageKey="payment-security" />}
+            />
             <Route path="/delete-account" element={<CompliancePage pageKey="delete-account" />} />
             <Route path="/footer/:pageKey" element={<FooterPage />} />
             <Route path="/admin/login" element={<AdminLogin />} />

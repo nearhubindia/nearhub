@@ -21,7 +21,12 @@ export default function UsersView() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [page, setPage] = useState(0);
   const offset = page * PAGE_SIZE;
-  const { data: usersData, isLoading, isFetching, refetch } = useUsers({
+  const {
+    data: usersData,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useUsers({
     limit: PAGE_SIZE,
     offset,
     search: debouncedSearchTerm || undefined,
@@ -41,7 +46,9 @@ export default function UsersView() {
   const allUsers: UserRow[] = Array.isArray(usersData?.data) ? (usersData.data as UserRow[]) : [];
   const totalUsers = Number(usersData?.total || 0);
   const hasMore =
-    typeof usersData?.hasMore === 'boolean' ? usersData.hasMore : offset + allUsers.length < totalUsers;
+    typeof usersData?.hasMore === 'boolean'
+      ? usersData.hasMore
+      : offset + allUsers.length < totalUsers;
   const rangeStart = totalUsers === 0 ? 0 : offset + 1;
   const rangeEnd = totalUsers === 0 ? 0 : offset + allUsers.length;
 

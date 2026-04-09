@@ -428,11 +428,7 @@ export const reportsApi = {
 // ============================================================================
 
 export const usersApi = {
-  async getUsers(params?: {
-    limit?: number;
-    offset?: number;
-    search?: string;
-  }): Promise<unknown> {
+  async getUsers(params?: { limit?: number; offset?: number; search?: string }): Promise<unknown> {
     const query = new URLSearchParams();
     if (typeof params?.limit === 'number') query.set('limit', String(params.limit));
     if (typeof params?.offset === 'number') query.set('offset', String(params.offset));
