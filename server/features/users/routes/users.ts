@@ -233,6 +233,36 @@ export function registerUserRoutes(app: Express) {
   });
 
   /**
+   * DELETE /api/users/profile
+   * Permanently delete authenticated user's account and related data
+   */
+  app.delete('/api/users/profile', async (req: Request, res: Response) => {
+    try {
+      const userId = String(getRequestUserId(req) || '').trim();
+      if (!userId || !isUuid(userId)) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const existing = await getDbUser(userId);
+      if (!existing) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const { deleteUserDataByAdmin } = await import('../services/user-lifecycle');
+      await deleteUserDataByAdmin(userId);
+      await db.delete(users).where(eq(users.id, userId));
+
+      return res.json({
+        success: true,
+        message: 'Account deleted successfully',
+      });
+    } catch (error) {
+      console.error('[Users] Error deleting profile:', error);
+      return res.status(500).json({ error: 'Failed to delete account' });
+    }
+  });
+
+  /**
    * GET /api/users/:userId/profile
    * Get user profile by ID
    */

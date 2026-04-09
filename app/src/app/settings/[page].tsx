@@ -13,6 +13,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { getApiUrl } from '@/lib/query-client';
+import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
+import { useAuth } from '@/shared/contexts/auth-context';
 
 type PageKey =
   | 'privacy-security'
@@ -107,8 +110,10 @@ export default function SettingDetailScreen() {
   const { page } = useLocalSearchParams<{ page: string }>();
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const { user, logout } = useAuth();
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [selectedTheme, setSelectedTheme] = useState('System Default');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const key = (page || '') as PageKey;
   const config = useMemo(() => PAGE_CONFIG[key], [key]);
@@ -141,15 +146,59 @@ export default function SettingDetailScreen() {
     Alert.alert('Support', 'Email client is not available on this device.');
   };
 
+  const confirmDeleteAccount = () => {
+    if (!user?.id) {
+      Alert.alert('Delete Account', 'Please login again and try deleting your account.');
+      return;
+    }
+    if (isDeletingAccount) return;
+
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to permanently delete your account? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsDeletingAccount(true);
+              const response = await fetch(`${getApiUrl()}/api/users/profile`, {
+                method: 'DELETE',
+                headers: buildUserAuthHeaders({ id: user.id }),
+              });
+
+              const payload = await response.json().catch(() => null);
+              if (!response.ok) {
+                const message =
+                  payload?.error ||
+                  payload?.message ||
+                  `Failed to delete account (${response.status})`;
+                throw new Error(message);
+              }
+
+              await logout();
+              Alert.alert('Account Deleted', 'Your account has been deleted successfully.', [
+                {
+                  text: 'OK',
+                  onPress: () => router.replace('/auth/register'),
+                },
+              ]);
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'Failed to delete account';
+              Alert.alert('Delete Failed', message);
+            } finally {
+              setIsDeletingAccount(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleDeleteAccount = () => {
-    Alert.alert('Delete Account', 'Are you sure you want to permanently delete your account?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => Alert.alert('Request Submitted', 'Your deletion request has been recorded.'),
-      },
-    ]);
+    confirmDeleteAccount();
   };
 
   return (
