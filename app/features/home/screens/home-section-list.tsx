@@ -82,7 +82,7 @@ export default function HomeSectionListScreen() {
     () =>
       data.length % 2 === 0
         ? data
-        : [...data, ({ id: '__spacer__', __placeholder: true } as unknown as (typeof listings)[0])],
+        : [...data, { id: '__spacer__', __placeholder: true } as unknown as (typeof listings)[0]],
     [data, listings]
   );
 

@@ -19,6 +19,18 @@ type CanonicalIdentity = {
   userId: string;
 };
 
+function toPositiveInt(value: unknown, fallback: number, max: number): number {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, max);
+}
+
+function toNonNegativeInt(value: unknown, fallback = 0): number {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return parsed;
+}
+
 function parseFirstImage(value: unknown): string {
   if (!value) return '';
 
@@ -158,6 +170,13 @@ export function registerMessageRoutes(app: Express) {
         return res.status(401).json({ success: false, error: 'Missing authenticated user' });
       }
       captureActorProfile(req, identity);
+      const limit = toPositiveInt(req.query.limit, 30, 100);
+      const offset = toNonNegativeInt(req.query.offset, 0);
+      const queryLimit = limit + 1;
+      const participantFilter = or(
+        eq(chatConversations.buyerId, identity.userId),
+        eq(chatConversations.sellerId, identity.userId)
+      )!;
 
       const rows = await db
         .select({
@@ -173,19 +192,18 @@ export function registerMessageRoutes(app: Express) {
         })
         .from(chatConversations)
         .innerJoin(listings, eq(chatConversations.listingId, listings.id))
-        .where(
-          or(
-            eq(chatConversations.buyerId, identity.userId),
-            eq(chatConversations.sellerId, identity.userId)
-          )
-        )
-        .orderBy(desc(chatConversations.lastMessageAt), desc(chatConversations.updatedAt));
+        .where(participantFilter)
+        .orderBy(desc(chatConversations.lastMessageAt), desc(chatConversations.updatedAt))
+        .limit(queryLimit)
+        .offset(offset);
+      const hasMore = rows.length > limit;
+      const pageRows = hasMore ? rows.slice(0, limit) : rows;
 
-      const otherUserIds = rows.map((row) =>
+      const otherUserIds = pageRows.map((row) =>
         row.sellerId === identity.userId ? row.buyerId : row.sellerId
       );
       const userLabelMap = await getUserLabelMap(otherUserIds);
-      const conversationIds = rows.map((row) => row.conversationId);
+      const conversationIds = pageRows.map((row) => row.conversationId);
       const unreadRows =
         conversationIds.length > 0
           ? await db
@@ -207,7 +225,7 @@ export function registerMessageRoutes(app: Express) {
         unreadRows.map((row) => [row.conversationId, Number(row.unreadCount) || 0])
       );
 
-      const threads = rows.map((row) => {
+      const threads = pageRows.map((row) => {
         const isSeller = row.sellerId === identity.userId;
         const otherUserId = isSeller ? row.buyerId : row.sellerId;
         const otherUserLabel =
@@ -228,7 +246,13 @@ export function registerMessageRoutes(app: Express) {
         };
       });
 
-      return res.json({ success: true, data: threads });
+      return res.json({
+        success: true,
+        data: threads,
+        limit,
+        offset,
+        hasMore,
+      });
     } catch (error) {
       console.error('[Messages] Failed to fetch threads:', error);
       return res.status(500).json({ success: false, error: 'Failed to fetch threads' });
@@ -308,6 +332,9 @@ export function registerMessageRoutes(app: Express) {
           return res.status(404).json({ success: false, error: 'Conversation not found' });
         }
         const conversation = participant.conversation;
+        const limit = toPositiveInt(req.query.limit, 100, 300);
+        const offset = toNonNegativeInt(req.query.offset, 0);
+        const queryLimit = limit + 1;
 
         await db
           .update(chatMessages)
@@ -324,9 +351,13 @@ export function registerMessageRoutes(app: Express) {
           .select()
           .from(chatMessages)
           .where(eq(chatMessages.conversationId, conversationId))
-          .orderBy(chatMessages.createdAt);
+          .orderBy(desc(chatMessages.createdAt))
+          .limit(queryLimit)
+          .offset(offset);
+        const hasMore = rows.length > limit;
+        const pageRows = (hasMore ? rows.slice(0, limit) : rows).reverse();
 
-        const messages = rows.map((row) => ({
+        const messages = pageRows.map((row) => ({
           id: row.id,
           conversationId: row.conversationId,
           listingId: conversation.listingId,
@@ -339,7 +370,13 @@ export function registerMessageRoutes(app: Express) {
           isRead: Boolean(row.readAt),
         }));
 
-        return res.json({ success: true, data: messages });
+        return res.json({
+          success: true,
+          data: messages,
+          limit,
+          offset,
+          hasMore,
+        });
       } catch (error) {
         console.error('[Messages] Failed to fetch messages:', error);
         return res.status(500).json({ success: false, error: 'Failed to fetch messages' });

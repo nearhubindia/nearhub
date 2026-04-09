@@ -17,7 +17,6 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as VideoThumbnails from 'expo-video-thumbnails';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -40,6 +39,10 @@ import {
   compressVideoForS3,
 } from '@/lib/video-compressor-s3';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
+import {
+  toPortableImageUri,
+  uploadImagesToCloudflare as uploadImagesToCloudflareUtil,
+} from '@/lib/media-images';
 import { VideoRecorderModal } from '@/shared/components/VideoRecorderModal';
 import { compressImagesWithProgress, QUALITY_PRESETS } from '@/lib/image-compressor';
 import * as ImageStorage from '@/lib/image-storage';
@@ -652,109 +655,11 @@ export default function CreateScreen() {
   const bottomCtaSafeSpacing = Platform.OS === 'web' ? 34 : 86;
   const heroTopPadding = Platform.OS === 'web' ? 18 : 18 + Math.max(insets.top, 10);
 
-  const convertBlobUrlToBase64 = async (uri: string): Promise<string> => {
-    try {
-      console.log('[Create] Converting blob URL to base64:', uri);
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64 = reader.result as string;
-          console.log('[Create] Blob converted to base64, length:', base64.length);
-          resolve(base64);
-        };
-        reader.onerror = (error) => {
-          console.error('[Create] FileReader error:', error);
-          reject(error);
-        };
-        reader.readAsDataURL(blob);
-      });
-    } catch (error) {
-      console.error('[Create] Error converting blob to base64:', error);
-      // Return a placeholder or throw error instead of falling back to blob
-      throw new Error('Failed to convert blob URL to base64');
-    }
-  };
-
-  const getMimeTypeFromUri = (uri: string): string => {
-    const lower = uri.toLowerCase();
-    if (lower.endsWith('.png')) return 'image/png';
-    if (lower.endsWith('.webp')) return 'image/webp';
-    if (lower.endsWith('.gif')) return 'image/gif';
-    if (lower.endsWith('.heic') || lower.endsWith('.heif')) return 'image/heic';
-    return 'image/jpeg';
-  };
-
-  const toPortableImageUri = async (uri: string): Promise<string> => {
-    if (!uri) return uri;
-
-    // Already portable
-    if (
-      uri.startsWith('data:image/') ||
-      uri.startsWith('http://') ||
-      uri.startsWith('https://') ||
-      uri.startsWith('/uploads/') ||
-      uri.startsWith('/images/')
-    ) {
-      return uri;
-    }
-
-    if (uri.startsWith('blob:')) {
-      return await convertBlobUrlToBase64(uri);
-    }
-
-    // Convert device-local URIs (file://, content://, ph://, assets-library://) to data URI
-    try {
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      return `data:${getMimeTypeFromUri(uri)};base64,${base64}`;
-    } catch (readError) {
-      console.warn('[Create] FileSystem read failed, trying fetch fallback:', readError);
-      try {
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        return await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      } catch (fallbackError) {
-        console.error('[Create] Failed to make image portable:', fallbackError);
-        throw new Error('Unable to process selected image for upload');
-      }
-    }
-  };
-
-  const isRemoteMediaUrl = (uri: string): boolean =>
-    uri.startsWith('http://') || uri.startsWith('https://');
-
   const uploadImagesToCloudflare = async (uris: string[]): Promise<string[]> => {
-    const uploaded: string[] = [];
-
-    for (let index = 0; index < uris.length; index++) {
-      const uri = uris[index] || '';
-      if (!uri) continue;
-
-      if (isRemoteMediaUrl(uri)) {
-        uploaded.push(uri);
-        continue;
-      }
-
-      const fileName = `listing_image_${Date.now()}_${index}.jpg`;
-      const media = await uploadMediaToCloudflare({
-        uri,
-        mediaType: 'image',
-        fileName,
-        userId: user?.id || undefined,
-      });
-
-      uploaded.push(media.url);
-    }
-
-    return uploaded;
+    return uploadImagesToCloudflareUtil(uris, {
+      fileNamePrefix: 'listing_image',
+      userId: user?.id || undefined,
+    });
   };
 
   const pickImage = useCallback(async (useCamera: boolean) => {

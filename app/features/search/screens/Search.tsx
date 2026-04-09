@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StyleSheet, Text, View, Pressable, TextInput, ScrollView, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +12,39 @@ import { useSearchHistory } from '@/shared/contexts/search-history-context';
 import { useListings } from '@/shared/contexts/listings-context';
 import { Category, CATEGORIES, CATEGORY_PICTURE_IMAGES, CATEGORY_PICTURES } from '@/lib/types';
 
+const TOP_CATEGORIES_DAILY_CACHE_KEY = '@nearhub_top_categories_daily_cache_v1';
+const TOP_CATEGORY_LIMIT = 16;
+const TOP_CATEGORIES_TIMEZONE = 'Asia/Kolkata';
+
+interface TopCategoriesDailyCache {
+  dateKey: string;
+  categories: Category[];
+}
+
+function getLocalDateKey(date: Date = new Date()): string {
+  try {
+    // Use a fixed market timezone so daily ordering is consistent across devices.
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: TOP_CATEGORIES_TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date);
+  } catch {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+}
+
+function sanitizeCachedCategories(value: unknown): Category[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is Category => typeof item === 'string' && CATEGORIES.includes(item as Category)
+  );
+}
+
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const {
@@ -21,7 +55,13 @@ export default function SearchScreen() {
     query = '',
     radius = '',
   } = useLocalSearchParams();
-  const { searchHistory, recentSearches, trendingSearches, addSearch } = useSearchHistory();
+  const {
+    isLoaded: isSearchHistoryLoaded,
+    searchHistory,
+    recentSearches,
+    trendingSearches,
+    addSearch,
+  } = useSearchHistory();
   const { listings } = useListings();
   const { banners: searchBanners, isLoading: isSearchBannersLoading } =
     useAppScreenBanners('search');
@@ -38,6 +78,10 @@ export default function SearchScreen() {
       ? (categoryValue as Category | 'All')
       : 'All';
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>(initialCategory);
+  const [topCategoryTiles, setTopCategoryTiles] = useState<Category[]>(
+    CATEGORIES.slice(0, TOP_CATEGORY_LIMIT)
+  );
+  const topCategoriesDailyCacheRef = useRef<TopCategoriesDailyCache | null>(null);
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const searchableListings = useMemo(
     () =>
@@ -113,9 +157,9 @@ export default function SearchScreen() {
     [searchQuery, addSearch, latValue, lonValue, pincodeValue]
   );
 
-  const topCategoryTiles = useMemo((): Category[] => {
+  const rankedTopCategoryTiles = useMemo((): Category[] => {
     if (searchHistory.length === 0) {
-      return CATEGORIES.slice(0, 16);
+      return CATEGORIES.slice(0, TOP_CATEGORY_LIMIT);
     }
 
     const categoryScores: Record<Category, number> = Object.fromEntries(
@@ -161,8 +205,72 @@ export default function SearchScreen() {
       return CATEGORIES.indexOf(a) - CATEGORIES.indexOf(b);
     });
 
-    return ranked.slice(0, 16);
+    return ranked.slice(0, TOP_CATEGORY_LIMIT);
   }, [searchHistory, searchableListings]);
+
+  useEffect(() => {
+    if (!isSearchHistoryLoaded) return;
+
+    const todayKey = getLocalDateKey();
+    if (topCategoriesDailyCacheRef.current?.dateKey === todayKey) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadOrComputeTopCategories = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(TOP_CATEGORIES_DAILY_CACHE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored) as { dateKey?: unknown; categories?: unknown };
+          const cachedDateKey = typeof parsed.dateKey === 'string' ? parsed.dateKey : '';
+          const cachedCategories = sanitizeCachedCategories(parsed.categories).slice(
+            0,
+            TOP_CATEGORY_LIMIT
+          );
+
+          if (cachedDateKey === todayKey && cachedCategories.length > 0) {
+            topCategoriesDailyCacheRef.current = {
+              dateKey: todayKey,
+              categories: cachedCategories,
+            };
+            if (!cancelled) {
+              setTopCategoryTiles(cachedCategories);
+            }
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load daily top categories cache:', error);
+      }
+
+      const todaysCategories = rankedTopCategoryTiles.slice(0, TOP_CATEGORY_LIMIT);
+      topCategoriesDailyCacheRef.current = {
+        dateKey: todayKey,
+        categories: todaysCategories,
+      };
+
+      if (!cancelled) {
+        setTopCategoryTiles(todaysCategories);
+      }
+
+      AsyncStorage.setItem(
+        TOP_CATEGORIES_DAILY_CACHE_KEY,
+        JSON.stringify({
+          dateKey: todayKey,
+          categories: todaysCategories,
+        })
+      ).catch((error) => {
+        console.error('Failed to save daily top categories cache:', error);
+      });
+    };
+
+    loadOrComputeTopCategories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSearchHistoryLoaded, rankedTopCategoryTiles]);
 
   return (
     <View style={styles.container}>

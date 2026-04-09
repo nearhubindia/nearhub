@@ -268,6 +268,7 @@ export function registerAuthRoutes(app: Express) {
         userId: canonicalUserId,
         ip: (req.ip || req.socket.remoteAddress || '').replace('::ffff:', ''),
         userAgent: req.get('user-agent') || '',
+        isCanonicalUserId: true,
       }).catch((error) => console.error('[Auth] Failed to update user activity:', error));
 
       const hasFootprint = await hasExistingAccountFootprint(canonicalUserId);
@@ -377,6 +378,7 @@ export function registerAuthRoutes(app: Express) {
         userId: canonicalUserId,
         ip: (req.ip || req.socket.remoteAddress || '').replace('::ffff:', ''),
         userAgent: req.get('user-agent') || '',
+        isCanonicalUserId: true,
       }).catch((error) => console.error('[Auth] Failed to update user activity:', error));
       return res.json({ success: true, user: updatedUser, isNewUser: false });
     } catch (error) {

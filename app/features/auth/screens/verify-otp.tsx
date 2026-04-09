@@ -18,31 +18,18 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/shared/contexts/auth-context';
+import { parseJsonSafely } from '@/lib/http-response';
 import { getApiUrl } from '@/lib/query-client';
 import { createResponsiveStyles } from '@/lib/responsive';
 
 const OTP_LENGTH = 6;
-
-async function parseJsonSafely(
-  res: Response,
-  requestUrl: string
-): Promise<Record<string, any> & { success?: boolean; message?: string; user?: any }> {
-  const contentType = (res.headers.get('content-type') || '').toLowerCase();
-  const raw = await res.text();
-
-  if (contentType.includes('application/json')) {
-    return JSON.parse(raw);
-  }
-
-  const trimmed = raw.trim();
-  if (trimmed.startsWith('<')) {
-    throw new Error(
-      `Unexpected HTML response from ${requestUrl}. Check EXPO_PUBLIC_API_URL / EXPO_PUBLIC_DOMAIN.`
-    );
-  }
-
-  return JSON.parse(trimmed || '{}');
-}
+type VerifyOtpResponse = {
+  success?: boolean;
+  message?: string;
+  user?: any;
+  isNewUser?: boolean;
+  requiresProfileCompletion?: boolean;
+};
 
 export default function VerifyOTPScreen() {
   const insets = useSafeAreaInsets();
@@ -125,7 +112,7 @@ export default function VerifyOTPScreen() {
           otp: otpCode,
         }),
       });
-      const data = await parseJsonSafely(res, url.toString());
+      const data = await parseJsonSafely<VerifyOtpResponse>(res, url.toString());
 
       if (data.success && data.user) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -166,7 +153,7 @@ export default function VerifyOTPScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: phoneValue }),
       });
-      const data = await parseJsonSafely(res, url.toString());
+      const data = await parseJsonSafely<VerifyOtpResponse>(res, url.toString());
       if (data.success) {
         Alert.alert('OTP Resent', 'New OTP sent.');
         setResendTimer(30);

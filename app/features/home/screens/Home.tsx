@@ -465,7 +465,7 @@ export default function HomeScreen() {
         ? filteredListingsByLocation
         : [
             ...filteredListingsByLocation,
-            ({ id: '__spacer__', __placeholder: true } as unknown as (typeof listings)[0]),
+            { id: '__spacer__', __placeholder: true } as unknown as (typeof listings)[0],
           ],
     [filteredListingsByLocation, listings]
   );

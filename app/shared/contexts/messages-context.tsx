@@ -71,6 +71,10 @@ interface ApiMessage {
   isRead?: boolean;
 }
 
+const THREADS_PAGE_SIZE = 50;
+const MESSAGE_PAGE_SIZE = 120;
+const THREADS_REFRESH_INTERVAL_MS = 30000;
+
 function normalizeTimestamp(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) return new Date().toISOString();
   return value;
@@ -133,13 +137,16 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await fetch(`${getApiUrl()}/api/messages/threads`, {
-        method: 'GET',
-        headers: buildUserAuthHeaders(
-          { id: user.id, phone: user.phone, name: user.name },
-          { includeName: true }
-        ),
-      });
+      const response = await fetch(
+        `${getApiUrl()}/api/messages/threads?limit=${THREADS_PAGE_SIZE}&offset=0`,
+        {
+          method: 'GET',
+          headers: buildUserAuthHeaders(
+            { id: user.id, phone: user.phone, name: user.name },
+            { includeName: true }
+          ),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to fetch message threads: ${response.status}`);
@@ -196,7 +203,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const response = await fetch(
-          `${getApiUrl()}/api/messages/conversations/${thread.conversationId}/messages`,
+          `${getApiUrl()}/api/messages/conversations/${thread.conversationId}/messages?limit=${MESSAGE_PAGE_SIZE}&offset=0`,
           {
             method: 'GET',
             headers: buildUserAuthHeaders(
@@ -385,7 +392,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       refreshThreads().catch((error) => {
         console.error('Failed to refresh threads in background:', error);
       });
-    }, 15000);
+    }, THREADS_REFRESH_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, [isAuthenticated, refreshThreads, user?.id]);

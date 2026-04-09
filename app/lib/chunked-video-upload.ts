@@ -111,9 +111,11 @@ function base64ToUint8Array(base64: string): Uint8Array {
     return bytes;
   }
 
-  const maybeBuffer = (globalThis as unknown as {
-    Buffer?: { from: (value: string, encoding: string) => Uint8Array };
-  }).Buffer;
+  const maybeBuffer = (
+    globalThis as unknown as {
+      Buffer?: { from: (value: string, encoding: string) => Uint8Array };
+    }
+  ).Buffer;
 
   if (maybeBuffer) {
     return new Uint8Array(maybeBuffer.from(base64, 'base64'));

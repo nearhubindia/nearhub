@@ -8,7 +8,7 @@ import type { Express, NextFunction, Request, Response } from 'express';
 import { db } from '../../../data/db';
 import { users } from '../../users/models/users';
 import { resolveUserDisplayName } from '../../users/services/user-profiles';
-import { and, eq, inArray, or } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import {
   calculateCheckout,
   getListingCheckoutSummary,
@@ -77,6 +77,11 @@ import { getActiveListingCount, getSubscriptionById } from '../services/subscrip
 import { transactions } from '../models/subscription';
 import { listingCreationLimiter } from '../../../lib/rate-limiter';
 import { SERVER_CONFIG } from '../../../lib/config';
+import {
+  listings as listingsTable,
+  subscriptionTiers as subscriptionTiersTable,
+  userSubscriptions as userSubscriptionsTable,
+} from '../../admin/models/admin-settings';
 
 function getAuthenticatedUserId(req: Request): string {
   const userId = getRequestUserId(req);
@@ -389,8 +394,6 @@ export function registerSubscriptionRoutes(app: Express) {
       // Get userId from request context (set by middleware) or x-user-id header
       const userId = getRequestUserId(req);
 
-      console.log('[GET /api/subscriptions] Fetching subscriptions for user:', userId);
-
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -398,127 +401,101 @@ export function registerSubscriptionRoutes(app: Express) {
         });
       }
 
-      // Get user's subscriptions from database
-      const { db } = await import('../../../data/db');
-      const { userSubscriptions, subscriptionTiers } =
-        await import('../../admin/models/admin-settings');
-      const { eq } = await import('drizzle-orm');
-
       const result = await db
         .select()
-        .from(userSubscriptions)
-        .where(eq(userSubscriptions.userId, userId));
+        .from(userSubscriptionsTable)
+        .where(eq(userSubscriptionsTable.userId, userId));
 
-      console.log(
-        `[GET /api/subscriptions] Found ${result.length} subscriptions for user ${userId}:`,
-        result.map((s) => ({ id: s.id, status: s.status, tierId: s.subscriptionTierId }))
+      const tierIds = [...new Set(result.map((sub) => String(sub.subscriptionTierId || '').trim()))]
+        .filter(Boolean);
+      const tiers =
+        tierIds.length > 0
+          ? await db
+              .select()
+              .from(subscriptionTiersTable)
+              .where(inArray(subscriptionTiersTable.id, tierIds))
+          : [];
+      const tierById = new Map(tiers.map((tier) => [String(tier.id), tier]));
+
+      const totalListingsCountResult = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(listingsTable)
+        .where(eq(listingsTable.sellerId, userId));
+      const totalListingsCount = Number(totalListingsCountResult[0]?.count || 0);
+
+      const subscriptionIds = result.map((sub) => String(sub.id)).filter(Boolean);
+      const listingsUsedRows =
+        subscriptionIds.length > 0
+          ? await db
+              .select({
+                subscriptionId: listingsTable.userSubscriptionId,
+                count: sql<number>`count(*)`,
+              })
+              .from(listingsTable)
+              .where(
+                and(
+                  inArray(listingsTable.userSubscriptionId, subscriptionIds),
+                  eq(listingsTable.isActive, true),
+                  eq(listingsTable.status, 'active')
+                )
+              )
+              .groupBy(listingsTable.userSubscriptionId)
+          : [];
+      const listingsUsedBySubscriptionId = new Map(
+        listingsUsedRows.map((row) => [String(row.subscriptionId), Number(row.count || 0)])
       );
 
-      // Get user's total listing count for backward compatibility
-      const userListings = await getListingsByUser(userId);
-
-      const totalListingsCount = userListings.length;
-
-      // Enrich with tier details + PER-SUBSCRIPTION listing stats
-      const { listings } = await import('../../admin/models/admin-settings');
-      const { sql, and, isNull } = await import('drizzle-orm');
-
-      // DEBUG: Check for listings without userSubscriptionId
       const orphanedListingsResult = await db
         .select({ count: sql<number>`count(*)` })
-        .from(listings)
+        .from(listingsTable)
         .where(
           and(
-            eq(listings.sellerId, userId),
-            isNull(listings.userSubscriptionId),
-            eq(listings.isActive, true),
-            eq(listings.status, 'active')
+            eq(listingsTable.sellerId, userId),
+            isNull(listingsTable.userSubscriptionId),
+            eq(listingsTable.isActive, true),
+            eq(listingsTable.status, 'active')
           )
         );
       const orphanedCount = Number(orphanedListingsResult[0]?.count || 0);
       if (orphanedCount > 0) {
         console.warn(
-          `[GET /api/subscriptions] Found ${orphanedCount} active listings WITHOUT userSubscriptionId for user ${userId}`
+          `[GET /api/subscriptions] Found ${orphanedCount} active listings without userSubscriptionId for user ${userId}`
         );
       }
 
-      const enriched = await Promise.all(
-        result.map(async (sub) => {
-          const tier = await getSubscriptionTierById(sub.subscriptionTierId);
+      const enriched = result.map((sub) => {
+        const tier = tierById.get(String(sub.subscriptionTierId));
+        const features = (() => {
+          if (!tier) return [];
+          if (Array.isArray(tier.features)) return tier.features;
+          if (typeof tier.features !== 'string') return [];
+          try {
+            const parsed = JSON.parse(tier.features);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        })();
 
-          // Count active listings FOR THIS SPECIFIC SUBSCRIPTION
-          const listingCountResult = await db
-            .select({ count: sql<number>`count(*)` })
-            .from(listings)
-            .where(
-              and(
-                eq(listings.userSubscriptionId, sub.id),
-                eq(listings.isActive, true),
-                eq(listings.status, 'active')
-              )
-            );
-
-          const listingsUsedForThisSubscription = Number(listingCountResult[0]?.count || 0);
-
-          // DEBUG: Get actual listing IDs for this subscription
-          const listingRecords = await db
-            .select({
-              id: listings.id,
-              title: listings.title,
-              userSubscriptionId: listings.userSubscriptionId,
-              isActive: listings.isActive,
-              status: listings.status,
-            })
-            .from(listings)
-            .where(
-              and(
-                eq(listings.userSubscriptionId, sub.id),
-                eq(listings.isActive, true),
-                eq(listings.status, 'active')
-              )
-            );
-
-          console.log(
-            `[GET /api/subscriptions] Subscription ${sub.id} (${tier?.name}) - Listed count: ${listingsUsedForThisSubscription}`,
-            {
-              subscriptionStatus: sub.status,
-              listings: listingRecords.map((l) => ({ id: l.id, title: l.title })),
-            }
-          );
-
-          return {
-            ...sub,
-            boostsRemaining: Number((sub as any).boostsRemaining || 0),
-            tier: tier
-              ? {
-                  id: tier.id,
-                  name: tier.name,
-                  type: (tier as any).type || 'bundle',
-                  price: tier.price,
-                  durationDays: tier.durationDays,
-                  maxListings: tier.maxListings,
-                  featuredListingsPerMonth: tier.featuredListingsPerMonth,
-                  boostCredits: Number((tier as any).boostCredits || 0),
-                  features:
-                    typeof tier.features === 'string' ? JSON.parse(tier.features) : tier.features,
-                }
-              : null,
-            listingsUsed: listingsUsedForThisSubscription, // Per-subscription count
-            totalListingsCreated: totalListingsCount, // Global count for reference
-          };
-        })
-      );
-
-      console.log('[GET /api/subscriptions] Returning subscriptions:', {
-        count: enriched.length,
-        subscriptions: enriched.map((s) => ({
-          id: s.id,
-          status: s.status,
-          tierName: s.tier?.name,
-          listingsUsed: s.listingsUsed,
-          maxListings: s.tier?.maxListings,
-          boostsRemaining: s.boostsRemaining,
-        })),
+        return {
+          ...sub,
+          boostsRemaining: Number((sub as any).boostsRemaining || 0),
+          tier: tier
+            ? {
+                id: tier.id,
+                name: tier.name,
+                type: (tier as any).type || 'bundle',
+                price: tier.price,
+                durationDays: tier.durationDays,
+                maxListings: tier.maxListings,
+                featuredListingsPerMonth: tier.featuredListingsPerMonth,
+                boostCredits: Number((tier as any).boostCredits || 0),
+                features,
+              }
+            : null,
+          listingsUsed: listingsUsedBySubscriptionId.get(String(sub.id)) || 0,
+          totalListingsCreated: totalListingsCount,
+        };
       });
 
       const starterCredits = await getStarterCreditsSummary(String(userId));

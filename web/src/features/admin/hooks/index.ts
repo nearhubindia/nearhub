@@ -138,6 +138,9 @@ interface RecentActivityQueryData {
 
 interface UsersQueryData {
   total?: number;
+  limit?: number;
+  offset?: number;
+  hasMore?: boolean;
   data?: Array<{
     id: string;
     username: string;
@@ -492,10 +495,10 @@ export function useDashboardStats() {
 // Users Hooks
 // ============================================================================
 
-export function useUsers() {
+export function useUsers(params?: { limit?: number; offset?: number; search?: string }) {
   return useQuery<UsersQueryData>({
-    queryKey: adminKeys.usersList(),
-    queryFn: () => usersApi.getUsers() as Promise<UsersQueryData>,
+    queryKey: adminKeys.usersList(params),
+    queryFn: () => usersApi.getUsers(params) as Promise<UsersQueryData>,
     staleTime: STALE_TIME,
     gcTime: CACHE_TIME,
   });

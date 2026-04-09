@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BadgeCheck, Edit2, MapPin, Search, Trash2, X } from 'lucide-react';
 import { useDeleteUser, useUpdateUser, useUsers } from '@/features/admin/hooks';
 
@@ -16,10 +16,18 @@ interface UserRow {
 }
 
 export default function UsersView() {
-  const { data: usersData, isLoading, refetch } = useUsers();
+  const PAGE_SIZE = 100;
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [page, setPage] = useState(0);
+  const offset = page * PAGE_SIZE;
+  const { data: usersData, isLoading, isFetching, refetch } = useUsers({
+    limit: PAGE_SIZE,
+    offset,
+    search: debouncedSearchTerm || undefined,
+  });
   const deleteUser = useDeleteUser();
   const updateUser = useUpdateUser();
-  const [searchTerm, setSearchTerm] = useState('');
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
@@ -31,31 +39,19 @@ export default function UsersView() {
   });
   const [saveError, setSaveError] = useState('');
   const allUsers: UserRow[] = Array.isArray(usersData?.data) ? (usersData.data as UserRow[]) : [];
+  const totalUsers = Number(usersData?.total || 0);
+  const hasMore =
+    typeof usersData?.hasMore === 'boolean' ? usersData.hasMore : offset + allUsers.length < totalUsers;
+  const rangeStart = totalUsers === 0 ? 0 : offset + 1;
+  const rangeEnd = totalUsers === 0 ? 0 : offset + allUsers.length;
 
-  const filteredUsers = useMemo(() => {
-    const allUsers: UserRow[] = Array.isArray(usersData?.data) ? (usersData.data as UserRow[]) : [];
-
-    return allUsers.filter((user) => {
-      const listingLocations = Array.isArray(user.listingLocations)
-        ? user.listingLocations.join(' ')
-        : '';
-      return (
-        String(user.displayName || '')
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        String(user.username || '')
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        String(user.mobile || '')
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        String(user.autoDetectedLocation || user.location || '')
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        listingLocations.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    });
-  }, [usersData, searchTerm]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+      setPage(0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const handleEditClick = (user: UserRow): void => {
     setSelectedUser(user);
@@ -148,7 +144,7 @@ export default function UsersView() {
             <Search className="absolute left-3 top-3 text-slate-400" size={18} />
             <input
               type="text"
-              placeholder="Search by name, mobile, auto location, listing locations..."
+              placeholder="Search by name, mobile, or auto location..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-500"
@@ -166,9 +162,9 @@ export default function UsersView() {
           {isLoading ? (
             <div className="p-12 text-center text-slate-600">Loading users...</div>
           ) : allUsers.length === 0 ? (
-            <div className="p-12 text-center text-slate-600">No users found</div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="p-12 text-center text-slate-600">No users match your search</div>
+            <div className="p-12 text-center text-slate-600">
+              {debouncedSearchTerm ? 'No users match your search' : 'No users found'}
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[860px]">
@@ -196,7 +192,7 @@ export default function UsersView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user) => {
+                  {allUsers.map((user) => {
                     const listingCount = Number(user.listingsCount ?? user.listings ?? 0);
                     const listingLocations = Array.isArray(user.listingLocations)
                       ? user.listingLocations
@@ -286,7 +282,32 @@ export default function UsersView() {
                 </tbody>
               </table>
               <div className="border-t border-slate-200 bg-slate-50 px-6 py-4 text-sm text-slate-600">
-                Showing {filteredUsers.length} of {allUsers.length} users
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    Showing {rangeStart}-{rangeEnd} of {totalUsers} users
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {isFetching && (
+                      <span className="text-xs font-medium text-slate-500">Updating...</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setPage((value) => Math.max(0, value - 1))}
+                      disabled={page === 0 || isLoading}
+                      className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPage((value) => value + 1)}
+                      disabled={!hasMore || isLoading}
+                      className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}

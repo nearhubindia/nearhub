@@ -61,7 +61,8 @@ export const adminKeys = {
 
   // Users
   users: () => [...adminKeys.all, 'users'] as const,
-  usersList: () => [...adminKeys.users(), 'list'] as const,
+  usersList: (params?: { limit?: number; offset?: number; search?: string }) =>
+    [...adminKeys.users(), 'list', { params }] as const,
   userDetail: (id: string) => [...adminKeys.users(), id] as const,
 
   // Banners
@@ -427,10 +428,24 @@ export const reportsApi = {
 // ============================================================================
 
 export const usersApi = {
-  async getUsers(): Promise<unknown> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
-      headers: getAuthHeaders(),
-    });
+  async getUsers(params?: {
+    limit?: number;
+    offset?: number;
+    search?: string;
+  }): Promise<unknown> {
+    const query = new URLSearchParams();
+    if (typeof params?.limit === 'number') query.set('limit', String(params.limit));
+    if (typeof params?.offset === 'number') query.set('offset', String(params.offset));
+    if (typeof params?.search === 'string' && params.search.trim()) {
+      query.set('search', params.search.trim());
+    }
+    const queryString = query.toString();
+    const response = await fetch(
+      `${API_BASE_URL}/api/admin/users${queryString ? `?${queryString}` : ''}`,
+      {
+        headers: getAuthHeaders(),
+      }
+    );
     return handleResponse(response);
   },
 

@@ -52,8 +52,7 @@ export default function ShortsScreen() {
   const overlayBottomPadding = 4;
   const fallbackTabBarHeight = Math.max(0, Math.round(getTabBarHeight(bottomInset)));
   const measuredTabBarHeight = Math.max(0, Math.round(tabBarHeight || 0));
-  const stableTabBarHeight =
-    measuredTabBarHeight > 0 ? measuredTabBarHeight : fallbackTabBarHeight;
+  const stableTabBarHeight = measuredTabBarHeight > 0 ? measuredTabBarHeight : fallbackTabBarHeight;
   const cardUiBottomInset = stableTabBarHeight + overlayBottomPadding;
   const listLayoutKey = `shorts-${cardHeight}-${cardUiBottomInset}`;
 

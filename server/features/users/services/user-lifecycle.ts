@@ -78,9 +78,11 @@ export async function touchUserActivity(input: {
   userId: string;
   ip?: string;
   userAgent?: string;
+  isCanonicalUserId?: boolean;
 }): Promise<void> {
-  const resolvedUserId = await resolveCanonicalUserId(input.userId);
-  const userId = normalizeUserId(resolvedUserId);
+  const userId = input.isCanonicalUserId
+    ? normalizeUserId(input.userId)
+    : normalizeUserId(await resolveCanonicalUserId(input.userId));
   if (!userId) return;
 
   const now = new Date();

@@ -15,7 +15,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
@@ -29,6 +28,11 @@ import { deleteCloudflareMedia, uploadMediaToCloudflare } from '@/lib/cloudflare
 import { VideoRecorderModal } from '@/shared/components/VideoRecorderModal';
 import RichTextEditor from '@/shared/components/RichTextEditor';
 import { getApiUrl } from '@/lib/query-client';
+import {
+  isRemoteMediaUrl,
+  toPortableImageUri,
+  uploadImagesToCloudflare as uploadImagesToCloudflareUtil,
+} from '@/lib/media-images';
 
 const JOB_CATEGORIES: Category[] = [
   'Jobs',
@@ -131,58 +135,10 @@ export default function EditListingScreen() {
     );
   }
 
-  const getMimeTypeFromUri = (uri: string): string => {
-    const lower = uri.toLowerCase();
-    if (lower.endsWith('.png')) return 'image/png';
-    if (lower.endsWith('.webp')) return 'image/webp';
-    if (lower.endsWith('.gif')) return 'image/gif';
-    if (lower.endsWith('.heic') || lower.endsWith('.heif')) return 'image/heic';
-    return 'image/jpeg';
-  };
-
-  const toPortableImageUri = async (uri: string): Promise<string> => {
-    if (!uri) return uri;
-
-    if (
-      uri.startsWith('data:image/') ||
-      uri.startsWith('http://') ||
-      uri.startsWith('https://') ||
-      uri.startsWith('/uploads/') ||
-      uri.startsWith('/images/')
-    ) {
-      return uri;
-    }
-
-    const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    return `data:${getMimeTypeFromUri(uri)};base64,${base64}`;
-  };
-
-  const isRemoteMediaUrl = (uri: string): boolean =>
-    uri.startsWith('http://') || uri.startsWith('https://');
-
   const uploadImagesToCloudflare = async (uris: string[]): Promise<string[]> => {
-    const uploaded: string[] = [];
-
-    for (let index = 0; index < uris.length; index++) {
-      const uri = uris[index] || '';
-      if (!uri) continue;
-      if (isRemoteMediaUrl(uri)) {
-        uploaded.push(uri);
-        continue;
-      }
-
-      const fileName = `listing_edit_image_${Date.now()}_${index}.jpg`;
-      const result = await uploadMediaToCloudflare({
-        uri,
-        mediaType: 'image',
-        fileName,
-      });
-      uploaded.push(result.url);
-    }
-
-    return uploaded;
+    return uploadImagesToCloudflareUtil(uris, {
+      fileNamePrefix: 'listing_edit_image',
+    });
   };
 
   useEffect(() => {

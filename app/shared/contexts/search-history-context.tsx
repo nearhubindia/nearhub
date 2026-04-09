@@ -13,6 +13,7 @@ export interface SearchHistoryItem {
 }
 
 interface SearchHistoryContextValue {
+  isLoaded: boolean;
   searchHistory: SearchHistoryItem[];
   trendingSearches: SearchHistoryItem[];
   recentSearches: SearchHistoryItem[];
@@ -25,6 +26,7 @@ interface SearchHistoryContextValue {
 const SearchHistoryContext = createContext<SearchHistoryContextValue | null>(null);
 
 export function SearchHistoryProvider({ children }: { children: ReactNode }) {
+  const [isLoaded, setIsLoaded] = useState(false);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
 
   useEffect(() => {
@@ -40,6 +42,8 @@ export function SearchHistoryProvider({ children }: { children: ReactNode }) {
       }
     } catch (e) {
       console.error('Failed to load search history:', e);
+    } finally {
+      setIsLoaded(true);
     }
   };
 
@@ -101,6 +105,7 @@ export function SearchHistoryProvider({ children }: { children: ReactNode }) {
   const trendingSearches = getTrendingSearches(5);
 
   const value = {
+    isLoaded,
     searchHistory,
     trendingSearches,
     recentSearches,

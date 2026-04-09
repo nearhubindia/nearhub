@@ -108,7 +108,13 @@ export default function SavedScreen() {
 
       <FlatList
         data={savedGridData}
-        renderItem={({ item, index }: { item: (typeof savedListings)[number] & { __placeholder?: boolean }; index: number }) => {
+        renderItem={({
+          item,
+          index,
+        }: {
+          item: (typeof savedListings)[number] & { __placeholder?: boolean };
+          index: number;
+        }) => {
           const columnStyle = index % 2 === 0 ? styles.leftCol : styles.rightCol;
           if (item.__placeholder) {
             return <View style={[columnStyle, styles.placeholderColumn]} pointerEvents="none" />;

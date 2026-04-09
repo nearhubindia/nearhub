@@ -34,6 +34,16 @@ const debugHttp = createDebug('app:http');
 const debugCors = createDebug('app:cors');
 const debugBody = createDebug('app:body');
 const debugWorkers = createDebug('app:workers');
+const configuredActivityTouchIntervalMs = parseInt(
+  process.env.USER_ACTIVITY_TOUCH_INTERVAL_MS || '60000',
+  10
+);
+const activityTouchIntervalMs = Math.max(
+  10000,
+  Number.isFinite(configuredActivityTouchIntervalMs) ? configuredActivityTouchIntervalMs : 60000
+);
+const captureApiResponseBodyLogs = String(process.env.LOG_API_RESPONSE_BODY || '').trim() === 'true';
+const recentUserActivityTouches = new Map<string, number>();
 
 // Log DATABASE_URL to verify it's loaded
 if (process.env.DATABASE_URL) {
@@ -130,13 +140,46 @@ function setupCors(app: express.Application) {
   });
 }
 
+function shouldCaptureRawBody(req: { url?: string }): boolean {
+  const requestUrl = String(req.url || '');
+  if (!requestUrl) return false;
+  return (
+    requestUrl.startsWith('/api/subscriptions/webhook/razorpay') ||
+    requestUrl.startsWith('/api/auth/send-otp') ||
+    requestUrl.startsWith('/api/auth/verify-otp') ||
+    requestUrl.startsWith('/api/auth/complete-profile')
+  );
+}
+
+function shouldTouchUserActivityNow(userId: string): boolean {
+  const now = Date.now();
+  const lastTouchedAt = recentUserActivityTouches.get(userId) || 0;
+  if (now - lastTouchedAt < activityTouchIntervalMs) {
+    return false;
+  }
+  recentUserActivityTouches.set(userId, now);
+
+  // Bound in-memory map growth by evicting stale entries opportunistically.
+  if (recentUserActivityTouches.size > 20000) {
+    const cutoff = now - activityTouchIntervalMs * 2;
+    for (const [key, touchedAt] of recentUserActivityTouches) {
+      if (touchedAt < cutoff) {
+        recentUserActivityTouches.delete(key);
+      }
+    }
+  }
+  return true;
+}
+
 function setupBodyParsing(app: express.Application) {
-  // Add larger limit for JSON bodies and test simple parsing first
+  // Keep compatibility with existing payload sizes; only capture raw body
+  // for endpoints that must verify signatures or troubleshoot auth payloads.
   app.use(
     express.json({
       limit: '50mb',
       strict: false,
       verify: (req, _res, buf) => {
+        if (!shouldCaptureRawBody(req)) return;
         req.rawBody = buf.toString('utf8');
       },
     })
@@ -161,11 +204,13 @@ function setupRequestLogging(app: express.Application) {
     const path = req.path;
     let capturedJsonResponse: Record<string, unknown> | undefined = undefined;
 
-    const originalResJson = res.json;
-    res.json = function (bodyJson, ...args) {
-      capturedJsonResponse = bodyJson;
-      return originalResJson.apply(res, [bodyJson, ...args]);
-    };
+    if (captureApiResponseBodyLogs) {
+      const originalResJson = res.json;
+      res.json = function (bodyJson, ...args) {
+        capturedJsonResponse = bodyJson;
+        return originalResJson.apply(res, [bodyJson, ...args]);
+      };
+    }
 
     res.on('finish', () => {
       if (!path.startsWith('/api')) return;
@@ -173,8 +218,20 @@ function setupRequestLogging(app: express.Application) {
       const duration = Date.now() - start;
 
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      if (captureApiResponseBodyLogs && capturedJsonResponse) {
+        const success =
+          typeof capturedJsonResponse.success === 'boolean'
+            ? String(capturedJsonResponse.success)
+            : '?';
+        const message =
+          typeof capturedJsonResponse.error === 'string'
+            ? capturedJsonResponse.error
+            : typeof capturedJsonResponse.message === 'string'
+              ? capturedJsonResponse.message
+              : '';
+        logLine += message
+          ? ` :: success=${success} message=${message}`
+          : ` :: success=${success}`;
       }
 
       if (logLine.length > 80) {
@@ -195,14 +252,22 @@ function setupUserActivityTracking(app: express.Application): void {
       return next();
     }
 
-    let userId = '';
-    try {
-      userId = await resolveUserIdFromRequest(req as any);
-    } catch (error) {
-      debugServer('Failed to resolve canonical user id: %O', error);
+    const requestWithUser = req as Request & { userId?: string };
+    let userId =
+      typeof requestWithUser.userId === 'string' ? requestWithUser.userId.trim() : '';
+    if (!userId) {
+      try {
+        userId = await resolveUserIdFromRequest(req as any);
+      } catch (error) {
+        debugServer('Failed to resolve canonical user id: %O', error);
+      }
     }
     if (!userId) return next();
-    (req as any).userId = userId;
+    requestWithUser.userId = userId;
+
+    if (!shouldTouchUserActivityNow(userId)) {
+      return next();
+    }
 
     const ipAddress = (req.ip || req.socket.remoteAddress || '').replace('::ffff:', '');
     const userAgent = req.get('user-agent') || '';
@@ -210,6 +275,7 @@ function setupUserActivityTracking(app: express.Application): void {
       userId,
       ip: ipAddress,
       userAgent,
+      isCanonicalUserId: true,
     }).catch((error) => {
       debugServer('Failed to update user activity for %s: %O', userId, error);
     });

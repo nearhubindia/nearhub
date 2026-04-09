@@ -1,5 +1,5 @@
 import type { Express, Response } from 'express';
-import { desc, eq, inArray, or } from 'drizzle-orm';
+import { desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { db } from '../../../data/db';
 import { users } from '../../users/models/users';
@@ -41,9 +41,33 @@ type ListingAggregate = {
   count: number;
   latestCreatedAt: Date | null;
   latestLocation: string | null;
-  latestContactPhone: string | null;
   locations: Set<string>;
 };
+
+function toPositiveInt(value: unknown, fallback: number, max: number): number {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, max);
+}
+
+function toNonNegativeInt(value: unknown, fallback = 0): number {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return parsed;
+}
+
+function getSearchFilter(searchTerm: string) {
+  const normalized = searchTerm.trim();
+  if (!normalized) return undefined;
+  const pattern = `%${normalized.replace(/[%_]/g, '').trim()}%`;
+  if (!pattern || pattern === '%%') return undefined;
+  return or(
+    ilike(users.username, pattern),
+    ilike(users.mobile, pattern),
+    ilike(users.displayName, pattern),
+    ilike(users.location, pattern)
+  )!;
+}
 
 export function registerAdminUsersRoutes(app: Express) {
   /**
@@ -52,26 +76,64 @@ export function registerAdminUsersRoutes(app: Express) {
    */
   app.get('/api/admin/users', adminAuthMiddleware, async (req: AuthRequest, res: Response) => {
     try {
-      const [metaRows, activityRows, listingRows] = await Promise.all([
-        db.select().from(users).orderBy(desc(users.createdAt)).limit(5000),
-        db
-          .select({ userId: userActivity.userId, firstSeenAt: userActivity.firstSeenAt })
-          .from(userActivity),
-        db
-          .select({
-            userId: listings.sellerId,
-            createdAt: listings.createdAt,
-            location: listings.location,
-            contactPhone: listings.contactPhone,
-          })
-          .from(listings),
-      ]);
+      const limit = toPositiveInt(req.query.limit, 100, 250);
+      const offset = toNonNegativeInt(req.query.offset, 0);
+      const search = typeof req.query.search === 'string' ? req.query.search : '';
+      const searchFilter = getSearchFilter(search);
+
+      const totalRows = searchFilter
+        ? await db.select({ count: sql<number>`count(*)` }).from(users).where(searchFilter)
+        : await db.select({ count: sql<number>`count(*)` }).from(users);
+      const total = Number(totalRows[0]?.count || 0);
+
+      const userQuery = db.select().from(users);
+      const metaRows = await (searchFilter ? userQuery.where(searchFilter) : userQuery)
+        .orderBy(desc(users.createdAt))
+        .limit(limit)
+        .offset(offset);
 
       if (metaRows.length === 0) {
-        return res.json({ success: true, data: [], total: 0 });
+        return res.json({
+          success: true,
+          data: [],
+          total,
+          limit,
+          offset,
+          hasMore: false,
+        });
       }
 
-      const activityById = new Map(activityRows.map((row) => [row.userId, row]));
+      const userIds = metaRows.map((row) => String(row.id).trim()).filter(Boolean);
+      const activityRows =
+        userIds.length > 0
+          ? await db
+              .select({ userId: userActivity.userId, firstSeenAt: userActivity.firstSeenAt })
+              .from(userActivity)
+              .where(inArray(userActivity.userId, userIds))
+          : [];
+      const activityById = new Map(activityRows.map((row) => [String(row.userId), row]));
+
+      const listingLookupKeysByUser = new Map<string, string[]>();
+      const listingLookupKeys: string[] = [];
+      for (const meta of metaRows) {
+        const normalizedMobile = normalizeMobile(meta.mobile || meta.username || meta.id);
+        const rawUsername = String(meta.username || '').trim();
+        const keys = [...new Set([String(meta.id).trim(), normalizedMobile, rawUsername].filter(Boolean))];
+        listingLookupKeysByUser.set(String(meta.id), keys);
+        listingLookupKeys.push(...keys);
+      }
+      const uniqueListingLookupKeys = [...new Set(listingLookupKeys)];
+      const listingRows =
+        uniqueListingLookupKeys.length > 0
+          ? await db
+              .select({
+                userId: listings.sellerId,
+                createdAt: listings.createdAt,
+                location: listings.location,
+              })
+              .from(listings)
+              .where(inArray(listings.sellerId, uniqueListingLookupKeys))
+          : [];
       const listingAggregateByKey = new Map<string, ListingAggregate>();
       for (const row of listingRows) {
         const key = String(row.userId || '').trim();
@@ -80,26 +142,19 @@ export function registerAdminUsersRoutes(app: Express) {
           count: 0,
           latestCreatedAt: null,
           latestLocation: null,
-          latestContactPhone: null,
           locations: new Set<string>(),
         };
 
         const createdAt = row.createdAt || null;
         const location = String(row.location || '').trim();
-        const contactPhone = String(row.contactPhone || '').trim();
-
         existing.count += 1;
-        if (location) {
-          existing.locations.add(location);
-        }
-
+        if (location) existing.locations.add(location);
         if (
           !existing.latestCreatedAt ||
           (createdAt && createdAt.getTime() > existing.latestCreatedAt.getTime())
         ) {
           existing.latestCreatedAt = createdAt;
           existing.latestLocation = location || null;
-          existing.latestContactPhone = contactPhone || null;
         }
         listingAggregateByKey.set(key, existing);
       }
@@ -108,14 +163,34 @@ export function registerAdminUsersRoutes(app: Express) {
         const normalizedMobile = normalizeMobile(meta.mobile || meta.username || meta.id);
         const fallbackMobile = String(meta.mobile || meta.username || '').trim();
         const userMobile = normalizedMobile || fallbackMobile || '-';
-        const listingAggregate =
-          listingAggregateByKey.get(String(meta.id)) ||
-          (normalizedMobile ? listingAggregateByKey.get(normalizedMobile) : undefined) ||
-          (meta.username ? listingAggregateByKey.get(meta.username) : undefined);
-        const listingLocations = listingAggregate
-          ? [...listingAggregate.locations].sort((a, b) => a.localeCompare(b))
-          : [];
-        const autoDetectedLocation = listingAggregate?.latestLocation || meta?.location || '-';
+        const listingAggregates = (listingLookupKeysByUser.get(String(meta.id)) || [])
+          .map((key) => listingAggregateByKey.get(key))
+          .filter((value): value is ListingAggregate => Boolean(value));
+        const mergedAggregate = listingAggregates.reduce<ListingAggregate>(
+          (acc, current) => {
+            acc.count += current.count;
+            for (const location of current.locations) {
+              acc.locations.add(location);
+            }
+            if (
+              !acc.latestCreatedAt ||
+              (current.latestCreatedAt &&
+                current.latestCreatedAt.getTime() > acc.latestCreatedAt.getTime())
+            ) {
+              acc.latestCreatedAt = current.latestCreatedAt;
+              acc.latestLocation = current.latestLocation;
+            }
+            return acc;
+          },
+          {
+            count: 0,
+            latestCreatedAt: null,
+            latestLocation: null,
+            locations: new Set<string>(),
+          }
+        );
+        const listingLocations = [...mergedAggregate.locations].sort((a, b) => a.localeCompare(b));
+        const autoDetectedLocation = mergedAggregate.latestLocation || meta?.location || '-';
         const displayName = resolveDisplayName({
           mobile: userMobile,
           username: meta?.username,
@@ -128,25 +203,24 @@ export function registerAdminUsersRoutes(app: Express) {
           mobile: userMobile,
           autoDetectedLocation,
           location: autoDetectedLocation, // Backward compatibility for old admin UI.
-          listingsCount: listingAggregate?.count || 0,
-          listings: listingAggregate?.count || 0, // Backward compatibility alias.
+          listingsCount: mergedAggregate.count || 0,
+          listings: mergedAggregate.count || 0, // Backward compatibility alias.
           listingLocations,
           isVerified: Boolean(meta?.isVerified),
           createdAt:
             activityById.get(String(meta.id))?.firstSeenAt?.toISOString() ||
-            listingAggregate?.latestCreatedAt?.toISOString() ||
+            mergedAggregate.latestCreatedAt?.toISOString() ||
             meta?.createdAt?.toISOString() ||
             new Date().toISOString(),
         };
       });
-      const sortedUsers = safeUsers.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-
       res.json({
         success: true,
-        data: sortedUsers,
-        total: sortedUsers.length,
+        data: safeUsers,
+        total,
+        limit,
+        offset,
+        hasMore: offset + safeUsers.length < total,
       });
     } catch (error) {
       console.error('[Admin Users] Error fetching users:', error);

@@ -345,21 +345,7 @@ function toPublicListing(
 }
 
 async function resolveTrustedRequestUserId(req: Request): Promise<string> {
-  const claimedUserId = getRequestUserId(req);
-  if (
-    !claimedUserId ||
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      claimedUserId
-    )
-  ) {
-    return '';
-  }
-
-  const matchedUser = await db.query.users.findFirst({
-    where: eq(users.id, claimedUserId),
-    columns: { id: true },
-  });
-  return matchedUser?.id || '';
+  return getRequestUserId(req);
 }
 
 export function registerListingRoutes(app: Express) {
