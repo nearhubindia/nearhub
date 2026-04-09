@@ -292,8 +292,8 @@ function getSellerDisplayName(listing: any, sellerMeta?: SellerMeta): string {
   return 'Seller';
 }
 
-function resolveContactPhone(rest: any, sellerId: string): string {
-  const candidates = [rest?.contactPhone, rest?.sellerPhone, sellerId];
+function resolveContactPhone(rest: any): string {
+  const candidates = [rest?.contactPhone, rest?.sellerPhone];
   for (const value of candidates) {
     if (typeof value !== 'string') continue;
     const trimmed = value.trim();
@@ -626,7 +626,7 @@ export function registerListingRoutes(app: Express) {
         });
       }
 
-      const contactPhone = resolveContactPhone(listing, String(listing.sellerId || ''));
+      const contactPhone = resolveContactPhone(listing);
       if (!contactPhone) {
         return res.status(404).json({ success: false, error: 'Seller phone number not available' });
       }

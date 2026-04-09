@@ -165,37 +165,32 @@ export default function ListingDetailScreen() {
       }
       void (async () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        let phone = normalizedSellerPhone;
+        let phone = '';
 
-        if (!phone) {
-          try {
-            const apiUrl = getBackendURL();
-            const response = await fetch(`${apiUrl}/api/listings/${listing.id}/contact`, {
-              method: 'GET',
-              headers: buildUserAuthHeaders({
-                id: user?.id || '',
-                phone: user?.phone || '',
-              }),
-            });
-            const data = await response.json().catch(() => null);
-            if (!response.ok || !data?.success) {
-              throw new Error(data?.error || 'Seller phone number is not available.');
-            }
-            const fetchedPhone = String(data.contactPhone || data.sellerPhone || '')
-              .replace(/\D/g, '')
-              .slice(-10);
-            if (!fetchedPhone) {
-              throw new Error('Seller phone number is not available.');
-            }
-            setResolvedContactPhone(fetchedPhone);
-            phone = fetchedPhone;
-          } catch (error: any) {
-            Alert.alert(
-              'Contact Seller',
-              error?.message || 'Seller phone number is not available.'
-            );
-            return;
+        try {
+          const apiUrl = getBackendURL();
+          const response = await fetch(`${apiUrl}/api/listings/${listing.id}/contact`, {
+            method: 'GET',
+            headers: buildUserAuthHeaders({
+              id: user?.id || '',
+              phone: user?.phone || '',
+            }),
+          });
+          const data = await response.json().catch(() => null);
+          if (!response.ok || !data?.success) {
+            throw new Error(data?.error || 'Seller phone number is not available.');
           }
+          const fetchedPhone = String(data.contactPhone || data.sellerPhone || '')
+            .replace(/\D/g, '')
+            .slice(-10);
+          if (!fetchedPhone) {
+            throw new Error('Seller phone number is not available.');
+          }
+          setResolvedContactPhone(fetchedPhone);
+          phone = fetchedPhone;
+        } catch (error: any) {
+          Alert.alert('Contact Seller', error?.message || 'Seller phone number is not available.');
+          return;
         }
 
         if (Platform.OS === 'web') {

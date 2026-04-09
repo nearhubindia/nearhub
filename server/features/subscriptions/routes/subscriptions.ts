@@ -230,8 +230,8 @@ function parseMediaField(value: unknown): unknown[] {
   }
 }
 
-function resolveContactPhone(rest: any, sellerId: string): string {
-  const candidates = [rest?.contactPhone, rest?.sellerPhone, sellerId];
+function resolveContactPhone(rest: any): string {
+  const candidates = [rest?.contactPhone, rest?.sellerPhone];
   for (const value of candidates) {
     if (typeof value !== 'string') continue;
     const trimmed = value.trim();
@@ -351,7 +351,7 @@ function toPublicListing(
   const { sellerId: rawSellerId, ...rest } = listing || {};
   const sellerId = typeof rawSellerId === 'string' ? rawSellerId : '';
   const listingId = String(listing?.id || '').trim();
-  const contactPhone = resolveContactPhone(rest, sellerId);
+  const contactPhone = resolveContactPhone(rest);
   const sellerMeta = sellerMetaMap?.get(sellerId);
   const chatCount = Number(chatCountMap?.get(listingId) || 0);
   const likeCount = Number(likeCountMap?.get(listingId) || 0);

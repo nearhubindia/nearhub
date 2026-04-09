@@ -17,7 +17,7 @@ const LISTINGS_KEY = '@marketlocal_listings';
 const SAVED_KEY = '@marketlocal_saved';
 const INITIALIZED_KEY = '@marketlocal_initialized';
 const DATA_VERSION_KEY = '@marketlocal_data_version';
-const CURRENT_DATA_VERSION = '9'; // Refresh cache after seller avatar merge fix
+const CURRENT_DATA_VERSION = '10'; // Refresh cache to clear any stale/incorrect cached contact numbers
 const NETWORK_TIMEOUT_MS = 12000;
 
 function isNonEmptyString(value: unknown): value is string {
