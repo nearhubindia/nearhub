@@ -75,6 +75,8 @@ export interface User {
     state: string;
   };
   preferences?: {
+    notifications?: boolean;
+    emailNotifications?: boolean;
     autoLocalizeListings: boolean; // Show listings from user's city first
     storeSearchHistory: boolean;
     searchRadiusKm?: number;
@@ -211,6 +213,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const updated = {
       ...user,
       preferences: {
+        notifications: user.preferences?.notifications ?? true,
+        emailNotifications: user.preferences?.emailNotifications ?? true,
         autoLocalizeListings: user.preferences?.autoLocalizeListings ?? true,
         storeSearchHistory: user.preferences?.storeSearchHistory ?? true,
         searchRadiusKm,

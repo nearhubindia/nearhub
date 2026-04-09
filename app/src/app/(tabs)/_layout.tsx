@@ -70,7 +70,7 @@ function ClassicTabLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: 'Browse',
+            title: 'Home',
             tabBarIcon: ({ color }) => (
               <Feather size={responsiveModerateScale(21)} name="home" color={color} />
             ),

@@ -36,11 +36,18 @@ export function usePushNotifications() {
   const [expoPushToken, setExpoPushToken] = useState<string>('');
   const [notification, setNotification] = useState<ReceivedNotification | null>(null);
   const { user } = useAuth();
+  const pushEnabled = user?.preferences?.notifications !== false;
 
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
+    if (!user || !pushEnabled) {
+      setExpoPushToken('');
+      setNotification(null);
+      return;
+    }
+
     registerForPushNotificationsAsync()
       .then((token) => {
         if (token && user) {
@@ -76,12 +83,14 @@ export function usePushNotifications() {
     return () => {
       if (notificationListener.current) {
         notificationListener.current.remove();
+        notificationListener.current = null;
       }
       if (responseListener.current) {
         responseListener.current.remove();
+        responseListener.current = null;
       }
     };
-  }, [user]);
+  }, [user, pushEnabled]);
 
   return {
     expoPushToken,

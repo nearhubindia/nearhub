@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -15,6 +15,8 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/shared/contexts/auth-context';
+import { useNotifications } from '@/shared/contexts/notifications-context';
+import { getApiUrl } from '@/lib/query-client';
 
 interface SettingItem {
   icon: keyof typeof Feather.glyphMap;
@@ -30,12 +32,16 @@ interface SettingItem {
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { user, logout } = useAuth();
-  const [notifications, setNotifications] = useState(true);
-  const [emailNotifications, setEmailNotifications] = useState(false);
+  const { user, logout, updateUser } = useAuth();
+  const { pushToken } = useNotifications();
+  const [notifications, setNotifications] = useState(user?.preferences?.notifications ?? true);
   const [autoLocalize, setAutoLocalize] = useState(
     user?.preferences?.autoLocalizeListings || false
   );
+
+  useEffect(() => {
+    setNotifications(user?.preferences?.notifications ?? true);
+  }, [user?.preferences?.notifications]);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -51,6 +57,34 @@ export default function SettingsScreen() {
         },
       },
     ]);
+  };
+
+  const handlePushToggle = async (value: boolean) => {
+    setNotifications(value);
+    if (!user) return;
+
+    await updateUser({
+      preferences: {
+        notifications: value,
+        emailNotifications: user.preferences?.emailNotifications ?? true,
+        autoLocalizeListings: user.preferences?.autoLocalizeListings ?? true,
+        storeSearchHistory: user.preferences?.storeSearchHistory ?? true,
+        searchRadiusKm: user.preferences?.searchRadiusKm,
+      },
+    });
+
+    // Deactivate this device token on server when notifications are turned off.
+    if (!value && pushToken) {
+      try {
+        await fetch(`${getApiUrl()}/api/push/deactivate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: pushToken }),
+        });
+      } catch (error) {
+        console.warn('[Settings] Failed to deactivate push token:', error);
+      }
+    }
   };
 
   const accountSettings: SettingItem[] = [
@@ -74,15 +108,7 @@ export default function SettingsScreen() {
       subtitle: 'Alerts for messages and activity',
       type: 'toggle',
       toggle: notifications,
-      onToggle: setNotifications,
-    },
-    {
-      icon: 'mail',
-      label: 'Email Notifications',
-      subtitle: 'Updates to your inbox',
-      type: 'toggle',
-      toggle: emailNotifications,
-      onToggle: setEmailNotifications,
+      onToggle: handlePushToggle,
     },
   ];
 
