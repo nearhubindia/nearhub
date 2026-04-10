@@ -6,7 +6,14 @@
 import type { Express, Request, Response } from 'express';
 import { eq } from 'drizzle-orm';
 import { getListingsByUser } from '../../listings/services/listings';
-import { getUserById, normalizePhone, upsertUser, type AppUser } from '../services/user-profiles';
+import {
+  getUserById,
+  isMeaningfulDisplayName,
+  normalizePhone,
+  pickMeaningfulDisplayName,
+  upsertUser,
+  type AppUser,
+} from '../services/user-profiles';
 import { getRequestUserId } from '../../../lib/request-user';
 import { db } from '../../../data/db';
 import { users } from '../models/users';
@@ -15,18 +22,6 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 
 function isUuid(value: string): boolean {
   return UUID_REGEX.test(String(value || '').trim());
-}
-
-function isLikelyPhone(value: string): boolean {
-  return /^\d{10,15}$/.test(String(value || '').trim());
-}
-
-function isSafeDisplayName(value: unknown): value is string {
-  if (typeof value !== 'string') return false;
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-  if (isUuid(trimmed) || isLikelyPhone(trimmed)) return false;
-  return true;
 }
 
 function parseJsonField(value: unknown): unknown[] {
@@ -85,19 +80,11 @@ export function registerUserRoutes(app: Express) {
       typeof profile.email === 'string' && profile.email.trim() ? profile.email.trim() : '';
     const profileGstin =
       typeof profile.gstin === 'string' && profile.gstin.trim() ? profile.gstin.trim() : '';
-    const isPhoneLikeUsername = (value: string): boolean => /^\d{10,15}$/.test(value.trim());
-    const isPlaceholderName = (value: string): boolean => {
-      const normalized = value.trim().toLowerCase();
-      return normalized === 'seller' || normalized === 'unknown' || normalized === 'anonymous';
-    };
 
     const normalizedAvatarUrl = typeof avatarUrl === 'string' ? avatarUrl.trim() : '';
 
     if (dbUser?.id) {
-      const nextDisplayName =
-        profileName && !isPhoneLikeUsername(profileName) && !isPlaceholderName(profileName)
-          ? profileName
-          : dbUser.displayName;
+      const nextDisplayName = pickMeaningfulDisplayName(profileName, dbUser.displayName) || null;
 
       await db
         .update(users)
@@ -118,10 +105,7 @@ export function registerUserRoutes(app: Express) {
       .values({
         id: userId,
         username: userId,
-        displayName:
-          profileName && !isPhoneLikeUsername(profileName) && !isPlaceholderName(profileName)
-            ? profileName
-            : null,
+        displayName: pickMeaningfulDisplayName(profileName) || null,
         password: 'otp-auth',
         mobile: null,
         email: profileEmail || null,
@@ -192,7 +176,7 @@ export function registerUserRoutes(app: Express) {
       const user = upsertUser({
         id: userId,
         phone: normalizePhone(dbUser.mobile || existing?.phone || ''),
-        name: dbDisplayName || existing?.name || fallbackName,
+        name: pickMeaningfulDisplayName(dbDisplayName, existing?.name, fallbackName) || 'User',
         email: String(dbUser.email || existing?.email || '').trim(),
         gender: existing?.gender || 'other',
         avatarUrl: dbUser.avatarUrl || existing?.avatarUrl || '',
@@ -224,7 +208,7 @@ export function registerUserRoutes(app: Express) {
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         isVerified: user.isVerified || false,
-        profileComplete: !!(user.name && user.email && user.address),
+        profileComplete: !!(isMeaningfulDisplayName(user.name) && user.email && user.address),
       });
     } catch (error) {
       console.error('[Users] Error fetching profile:', error);
@@ -286,10 +270,7 @@ export function registerUserRoutes(app: Express) {
         user = upsertUser({
           id: String(dbUser.id),
           phone: normalizePhone(dbUser.mobile || ''),
-          name:
-            (isSafeDisplayName(dbDisplayName) && dbDisplayName) ||
-            (isSafeDisplayName(fallbackName) && fallbackName) ||
-            'User',
+          name: pickMeaningfulDisplayName(dbDisplayName, fallbackName) || 'User',
           email: String(dbUser.email || '').trim(),
           gender: 'other',
           avatarUrl: dbUser.avatarUrl || '',
@@ -314,10 +295,7 @@ export function registerUserRoutes(app: Express) {
         user = upsertUser({
           ...user,
           name:
-            (isSafeDisplayName(dbDisplayName) && dbDisplayName) ||
-            (isSafeDisplayName(user.name) && user.name) ||
-            (isSafeDisplayName(fallbackName) && fallbackName) ||
-            'User',
+            pickMeaningfulDisplayName(dbDisplayName, user.name, fallbackName) || 'User',
           email: String(dbUser.email || user.email || '').trim(),
           avatarUrl: dbUser.avatarUrl || user.avatarUrl,
           address: String(dbUser.address || user.address || '').trim(),
@@ -341,7 +319,7 @@ export function registerUserRoutes(app: Express) {
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
           isVerified: user.isVerified || false,
-          profileComplete: !!(user.name && user.email && user.address),
+          profileComplete: !!(isMeaningfulDisplayName(user.name) && user.email && user.address),
         },
       });
     } catch (error) {

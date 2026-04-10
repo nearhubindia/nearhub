@@ -8,6 +8,11 @@ import { handleError, notFound } from '../../../lib/error-handler';
 import { adminAuthMiddleware } from './admin-auth';
 import { listings, userActivity } from '../models/admin-settings';
 import { deleteUserDataByAdmin } from '../../users/services/user-lifecycle';
+import {
+  getUserById,
+  getUserByPhone,
+  pickMeaningfulDisplayName,
+} from '../../users/services/user-profiles';
 
 function normalizeMobile(value: unknown): string {
   const digits = String(value || '').replace(/\D/g, '');
@@ -24,17 +29,46 @@ function resolveDisplayName(input: {
   mobile: string;
   username?: string | null;
   displayName?: string | null;
+  profileName?: string | null;
 }): string {
-  const rawDisplayName = String(input.displayName || '').trim();
-  if (rawDisplayName && !/^\d{10}$/.test(rawDisplayName)) {
-    return rawDisplayName;
+  const displayName = pickMeaningfulDisplayName(
+    input.profileName,
+    input.displayName,
+    input.username
+  );
+  if (displayName) return displayName;
+
+  if (input.mobile) {
+    return input.mobile;
   }
-  const rawUsername = String(input.username || '').trim();
-  if (rawUsername && !/^\d{10}$/.test(rawUsername)) {
-    return rawUsername;
-  }
-  const suffix = input.mobile.slice(-4) || input.mobile || 'User';
-  return `User ${suffix}`;
+
+  return '-';
+}
+
+function resolveAdminIdentity(meta: {
+  id: string;
+  username?: string | null;
+  displayName?: string | null;
+  mobile?: string | null;
+}): {
+  mobile: string;
+  displayName: string;
+} {
+  const id = String(meta.id || '').trim();
+  const profileUser = getUserById(id) || getUserByPhone(meta.mobile || meta.username || id);
+  const mobile = normalizeMobile(meta.mobile || profileUser?.phone || meta.username || id);
+  const profileName = String(profileUser?.name || '').trim();
+  const displayName = resolveDisplayName({
+    mobile,
+    username: meta.username,
+    displayName: meta.displayName,
+    profileName,
+  });
+
+  return {
+    mobile,
+    displayName,
+  };
 }
 
 type ListingAggregate = {
@@ -119,10 +153,18 @@ export function registerAdminUsersRoutes(app: Express) {
       const listingLookupKeysByUser = new Map<string, string[]>();
       const listingLookupKeys: string[] = [];
       for (const meta of metaRows) {
-        const normalizedMobile = normalizeMobile(meta.mobile || meta.username || meta.id);
-        const rawUsername = String(meta.username || '').trim();
+        const resolvedIdentity = resolveAdminIdentity({
+          id: String(meta.id || '').trim(),
+          username: meta.username,
+          displayName: meta.displayName,
+          mobile: meta.mobile,
+        });
+        const normalizedMobile = resolvedIdentity.mobile;
         const keys = [
-          ...new Set([String(meta.id).trim(), normalizedMobile, rawUsername].filter(Boolean)),
+          ...new Set(
+            [String(meta.id).trim(), normalizedMobile, String(meta.username || '').trim()]
+              .filter(Boolean)
+          ),
         ];
         listingLookupKeysByUser.set(String(meta.id), keys);
         listingLookupKeys.push(...keys);
@@ -165,9 +207,13 @@ export function registerAdminUsersRoutes(app: Express) {
       }
 
       const safeUsers = metaRows.map((meta) => {
-        const normalizedMobile = normalizeMobile(meta.mobile || meta.username || meta.id);
-        const fallbackMobile = String(meta.mobile || meta.username || '').trim();
-        const userMobile = normalizedMobile || fallbackMobile || '-';
+        const resolvedIdentity = resolveAdminIdentity({
+          id: String(meta.id || '').trim(),
+          username: meta.username,
+          displayName: meta.displayName,
+          mobile: meta.mobile,
+        });
+        const userMobile = resolvedIdentity.mobile || '-';
         const listingAggregates = (listingLookupKeysByUser.get(String(meta.id)) || [])
           .map((key) => listingAggregateByKey.get(key))
           .filter((value): value is ListingAggregate => Boolean(value));
@@ -196,15 +242,10 @@ export function registerAdminUsersRoutes(app: Express) {
         );
         const listingLocations = [...mergedAggregate.locations].sort((a, b) => a.localeCompare(b));
         const autoDetectedLocation = mergedAggregate.latestLocation || meta?.location || '-';
-        const displayName = resolveDisplayName({
-          mobile: userMobile,
-          username: meta?.username,
-          displayName: meta?.displayName,
-        });
         return {
           id: String(meta.id),
-          username: meta.username || userMobile,
-          displayName,
+          username: userMobile || '',
+          displayName: resolvedIdentity.displayName || userMobile,
           mobile: userMobile,
           autoDetectedLocation,
           location: autoDetectedLocation, // Backward compatibility for old admin UI.
@@ -262,16 +303,18 @@ export function registerAdminUsersRoutes(app: Express) {
       const userMeta = meta[0];
       const userActivityRow = activity[0];
       const latestListingRow = latestListing[0];
-      const mobile = normalizeMobile(userMeta?.mobile || id) || '-';
+      const resolvedIdentity = resolveAdminIdentity({
+        id,
+        username: userMeta?.username,
+        displayName: userMeta?.displayName,
+        mobile: userMeta?.mobile,
+      });
+      const mobile = resolvedIdentity.mobile || '-';
       const autoDetectedLocation = latestListingRow?.location || userMeta?.location || '-';
       const safeUser = {
         id,
         username: mobile,
-        displayName: resolveDisplayName({
-          mobile,
-          username: userMeta?.username,
-          displayName: userMeta?.displayName,
-        }),
+        displayName: resolvedIdentity.displayName || mobile,
         mobile,
         autoDetectedLocation,
         location: autoDetectedLocation,

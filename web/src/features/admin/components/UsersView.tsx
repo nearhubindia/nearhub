@@ -15,6 +15,50 @@ interface UserRow {
   isVerified?: boolean;
 }
 
+function normalizePhoneLike(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const digits = value.replace(/\D/g, '');
+  return digits.length === 10 ? digits : '';
+}
+
+function isSyntheticDisplayName(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  const normalized = trimmed.toLowerCase();
+  const compact = trimmed.replace(/[\s._-]/g, '');
+  return (
+    normalized === 'user' ||
+    normalized === 'buyer' ||
+    normalized === 'seller' ||
+    normalized === 'unknown' ||
+    normalized === 'anonymous' ||
+    normalized === 'nearhub user' ||
+    /^\d{10,15}$/.test(trimmed) ||
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed) ||
+    /^user[\s_-]*[0-9a-z]+$/i.test(trimmed) ||
+    /^nearhub(?:[\s_-]*user)?$/i.test(trimmed) ||
+    (compact.length >= 8 && /\d/.test(compact) && /[a-z]/i.test(compact))
+  );
+}
+
+function getUserMobile(user: Pick<UserRow, 'mobile' | 'username'>): string {
+  return normalizePhoneLike(user.mobile) || normalizePhoneLike(user.username);
+}
+
+function getUserLabel(user: Pick<UserRow, 'displayName' | 'mobile' | 'username'>): string {
+  const displayName = typeof user.displayName === 'string' ? user.displayName.trim() : '';
+  if (displayName && !isSyntheticDisplayName(displayName)) {
+    return displayName;
+  }
+
+  const mobile = getUserMobile(user);
+  if (mobile) {
+    return mobile;
+  }
+
+  return '-';
+}
+
 export default function UsersView() {
   const PAGE_SIZE = 100;
   const [searchTerm, setSearchTerm] = useState('');
@@ -63,8 +107,8 @@ export default function UsersView() {
   const handleEditClick = (user: UserRow): void => {
     setSelectedUser(user);
     setFormData({
-      username: user.username || '',
-      mobile: user.mobile || user.username || '',
+      username: user.id || user.username || '',
+      mobile: getUserMobile(user),
       location: user.autoDetectedLocation || user.location || '',
       isVerified: Boolean(user.isVerified),
     });
@@ -211,11 +255,11 @@ export default function UsersView() {
                       >
                         <td className="px-6 py-4">
                           <div className="text-sm font-semibold text-slate-900">
-                            {user.displayName || user.username}
+                            {getUserLabel(user)}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700">
-                          {user.mobile || user.username}
+                          {getUserMobile(user) || '-'}
                         </td>
                         <td className="px-6 py-4">
                           <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700">
@@ -345,7 +389,7 @@ export default function UsersView() {
                     Display Name
                   </p>
                   <p className="text-sm font-semibold text-slate-900">
-                    {selectedUser.displayName || selectedUser.username}
+                    {getUserLabel(selectedUser)}
                   </p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -435,7 +479,7 @@ export default function UsersView() {
             <h2 className="mb-2 text-xl font-bold text-slate-900">Delete User</h2>
             <p className="mb-6 text-slate-600">
               Are you sure you want to delete user{' '}
-              <span className="font-bold">{selectedUser.displayName || selectedUser.username}</span>
+              <span className="font-bold">{getUserLabel(selectedUser)}</span>
               ? This action cannot be undone.
             </p>
 

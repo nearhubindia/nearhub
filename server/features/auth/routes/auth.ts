@@ -11,6 +11,7 @@ import {
   getStableUserIdFromPhone,
   getUserByPhone,
   normalizePhone,
+  isMeaningfulDisplayName,
   type AppUser,
   upsertUserFromAuth,
 } from '../../users/services/user-profiles';
@@ -101,13 +102,6 @@ async function userExistsInDb(userId: string): Promise<boolean> {
   return Boolean(row?.id);
 }
 
-function isPlaceholderName(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
-  return (
-    !normalized || normalized === 'user' || normalized === 'seller' || normalized === 'unknown'
-  );
-}
-
 async function hydrateAuthUserFromDb(userId: string, seed: AppUser): Promise<AppUser> {
   const normalizedId = String(userId || '').trim();
   if (!normalizedId || !isUuid(normalizedId)) return seed;
@@ -130,7 +124,7 @@ async function hydrateAuthUserFromDb(userId: string, seed: AppUser): Promise<App
   if (!dbUser?.id) return seed;
 
   const dbName = String(dbUser.displayName || '').trim();
-  const nextName = dbName && !isPlaceholderName(dbName) ? dbName : seed.name;
+  const nextName = isMeaningfulDisplayName(dbName) ? dbName : seed.name;
 
   return {
     ...seed,
@@ -151,7 +145,7 @@ function hasCompletedOnboarding(user: AppUser | undefined): boolean {
   const name = String(user.name || '').trim();
   const email = String(user.email || '').trim();
   const gender = user.gender;
-  const hasValidName = !!name && !/^user$/i.test(name);
+  const hasValidName = isMeaningfulDisplayName(name);
   const hasValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const hasValidGender = gender === 'male' || gender === 'female' || gender === 'other';
   return hasValidName && hasValidEmail && hasValidGender;

@@ -24,6 +24,78 @@ export type AppUser = {
 const usersById = new Map<string, AppUser>();
 const userIdByPhone = new Map<string, string>();
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PHONE_REGEX = /^\d{10,15}$/;
+
+function normalizeCandidate(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function looksSyntheticDisplayName(trimmed: string): boolean {
+  const normalized = trimmed.toLowerCase();
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  const hasLetters = /[a-z]/i.test(trimmed);
+  const hasDigits = /\d/.test(trimmed);
+
+  if (!normalized) return true;
+
+  if (
+    normalized === 'user' ||
+    normalized === 'buyer' ||
+    normalized === 'seller' ||
+    normalized === 'unknown' ||
+    normalized === 'anonymous'
+  ) {
+    return true;
+  }
+
+  if (/^nearhub(?:[\s_-]*user)?$/i.test(trimmed)) {
+    return true;
+  }
+
+  if (/^(buyer|seller)[\s_-]*[0-9a-z]+$/i.test(trimmed)) {
+    return true;
+  }
+
+  if (/^user[\s_-]*[0-9a-z]+$/i.test(trimmed)) {
+    return true;
+  }
+
+  if (UUID_REGEX.test(trimmed) || PHONE_REGEX.test(trimmed)) {
+    return true;
+  }
+
+  if (!hasLetters && hasDigits) {
+    return true;
+  }
+
+  if (tokens.length === 1 && hasLetters && hasDigits) {
+    return true;
+  }
+
+  if (/^(user|buyer|seller)[\s_-]*\d+$/i.test(trimmed)) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isMeaningfulDisplayName(value: unknown): value is string {
+  const trimmed = normalizeCandidate(value);
+  if (!trimmed) return false;
+  return !looksSyntheticDisplayName(trimmed);
+}
+
+export function pickMeaningfulDisplayName(...values: unknown[]): string {
+  for (const value of values) {
+    if (isMeaningfulDisplayName(value)) {
+      return String(value).trim();
+    }
+  }
+  return '';
+}
+
 export function normalizePhone(phone: unknown): string {
   if (typeof phone !== 'string') return '';
   return phone.replace(/\D/g, '').slice(-10);
@@ -99,14 +171,16 @@ export function upsertUserFromAuth(input: {
     getUserById(stableId) ||
     getUserByPhone(normalizedPhone);
   const nowIso = new Date().toISOString();
+  const existingName = existing?.name;
 
   return indexUser({
     id: existing?.id || preferredId || stableId,
     phone: normalizedPhone,
-    name:
-      typeof input.name === 'string' && input.name.trim()
-        ? input.name.trim()
-        : existing?.name || 'User',
+    name: isMeaningfulDisplayName(input.name)
+      ? input.name.trim()
+      : isMeaningfulDisplayName(existingName)
+        ? existingName.trim()
+        : 'User',
     email: typeof input.email === 'string' ? input.email.trim() : existing?.email || '',
     gender: input.gender || existing?.gender || 'other',
     avatarUrl:
@@ -131,10 +205,10 @@ export function upsertUserFromAuth(input: {
 export function resolveUserDisplayName(userId: string, fallbackPrefix: 'Buyer' | 'Seller'): string {
   const normalizedId = String(userId || '').trim();
   const byId = getUserById(normalizedId);
-  if (byId?.name?.trim()) return byId.name.trim();
+  if (isMeaningfulDisplayName(byId?.name)) return byId.name.trim();
 
   const byPhone = getUserByPhone(normalizedId);
-  if (byPhone?.name?.trim()) return byPhone.name.trim();
+  if (isMeaningfulDisplayName(byPhone?.name)) return byPhone.name.trim();
 
   return fallbackPrefix;
 }

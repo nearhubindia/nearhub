@@ -12,6 +12,7 @@ import {
 } from '../../features/admin/routes/admin-auth';
 import { registerAdminSettingsRoutes } from '../../features/admin/routes/admin-settings';
 import { registerReportsRoutes } from '../../features/admin/routes/reports';
+import { registerAdminUsersRoutes } from '../../features/admin/routes/admin-users';
 import { registerWorkerRoutes } from '../../features/workers/routes/workers';
 import { registerSubscriptionRoutes } from '../../features/subscriptions/routes/subscriptions';
 import { registerListingRoutes } from '../../features/listings/routes/listings';
@@ -48,6 +49,7 @@ export function createTestApp(): Express {
   app.use(['/api/admin/reports', '/api/admin/revenue'], adminAuthMiddleware);
   registerAdminSettingsRoutes(app);
   registerReportsRoutes(app);
+  registerAdminUsersRoutes(app);
   registerCouponRoutes(app);
 
   // Subscription and listing routes
