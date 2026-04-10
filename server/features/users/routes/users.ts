@@ -294,8 +294,7 @@ export function registerUserRoutes(app: Express) {
         const fallbackName = String(dbUser.username || '').trim();
         user = upsertUser({
           ...user,
-          name:
-            pickMeaningfulDisplayName(dbDisplayName, user.name, fallbackName) || 'User',
+          name: pickMeaningfulDisplayName(dbDisplayName, user.name, fallbackName) || 'User',
           email: String(dbUser.email || user.email || '').trim(),
           avatarUrl: dbUser.avatarUrl || user.avatarUrl,
           address: String(dbUser.address || user.address || '').trim(),

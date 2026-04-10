@@ -24,8 +24,7 @@ export type AppUser = {
 const usersById = new Map<string, AppUser>();
 const userIdByPhone = new Map<string, string>();
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PHONE_REGEX = /^\d{10,15}$/;
 
 function normalizeCandidate(value: unknown): string {

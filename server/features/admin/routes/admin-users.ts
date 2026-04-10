@@ -162,8 +162,9 @@ export function registerAdminUsersRoutes(app: Express) {
         const normalizedMobile = resolvedIdentity.mobile;
         const keys = [
           ...new Set(
-            [String(meta.id).trim(), normalizedMobile, String(meta.username || '').trim()]
-              .filter(Boolean)
+            [String(meta.id).trim(), normalizedMobile, String(meta.username || '').trim()].filter(
+              Boolean
+            )
           ),
         ];
         listingLookupKeysByUser.set(String(meta.id), keys);

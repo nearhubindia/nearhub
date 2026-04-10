@@ -3,10 +3,7 @@ import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { db } from '../../data/db';
 import { users } from '../../features/users/models/users';
-import {
-  removeUserProfile,
-  upsertUser,
-} from '../../features/users/services/user-profiles';
+import { removeUserProfile, upsertUser } from '../../features/users/services/user-profiles';
 import { createTestApp } from '../setup/test-app';
 
 describe('Admin Users API', () => {
