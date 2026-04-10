@@ -479,8 +479,8 @@ export default function UsersView() {
             <h2 className="mb-2 text-xl font-bold text-slate-900">Delete User</h2>
             <p className="mb-6 text-slate-600">
               Are you sure you want to delete user{' '}
-              <span className="font-bold">{getUserLabel(selectedUser)}</span>
-              ? This action cannot be undone.
+              <span className="font-bold">{getUserLabel(selectedUser)}</span>? This action cannot be
+              undone.
             </p>
 
             <div className="flex justify-end gap-2">
