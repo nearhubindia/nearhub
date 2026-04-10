@@ -24,7 +24,10 @@ const EMPTY_FORM: UserFormState = {
   isVerified: false,
 };
 
-function buildInitialFormState(mode: UserFormModalProps['mode'], user?: AdminUserRow | null): UserFormState {
+function buildInitialFormState(
+  mode: UserFormModalProps['mode'],
+  user?: AdminUserRow | null
+): UserFormState {
   if (mode === 'edit' && user) {
     return {
       displayName: typeof user.displayName === 'string' ? user.displayName.trim() : '',
@@ -94,7 +97,10 @@ export default function UserFormModal({ mode, user, onClose, onSaved }: UserForm
       onSaved();
       onClose();
     } catch (error) {
-      console.error(`[Admin Users] Failed to ${mode === 'create' ? 'create' : 'update'} user:`, error);
+      console.error(
+        `[Admin Users] Failed to ${mode === 'create' ? 'create' : 'update'} user:`,
+        error
+      );
       setFormErrors({
         submit:
           mode === 'create' ? 'Failed to create user. Please try again.' : 'Failed to update user.',
@@ -142,7 +148,12 @@ export default function UserFormModal({ mode, user, onClose, onSaved }: UserForm
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className={labelClass}>
-                  Display Name {mode === 'create' ? '*' : <span className="text-xs font-normal text-slate-500">Optional</span>}
+                  Display Name{' '}
+                  {mode === 'create' ? (
+                    '*'
+                  ) : (
+                    <span className="text-xs font-normal text-slate-500">Optional</span>
+                  )}
                 </label>
                 <input
                   type="text"
@@ -152,9 +163,7 @@ export default function UserFormModal({ mode, user, onClose, onSaved }: UserForm
                   className={inputClass}
                 />
                 {formErrors.displayName && (
-                  <p className="mt-1 text-xs font-medium text-rose-600">
-                    {formErrors.displayName}
-                  </p>
+                  <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.displayName}</p>
                 )}
                 <p className="mt-1 text-xs text-slate-500">
                   Buyers see this name on the listing card and seller profile.
@@ -227,7 +236,13 @@ export default function UserFormModal({ mode, user, onClose, onSaved }: UserForm
               }
               className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-200 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
             >
-              {isSaving ? (mode === 'create' ? 'Creating...' : 'Saving...') : mode === 'create' ? 'Create User' : 'Save Changes'}
+              {isSaving
+                ? mode === 'create'
+                  ? 'Creating...'
+                  : 'Saving...'
+                : mode === 'create'
+                  ? 'Create User'
+                  : 'Save Changes'}
             </button>
           </div>
         </form>

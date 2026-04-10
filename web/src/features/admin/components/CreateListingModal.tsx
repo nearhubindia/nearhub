@@ -335,9 +335,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                       required
                     />
                     {formErrors.userId && (
-                      <p className="mt-1 text-xs font-medium text-rose-600">
-                        {formErrors.userId}
-                      </p>
+                      <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.userId}</p>
                     )}
                     <p className="mt-1 text-xs text-slate-500">
                       The server resolves this to the actual seller account.

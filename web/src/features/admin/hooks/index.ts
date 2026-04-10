@@ -25,11 +25,7 @@ import {
   type ContactSubmission,
   type ErrorLog,
 } from '../api';
-import type {
-  AdminUserWriteData,
-  BannerPayload,
-  Listing,
-} from '../types/admin-types';
+import type { AdminUserWriteData, BannerPayload, Listing } from '../types/admin-types';
 
 interface ListingsQueryData {
   data?: Listing[];
@@ -731,13 +727,8 @@ export function useCreateUser() {
 export function useUpdateUser() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: string;
-      data: AdminUserWriteData;
-    }) => usersApi.updateUser(id, data),
+    mutationFn: ({ id, data }: { id: string; data: AdminUserWriteData }) =>
+      usersApi.updateUser(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });
       queryClient.invalidateQueries({ queryKey: adminKeys.userDetail(variables.id) });

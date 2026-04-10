@@ -1,8 +1,4 @@
-import type {
-  AdminUserWriteData,
-  AppScreenBanner,
-  BannerPayload,
-} from '../types/admin-types';
+import type { AdminUserWriteData, AppScreenBanner, BannerPayload } from '../types/admin-types';
 import { getApiUrl } from '@/lib/config';
 
 /**
@@ -489,10 +485,7 @@ export const usersApi = {
     return handleResponse(response);
   },
 
-  async updateUser(
-    id: string,
-    data: AdminUserWriteData
-  ): Promise<unknown> {
+  async updateUser(id: string, data: AdminUserWriteData): Promise<unknown> {
     const response = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
