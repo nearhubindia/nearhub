@@ -1,19 +1,8 @@
 import { useEffect, useState } from 'react';
-import { BadgeCheck, Edit2, MapPin, Search, Trash2, X } from 'lucide-react';
-import { useDeleteUser, useUpdateUser, useUsers } from '@/features/admin/hooks';
-
-interface UserRow {
-  id: string;
-  username: string;
-  displayName?: string;
-  mobile?: string;
-  autoDetectedLocation?: string;
-  location?: string;
-  listingsCount?: number;
-  listings?: number;
-  listingLocations?: string[];
-  isVerified?: boolean;
-}
+import { BadgeCheck, Edit2, MapPin, Plus, Search, Trash2 } from 'lucide-react';
+import { useDeleteUser, useUsers } from '@/features/admin/hooks';
+import UserFormModal from './UserFormModal';
+import type { AdminUserRow } from '../types/admin-types';
 
 function normalizePhoneLike(value: unknown): string {
   if (typeof value !== 'string') return '';
@@ -41,11 +30,11 @@ function isSyntheticDisplayName(value: string): boolean {
   );
 }
 
-function getUserMobile(user: Pick<UserRow, 'mobile' | 'username'>): string {
+function getUserMobile(user: Pick<AdminUserRow, 'mobile' | 'username'>): string {
   return normalizePhoneLike(user.mobile) || normalizePhoneLike(user.username);
 }
 
-function getUserLabel(user: Pick<UserRow, 'displayName' | 'mobile' | 'username'>): string {
+function getUserLabel(user: Pick<AdminUserRow, 'displayName' | 'mobile' | 'username'>): string {
   const displayName = typeof user.displayName === 'string' ? user.displayName.trim() : '';
   if (displayName && !isSyntheticDisplayName(displayName)) {
     return displayName;
@@ -76,18 +65,12 @@ export default function UsersView() {
     search: debouncedSearchTerm || undefined,
   });
   const deleteUser = useDeleteUser();
-  const updateUser = useUpdateUser();
-  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [userModalMode, setUserModalMode] = useState<'create' | 'edit' | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
-  const [formData, setFormData] = useState({
-    username: '',
-    mobile: '',
-    location: '',
-    isVerified: false,
-  });
-  const [saveError, setSaveError] = useState('');
-  const allUsers: UserRow[] = Array.isArray(usersData?.data) ? (usersData.data as UserRow[]) : [];
+  const [selectedUser, setSelectedUser] = useState<AdminUserRow | null>(null);
+  const allUsers: AdminUserRow[] = Array.isArray(usersData?.data)
+    ? (usersData.data as AdminUserRow[])
+    : [];
   const totalUsers = Number(usersData?.total || 0);
   const hasMore =
     typeof usersData?.hasMore === 'boolean'
@@ -104,57 +87,19 @@ export default function UsersView() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const handleEditClick = (user: UserRow): void => {
+  const handleEditClick = (user: AdminUserRow): void => {
     setSelectedUser(user);
-    setFormData({
-      username: user.id || user.username || '',
-      mobile: getUserMobile(user),
-      location: user.autoDetectedLocation || user.location || '',
-      isVerified: Boolean(user.isVerified),
-    });
-    setSaveError('');
-    setEditModalOpen(true);
+    setUserModalMode('edit');
   };
 
-  const handleDeleteClick = (user: UserRow): void => {
+  const handleAddClick = (): void => {
+    setSelectedUser(null);
+    setUserModalMode('create');
+  };
+
+  const handleDeleteClick = (user: AdminUserRow): void => {
     setSelectedUser(user);
     setDeleteModalOpen(true);
-  };
-
-  const handleFormChange = (
-    field: 'username' | 'mobile' | 'location' | 'isVerified',
-    value: string
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: field === 'isVerified' ? value === 'true' : value,
-    }));
-    setSaveError('');
-  };
-
-  const handleSaveEdit = async () => {
-    if (!formData.username.trim() || !formData.mobile.trim() || !formData.location.trim()) {
-      setSaveError('Mobile and location are required.');
-      return;
-    }
-
-    if (!selectedUser) {
-      setSaveError('No user selected.');
-      return;
-    }
-
-    try {
-      await updateUser.mutateAsync({
-        id: selectedUser.id,
-        data: formData,
-      });
-      setEditModalOpen(false);
-      setSelectedUser(null);
-      refetch();
-    } catch (error) {
-      setSaveError('Failed to update user.');
-      console.error('Failed to update user:', error);
-    }
   };
 
   const handleConfirmDelete = async () => {
@@ -169,10 +114,9 @@ export default function UsersView() {
     }
   };
 
-  const closeEditModal = () => {
-    setEditModalOpen(false);
+  const closeUserModal = () => {
+    setUserModalMode(null);
     setSelectedUser(null);
-    setSaveError('');
   };
 
   const closeDeleteModal = () => {
@@ -183,10 +127,22 @@ export default function UsersView() {
   return (
     <div>
       <div className="border-b border-slate-700 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 text-white">
-        <h1 className="mb-2 text-3xl font-black sm:text-4xl">Users Management</h1>
-        <p className="text-slate-300">
-          Display name, auto-detected location, listing footprint, and trust controls.
-        </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="mb-2 text-3xl font-black sm:text-4xl">Users Management</h1>
+            <p className="text-slate-300">
+              Display name, auto-detected location, listing footprint, and trust controls.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleAddClick}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-slate-900 transition hover:bg-slate-100"
+          >
+            <Plus size={16} />
+            Add User
+          </button>
+        </div>
       </div>
 
       <div className="p-4 sm:p-6">
@@ -365,112 +321,13 @@ export default function UsersView() {
         </div>
       </div>
 
-      {editModalOpen && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between bg-gradient-to-r from-teal-600 via-cyan-600 to-sky-600 px-6 py-4 text-white">
-              <div>
-                <h2 className="text-xl font-black">Edit User</h2>
-                <p className="text-sm text-cyan-100">Trust and profile controls</p>
-              </div>
-              <button
-                onClick={closeEditModal}
-                className="rounded-lg p-1 text-white/90 transition hover:bg-white/20"
-                disabled={updateUser.isPending}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="space-y-5 p-6">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="mb-1 text-xs uppercase tracking-wide text-slate-500">
-                    Display Name
-                  </p>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {getUserLabel(selectedUser)}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="mb-1 text-xs uppercase tracking-wide text-slate-500">Listings</p>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {Number(selectedUser.listingsCount ?? selectedUser.listings ?? 0)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-sm font-semibold text-slate-700">Mobile</label>
-                  <input
-                    type="tel"
-                    value={formData.mobile}
-                    onChange={(e) => handleFormChange('mobile', e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                    placeholder="Enter mobile number"
-                    disabled={updateUser.isPending}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm font-semibold text-slate-700">
-                    Auto Detected Location
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.location}
-                    onChange={(e) => handleFormChange('location', e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                    placeholder="Enter location"
-                    disabled={updateUser.isPending}
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-emerald-900" htmlFor="is-verified">
-                    Verified Seller
-                  </label>
-                  <input
-                    id="is-verified"
-                    type="checkbox"
-                    checked={formData.isVerified}
-                    onChange={(e) => handleFormChange('isVerified', String(e.target.checked))}
-                    disabled={updateUser.isPending}
-                    className="h-4 w-4 cursor-pointer accent-emerald-600"
-                  />
-                </div>
-                <p className="mt-1 text-xs text-emerald-700">
-                  Verified badge appears across user listings and marketplace cards.
-                </p>
-              </div>
-
-              {saveError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                  <p className="text-sm text-red-700">{saveError}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-6 py-4">
-              <button
-                onClick={closeEditModal}
-                disabled={updateUser.isPending}
-                className="rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveEdit}
-                disabled={updateUser.isPending}
-                className="rounded-lg bg-cyan-600 px-4 py-2 font-medium text-white transition hover:bg-cyan-700 disabled:opacity-50"
-              >
-                {updateUser.isPending ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {userModalMode && (
+        <UserFormModal
+          mode={userModalMode}
+          user={selectedUser}
+          onClose={closeUserModal}
+          onSaved={refetch}
+        />
       )}
 
       {deleteModalOpen && selectedUser && (

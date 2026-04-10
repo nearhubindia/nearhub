@@ -19,7 +19,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     condition: 'good',
     location: '',
     contactPhone: '',
-    userId: 'admin',
+    userId: '',
     images: [] as string[],
     videos: [] as string[],
     featured: false,
@@ -91,6 +91,14 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     e.preventDefault();
     setFormErrors({});
 
+    const sellerLookup = formData.userId.trim();
+    if (!sellerLookup) {
+      setFormErrors({
+        userId: 'Seller ID, username, or phone is required',
+      });
+      return;
+    }
+
     // Validate form
     const errors = validators.validateListingForm({
       title: formData.title,
@@ -114,7 +122,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
         condition: formData.condition,
         location: formData.location,
         contactPhone: String(formData.contactPhone || '').trim(),
-        userId: formData.userId,
+        userId: sellerLookup,
         images: formData.images,
         videos: formData.videos,
         featured: Boolean(formData.featured),
@@ -315,6 +323,26 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                       className={inputClass}
                     />
                   </div>
+
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Seller ID / Username / Phone *</label>
+                    <input
+                      type="text"
+                      value={formData.userId}
+                      onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+                      placeholder="Enter seller id, username, or mobile"
+                      className={inputClass}
+                      required
+                    />
+                    {formErrors.userId && (
+                      <p className="mt-1 text-xs font-medium text-rose-600">
+                        {formErrors.userId}
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-slate-500">
+                      The server resolves this to the actual seller account.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -464,7 +492,11 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
             <button
               type="submit"
               disabled={
-                createListing.isPending || !formData.title || !formData.price || !formData.location
+                createListing.isPending ||
+                !formData.title ||
+                !formData.price ||
+                !formData.location ||
+                !formData.userId.trim()
               }
               className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-200 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
             >

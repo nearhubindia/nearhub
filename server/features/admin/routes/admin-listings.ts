@@ -1,5 +1,5 @@
 import type { Express, Response } from 'express';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { db } from '../../../data/db';
 import { listings } from '../../admin/models/admin-settings';
 import type { InsertListing } from '../../admin/models/admin-settings';
@@ -8,6 +8,7 @@ import type { AuthRequest } from '../../../lib/types';
 import { handleError, notFound } from '../../../lib/error-handler';
 import { createListing, getListingById } from '../../listings/services/listings';
 import { getUserById, getUserByPhone } from '../../users/services/user-profiles';
+import { adminAuthMiddleware } from './admin-auth';
 import {
   notifyListingApproved,
   notifyListingRejected,
@@ -16,6 +17,8 @@ import { createInAppNotification } from '../../../shared/services/in-app-notific
 
 export function registerAdminListingsRoutes(app: Express) {
   type AdminAuthRequest = AuthRequest & { admin?: { id?: string } };
+
+  app.use('/api/admin/listings', adminAuthMiddleware);
 
   const parseJsonField = (value: unknown): unknown[] => {
     if (Array.isArray(value)) return value;
@@ -56,7 +59,30 @@ export function registerAdminListingsRoutes(app: Express) {
     return raw;
   };
 
+  const normalizeUserLookupPhone = (value: unknown): string => {
+    if (typeof value !== 'string') return '';
+    return value.replace(/\D/g, '').slice(-10);
+  };
+
   const looksLikePhone = (value: string): boolean => /^\d{10,15}$/.test(value.replace(/\D/g, ''));
+
+  const resolveListingOwnerId = async (value: unknown): Promise<string | null> => {
+    const raw = typeof value === 'string' ? value.trim() : '';
+    if (!raw) return null;
+
+    const normalizedPhone = normalizeUserLookupPhone(raw);
+    const ownerFilters = [eq(users.id, raw), eq(users.username, raw)];
+    if (normalizedPhone) ownerFilters.push(eq(users.mobile, normalizedPhone));
+
+    const dbUser = await db.query.users.findFirst({
+      where: or(...ownerFilters),
+      columns: { id: true },
+    });
+    if (dbUser?.id) return String(dbUser.id);
+
+    const profileUser = getUserById(raw) || getUserByPhone(raw);
+    return profileUser?.id ? String(profileUser.id) : null;
+  };
 
   /**
    * GET /api/admin/listings
@@ -218,7 +244,13 @@ export function registerAdminListingsRoutes(app: Express) {
         });
       }
 
-      const ownerId = typeof userId === 'string' && userId.trim() ? userId.trim() : 'admin';
+      const ownerId = await resolveListingOwnerId(userId);
+      if (!ownerId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Seller user ID, username, or phone is required',
+        });
+      }
 
       const created = await createListing({
         sellerId: ownerId,

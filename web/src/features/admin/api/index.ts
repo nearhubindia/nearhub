@@ -1,4 +1,8 @@
-import type { AppScreenBanner, BannerPayload } from '../types/admin-types';
+import type {
+  AdminUserWriteData,
+  AppScreenBanner,
+  BannerPayload,
+} from '../types/admin-types';
 import { getApiUrl } from '@/lib/config';
 
 /**
@@ -452,6 +456,15 @@ export const usersApi = {
     return handleResponse(response);
   },
 
+  async createUser(data: AdminUserWriteData): Promise<unknown> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
   async suspendUser(id: string): Promise<unknown> {
     const response = await fetch(`${API_BASE_URL}/api/admin/users/${id}/suspend`, {
       method: 'PUT',
@@ -478,7 +491,7 @@ export const usersApi = {
 
   async updateUser(
     id: string,
-    data: { username: string; mobile: string; location: string; isVerified: boolean }
+    data: AdminUserWriteData
   ): Promise<unknown> {
     const response = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
       method: 'PUT',

@@ -93,4 +93,41 @@ describe('Admin Users API', () => {
     expect(detailResponse.body?.data?.displayName).toBe('Real Admin User');
     expect(detailResponse.body?.data?.mobile).toBe(phone);
   });
+
+  it('allows admin to create a seller user for demo listings', async () => {
+    const app = createTestApp();
+    const token = await loginAsAdmin(app);
+    const mobile = '8867653172';
+    const location = 'Anakapalle';
+
+    const response = await request(app)
+      .post('/api/admin/users')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        displayName: 'Demo Seller',
+        mobile,
+        location,
+        isVerified: true,
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body?.success).toBe(true);
+    expect(response.body?.data?.displayName).toBe('Demo Seller');
+    expect(response.body?.data?.mobile).toBe(mobile);
+    expect(response.body?.data?.location).toBe(location);
+    expect(response.body?.data?.isVerified).toBe(true);
+    expect(typeof response.body?.data?.id).toBe('string');
+
+    const userId = String(response.body?.data?.id || '');
+    seededUserIds.add(userId);
+
+    const detailResponse = await request(app)
+      .get(`/api/admin/users/${userId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(detailResponse.status).toBe(200);
+    expect(detailResponse.body?.success).toBe(true);
+    expect(detailResponse.body?.data?.displayName).toBe('Demo Seller');
+    expect(detailResponse.body?.data?.mobile).toBe(mobile);
+  });
 });

@@ -103,6 +103,117 @@ function getSearchFilter(searchTerm: string) {
   )!;
 }
 
+type UserRow = typeof users.$inferSelect;
+
+type AdminUserWriteInput = {
+  id?: string;
+  username?: string;
+  displayName?: string;
+  mobile?: string;
+  location?: string;
+  isVerified?: boolean;
+};
+
+function normalizeText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function resolveStoredDisplayName(params: {
+  displayName?: string | null;
+  username?: string | null;
+  mobile?: string | null;
+  existing?: UserRow | null;
+}): string | null {
+  const displayName = pickMeaningfulDisplayName(
+    params.displayName,
+    params.existing?.displayName,
+    params.username,
+    params.existing?.username,
+    params.mobile
+  );
+  return displayName || null;
+}
+
+async function upsertAdminUserRecord(input: AdminUserWriteInput): Promise<UserRow> {
+  const normalizedId = normalizeText(input.id);
+  const normalizedUsername = normalizeText(input.username);
+  const normalizedDisplayName = normalizeText(input.displayName);
+  const normalizedMobile = normalizeMobile(input.mobile || normalizedId);
+  const normalizedLocation = normalizeText(input.location);
+
+  if (!normalizedMobile || !normalizedLocation) {
+    throw new Error('Valid mobile number and location are required');
+  }
+
+  const lookupFilters = [eq(users.mobile, normalizedMobile)];
+  if (normalizedId) lookupFilters.push(eq(users.id, normalizedId));
+  if (normalizedUsername) lookupFilters.push(eq(users.username, normalizedUsername));
+
+  const existing = await db.query.users.findFirst({
+    where: or(...lookupFilters),
+  });
+
+  const resolvedDisplayName = resolveStoredDisplayName({
+    displayName: normalizedDisplayName,
+    username: normalizedUsername,
+    mobile: normalizedMobile,
+    existing,
+  });
+  const resolvedUsername = normalizedUsername || normalizedMobile || existing?.username || '';
+
+  if (existing) {
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        username: resolvedUsername || existing.username,
+        displayName: resolvedDisplayName ?? existing.displayName,
+        mobile: normalizedMobile,
+        location: normalizedLocation,
+        isVerified: Boolean(input.isVerified),
+      })
+      .where(eq(users.id, existing.id))
+      .returning();
+
+    return updatedUser;
+  }
+
+  const nextId = normalizedId && isUuid(normalizedId) ? normalizedId : crypto.randomUUID();
+  const [createdUser] = await db
+    .insert(users)
+    .values({
+      id: nextId,
+      username: resolvedUsername || normalizedMobile || nextId,
+      displayName: resolvedDisplayName,
+      password: 'admin-managed',
+      mobile: normalizedMobile,
+      location: normalizedLocation,
+      isVerified: Boolean(input.isVerified),
+    })
+    .returning();
+
+  return createdUser;
+}
+
+function toAdminUserResponse(user: UserRow) {
+  const mobile = normalizeMobile(user.mobile || '');
+  const displayName = resolveStoredDisplayName({
+    displayName: user.displayName || undefined,
+    username: user.username || undefined,
+    mobile: mobile || undefined,
+    existing: user,
+  });
+
+  return {
+    id: String(user.id),
+    username: String(user.username || mobile || ''),
+    displayName: displayName || mobile || '-',
+    mobile: mobile || '-',
+    location: String(user.location || '-'),
+    isVerified: Boolean(user.isVerified),
+    createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
+  };
+}
+
 export function registerAdminUsersRoutes(app: Express) {
   /**
    * GET /api/admin/users
@@ -276,6 +387,43 @@ export function registerAdminUsersRoutes(app: Express) {
   });
 
   /**
+   * POST /api/admin/users
+   * Create user (admin only)
+   */
+  app.post('/api/admin/users', adminAuthMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const { id, username, displayName, mobile, location, isVerified } = req.body;
+      const normalizedMobile = normalizeMobile(mobile || id);
+      const normalizedLocation = normalizeText(location);
+
+      if (!normalizedMobile || !normalizedLocation) {
+        return res.status(400).json({
+          success: false,
+          message: 'Valid mobile number and location are required',
+        });
+      }
+
+      const user = await upsertAdminUserRecord({
+        id,
+        username,
+        displayName,
+        mobile: normalizedMobile,
+        location: normalizedLocation,
+        isVerified: Boolean(isVerified),
+      });
+
+      return res.status(201).json({
+        success: true,
+        data: toAdminUserResponse(user),
+        message: 'User created successfully',
+      });
+    } catch (error) {
+      console.error('[Admin Users] Error creating user:', error);
+      handleError(res, error, '[Admin Users]', 'Failed to create user');
+    }
+  });
+
+  /**
    * GET /api/admin/users/:id
    * Get user by ID (admin only)
    */
@@ -372,10 +520,9 @@ export function registerAdminUsersRoutes(app: Express) {
   app.put('/api/admin/users/:id', adminAuthMiddleware, async (req: AuthRequest, res: Response) => {
     try {
       const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
-      const { username, mobile, location, isVerified } = req.body;
+      const { username, displayName, mobile, location, isVerified } = req.body;
       const normalizedMobile = normalizeMobile(mobile || id);
-      const normalizedLocation = String(location || '').trim();
-      const normalizedUsername = String(username || '').trim();
+      const normalizedLocation = normalizeText(location);
 
       if (!normalizedMobile || !normalizedLocation) {
         return res.status(400).json({
@@ -384,84 +531,18 @@ export function registerAdminUsersRoutes(app: Express) {
         });
       }
 
-      const candidateIds = [id, normalizedMobile, normalizedUsername].filter(Boolean);
-      const candidateMobiles = [normalizeMobile(id), normalizedMobile].filter(Boolean);
-      const candidateUsernames = [id, normalizedUsername, normalizedMobile].filter(Boolean);
-
-      const existingRows = await db
-        .select()
-        .from(users)
-        .where(
-          or(
-            inArray(users.id, [...new Set(candidateIds)]),
-            inArray(users.mobile, [...new Set(candidateMobiles)]),
-            inArray(users.username, [...new Set(candidateUsernames)])
-          )!
-        )
-        .limit(10);
-
-      const existingById = existingRows.find((row) => row.id === id);
-      const existingByMobile = existingRows.find(
-        (row) =>
-          row.mobile === normalizedMobile ||
-          (normalizeMobile(id) && row.mobile === normalizeMobile(id))
-      );
-      const existingByUsername = existingRows.find(
-        (row) =>
-          row.username === id ||
-          row.username === normalizedUsername ||
-          row.username === normalizedMobile
-      );
-      const existing = existingById || existingByMobile || existingByUsername;
-
-      let upserted: typeof existingRows = [];
-      if (existing) {
-        upserted = await db
-          .update(users)
-          .set({
-            mobile: normalizedMobile,
-            location: normalizedLocation,
-            isVerified: Boolean(isVerified),
-          })
-          .where(eq(users.id, existing.id))
-          .returning();
-      } else {
-        const nextId = isUuid(id) ? id : crypto.randomUUID();
-        const nextUsername = normalizedUsername || normalizedMobile || nextId;
-        upserted = await db
-          .insert(users)
-          .values({
-            id: nextId,
-            username: nextUsername,
-            password: 'admin-managed',
-            mobile: normalizedMobile,
-            location: normalizedLocation,
-            isVerified: Boolean(isVerified),
-          })
-          .onConflictDoUpdate({
-            target: users.username,
-            set: {
-              mobile: normalizedMobile,
-              location: normalizedLocation,
-              isVerified: Boolean(isVerified),
-            },
-          })
-          .returning();
-      }
-
-      const updatedUser = upserted[0];
-      const safeUser = {
-        id: updatedUser.id,
-        username: updatedUser.username,
-        mobile: updatedUser.mobile || '-',
-        location: updatedUser.location || '-',
-        isVerified: Boolean(updatedUser.isVerified),
-        createdAt: updatedUser.createdAt?.toISOString() || new Date().toISOString(),
-      };
+      const updatedUser = await upsertAdminUserRecord({
+        id,
+        username,
+        displayName,
+        mobile: normalizedMobile,
+        location: normalizedLocation,
+        isVerified: Boolean(isVerified),
+      });
 
       res.json({
         success: true,
-        data: safeUser,
+        data: toAdminUserResponse(updatedUser),
         message: 'User updated successfully',
       });
     } catch (error) {

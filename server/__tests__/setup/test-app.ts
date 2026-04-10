@@ -11,6 +11,7 @@ import {
   adminAuthMiddleware,
 } from '../../features/admin/routes/admin-auth';
 import { registerAdminSettingsRoutes } from '../../features/admin/routes/admin-settings';
+import { registerAdminListingsRoutes } from '../../features/admin/routes/admin-listings';
 import { registerReportsRoutes } from '../../features/admin/routes/reports';
 import { registerAdminUsersRoutes } from '../../features/admin/routes/admin-users';
 import { registerWorkerRoutes } from '../../features/workers/routes/workers';
@@ -50,6 +51,7 @@ export function createTestApp(): Express {
   registerAdminSettingsRoutes(app);
   registerReportsRoutes(app);
   registerAdminUsersRoutes(app);
+  registerAdminListingsRoutes(app);
   registerCouponRoutes(app);
 
   // Subscription and listing routes

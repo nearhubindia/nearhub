@@ -62,6 +62,27 @@ export interface User {
   joined: string;
 }
 
+export interface AdminUserRow {
+  id: string;
+  username: string;
+  displayName?: string;
+  mobile?: string;
+  autoDetectedLocation?: string;
+  location?: string;
+  listingsCount?: number;
+  listings?: number;
+  listingLocations?: string[];
+  isVerified?: boolean;
+}
+
+export interface AdminUserWriteData {
+  displayName?: string;
+  username?: string;
+  mobile: string;
+  location: string;
+  isVerified: boolean;
+}
+
 export interface AppScreenBanner {
   id: string;
   title: string;

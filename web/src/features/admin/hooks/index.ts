@@ -25,7 +25,11 @@ import {
   type ContactSubmission,
   type ErrorLog,
 } from '../api';
-import type { BannerPayload, Listing } from '../types/admin-types';
+import type {
+  AdminUserWriteData,
+  BannerPayload,
+  Listing,
+} from '../types/admin-types';
 
 interface ListingsQueryData {
   data?: Listing[];
@@ -714,6 +718,16 @@ export function useDeleteBanner() {
   });
 }
 
+export function useCreateUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: AdminUserWriteData) => usersApi.createUser(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.users() });
+    },
+  });
+}
+
 export function useUpdateUser() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -722,7 +736,7 @@ export function useUpdateUser() {
       data,
     }: {
       id: string;
-      data: { username: string; mobile: string; location: string; isVerified: boolean };
+      data: AdminUserWriteData;
     }) => usersApi.updateUser(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });
