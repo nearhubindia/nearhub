@@ -323,6 +323,7 @@ export default function UsersView() {
 
       {userModalMode && (
         <UserFormModal
+          key={`${userModalMode}-${selectedUser?.id || 'new'}`}
           mode={userModalMode}
           user={selectedUser}
           onClose={closeUserModal}

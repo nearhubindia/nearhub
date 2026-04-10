@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { BadgeCheck, MapPin, User, X } from 'lucide-react';
 import { useCreateUser, useUpdateUser } from '@/features/admin/hooks';
 import type { AdminUserRow, AdminUserWriteData } from '@/features/admin/types/admin-types';
@@ -24,30 +24,29 @@ const EMPTY_FORM: UserFormState = {
   isVerified: false,
 };
 
+function buildInitialFormState(mode: UserFormModalProps['mode'], user?: AdminUserRow | null): UserFormState {
+  if (mode === 'edit' && user) {
+    return {
+      displayName: typeof user.displayName === 'string' ? user.displayName.trim() : '',
+      mobile: typeof user.mobile === 'string' ? user.mobile.trim() : '',
+      location:
+        typeof user.autoDetectedLocation === 'string' && user.autoDetectedLocation.trim()
+          ? user.autoDetectedLocation.trim()
+          : typeof user.location === 'string'
+            ? user.location.trim()
+            : '',
+      isVerified: Boolean(user.isVerified),
+    };
+  }
+
+  return EMPTY_FORM;
+}
+
 export default function UserFormModal({ mode, user, onClose, onSaved }: UserFormModalProps) {
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
-  const [formData, setFormData] = useState<UserFormState>(EMPTY_FORM);
+  const [formData, setFormData] = useState<UserFormState>(() => buildInitialFormState(mode, user));
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (mode === 'edit' && user) {
-      setFormData({
-        displayName: typeof user.displayName === 'string' ? user.displayName.trim() : '',
-        mobile: typeof user.mobile === 'string' ? user.mobile.trim() : '',
-        location:
-          typeof user.autoDetectedLocation === 'string' && user.autoDetectedLocation.trim()
-            ? user.autoDetectedLocation.trim()
-            : typeof user.location === 'string'
-              ? user.location.trim()
-              : '',
-        isVerified: Boolean(user.isVerified),
-      });
-    } else {
-      setFormData(EMPTY_FORM);
-    }
-    setFormErrors({});
-  }, [mode, user]);
 
   const isSaving = createUser.isPending || updateUser.isPending;
 
