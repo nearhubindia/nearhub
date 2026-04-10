@@ -90,9 +90,24 @@ jobs:
           install -m 600 /dev/null ~/.ssh/id_hostinger
           printf '%s\n' "${{ secrets.HOSTINGER_VPS_SSH_KEY }}" > ~/.ssh/id_hostinger
 
-          ssh-keyscan -p "$PORT" -H "$HOST" >> ~/.ssh/known_hosts
+          echo "[INFO] Scanning SSH host key for $HOST:$PORT"
+          ssh-keyscan -v -p "$PORT" -H "$HOST" | tee ~/.ssh/known_hosts
 
+          echo "[INFO] Verifying SSH connectivity before artifact copy"
+          ssh \
+            -vvv \
+            -i ~/.ssh/id_hostinger \
+            -p "$PORT" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=60 \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=6 \
+            -o StrictHostKeyChecking=yes \
+            "$USER@$HOST" 'echo "[INFO] SSH preflight OK"'
+
+          echo "[INFO] Uploading server-release.tgz via scp"
           scp \
+            -vvv \
             -i ~/.ssh/id_hostinger \
             -P "$PORT" \
             -o ConnectTimeout=60 \
