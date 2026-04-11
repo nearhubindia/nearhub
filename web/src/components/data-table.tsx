@@ -260,7 +260,7 @@ export function DataTable<TData, TValue>({
   };
 
   return (
-    <div className={cn('space-y-4', className)}>
+    <div className={cn('w-full space-y-4', className)}>
       {(toolbarLeft || toolbarRight || showSearch || showColumnVisibility || showPagination) && (
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-3">
@@ -351,12 +351,12 @@ export function DataTable<TData, TValue>({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <Table>
-          <TableHeader className="bg-gradient-to-r from-teal-700 to-cyan-500">
+          <TableHeader className="bg-slate-900">
             {table.getHeaderGroups().map((headerGroup) => (
               <React.Fragment key={headerGroup.id}>
-                <TableRow className="border-none">
+                <TableRow className="border-b border-slate-700 hover:bg-transparent">
                   {headerGroup.headers.map((header) => {
                     const isSortable = header.column.getCanSort();
                     const sortingState = header.column.getIsSorted();
@@ -386,7 +386,7 @@ export function DataTable<TData, TValue>({
                   })}
                 </TableRow>
 
-                <TableRow className="bg-white">
+                <TableRow className="bg-white hover:bg-transparent">
                   {headerGroup.headers.map((header) => (
                     <TableHead key={header.id} className="p-2">
                       {header.column.getCanFilter() ? (
