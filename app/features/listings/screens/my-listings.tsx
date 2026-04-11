@@ -216,10 +216,7 @@ export default function MyListingsScreen() {
 
     setHasHandledEditedSuccess(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showSuccessModal(
-      'Listing updated successfully and will be posted after admin review.',
-      'Listing Updated Successfully'
-    );
+    showSuccessModal('Listing updated successfully.', 'Listing Updated Successfully');
   }, [hasHandledEditedSuccess, params.edited]);
 
   useEffect(() => {

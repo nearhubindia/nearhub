@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import colors from '@/constants/colors';
 import { useAuth } from '@/shared/contexts/auth-context';
@@ -49,11 +49,7 @@ export default function InvoicesScreen() {
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
-  useEffect(() => {
-    loadInvoices();
-  }, [user?.id]);
-
-  const loadInvoices = async () => {
+  const loadInvoices = useCallback(async () => {
     try {
       setIsLoading(true);
       const [stored, apiUrl] = await Promise.all([
@@ -113,7 +109,13 @@ export default function InvoicesScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user?.id, user?.phone]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadInvoices();
+    }, [loadInvoices])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);

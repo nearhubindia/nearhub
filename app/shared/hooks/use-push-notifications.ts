@@ -6,6 +6,7 @@ import Constants from 'expo-constants';
 import { getApiUrl } from '@/lib/query-client';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
+import { openNotificationTarget } from '@/lib/notification-navigation';
 
 // Configure how notifications are handled when app is in foreground
 Notifications.setNotificationHandler({
@@ -77,7 +78,7 @@ export function usePushNotifications() {
       console.log('[Push] Notification tapped:', data);
 
       // Handle navigation based on notification type
-      handleNotificationNavigation(data as PushNotificationData);
+      void openNotificationTarget(data as PushNotificationData);
     });
 
     return () => {
@@ -202,31 +203,6 @@ async function sendTokenToServer(token: string, userId: string): Promise<void> {
   } catch (error) {
     console.error('[Push] Error registering token:', error);
   }
-}
-
-/**
- * Handle navigation based on notification data
- */
-function handleNotificationNavigation(data: PushNotificationData): void {
-  // Import router dynamically to avoid circular dependencies
-  import('expo-router').then(({ router }) => {
-    if (data?.type === 'new_listing' && data.listingId) {
-      router.push({
-        pathname: '/listing/[id]',
-        params: { id: data.listingId },
-      });
-    } else if (data?.type === 'message' && data.conversationId) {
-      router.push({
-        pathname: '/chat/[listingId]',
-        params: {
-          listingId: data.conversationId,
-          conversationId: data.conversationId,
-        },
-      });
-    } else if (data?.url) {
-      router.push(data.url);
-    }
-  });
 }
 
 /**

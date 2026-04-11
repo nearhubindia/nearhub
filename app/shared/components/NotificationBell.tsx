@@ -8,11 +8,13 @@ import {
   Modal,
   FlatList,
   Platform,
+  Pressable,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useNotifications } from '@/shared/contexts/notifications-context';
+import { useNotifications, type Notification } from '@/shared/contexts/notifications-context';
 import Colors from '@/constants/colors';
 import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
+import { openNotificationTarget } from '@/lib/notification-navigation';
 
 interface NotificationBellProps {
   tone?: 'light' | 'dark';
@@ -25,7 +27,7 @@ export function NotificationBell({ tone = 'light' }: NotificationBellProps) {
   const isDark = colorScheme === 'dark';
   const isDarkTone = tone === 'dark';
 
-  const getIconColor = (type: string) => {
+  const getIconColor = (type: Notification['type']) => {
     switch (type) {
       case 'success':
         return '#10b981';
@@ -33,9 +35,27 @@ export function NotificationBell({ tone = 'light' }: NotificationBellProps) {
         return '#ef4444';
       case 'warning':
         return '#f59e0b';
+      case 'message':
+        return '#14b8a6';
       case 'info':
       default:
         return '#3b82f6';
+    }
+  };
+
+  const getIconName = (type: Notification['type']) => {
+    switch (type) {
+      case 'success':
+        return 'check';
+      case 'error':
+        return 'alert-circle';
+      case 'warning':
+        return 'alert-triangle';
+      case 'message':
+        return 'message-circle';
+      case 'info':
+      default:
+        return 'info';
     }
   };
 
@@ -91,7 +111,7 @@ export function NotificationBell({ tone = 'light' }: NotificationBellProps) {
                   data={notifications}
                   keyExtractor={(item) => item.id}
                   renderItem={({ item }) => (
-                    <View
+                    <Pressable
                       style={[
                         styles.notificationItem,
                         {
@@ -99,6 +119,21 @@ export function NotificationBell({ tone = 'light' }: NotificationBellProps) {
                           backgroundColor: isDark ? '#111827' : '#f9fafb',
                         },
                       ]}
+                      onPress={() => {
+                        if (item.data) {
+                          setIsOpen(false);
+                          void openNotificationTarget(item.data);
+                          return;
+                        }
+
+                        if (item.action) {
+                          item.action.onPress();
+                          removeNotification(item.id);
+                          setIsOpen(false);
+                        }
+                      }}
+                      accessibilityRole={item.data ? 'button' : undefined}
+                      accessibilityLabel={item.data ? `Open ${item.title}` : undefined}
                     >
                       <View style={styles.itemContent}>
                         <View
@@ -108,7 +143,7 @@ export function NotificationBell({ tone = 'light' }: NotificationBellProps) {
                           ]}
                         >
                           <Feather
-                            name={item.type === 'success' ? 'check' : 'info'}
+                            name={getIconName(item.type)}
                             size={responsiveModerateScale(14)}
                             color={getIconColor(item.type)}
                           />
@@ -137,7 +172,7 @@ export function NotificationBell({ tone = 'light' }: NotificationBellProps) {
                           />
                         </TouchableOpacity>
                       </View>
-                    </View>
+                    </Pressable>
                   )}
                   scrollEnabled={notifications.length > 5}
                   style={{ maxHeight: 400 }}
