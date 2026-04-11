@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Search, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '@/components/data-table';
 import type { Listing } from '@/features/admin/types/admin-types';
 import { useListings, useDeleteListing } from '@/features/admin/hooks';
 
@@ -12,45 +13,11 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
   const { data: listingsData, isLoading } = useListings();
   const deleteListing = useDeleteListing();
 
-  const [searchTerm, setSearchTerm] = useState('');
-
-  // Handle both new API response structure (data array) and old structure (listings object)
   const listings: Listing[] = Array.isArray(listingsData?.data)
     ? (listingsData.data as Listing[])
     : Array.isArray(listingsData?.listings)
       ? (listingsData.listings as Listing[])
       : [];
-
-  const filteredListings = listings.filter((listing: Listing) => {
-    const query = searchTerm.trim().toLowerCase();
-    if (!query) return true;
-    return (
-      listing.title.toLowerCase().includes(query) ||
-      String(listing.price).toLowerCase().includes(query) ||
-      String(listing.offerPrice ?? '')
-        .toLowerCase()
-        .includes(query) ||
-      listing.status.toLowerCase().includes(query) ||
-      String(listing.category || '')
-        .toLowerCase()
-        .includes(query) ||
-      String(listing.location || '')
-        .toLowerCase()
-        .includes(query) ||
-      String(listing.contactPhone || '')
-        .toLowerCase()
-        .includes(query) ||
-      String(listing.mobileNumber || '')
-        .toLowerCase()
-        .includes(query) ||
-      String(listing.displayName || '')
-        .toLowerCase()
-        .includes(query) ||
-      String(listing.userId || '')
-        .toLowerCase()
-        .includes(query)
-    );
-  });
 
   const handleDelete = async (listingId: string): Promise<void> => {
     if (!confirm('Are you sure you want to delete this listing?')) return;
@@ -79,190 +46,202 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
     });
   };
 
+  const columns: ColumnDef<Listing>[] = [
+    {
+        accessorKey: 'title',
+        header: 'Title',
+        enableColumnFilter: true,
+        meta: {
+          filterPlaceholder: 'Filter title...',
+          cellClassName: 'font-medium text-slate-900',
+        },
+        cell: ({ row }) => {
+          const listing = row.original;
+          return (
+            <div className="flex items-center gap-2">
+              <span>{listing.title}</span>
+              {listing.sponsored && (
+                <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                  Sponsored
+                </span>
+              )}
+              {listing.featured && (
+                <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800">
+                  Featured
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'category',
+        header: 'Category',
+        enableColumnFilter: true,
+        meta: {
+          filterPlaceholder: 'Filter category...',
+        },
+        cell: ({ row }) => row.original.category || '-',
+      },
+      {
+        id: 'price',
+        header: 'Price',
+        enableColumnFilter: true,
+        accessorFn: (listing) => `${listing.price ?? ''} ${listing.offerPrice ?? ''}`,
+        meta: {
+          filterPlaceholder: 'Filter price...',
+        },
+        cell: ({ row }) => {
+          const listing = row.original;
+          return (
+            <div className="flex flex-col gap-1">
+              {listing.offerPrice && Number(listing.offerPrice) > 0 ? (
+                <>
+                  <span className="text-slate-500 line-through">₹{listing.price}</span>
+                  <span className="font-bold text-red-600">₹{listing.offerPrice}</span>
+                </>
+              ) : (
+                <span className="text-slate-600">₹{listing.price}</span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'location',
+        header: 'Location',
+        enableColumnFilter: true,
+        meta: {
+          filterPlaceholder: 'Filter location...',
+        },
+        cell: ({ row }) => row.original.location || 'N/A',
+      },
+      {
+        id: 'displayName',
+        header: 'Display Name',
+        enableColumnFilter: true,
+        accessorFn: (listing) => `${listing.displayName ?? ''} ${listing.userId ?? ''}`,
+        meta: {
+          filterPlaceholder: 'Filter user...',
+        },
+        cell: ({ row }) => {
+          const listing = row.original;
+          return (
+            <div className="flex flex-col">
+              <span>{listing.displayName || '-'}</span>
+              <span className="text-xs text-slate-400">ID: {listing.userId || 'N/A'}</span>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'mobileNumber',
+        header: 'Mobile Number',
+        enableColumnFilter: true,
+        accessorFn: (listing) => `${listing.mobileNumber ?? ''} ${listing.contactPhone ?? ''}`,
+        meta: {
+          filterPlaceholder: 'Filter mobile...',
+        },
+        cell: ({ row }) => row.original.mobileNumber || row.original.contactPhone || '-',
+      },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        enableColumnFilter: true,
+        meta: {
+          filterPlaceholder: 'Filter status...',
+        },
+        cell: ({ row }) => {
+          const listing = row.original;
+          return (
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                listing.status === 'active'
+                  ? 'bg-green-100 text-green-700'
+                  : listing.status === 'sold'
+                    ? 'bg-slate-100 text-slate-700'
+                    : 'bg-yellow-100 text-yellow-700'
+              }`}
+            >
+              {listing.status}
+            </span>
+          );
+        },
+      },
+      {
+        id: 'posted',
+        header: 'Posted',
+        enableColumnFilter: true,
+        accessorFn: (listing) => formatPostedDate(listing),
+        meta: {
+          filterPlaceholder: 'Filter date...',
+        },
+        cell: ({ row }) => formatPostedDate(row.original),
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        enableSorting: false,
+        enableColumnFilter: false,
+        enableHiding: false,
+        accessorFn: () => '',
+        cell: ({ row }) => (
+          <div className="flex gap-2">
+            <button
+              onClick={() => onEditListing && onEditListing(row.original)}
+              className="rounded-lg p-2 transition hover:bg-teal-100"
+              title="Edit"
+              type="button"
+            >
+              <Edit2 size={16} className="text-slate-600" />
+            </button>
+            <button
+              onClick={() => handleDelete(row.original.id)}
+              disabled={deleteListing.isPending}
+              className="rounded-lg p-2 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Delete"
+              type="button"
+            >
+              <Trash2 size={16} className="text-red-600" />
+            </button>
+          </div>
+        ),
+    },
+  ];
+
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
-        <h1 className="text-3xl sm:text-4xl font-black mb-2">Listings Management</h1>
+      <div className="border-b border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 p-4 text-white sm:p-6">
+        <h1 className="mb-2 text-3xl font-black sm:text-4xl">Listings Management</h1>
         <p className="text-slate-300">View and manage all listings</p>
       </div>
 
       <div className="p-4 sm:p-6">
-        <div className="mb-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-3 text-slate-400" size={20} />
-            <input
-              type="text"
-              placeholder="Search by title, category, user ID, location, status, price..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-            />
-          </div>
-          <button
-            onClick={onCreateListing}
-            className="bg-gradient-to-r from-teal-500 to-cyan-500 text-white px-6 py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:shadow-lg hover:scale-105 transition cursor-pointer sm:w-auto"
-          >
-            <Plus size={20} /> New Listing
-          </button>
-        </div>
-
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500 mx-auto mb-4"></div>
+              <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-teal-500" />
               <p className="text-slate-600">Loading listings...</p>
             </div>
           </div>
         ) : (
-          <>
-            <div className="space-y-4">
-              {filteredListings.length === 0 && searchTerm ? (
-                <div className="text-center py-12">
-                  <Search size={48} className="mx-auto text-slate-300 mb-4" />
-                  <p className="text-slate-600 font-medium">
-                    No listings found matching "{searchTerm}"
-                  </p>
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    className="text-teal-600 hover:text-teal-700 font-semibold mt-2 cursor-pointer"
-                  >
-                    Clear search
-                  </button>
-                </div>
-              ) : (
-                <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-                  <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 text-sm text-slate-600">
-                    Showing {filteredListings.length} of {listings.length} listings
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[900px]">
-                      <thead className="bg-slate-100 border-b border-slate-200">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                            Title
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                            Category
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                            Price
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                            Location
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                            Display Name
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                            Mobile Number
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                            Status
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                            Posted
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredListings.map((listing: Listing) => (
-                          <tr
-                            key={listing.id}
-                            className="border-b border-slate-200 hover:bg-slate-50 transition"
-                          >
-                            <td className="px-6 py-4 text-sm text-slate-900 font-medium">
-                              <div className="flex items-center gap-2">
-                                <span>{listing.title}</span>
-                                {listing.sponsored && (
-                                  <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs font-bold">
-                                    Sponsored
-                                  </span>
-                                )}
-                                {listing.featured && (
-                                  <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs font-bold">
-                                    Featured
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-slate-600">
-                              {listing.category || '-'}
-                            </td>
-                            <td className="px-6 py-4 text-sm">
-                              <div className="flex flex-col gap-1">
-                                {listing.offerPrice && Number(listing.offerPrice) > 0 ? (
-                                  <>
-                                    <span className="line-through text-slate-500">
-                                      ₹{listing.price}
-                                    </span>
-                                    <span className="text-red-600 font-bold">
-                                      ₹{listing.offerPrice}
-                                    </span>
-                                  </>
-                                ) : (
-                                  <span className="text-slate-600">₹{listing.price}</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-slate-600">
-                              {listing.location || 'N/A'}
-                            </td>
-                            <td className="px-6 py-4 text-sm text-slate-600">
-                              <div className="flex flex-col">
-                                <span>{listing.displayName || '-'}</span>
-                                <span className="text-xs text-slate-400">
-                                  ID: {listing.userId || 'N/A'}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-slate-600">
-                              {listing.mobileNumber || listing.contactPhone || '-'}
-                            </td>
-                            <td className="px-6 py-4 text-sm">
-                              <span
-                                className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                  listing.status === 'active'
-                                    ? 'bg-green-100 text-green-700'
-                                    : listing.status === 'sold'
-                                      ? 'bg-slate-100 text-slate-700'
-                                      : 'bg-yellow-100 text-yellow-700'
-                                }`}
-                              >
-                                {listing.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-slate-600">
-                              {formatPostedDate(listing)}
-                            </td>
-                            <td className="px-6 py-4 text-sm flex gap-2">
-                              <button
-                                onClick={() => onEditListing && onEditListing(listing)}
-                                className="p-2 hover:bg-teal-100 rounded transition cursor-pointer"
-                                title="Edit"
-                              >
-                                <Edit2 size={16} className="text-slate-600" />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(listing.id)}
-                                disabled={deleteListing.isPending}
-                                className="p-2 hover:bg-red-100 rounded transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Delete"
-                              >
-                                <Trash2 size={16} className="text-red-600" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
+          <DataTable
+            columns={columns}
+            data={listings}
+            searchPlaceholder="Search by title, category, user ID, location, status, price..."
+            toolbarRight={
+              onCreateListing ? (
+                <button
+                  onClick={onCreateListing}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 px-4 text-sm font-bold text-white transition hover:brightness-105 hover:shadow-lg"
+                  type="button"
+                >
+                  <Plus size={18} />
+                  New Listing
+                </button>
+              ) : null
+            }
+          />
         )}
       </div>
     </div>

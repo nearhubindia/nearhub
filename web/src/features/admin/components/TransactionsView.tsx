@@ -1,4 +1,7 @@
+import { useMemo } from 'react';
 import { RefreshCw } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '@/components/data-table';
 import { useTransactionReport } from '@/features/admin/hooks';
 
 interface TransactionSummary {
@@ -62,10 +65,73 @@ export default function TransactionsView() {
     avgTransactionValue: toNumber(summary.avgTransactionValue),
   };
 
+  const columns = useMemo<ColumnDef<TransactionRow>[]>(
+    () => [
+      {
+        accessorKey: 'id',
+        header: 'Transaction ID',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter transaction...' },
+        cell: ({ row }) => <span className="font-mono text-xs text-slate-800">{row.original.id || 'N/A'}</span>,
+      },
+      {
+        accessorKey: 'sellerId',
+        header: 'Seller ID',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter seller...' },
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-700">{row.original.sellerId || 'N/A'}</span>
+        ),
+      },
+      {
+        id: 'amount',
+        header: 'Amount',
+        enableColumnFilter: true,
+        accessorFn: (tx) => String(tx.amount ?? 0),
+        meta: { filterPlaceholder: 'Filter amount...' },
+        cell: ({ row }) => (
+          <span className="font-semibold text-slate-900">₹{toNumber(row.original.amount).toLocaleString()}</span>
+        ),
+      },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter status...' },
+        cell: ({ row }) => {
+          const status = String(row.original.status || '').toLowerCase();
+          const statusClass =
+            status === 'completed'
+              ? 'bg-emerald-100 text-emerald-700'
+              : status === 'failed'
+                ? 'bg-red-100 text-red-700'
+                : status === 'pending'
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-slate-100 text-slate-700';
+
+          return (
+            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusClass}`}>
+              {formatStatus(row.original.status)}
+            </span>
+          );
+        },
+      },
+      {
+        id: 'createdAt',
+        header: 'Created At',
+        enableColumnFilter: true,
+        accessorFn: (tx) => formatDate(tx.createdAt),
+        meta: { filterPlaceholder: 'Filter date...' },
+        cell: ({ row }) => formatDate(row.original.createdAt),
+      },
+    ],
+    []
+  );
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-teal-500"></div>
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-teal-500" />
       </div>
     );
   }
@@ -111,79 +177,11 @@ export default function TransactionsView() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <div className="border-b border-slate-200 px-5 py-4">
-            <h2 className="text-lg font-bold text-slate-900">Recent Transactions</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px]">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
-                    Transaction ID
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
-                    Seller ID
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
-                    Amount
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
-                    Status
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-600">
-                    Created At
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">
-                      No transactions available yet.
-                    </td>
-                  </tr>
-                ) : (
-                  transactions.map((tx, index) => {
-                    const status = String(tx.status || '').toLowerCase();
-                    const statusClass =
-                      status === 'completed'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : status === 'failed'
-                          ? 'bg-red-100 text-red-700'
-                          : status === 'pending'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-slate-100 text-slate-700';
-
-                    return (
-                      <tr key={`${tx.id || 'tx'}-${index}`} className="border-t border-slate-100">
-                        <td className="px-5 py-4 font-mono text-xs text-slate-800">
-                          {tx.id || 'N/A'}
-                        </td>
-                        <td className="px-5 py-4 font-mono text-xs text-slate-700">
-                          {tx.sellerId || 'N/A'}
-                        </td>
-                        <td className="px-5 py-4 font-semibold text-slate-900">
-                          ₹{toNumber(tx.amount).toLocaleString()}
-                        </td>
-                        <td className="px-5 py-4">
-                          <span
-                            className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusClass}`}
-                          >
-                            {formatStatus(tx.status)}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-sm text-slate-700">
-                          {formatDate(tx.createdAt)}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DataTable
+          columns={columns}
+          data={transactions}
+          searchPlaceholder="Search transaction id, seller id, status, amount..."
+        />
       </div>
     </div>
   );

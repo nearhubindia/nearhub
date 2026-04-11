@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Video, Play, XCircle, MoreHorizontal } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '@/components/data-table';
 import { useVideos, useDeleteVideo, useToggleVideoStatus } from '@/features/admin/hooks';
 
 interface VideoRow {
@@ -51,10 +53,102 @@ export default function VideoManagementView() {
     }
   };
 
+  const columns: ColumnDef<VideoRow>[] = [
+    {
+        accessorKey: 'title',
+        header: 'Title',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter title...' },
+      },
+      {
+        accessorKey: 'userId',
+        header: 'Seller',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter seller...' },
+        cell: ({ row }) => (
+          <span>{String(row.original.userId || 'N/A').slice(0, 8)}...</span>
+        ),
+      },
+      {
+        accessorKey: 'durationDays',
+        header: 'Duration',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter duration...' },
+        cell: ({ row }) => `${row.original.durationDays || 'N/A'} days`,
+      },
+      {
+        accessorKey: 'isActive',
+        header: 'Status',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter status...' },
+        cell: ({ row }) => (
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-bold ${
+              row.original.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}
+          >
+            {row.original.isActive ? 'Active' : 'Inactive'}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'createdAt',
+        header: 'Created',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter date...' },
+        cell: ({ row }) =>
+          row.original.createdAt ? new Date(row.original.createdAt).toLocaleDateString() : 'N/A',
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        enableSorting: false,
+        enableColumnFilter: false,
+        enableHiding: false,
+        accessorFn: () => '',
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleToggleStatus(row.original.id)}
+              disabled={toggleVideoStatus.isPending}
+              className={`inline-flex items-center rounded-lg px-3 py-1 text-xs font-medium transition ${
+                row.original.isActive
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+              } disabled:cursor-not-allowed disabled:opacity-50`}
+              type="button"
+            >
+              {row.original.isActive ? (
+                <>
+                  <XCircle className="mr-1 h-3 w-3" />
+                  Deactivate
+                </>
+              ) : (
+                <>
+                  <Play className="mr-1 h-3 w-3" />
+                  Activate
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                setVideoToDelete(row.original);
+                setShowDeleteModal(true);
+              }}
+              className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-200"
+              type="button"
+            >
+              <MoreHorizontal className="h-3 w-3" />
+            </button>
+          </div>
+        ),
+    },
+  ];
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500"></div>
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-teal-500" />
       </div>
     );
   }
@@ -62,9 +156,9 @@ export default function VideoManagementView() {
   if (error) {
     return (
       <div className="p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
           <div className="flex items-center">
-            <XCircle className="h-5 w-5 mr-2" />
+            <XCircle className="mr-2 h-5 w-5" />
             Error loading videos. Please try again.
           </div>
         </div>
@@ -74,17 +168,15 @@ export default function VideoManagementView() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
-        <h1 className="text-3xl sm:text-4xl font-black mb-2">
-          <Video className="inline-block mr-2 h-8 w-8" />
+      <div className="border-b border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 p-4 text-white sm:p-6">
+        <h1 className="mb-2 text-3xl font-black sm:text-4xl">
+          <Video className="mr-2 inline-block h-8 w-8" />
           Video Management
         </h1>
         <p className="text-slate-300">Manage and monitor all videos on the platform.</p>
       </div>
 
-      {/* Content */}
-      <div className="p-4 sm:p-6 space-y-6">
+      <div className="space-y-6 p-4 sm:p-6">
         <div className="mb-6 flex flex-wrap gap-2 sm:gap-4">
           {filterTabs.map((tab) => (
             <button
@@ -95,111 +187,25 @@ export default function VideoManagementView() {
                   ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white'
                   : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
               }`}
+              type="button"
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)} ({filteredVideos.length})
             </button>
           ))}
         </div>
 
-        <div className="overflow-x-auto rounded-lg bg-white shadow">
-          <table className="w-full min-w-[760px]">
-            <thead className="bg-gradient-to-r from-slate-100 to-slate-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Title</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Seller</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-                  Duration
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Status</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-                  Created
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filteredVideos.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-slate-500">
-                    No videos found
-                  </td>
-                </tr>
-              ) : (
-                filteredVideos.map((video, idx: number) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 text-sm font-medium text-slate-900">
-                      {video.title as string}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {String(video.userId || 'N/A').slice(0, 8)}...
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {(video.durationDays as number) || 'N/A'} days
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          video.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {video.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {video.createdAt
-                        ? new Date(video.createdAt as string).toLocaleDateString()
-                        : 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleToggleStatus(video.id)}
-                          disabled={toggleVideoStatus.isPending}
-                          className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-medium transition ${
-                            video.isActive
-                              ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                              : 'bg-green-100 text-green-700 hover:bg-green-200'
-                          } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        >
-                          {video.isActive ? (
-                            <>
-                              <XCircle className="h-3 w-3 mr-1" />
-                              Deactivate
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-3 w-3 mr-1" />
-                              Activate
-                            </>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setVideoToDelete(video);
-                            setShowDeleteModal(true);
-                          }}
-                          className="inline-flex items-center px-3 py-1 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition text-xs"
-                        >
-                          <MoreHorizontal className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={filteredVideos}
+          searchPlaceholder="Search title, seller, duration, status..."
+        />
       </div>
 
-      {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg bg-white p-6">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Delete Video</h3>
-            <p className="text-slate-600 mb-6">
+            <h3 className="mb-4 text-lg font-semibold text-slate-900">Delete Video</h3>
+            <p className="mb-6 text-slate-600">
               Are you sure you want to delete "{videoToDelete?.title}"? This action cannot be
               undone.
             </p>
@@ -209,16 +215,18 @@ export default function VideoManagementView() {
                   setShowDeleteModal(false);
                   setVideoToDelete(null);
                 }}
-                className="px-4 py-2 text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition"
+                className="rounded-lg bg-slate-100 px-4 py-2 text-slate-600 transition hover:bg-slate-200"
+                type="button"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteVideo}
                 disabled={deleteVideo.isPending}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="rounded-lg bg-red-600 px-4 py-2 text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                type="button"
               >
-                {deleteVideo.isPending ? 'Deleting...' : 'Delete'}
+                Delete
               </button>
             </div>
           </div>

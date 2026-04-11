@@ -10,6 +10,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import type { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '@/components/data-table';
 import {
   useGrowthReport,
   usePerformanceReport,
@@ -162,6 +164,47 @@ export default function ReportsView() {
   const moderationReports = Array.isArray(moderation.reports) ? moderation.reports : [];
 
   const monthlyRevenueData = Array.isArray(transaction.monthlyData) ? transaction.monthlyData : [];
+
+  const transactionColumns: ColumnDef<TransactionRow>[] = [
+    {
+      accessorKey: 'id',
+      header: 'Transaction ID',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter transaction...' },
+      cell: ({ row }) => (
+        <span className="font-mono text-xs">{String(row.original.id || '-')}</span>
+      ),
+    },
+    {
+      accessorKey: 'sellerId',
+      header: 'Seller',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter seller...' },
+      cell: ({ row }) => String(row.original.sellerId || '-'),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter status...' },
+      cell: ({ row }) => String(row.original.status || '-'),
+    },
+    {
+      accessorKey: 'amount',
+      header: 'Amount',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter amount...' },
+      cell: ({ row }) => `₹${asNumber(row.original.amount).toLocaleString()}`,
+    },
+    {
+      accessorKey: 'createdAt',
+      header: 'Date',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter date...' },
+      cell: ({ row }) =>
+        row.original.createdAt ? new Date(String(row.original.createdAt)).toLocaleString() : '-',
+    },
+  ] satisfies ColumnDef<TransactionRow>[];
 
   const isAnyLoading =
     growthLoading || performanceLoading || transactionLoading || moderationLoading;
@@ -446,34 +489,12 @@ export default function ReportsView() {
           <div className="bg-white rounded-lg border border-slate-200 p-6">
             <h2 className="text-lg font-bold text-slate-900 mb-4">Recent Transactions</h2>
             {transactions.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-sm">
-                  <thead className="bg-slate-100 border-b border-slate-200">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-bold">Transaction ID</th>
-                      <th className="px-4 py-3 text-left font-bold">Seller</th>
-                      <th className="px-4 py-3 text-left font-bold">Status</th>
-                      <th className="px-4 py-3 text-left font-bold">Amount</th>
-                      <th className="px-4 py-3 text-left font-bold">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.map((row: TransactionRow, i: number) => (
-                      <tr key={row.id || i} className="border-b border-slate-200 hover:bg-slate-50">
-                        <td className="px-4 py-3 font-mono text-xs">{String(row.id || '-')}</td>
-                        <td className="px-4 py-3">{String(row.sellerId || '-')}</td>
-                        <td className="px-4 py-3">{String(row.status || '-')}</td>
-                        <td className="px-4 py-3 font-bold">
-                          ₹{asNumber(row.amount).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3">
-                          {row.createdAt ? new Date(String(row.createdAt)).toLocaleString() : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                columns={transactionColumns}
+                data={transactions}
+                showSearch={false}
+                showPagination={false}
+              />
             ) : (
               <p className="text-sm text-slate-500">No transactions available.</p>
             )}

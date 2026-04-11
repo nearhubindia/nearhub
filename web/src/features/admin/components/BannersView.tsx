@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Plus, Upload } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '@/components/data-table';
 import {
   useBanners,
   useCreateBanner,
@@ -160,131 +162,154 @@ export default function BannersView() {
     }
   };
 
+  const columns: ColumnDef<AppScreenBanner>[] = [
+    {
+        id: 'preview',
+        header: 'Preview',
+        enableSorting: false,
+        enableColumnFilter: false,
+        enableHiding: false,
+        accessorFn: (banner) => banner.imageUrl,
+        cell: ({ row }) => (
+          <img
+            src={row.original.imageUrl}
+            alt={row.original.title}
+            className="h-16 w-28 rounded border border-slate-200 object-cover"
+          />
+        ),
+      },
+      {
+        accessorKey: 'title',
+        header: 'Title',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter title...' },
+      },
+      {
+        accessorKey: 'screen',
+        header: 'Screen',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter screen...' },
+        cell: ({ row }) => <span className="uppercase">{row.original.screen}</span>,
+      },
+      {
+        accessorKey: 'sortOrder',
+        header: 'Order',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter order...' },
+      },
+      {
+        accessorKey: 'isActive',
+        header: 'Status',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter status...' },
+        cell: ({ row }) => (
+          <span
+            className={`rounded px-3 py-1 text-xs font-bold ${
+              row.original.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}
+          >
+            {row.original.isActive ? 'Active' : 'Inactive'}
+          </span>
+        ),
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        enableSorting: false,
+        enableColumnFilter: false,
+        enableHiding: false,
+        accessorFn: () => '',
+        cell: ({ row }) => (
+          <div className="space-x-2">
+            <button
+              onClick={() => openEditForm(row.original)}
+              className="font-bold text-teal-600 transition hover:text-teal-800 hover:underline"
+              type="button"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => handleDelete(row.original.id)}
+              className="font-bold text-red-600 transition hover:text-red-800 hover:underline"
+              type="button"
+            >
+              Delete
+            </button>
+          </div>
+        ),
+    },
+  ];
+
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
-        <h1 className="text-3xl sm:text-4xl font-black mb-2">App Banners</h1>
+      <div className="border-b border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 p-4 text-white sm:p-6">
+        <h1 className="mb-2 text-3xl font-black sm:text-4xl">App Banners</h1>
         <p className="text-slate-300">Upload and manage banners shown on app screens</p>
       </div>
 
       <div className="p-4 sm:p-6">
         <button
           onClick={openCreateForm}
-          className="mb-6 flex w-full items-center justify-center gap-2 rounded-lg bg-teal-500 px-6 py-2 font-bold text-white transition hover:scale-105 hover:bg-teal-600 hover:shadow-lg sm:w-auto"
+          className="mb-6 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-teal-500 px-4 font-bold text-white transition hover:bg-teal-600 hover:shadow-lg"
+          type="button"
         >
-          <Plus size={20} />
+          <Plus size={18} />
           New Banner
         </button>
 
         {isLoading ? (
-          <div className="text-center py-12">Loading banners...</div>
+          <div className="py-12 text-center">Loading banners...</div>
         ) : banners.length === 0 ? (
-          <div className="text-center py-12 text-slate-500">
+          <div className="py-12 text-center text-slate-500">
             No banners yet. Create your first banner.
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-            <table className="w-full min-w-[760px]">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">Preview</th>
-                  <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">Title</th>
-                  <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">Screen</th>
-                  <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">Order</th>
-                  <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">Status</th>
-                  <th className="px-6 py-3 text-right text-sm font-bold text-slate-900">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {banners.map((banner) => (
-                  <tr key={banner.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4">
-                      <img
-                        src={banner.imageUrl}
-                        alt={banner.title}
-                        className="h-16 w-28 rounded object-cover border border-slate-200"
-                      />
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-900">
-                      {banner.title}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-700 uppercase">{banner.screen}</td>
-                    <td className="px-6 py-4 text-sm text-slate-700">{banner.sortOrder}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <span
-                        className={`px-3 py-1 rounded text-xs font-bold ${
-                          banner.isActive
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {banner.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm space-x-2">
-                      <button
-                        onClick={() => openEditForm(banner)}
-                        className="text-teal-600 hover:text-teal-800 hover:underline font-bold cursor-pointer transition"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(banner.id)}
-                        className="text-red-600 hover:text-red-800 hover:underline font-bold cursor-pointer transition"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            columns={columns}
+            data={banners}
+            searchPlaceholder="Search banners..."
+          />
         )}
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gradient-to-r from-teal-500 to-cyan-500 text-white p-6 border-b">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+            <div className="sticky top-0 border-b bg-gradient-to-r from-teal-500 to-cyan-500 p-6 text-white">
               <h2 className="text-2xl font-black">
                 {editingBanner ? 'Edit Banner' : 'Create Banner'}
               </h2>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6 p-4 sm:p-6">
               {submitError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
                   {submitError}
                 </div>
               )}
 
               <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">Title</label>
+                <label className="mb-2 block text-sm font-bold text-slate-900">Title</label>
                 <input
                   type="text"
                   value={formState.title}
-                  onChange={(event) =>
-                    setFormState((prev) => ({ ...prev, title: event.target.value }))
-                  }
-                  placeholder="Home promo banner"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
-                  required
+                  onChange={(e) => setFormState((prev) => ({ ...prev, title: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-teal-500 focus:outline-none"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-bold text-slate-900 mb-2">Screen</label>
+                  <label className="mb-2 block text-sm font-bold text-slate-900">Screen</label>
                   <select
                     value={formState.screen}
-                    onChange={(event) =>
+                    onChange={(e) =>
                       setFormState((prev) => ({
                         ...prev,
-                        screen: event.target.value as BannerScreen,
+                        screen: e.target.value as BannerScreen,
                       }))
                     }
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-teal-500 focus:outline-none"
                   >
                     {SCREEN_OPTIONS.map((screen) => (
                       <option key={screen} value={screen}>
@@ -295,72 +320,63 @@ export default function BannersView() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-slate-900 mb-2">Sort Order</label>
+                  <label className="mb-2 block text-sm font-bold text-slate-900">Order</label>
                   <input
                     type="number"
                     value={formState.sortOrder}
-                    onChange={(event) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        sortOrder: Number(event.target.value),
-                      }))
+                    onChange={(e) =>
+                      setFormState((prev) => ({ ...prev, sortOrder: Number(e.target.value) }))
                     }
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                    className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-teal-500 focus:outline-none"
                   />
                 </div>
               </div>
 
+              <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <input
+                  type="checkbox"
+                  checked={formState.isActive}
+                  onChange={(e) =>
+                    setFormState((prev) => ({ ...prev, isActive: e.target.checked }))
+                  }
+                  className="h-4 w-4 accent-teal-600"
+                />
+                <span className="text-sm font-medium text-slate-700">Banner is active</span>
+              </div>
+
               <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">Banner Image</label>
-                <label className="w-full h-36 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-teal-500 transition">
-                  <Upload size={26} className="text-slate-500" />
-                  <span className="mt-2 text-sm text-slate-600">
-                    {isUploading ? 'Uploading image...' : 'Click to upload image'}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => {
-                      void handleImageUpload(event);
-                    }}
-                  />
+                <label className="mb-2 block text-sm font-bold text-slate-900">
+                  Upload Image
                 </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-teal-500 focus:outline-none"
+                />
+                {isUploading && <p className="mt-2 text-sm text-slate-500">Reading image...</p>}
                 {formState.imageUrl && (
                   <img
                     src={formState.imageUrl}
-                    alt="Banner preview"
-                    className="mt-3 h-28 w-full rounded object-cover border border-slate-200"
+                    alt="Preview"
+                    className="mt-3 h-40 w-full rounded-lg border border-slate-200 object-cover"
                   />
                 )}
               </div>
 
-              <label className="flex items-center gap-3 text-sm font-semibold text-slate-800">
-                <input
-                  type="checkbox"
-                  checked={formState.isActive}
-                  onChange={(event) =>
-                    setFormState((prev) => ({ ...prev, isActive: event.target.checked }))
-                  }
-                  className="w-4 h-4 accent-teal-500"
-                />
-                Active banner
-              </label>
-
-              <div className="flex gap-3">
+              <div className="flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="flex-1 border border-slate-300 text-slate-700 py-2 rounded-lg font-bold hover:bg-slate-100 transition cursor-pointer"
+                  className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={createBanner.isPending || updateBanner.isPending || isUploading}
-                  className="flex-1 bg-teal-500 text-white py-2 rounded-lg font-bold hover:bg-teal-600 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="rounded-lg bg-teal-600 px-4 py-2 font-semibold text-white transition hover:bg-teal-700"
                 >
-                  {editingBanner ? 'Update Banner' : 'Create Banner'}
+                  Save Banner
                 </button>
               </div>
             </form>

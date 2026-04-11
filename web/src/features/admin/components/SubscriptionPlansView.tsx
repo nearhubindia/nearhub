@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { BadgePercent, CalendarDays, Layers, Plus, Sparkles, X } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '@/components/data-table';
 import {
   useSubscriptionTiers,
   useCreateSubscriptionTier,
@@ -222,6 +224,128 @@ export default function SubscriptionPlansView() {
     return labels.join(', ') || 'None';
   };
 
+  const columns: ColumnDef<TierRow>[] = [
+    {
+        accessorKey: 'name',
+        header: 'Name',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter name...' },
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            {row.original.name}
+            {!!row.original.highlight && (
+              <span className="rounded bg-teal-100 px-2 py-1 text-xs font-bold text-teal-800">
+                Popular
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        accessorKey: 'type',
+        header: 'Type',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter type...' },
+        cell: ({ row }) => (String(row.original.type || 'bundle') === 'boost' ? 'Boost Pack' : 'Bundle'),
+      },
+      {
+        accessorKey: 'price',
+        header: 'Price',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter price...' },
+        cell: ({ row }) => (
+          <span className="font-bold text-teal-600">
+            {(row.original.price as number) === 0 ? 'Free' : `₹${row.original.price as number}`}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'offerPrice',
+        header: 'Offer Price',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter offer price...' },
+        cell: ({ row }) =>
+          row.original.offerPrice && Number(row.original.offerPrice) > 0
+            ? `₹${Number(row.original.offerPrice)}`
+            : '-',
+      },
+      {
+        accessorKey: 'durationDays',
+        header: 'Duration',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter duration...' },
+        cell: ({ row }) => `${row.original.durationDays as number} days`,
+      },
+      {
+        accessorKey: 'boostCredits',
+        header: 'Boost Credits',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter boost credits...' },
+        cell: ({ row }) => (Number(row.original.boostCredits || 0) > 0 ? Number(row.original.boostCredits) : '-'),
+      },
+      {
+        id: 'features',
+        header: 'Features',
+        enableColumnFilter: true,
+        accessorFn: (tier) => renderFeatures(tier),
+        meta: { filterPlaceholder: 'Filter features...' },
+        cell: ({ row }) => (
+          <div className="max-w-xs text-xs text-slate-500 line-clamp-2">{renderFeatures(row.original)}</div>
+        ),
+      },
+      {
+        accessorKey: 'maxListings',
+        header: 'Max Listings',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter listings...' },
+        cell: ({ row }) =>
+          (row.original.maxListings as number) === -1
+            ? 'Unlimited'
+            : (row.original.maxListings as number),
+      },
+      {
+        accessorKey: 'isActive',
+        header: 'Status',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter status...' },
+        cell: ({ row }) => (
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-bold ${
+              row.original.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}
+          >
+            {row.original.isActive ? 'Active' : 'Inactive'}
+          </span>
+        ),
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        enableSorting: false,
+        enableColumnFilter: false,
+        enableHiding: false,
+        accessorFn: () => '',
+        cell: ({ row }) => (
+          <div className="space-x-2 text-right">
+            <button
+              onClick={() => openEditModal(row.original)}
+              className="cursor-pointer font-bold text-blue-600 transition hover:text-blue-800 hover:underline"
+              type="button"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => handleDeleteTier(row.original.id as string)}
+              className="cursor-pointer font-bold text-red-600 transition hover:text-red-800 hover:underline"
+              type="button"
+            >
+              Delete
+            </button>
+          </div>
+        ),
+    },
+  ];
+
   const inputClass =
     'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-4 focus:ring-cyan-100';
   const labelClass = 'mb-2 block text-sm font-semibold tracking-wide text-slate-700';
@@ -245,116 +369,10 @@ export default function SubscriptionPlansView() {
           <div className="text-center py-12 text-slate-500">Loading tiers...</div>
         ) : (
           <>
-            {/* Unified Tiers Table */}
             {tiers.length > 0 ? (
               <div>
                 <h2 className="text-2xl font-bold text-slate-900 mb-4">📊 Subscription Tiers</h2>
-                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-                  <table className="w-full min-w-[960px]">
-                    <thead className="bg-slate-50 border-b border-slate-200">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                          Name
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                          Type
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                          Price
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                          Offer Price
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                          Duration
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                          Boost Credits
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                          Features
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                          Max Listings
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-right text-sm font-bold text-slate-900">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {tiers.map((tier) => (
-                        <tr key={tier.id as string} className="hover:bg-slate-50">
-                          <td className="px-6 py-4 text-sm font-bold text-slate-900">
-                            <div className="flex items-center gap-2">
-                              {tier.name as string}
-                              {!!tier.highlight && (
-                                <span className="bg-teal-100 text-teal-800 px-2 py-1 rounded text-xs font-bold">
-                                  Popular
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-600">
-                            {String(tier.type || 'bundle') === 'boost' ? 'Boost Pack' : 'Bundle'}
-                          </td>
-                          <td className="px-6 py-4 text-sm font-bold text-teal-600">
-                            {(tier.price as number) === 0 ? 'Free' : `₹${tier.price as number}`}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-600 font-semibold">
-                            {tier.offerPrice && Number(tier.offerPrice) > 0
-                              ? `₹${Number(tier.offerPrice)}`
-                              : '-'}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-600">
-                            {tier.durationDays as number} days
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-600">
-                            {Number(tier.boostCredits || 0) > 0 ? Number(tier.boostCredits) : '-'}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-600">
-                            <div className="text-xs text-slate-500 max-w-xs line-clamp-2">
-                              {renderFeatures(tier)}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-600">
-                            {(tier.maxListings as number) === -1
-                              ? 'Unlimited'
-                              : (tier.maxListings as number)}
-                          </td>
-                          <td className="px-6 py-4 text-sm">
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                tier.isActive
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-red-100 text-red-800'
-                              }`}
-                            >
-                              {tier.isActive ? 'Active' : 'Inactive'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right text-sm space-x-2">
-                            <button
-                              onClick={() => openEditModal(tier)}
-                              className="text-blue-600 hover:text-blue-800 hover:underline font-bold cursor-pointer transition"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDeleteTier(tier.id as string)}
-                              className="text-red-600 hover:text-red-800 hover:underline font-bold cursor-pointer transition"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable columns={columns} data={tiers} searchPlaceholder="Search tiers..." />
               </div>
             ) : (
               <div className="text-center py-12 text-slate-500">

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '@/components/data-table';
 import { useSpamReports, useSpamTrends, useReviewSpamReport } from '@/features/admin/hooks';
 
 interface SpamRow {
@@ -37,10 +39,79 @@ export default function SpamDetectionView() {
     }
   };
 
+  const columns: ColumnDef<SpamRow>[] = [
+    {
+        id: 'primary',
+        header: filter === 'pending' ? 'Report ID' : 'Reason',
+        enableColumnFilter: true,
+        accessorFn: (row) => String(filter === 'pending' ? row.id || '' : row.reason || ''),
+        meta: { filterPlaceholder: 'Filter value...' },
+        cell: ({ row }) => (
+          <span className="font-medium text-slate-900">
+            {filter === 'pending' ? row.original.id || '-' : row.original.reason || '-'}
+          </span>
+        ),
+      },
+      {
+        id: 'secondary',
+        header: filter === 'pending' ? 'User' : 'Count',
+        enableColumnFilter: true,
+        accessorFn: (row) =>
+          String(filter === 'pending' ? row.reportedUserId || '' : row.count ?? ''),
+        meta: { filterPlaceholder: 'Filter user/count...' },
+        cell: ({ row }) => (
+          <span className="text-slate-600">
+            {filter === 'pending' ? row.original.reportedUserId || '-' : row.original.count ?? '-'}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'timestamp',
+        header: 'Date',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter date...' },
+        cell: ({ row }) =>
+          row.original.timestamp ? new Date(row.original.timestamp).toLocaleDateString() : 'N/A',
+      },
+      {
+        id: 'action',
+        header: 'Action',
+        enableSorting: false,
+        enableColumnFilter: false,
+        enableHiding: false,
+        accessorFn: () => '',
+        cell: ({ row }) =>
+          filter === 'pending' ? (
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleReview(row.original.id as string, 'approve')}
+                disabled={reviewSpam.isPending}
+                className="inline-flex items-center rounded-lg bg-green-100 px-3 py-1 text-green-700 transition hover:bg-green-200 disabled:cursor-not-allowed disabled:opacity-50"
+                type="button"
+              >
+                <CheckCircle className="mr-1 h-4 w-4" />
+                Approve
+              </button>
+              <button
+                onClick={() => handleReview(row.original.id as string, 'reject')}
+                disabled={reviewSpam.isPending}
+                className="inline-flex items-center rounded-lg bg-red-100 px-3 py-1 text-red-700 transition hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+                type="button"
+              >
+                <XCircle className="mr-1 h-4 w-4" />
+                Reject
+              </button>
+            </div>
+          ) : (
+            <span className="text-xs text-slate-500">View only</span>
+          ),
+    },
+  ];
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500"></div>
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-teal-500" />
       </div>
     );
   }
@@ -48,9 +119,9 @@ export default function SpamDetectionView() {
   if (error) {
     return (
       <div className="p-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
           <div className="flex items-center">
-            <XCircle className="h-5 w-5 mr-2" />
+            <XCircle className="mr-2 h-5 w-5" />
             Error loading spam data. Please try again.
           </div>
         </div>
@@ -60,17 +131,15 @@ export default function SpamDetectionView() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
-        <h1 className="text-3xl sm:text-4xl font-black mb-2">
-          <AlertTriangle className="inline-block mr-2 h-8 w-8" />
+      <div className="border-b border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 p-4 text-white sm:p-6">
+        <h1 className="mb-2 text-3xl font-black sm:text-4xl">
+          <AlertTriangle className="mr-2 inline-block h-8 w-8" />
           Spam Detection
         </h1>
         <p className="text-slate-300">Monitor and review spam reports and trending violations.</p>
       </div>
 
-      {/* Content */}
-      <div className="p-4 sm:p-6 space-y-6">
+      <div className="space-y-6 p-4 sm:p-6">
         <div className="mb-6 flex flex-wrap gap-2 sm:gap-4">
           {['pending', 'trending'].map((tab) => (
             <button
@@ -81,78 +150,18 @@ export default function SpamDetectionView() {
                   ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white'
                   : 'bg-slate-200 text-slate-900 hover:bg-slate-300'
               }`}
+              type="button"
             >
               {tab === 'pending' ? 'Pending Reports' : 'Trending Reasons'}
             </button>
           ))}
         </div>
 
-        <div className="overflow-x-auto rounded-lg bg-white shadow">
-          <table className="w-full min-w-[680px]">
-            <thead className="bg-gradient-to-r from-slate-100 to-slate-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-                  {filter === 'pending' ? 'Report ID' : 'Reason'}
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
-                  {filter === 'pending' ? 'User' : 'Count'}
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Date</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {reports.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-4 text-center text-slate-500">
-                    No {filter} reports found
-                  </td>
-                </tr>
-              ) : (
-                reports.map((item, idx: number) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 text-sm text-slate-900">
-                      {(item.id as string) || (item.reason as string)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {(item.reportedUserId as string) || (item.count as number)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {item.timestamp
-                        ? new Date(item.timestamp as string).toLocaleDateString()
-                        : 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      {filter === 'pending' && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleReview(item.id as string, 'approve')}
-                            disabled={reviewSpam.isPending}
-                            className="inline-flex items-center px-3 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleReview(item.id as string, 'reject')}
-                            disabled={reviewSpam.isPending}
-                            className="inline-flex items-center px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                          >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            Reject
-                          </button>
-                        </div>
-                      )}
-                      {filter === 'trending' && (
-                        <span className="text-slate-500 text-xs">View only</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={reports}
+          searchPlaceholder={filter === 'pending' ? 'Search pending reports...' : 'Search trends...'}
+        />
       </div>
     </div>
   );

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { CheckCircle2, Eye, Search, X, XCircle } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '@/components/data-table';
 import type { Listing } from '@/features/admin/types/admin-types';
 import { useListingById, useListings, useReviewListing } from '@/features/admin/hooks';
 import { getApiUrl } from '@/lib/config';
@@ -23,6 +25,7 @@ export default function PendingListingsView() {
   const detailsListing = detailsListingResponse?.data ?? null;
   const selectedListing = listings.find((listing) => listing.id === detailsListingId) || null;
   const detailsPhone = detailsListing?.contactPhone || selectedListing?.contactPhone || '-';
+
   const normalizeMediaUrl = (url: unknown): string => {
     if (typeof url !== 'string') return '';
     const value = url.trim();
@@ -52,6 +55,7 @@ export default function PendingListingsView() {
 
     return value;
   };
+
   const detailImages = (Array.isArray(detailsListing?.images) ? detailsListing.images : [])
     .map(normalizeMediaUrl)
     .filter(Boolean);
@@ -106,26 +110,109 @@ export default function PendingListingsView() {
     }
   };
 
+  const columns: ColumnDef<Listing>[] = [
+    {
+        accessorKey: 'title',
+        header: 'Title',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter title...' },
+      },
+      {
+        accessorKey: 'category',
+        header: 'Category',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter category...' },
+      },
+      {
+        id: 'price',
+        header: 'Price',
+        accessorFn: (listing) => String(listing.price ?? ''),
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter price...' },
+        cell: ({ row }) => `₹${row.original.price}`,
+      },
+      {
+        accessorKey: 'location',
+        header: 'Location',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter location...' },
+        cell: ({ row }) => row.original.location || '-',
+      },
+      {
+        accessorKey: 'userId',
+        header: 'User ID',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter user...' },
+        cell: ({ row }) => row.original.userId || '-',
+      },
+      {
+        id: 'contactPhone',
+        header: 'Phone',
+        enableColumnFilter: true,
+        accessorFn: (listing) => listing.contactPhone || '',
+        meta: { filterPlaceholder: 'Filter phone...' },
+        cell: ({ row }) => row.original.contactPhone || '-',
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        enableSorting: false,
+        enableColumnFilter: false,
+        enableHiding: false,
+        accessorFn: () => '',
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDetailsListingId(row.original.id)}
+              className="inline-flex items-center gap-1 rounded-lg bg-slate-700 px-3 py-1.5 text-white transition hover:bg-slate-800"
+              type="button"
+            >
+              <Eye size={14} />
+              View Details
+            </button>
+            <button
+              onClick={() => handleReview(row.original.id, 'approve')}
+              disabled={reviewListing.isPending}
+              className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+            >
+              <CheckCircle2 size={14} />
+              Approve
+            </button>
+            <button
+              onClick={() => handleReview(row.original.id, 'reject')}
+              disabled={reviewListing.isPending}
+              className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+            >
+              <XCircle size={14} />
+              Reject
+            </button>
+          </div>
+        ),
+    },
+  ];
+
   return (
     <div>
-      <div className="bg-gradient-to-r from-amber-700 to-orange-700 text-white p-4 sm:p-6 border-b border-amber-800">
-        <h1 className="text-3xl sm:text-4xl font-black mb-2">Approval Pending</h1>
+      <div className="border-b border-amber-800 bg-gradient-to-r from-amber-700 to-orange-700 p-4 text-white sm:p-6">
+        <h1 className="mb-2 text-3xl font-black sm:text-4xl">Approval Pending</h1>
         <p className="text-amber-100">Review and approve/reject new listings</p>
       </div>
 
       <div className="p-4 sm:p-6">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <div className="flex-1 relative">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-3 text-slate-400" size={20} />
             <input
               type="text"
               placeholder="Search by title, category, user ID, location, phone..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-amber-500"
+              className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 focus:border-amber-500 focus:outline-none"
             />
           </div>
-          <div className="rounded-lg bg-amber-100 px-4 py-2 font-bold text-amber-800 sm:shrink-0">
+          <div className="shrink-0 rounded-lg bg-amber-100 px-4 py-2 font-bold text-amber-800">
             {filteredListings.length} pending
           </div>
         </div>
@@ -133,224 +220,131 @@ export default function PendingListingsView() {
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500 mx-auto mb-4"></div>
+              <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-amber-500" />
               <p className="text-slate-600">Loading pending listings...</p>
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-            <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 text-sm text-slate-600">
-              Showing {filteredListings.length} pending listings
-            </div>
-
-            {filteredListings.length === 0 ? (
-              <div className="py-12 text-center text-slate-600">No pending listings found.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[820px]">
-                  <thead className="bg-slate-100 border-b border-slate-200">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                        Title
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                        Category
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                        Price
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                        Location
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                        User ID
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                        Phone
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-bold text-slate-900">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredListings.map((listing) => (
-                      <tr
-                        key={listing.id}
-                        className="border-b border-slate-200 hover:bg-slate-50 transition"
-                      >
-                        <td className="px-6 py-4 text-sm text-slate-900 font-medium">
-                          {listing.title}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-600">
-                          {listing.category || '-'}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-600">₹{listing.price}</td>
-                        <td className="px-6 py-4 text-sm text-slate-600">
-                          {listing.location || '-'}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-600">
-                          {listing.userId || '-'}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-600">
-                          {listing.contactPhone || '-'}
-                        </td>
-                        <td className="px-6 py-4 text-sm">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => setDetailsListingId(listing.id)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-slate-700 text-white hover:bg-slate-800 transition cursor-pointer"
-                            >
-                              <Eye size={14} />
-                              View Details
-                            </button>
-                            <button
-                              onClick={() => handleReview(listing.id, 'approve')}
-                              disabled={reviewListing.isPending}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-green-600 text-white hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                            >
-                              <CheckCircle2 size={14} />
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => handleReview(listing.id, 'reject')}
-                              disabled={reviewListing.isPending}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                            >
-                              <XCircle size={14} />
-                              Reject
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <DataTable
+            columns={columns}
+            data={filteredListings}
+            showSearch={false}
+            searchPlaceholder="Search pending listings..."
+          />
         )}
       </div>
 
       {detailsListingId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
               <div>
                 <h2 className="text-xl font-black text-slate-900">Listing Details</h2>
-                <p className="text-sm text-slate-600">
-                  Compact review with complete listing information
-                </p>
+                <p className="text-sm text-slate-500">Review the listing before approving it</p>
               </div>
               <button
                 onClick={() => setDetailsListingId(null)}
-                className="rounded p-2 text-slate-600 hover:bg-slate-100 cursor-pointer"
-                title="Close"
+                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                type="button"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {isDetailsLoading ? (
-              <div className="p-8 text-center text-slate-600">Loading listing details...</div>
-            ) : !detailsListing ? (
-              <div className="p-8 text-center text-red-600">Failed to load listing details.</div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-12">
-                <div className="space-y-4 lg:col-span-5">
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <div className="mb-3 flex items-start justify-between gap-2">
-                      <h3 className="text-base font-bold text-slate-900">{detailsListing.title}</h3>
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
-                        {String(detailsListing.status || 'pending').toUpperCase()}
-                      </span>
+            <div className="p-6">
+              {isDetailsLoading ? (
+                <div className="py-16 text-center text-slate-500">Loading details...</div>
+              ) : detailsListing ? (
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-sm text-slate-500">Title</p>
+                      <p className="mt-1 text-lg font-bold text-slate-900">{detailsListing.title}</p>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                      <p className="text-slate-500">Listing ID</p>
-                      <p className="font-medium text-slate-900 break-all">{detailsListing.id}</p>
-                      <p className="text-slate-500">User ID</p>
-                      <p className="font-medium text-slate-900 break-all">
-                        {detailsListing.userId || '-'}
-                      </p>
-                      <p className="text-slate-500">Phone</p>
-                      <p className="font-medium text-slate-900">{detailsPhone}</p>
-                      <p className="text-slate-500">Category</p>
-                      <p className="font-medium text-slate-900">{detailsListing.category || '-'}</p>
-                      <p className="text-slate-500">Condition</p>
-                      <p className="font-medium text-slate-900">
-                        {detailsListing.condition || '-'}
-                      </p>
-                      <p className="text-slate-500">Location</p>
-                      <p className="font-medium text-slate-900">{detailsListing.location || '-'}</p>
-                      <p className="text-slate-500">Price</p>
-                      <p className="font-semibold text-slate-900">₹{detailsListing.price}</p>
-                      <p className="text-slate-500">Offer Price</p>
-                      <p className="font-medium text-slate-900">
-                        {detailsListing.offerPrice ? `₹${detailsListing.offerPrice}` : '-'}
-                      </p>
-                      <p className="text-slate-500">Created</p>
-                      <p className="font-medium text-slate-900">
-                        {formatDateTime(detailsListing.createdAt)}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-lg border border-slate-200 p-4">
+                        <p className="text-sm text-slate-500">Price</p>
+                        <p className="mt-1 font-semibold text-slate-900">₹{detailsListing.price}</p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 p-4">
+                        <p className="text-sm text-slate-500">Category</p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {detailsListing.category || '-'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 p-4">
+                        <p className="text-sm text-slate-500">Location</p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {detailsListing.location || '-'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 p-4">
+                        <p className="text-sm text-slate-500">Phone</p>
+                        <p className="mt-1 font-semibold text-slate-900">{detailsPhone}</p>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 p-4">
+                      <p className="text-sm text-slate-500">Description</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                        {detailsListing.description || 'No description available.'}
                       </p>
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-slate-200 p-4">
-                    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Description
-                    </p>
-                    <p className="whitespace-pre-wrap text-sm text-slate-800">
-                      {detailsListing.description || '-'}
-                    </p>
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-slate-200 p-4">
+                      <p className="mb-3 text-sm font-semibold text-slate-700">Images</p>
+                      {detailImages.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          {detailImages.map((image) => (
+                            <img
+                              key={image}
+                              src={image}
+                              alt={detailsListing.title}
+                              className="h-40 w-full rounded-lg object-cover"
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500">No images available.</p>
+                      )}
+                    </div>
+
+                    <div className="rounded-lg border border-slate-200 p-4">
+                      <p className="mb-3 text-sm font-semibold text-slate-700">Videos</p>
+                      {detailVideos.length > 0 ? (
+                        <div className="space-y-3">
+                          {detailVideos.map((video) => (
+                            <video key={video} controls className="w-full rounded-lg">
+                              <source src={video} />
+                            </video>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500">No videos available.</p>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-lg border border-slate-200 p-4">
+                        <p className="text-sm text-slate-500">User ID</p>
+                        <p className="mt-1 break-all font-semibold text-slate-900">
+                          {detailsListing.userId || '-'}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 p-4">
+                        <p className="text-sm text-slate-500">Posted</p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {formatDateTime(detailsListing.createdAt || detailsListing.date)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                <div className="space-y-4 lg:col-span-7">
-                  <div className="rounded-lg border border-slate-200 p-4">
-                    <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Images ({detailImages.length})
-                    </p>
-                    {detailImages.length === 0 ? (
-                      <p className="text-sm text-slate-500">No images uploaded.</p>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 xl:grid-cols-3">
-                        {detailImages.map((src, idx) => (
-                          <img
-                            key={`${src}-${idx}`}
-                            src={src}
-                            alt={`Listing image ${idx + 1}`}
-                            className="h-32 w-full rounded-md border border-slate-200 object-cover"
-                            loading="lazy"
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rounded-lg border border-slate-200 p-4">
-                    <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Videos ({detailVideos.length})
-                    </p>
-                    {detailVideos.length === 0 ? (
-                      <p className="text-sm text-slate-500">No videos uploaded.</p>
-                    ) : (
-                      <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
-                        {detailVideos.map((src, idx) => (
-                          <video
-                            key={`${src}-${idx}`}
-                            controls
-                            playsInline
-                            preload="metadata"
-                            src={src}
-                            className="h-40 w-full rounded-md border border-slate-200 bg-black object-cover"
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
+              ) : (
+                <div className="py-16 text-center text-slate-500">Listing details not available.</div>
+              )}
+            </div>
           </div>
         </div>
       )}

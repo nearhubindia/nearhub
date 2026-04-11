@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { AlertOctagon, RefreshCcw, Search } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { DataTable } from '@/components/data-table';
 import {
   useCleanupErrorLogs,
   useErrorLogs,
@@ -47,6 +49,139 @@ export default function ErrorLogsView() {
   const cleanupLogs = useCleanupErrorLogs();
   const resolveOneLog = useResolveErrorLog();
   const logs = data?.logs || [];
+
+  const columns = useMemo<ColumnDef<(typeof logs)[number]>[]>(
+    () => [
+      {
+        accessorKey: 'createdAt',
+        header: 'Time',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter time...' },
+        cell: ({ row }) => <span className="text-sm text-slate-600">{formatDateTime(row.original.createdAt)}</span>,
+      },
+      {
+        accessorKey: 'level',
+        header: 'Level',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter level...' },
+        cell: ({ row }) => (
+          <span
+            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${levelBadge(row.original.level)}`}
+          >
+            {row.original.level}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'message',
+        header: 'Message',
+        enableColumnFilter: true,
+        meta: { filterPlaceholder: 'Filter message...' },
+        cell: ({ row }) => (
+          <div>
+            <p className="font-semibold text-slate-900">{row.original.message}</p>
+            {row.original.stackTrace && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-xs text-teal-700">stack trace</summary>
+                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-slate-900 p-2 text-xs text-slate-100">
+                  {row.original.stackTrace}
+                </pre>
+              </details>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'app',
+        header: 'App/Env',
+        enableColumnFilter: true,
+        accessorFn: (log) => `${log.appName || 'nearhub'} ${log.environment} ${log.appVersion || ''}`,
+        meta: { filterPlaceholder: 'Filter app...' },
+        cell: ({ row }) => (
+          <div className="text-sm text-slate-700">
+            <p className="font-semibold">{row.original.appName || 'nearhub'}</p>
+            <p>{row.original.environment}</p>
+            <p className="text-xs text-slate-500">{row.original.appVersion || '-'}</p>
+          </div>
+        ),
+      },
+      {
+        id: 'endpoint',
+        header: 'Endpoint / Count',
+        enableColumnFilter: true,
+        accessorFn: (log) =>
+          `${log.method || ''} ${log.endpoint || ''} ${log.statusCode || ''} ${log.occurrenceCount || 1}`,
+        meta: { filterPlaceholder: 'Filter endpoint...' },
+        cell: ({ row }) => {
+          const log = row.original;
+          return (
+            <div className="text-sm text-slate-700">
+              {log.method && <span className="font-semibold">{log.method} </span>}
+              {log.endpoint || '-'}
+              {log.statusCode && (
+                <span className="ml-2 text-xs text-slate-500">[{log.statusCode}]</span>
+              )}
+              <p className="mt-1 text-xs text-slate-500">occurrences: {log.occurrenceCount || 1}</p>
+              <p className="text-xs text-slate-500">
+                last seen: {formatDateTime(log.lastSeenAt || log.createdAt)}
+              </p>
+              {log.resolved && (
+                <span className="mt-1 inline-flex rounded bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">
+                  resolved
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'user',
+        header: 'User',
+        enableColumnFilter: true,
+        accessorFn: (log) => `${log.userId || ''} ${log.device || ''} ${log.ipAddress || ''}`,
+        meta: { filterPlaceholder: 'Filter user...' },
+        cell: ({ row }) => (
+          <div className="text-sm text-slate-700">
+            <p>{row.original.userId || '-'}</p>
+            <p className="text-xs text-slate-500">{row.original.device || '-'}</p>
+            <p className="text-xs text-slate-500">{row.original.ipAddress || '-'}</p>
+          </div>
+        ),
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        enableSorting: false,
+        enableColumnFilter: false,
+        enableHiding: false,
+        accessorFn: () => '',
+        cell: ({ row }) => (
+          <button
+            onClick={() =>
+              resolveOneLog.mutate({
+                id: row.original.id,
+                resolved: !row.original.resolved,
+              })
+            }
+            disabled={resolveOneLog.isPending}
+            className={`rounded px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${
+              row.original.resolved
+                ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                : 'bg-teal-600 text-white hover:bg-teal-700'
+            }`}
+            type="button"
+          >
+            {resolveOneLog.isPending
+              ? 'Saving...'
+              : row.original.resolved
+                ? 'Mark Unresolved'
+                : 'Mark Resolved'}
+          </button>
+        ),
+      },
+    ],
+    [resolveOneLog]
+  );
 
   return (
     <div>
@@ -147,116 +282,18 @@ export default function ErrorLogsView() {
           </button>
         </div>
 
-        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-          {isLoading ? (
-            <div className="p-12 text-center text-slate-600">Loading logs...</div>
-          ) : logs.length === 0 ? (
-            <div className="p-12 text-center text-slate-600">No error logs found</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px]">
-                <thead className="bg-slate-100 border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">Time</th>
-                    <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">Level</th>
-                    <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">
-                      Message
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">
-                      App/Env
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">
-                      Endpoint / Count
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">User</th>
-                    <th className="px-4 py-3 text-left text-sm font-bold text-slate-900">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.map((log) => (
-                    <tr key={log.id} className="border-b border-slate-200 align-top">
-                      <td className="px-4 py-4 text-sm text-slate-600">
-                        {formatDateTime(log.createdAt)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${levelBadge(log.level)}`}
-                        >
-                          {log.level}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <p className="text-sm font-semibold text-slate-900">{log.message}</p>
-                        {log.stackTrace && (
-                          <details className="mt-2">
-                            <summary className="text-xs text-teal-700 cursor-pointer">
-                              stack trace
-                            </summary>
-                            <pre className="mt-2 p-2 bg-slate-900 text-slate-100 text-xs rounded overflow-auto max-h-40 whitespace-pre-wrap">
-                              {log.stackTrace}
-                            </pre>
-                          </details>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">
-                        <p className="font-semibold">{log.appName || 'nearhub'}</p>
-                        <p>{log.environment}</p>
-                        <p className="text-xs text-slate-500">{log.appVersion || '-'}</p>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">
-                        {log.method && <span className="font-semibold">{log.method} </span>}
-                        {log.endpoint || '-'}
-                        {log.statusCode && (
-                          <span className="ml-2 text-xs text-slate-500">[{log.statusCode}]</span>
-                        )}
-                        <p className="mt-1 text-xs text-slate-500">
-                          occurrences: {log.occurrenceCount || 1}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          last seen: {formatDateTime(log.lastSeenAt || log.createdAt)}
-                        </p>
-                        {log.resolved && (
-                          <span className="inline-flex mt-1 px-2 py-0.5 rounded bg-green-100 text-green-700 text-[10px] font-bold">
-                            resolved
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">
-                        <p>{log.userId || '-'}</p>
-                        <p className="text-xs text-slate-500">{log.device || '-'}</p>
-                        <p className="text-xs text-slate-500">{log.ipAddress || '-'}</p>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">
-                        <button
-                          onClick={() =>
-                            resolveOneLog.mutate({
-                              id: log.id,
-                              resolved: !log.resolved,
-                            })
-                          }
-                          disabled={resolveOneLog.isPending}
-                          className={`px-3 py-1.5 rounded text-xs font-semibold disabled:opacity-50 ${
-                            log.resolved
-                              ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                              : 'bg-teal-600 text-white hover:bg-teal-700'
-                          }`}
-                        >
-                          {resolveOneLog.isPending
-                            ? 'Saving...'
-                            : log.resolved
-                              ? 'Mark Unresolved'
-                              : 'Mark Resolved'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        {isLoading ? (
+          <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-600">
+            Loading logs...
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={logs}
+            showSearch={false}
+            searchPlaceholder="Search logs..."
+          />
+        )}
 
         <div className="text-sm text-slate-600 inline-flex items-center gap-2">
           <AlertOctagon size={16} />
