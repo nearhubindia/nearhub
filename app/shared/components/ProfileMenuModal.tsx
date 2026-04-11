@@ -188,7 +188,11 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
                   </View>
                   {unreadChatsCount > 0 ? (
                     <View style={styles.unreadPill}>
-                      <Feather name="message-circle" size={responsiveModerateScale(12)} color="#fff" />
+                      <Feather
+                        name="message-circle"
+                        size={responsiveModerateScale(12)}
+                        color="#fff"
+                      />
                       <Text style={styles.unreadPillText}>{unreadChatsLabel} new chats</Text>
                     </View>
                   ) : null}

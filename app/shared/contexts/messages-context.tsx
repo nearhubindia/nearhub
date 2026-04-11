@@ -90,7 +90,8 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const unreadChatsCount = useMemo(
     () =>
       threads.reduce(
-        (sum, thread) => sum + Math.max(0, Number.isFinite(thread.unreadCount) ? thread.unreadCount : 0),
+        (sum, thread) =>
+          sum + Math.max(0, Number.isFinite(thread.unreadCount) ? thread.unreadCount : 0),
         0
       ),
     [threads]
@@ -432,7 +433,15 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       loadThreadMessages,
       sendMessage,
     }),
-    [getThread, isLoading, loadThreadMessages, refreshThreads, sendMessage, threads, unreadChatsCount]
+    [
+      getThread,
+      isLoading,
+      loadThreadMessages,
+      refreshThreads,
+      sendMessage,
+      threads,
+      unreadChatsCount,
+    ]
   );
 
   return <MessagesContext.Provider value={value}>{children}</MessagesContext.Provider>;

@@ -124,12 +124,15 @@ export default function ProfileScreen() {
     }
 
     const keyboardAdjustmentOffset = Platform.OS === 'ios' ? 110 : 160;
-    scrollToBioTimeoutRef.current = setTimeout(() => {
-      scrollViewRef.current?.scrollTo({
-        y: Math.max(0, bioSectionY - keyboardAdjustmentOffset),
-        animated,
-      });
-    }, Platform.OS === 'ios' ? 120 : 80);
+    scrollToBioTimeoutRef.current = setTimeout(
+      () => {
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, bioSectionY - keyboardAdjustmentOffset),
+          animated,
+        });
+      },
+      Platform.OS === 'ios' ? 120 : 80
+    );
   }, []);
 
   const syncProfileToServer = async (payload: {
