@@ -204,7 +204,9 @@ export default function NotificationsScreen() {
         <View style={styles.emptyWrap}>
           <Feather name="bell-off" size={44} color={theme.emptyIcon} />
           <Text style={[styles.emptyTitle, { color: theme.text }]}>No notifications yet</Text>
-          <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>New alerts will appear here.</Text>
+          <Text style={[styles.emptySubtitle, { color: theme.mutedText }]}>
+            New alerts will appear here.
+          </Text>
         </View>
       )}
     </SafeAreaView>

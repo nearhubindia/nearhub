@@ -30,7 +30,9 @@ export function NotificationBell({ tone = 'light' }: NotificationBellProps) {
       />
       {notifications.length > 0 && (
         <View style={[styles.badge, isDarkTone && styles.badgeDark]}>
-          <Text style={styles.badgeText}>{notifications.length > 99 ? '99+' : notifications.length}</Text>
+          <Text style={styles.badgeText}>
+            {notifications.length > 99 ? '99+' : notifications.length}
+          </Text>
         </View>
       )}
     </TouchableOpacity>
