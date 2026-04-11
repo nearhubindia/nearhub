@@ -86,12 +86,14 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   const thread = getThread(resolvedConversationId || listingId);
-  const listing = getListingById(listingId) || (thread?.listingId ? getListingById(thread.listingId) : undefined);
+  const listing =
+    getListingById(listingId) || (thread?.listingId ? getListingById(thread.listingId) : undefined);
   const messages = thread?.messages || [];
   const profileTargetId =
     String(thread?.otherUserId || otherUserIdParam || listing?.userId || '').trim() || '';
   const sellerDisplayName = sellerName || thread?.sellerName || listing?.sellerName || 'Seller';
-  const sellerAvatarUrl = thread?.otherUserAvatar || otherUserAvatarParam || listing?.sellerAvatar || '';
+  const sellerAvatarUrl =
+    thread?.otherUserAvatar || otherUserAvatarParam || listing?.sellerAvatar || '';
   const sellerAvatarInitial = sellerDisplayName.trim().charAt(0).toUpperCase() || 'S';
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;

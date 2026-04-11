@@ -346,10 +346,15 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         if (existingIndex >= 0) {
           const updated = [...prev];
           const existing = updated[existingIndex];
-          const resolvedOtherUserId = result.otherUserId || existing.otherUserId || inferredOtherUserId;
+          const resolvedOtherUserId =
+            result.otherUserId || existing.otherUserId || inferredOtherUserId;
           const resolvedOtherUserAvatar = result.otherUserAvatar || existing.otherUserAvatar || '';
           const resolvedSellerName =
-            result.otherUserName || result.otherUserLabel || existing.sellerName || sellerName || 'Seller';
+            result.otherUserName ||
+            result.otherUserLabel ||
+            existing.sellerName ||
+            sellerName ||
+            'Seller';
           updated[existingIndex] = {
             ...existing,
             listingId: result.listingId || existing.listingId || listingId,

@@ -88,7 +88,10 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
               ) : null}
             </View>
           </View>
-          <Text style={[styles.sellerName, unreadCount > 0 && styles.sellerNameUnread]} numberOfLines={1}>
+          <Text
+            style={[styles.sellerName, unreadCount > 0 && styles.sellerNameUnread]}
+            numberOfLines={1}
+          >
             {thread.sellerName || 'User'}
           </Text>
           <Text

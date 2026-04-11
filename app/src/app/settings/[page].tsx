@@ -297,7 +297,11 @@ export default function SettingDetailScreen() {
 
         {key === 'delete-account' ? (
           <Pressable
-            style={[styles.ctaButton, styles.dangerCta, isDeletingAccount && styles.ctaButtonDisabled]}
+            style={[
+              styles.ctaButton,
+              styles.dangerCta,
+              isDeletingAccount && styles.ctaButtonDisabled,
+            ]}
             onPress={handleDeleteAccount}
             disabled={isDeletingAccount}
             android_ripple={{ color: '#CC334D' }}
