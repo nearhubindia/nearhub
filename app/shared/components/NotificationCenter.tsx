@@ -175,7 +175,11 @@ export function NotificationCenter() {
           accessibilityRole="button"
           accessibilityLabel="Dismiss notification"
         >
-          <Feather name="x" size={responsiveModerateScale(16)} color={isDark ? '#9ca3af' : '#6b7280'} />
+          <Feather
+            name="x"
+            size={responsiveModerateScale(16)}
+            color={isDark ? '#9ca3af' : '#6b7280'}
+          />
         </Pressable>
       </Animated.View>
     </View>
