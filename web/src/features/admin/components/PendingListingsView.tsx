@@ -112,84 +112,84 @@ export default function PendingListingsView() {
 
   const columns: ColumnDef<Listing>[] = [
     {
-        accessorKey: 'title',
-        header: 'Title',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter title...' },
-      },
-      {
-        accessorKey: 'category',
-        header: 'Category',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter category...' },
-      },
-      {
-        id: 'price',
-        header: 'Price',
-        accessorFn: (listing) => String(listing.price ?? ''),
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter price...' },
-        cell: ({ row }) => `₹${row.original.price}`,
-      },
-      {
-        accessorKey: 'location',
-        header: 'Location',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter location...' },
-        cell: ({ row }) => row.original.location || '-',
-      },
-      {
-        accessorKey: 'userId',
-        header: 'User ID',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter user...' },
-        cell: ({ row }) => row.original.userId || '-',
-      },
-      {
-        id: 'contactPhone',
-        header: 'Phone',
-        enableColumnFilter: true,
-        accessorFn: (listing) => listing.contactPhone || '',
-        meta: { filterPlaceholder: 'Filter phone...' },
-        cell: ({ row }) => row.original.contactPhone || '-',
-      },
-      {
-        id: 'actions',
-        header: 'Actions',
-        enableSorting: false,
-        enableColumnFilter: false,
-        enableHiding: false,
-        accessorFn: () => '',
-        cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setDetailsListingId(row.original.id)}
-              className="inline-flex items-center gap-1 rounded-lg bg-slate-700 px-3 py-1.5 text-white transition hover:bg-slate-800"
-              type="button"
-            >
-              <Eye size={14} />
-              View Details
-            </button>
-            <button
-              onClick={() => handleReview(row.original.id, 'approve')}
-              disabled={reviewListing.isPending}
-              className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-              type="button"
-            >
-              <CheckCircle2 size={14} />
-              Approve
-            </button>
-            <button
-              onClick={() => handleReview(row.original.id, 'reject')}
-              disabled={reviewListing.isPending}
-              className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-              type="button"
-            >
-              <XCircle size={14} />
-              Reject
-            </button>
-          </div>
-        ),
+      accessorKey: 'title',
+      header: 'Title',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter title...' },
+    },
+    {
+      accessorKey: 'category',
+      header: 'Category',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter category...' },
+    },
+    {
+      id: 'price',
+      header: 'Price',
+      accessorFn: (listing) => String(listing.price ?? ''),
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter price...' },
+      cell: ({ row }) => `₹${row.original.price}`,
+    },
+    {
+      accessorKey: 'location',
+      header: 'Location',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter location...' },
+      cell: ({ row }) => row.original.location || '-',
+    },
+    {
+      accessorKey: 'userId',
+      header: 'User ID',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter user...' },
+      cell: ({ row }) => row.original.userId || '-',
+    },
+    {
+      id: 'contactPhone',
+      header: 'Phone',
+      enableColumnFilter: true,
+      accessorFn: (listing) => listing.contactPhone || '',
+      meta: { filterPlaceholder: 'Filter phone...' },
+      cell: ({ row }) => row.original.contactPhone || '-',
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      enableColumnFilter: false,
+      enableHiding: false,
+      accessorFn: () => '',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setDetailsListingId(row.original.id)}
+            className="inline-flex items-center gap-1 rounded-lg bg-slate-700 px-3 py-1.5 text-white transition hover:bg-slate-800"
+            type="button"
+          >
+            <Eye size={14} />
+            View Details
+          </button>
+          <button
+            onClick={() => handleReview(row.original.id, 'approve')}
+            disabled={reviewListing.isPending}
+            className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+          >
+            <CheckCircle2 size={14} />
+            Approve
+          </button>
+          <button
+            onClick={() => handleReview(row.original.id, 'reject')}
+            disabled={reviewListing.isPending}
+            className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+          >
+            <XCircle size={14} />
+            Reject
+          </button>
+        </div>
+      ),
     },
   ];
 
@@ -259,7 +259,9 @@ export default function PendingListingsView() {
                   <div className="space-y-4">
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                       <p className="text-sm text-slate-500">Title</p>
-                      <p className="mt-1 text-lg font-bold text-slate-900">{detailsListing.title}</p>
+                      <p className="mt-1 text-lg font-bold text-slate-900">
+                        {detailsListing.title}
+                      </p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="rounded-lg border border-slate-200 p-4">
@@ -342,7 +344,9 @@ export default function PendingListingsView() {
                   </div>
                 </div>
               ) : (
-                <div className="py-16 text-center text-slate-500">Listing details not available.</div>
+                <div className="py-16 text-center text-slate-500">
+                  Listing details not available.
+                </div>
               )}
             </div>
           </div>

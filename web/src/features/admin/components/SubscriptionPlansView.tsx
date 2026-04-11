@@ -226,123 +226,127 @@ export default function SubscriptionPlansView() {
 
   const columns: ColumnDef<TierRow>[] = [
     {
-        accessorKey: 'name',
-        header: 'Name',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter name...' },
-        cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            {row.original.name}
-            {!!row.original.highlight && (
-              <span className="rounded bg-teal-100 px-2 py-1 text-xs font-bold text-teal-800">
-                Popular
-              </span>
-            )}
-          </div>
-        ),
-      },
-      {
-        accessorKey: 'type',
-        header: 'Type',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter type...' },
-        cell: ({ row }) => (String(row.original.type || 'bundle') === 'boost' ? 'Boost Pack' : 'Bundle'),
-      },
-      {
-        accessorKey: 'price',
-        header: 'Price',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter price...' },
-        cell: ({ row }) => (
-          <span className="font-bold text-teal-600">
-            {(row.original.price as number) === 0 ? 'Free' : `₹${row.original.price as number}`}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'offerPrice',
-        header: 'Offer Price',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter offer price...' },
-        cell: ({ row }) =>
-          row.original.offerPrice && Number(row.original.offerPrice) > 0
-            ? `₹${Number(row.original.offerPrice)}`
-            : '-',
-      },
-      {
-        accessorKey: 'durationDays',
-        header: 'Duration',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter duration...' },
-        cell: ({ row }) => `${row.original.durationDays as number} days`,
-      },
-      {
-        accessorKey: 'boostCredits',
-        header: 'Boost Credits',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter boost credits...' },
-        cell: ({ row }) => (Number(row.original.boostCredits || 0) > 0 ? Number(row.original.boostCredits) : '-'),
-      },
-      {
-        id: 'features',
-        header: 'Features',
-        enableColumnFilter: true,
-        accessorFn: (tier) => renderFeatures(tier),
-        meta: { filterPlaceholder: 'Filter features...' },
-        cell: ({ row }) => (
-          <div className="max-w-xs text-xs text-slate-500 line-clamp-2">{renderFeatures(row.original)}</div>
-        ),
-      },
-      {
-        accessorKey: 'maxListings',
-        header: 'Max Listings',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter listings...' },
-        cell: ({ row }) =>
-          (row.original.maxListings as number) === -1
-            ? 'Unlimited'
-            : (row.original.maxListings as number),
-      },
-      {
-        accessorKey: 'isActive',
-        header: 'Status',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter status...' },
-        cell: ({ row }) => (
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-bold ${
-              row.original.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-            }`}
+      accessorKey: 'name',
+      header: 'Name',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter name...' },
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          {row.original.name}
+          {!!row.original.highlight && (
+            <span className="rounded bg-teal-100 px-2 py-1 text-xs font-bold text-teal-800">
+              Popular
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'type',
+      header: 'Type',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter type...' },
+      cell: ({ row }) =>
+        String(row.original.type || 'bundle') === 'boost' ? 'Boost Pack' : 'Bundle',
+    },
+    {
+      accessorKey: 'price',
+      header: 'Price',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter price...' },
+      cell: ({ row }) => (
+        <span className="font-bold text-teal-600">
+          {(row.original.price as number) === 0 ? 'Free' : `₹${row.original.price as number}`}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'offerPrice',
+      header: 'Offer Price',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter offer price...' },
+      cell: ({ row }) =>
+        row.original.offerPrice && Number(row.original.offerPrice) > 0
+          ? `₹${Number(row.original.offerPrice)}`
+          : '-',
+    },
+    {
+      accessorKey: 'durationDays',
+      header: 'Duration',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter duration...' },
+      cell: ({ row }) => `${row.original.durationDays as number} days`,
+    },
+    {
+      accessorKey: 'boostCredits',
+      header: 'Boost Credits',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter boost credits...' },
+      cell: ({ row }) =>
+        Number(row.original.boostCredits || 0) > 0 ? Number(row.original.boostCredits) : '-',
+    },
+    {
+      id: 'features',
+      header: 'Features',
+      enableColumnFilter: true,
+      accessorFn: (tier) => renderFeatures(tier),
+      meta: { filterPlaceholder: 'Filter features...' },
+      cell: ({ row }) => (
+        <div className="max-w-xs text-xs text-slate-500 line-clamp-2">
+          {renderFeatures(row.original)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'maxListings',
+      header: 'Max Listings',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter listings...' },
+      cell: ({ row }) =>
+        (row.original.maxListings as number) === -1
+          ? 'Unlimited'
+          : (row.original.maxListings as number),
+    },
+    {
+      accessorKey: 'isActive',
+      header: 'Status',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter status...' },
+      cell: ({ row }) => (
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-bold ${
+            row.original.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}
+        >
+          {row.original.isActive ? 'Active' : 'Inactive'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      enableColumnFilter: false,
+      enableHiding: false,
+      accessorFn: () => '',
+      cell: ({ row }) => (
+        <div className="space-x-2 text-right">
+          <button
+            onClick={() => openEditModal(row.original)}
+            className="cursor-pointer font-bold text-blue-600 transition hover:text-blue-800 hover:underline"
+            type="button"
           >
-            {row.original.isActive ? 'Active' : 'Inactive'}
-          </span>
-        ),
-      },
-      {
-        id: 'actions',
-        header: 'Actions',
-        enableSorting: false,
-        enableColumnFilter: false,
-        enableHiding: false,
-        accessorFn: () => '',
-        cell: ({ row }) => (
-          <div className="space-x-2 text-right">
-            <button
-              onClick={() => openEditModal(row.original)}
-              className="cursor-pointer font-bold text-blue-600 transition hover:text-blue-800 hover:underline"
-              type="button"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => handleDeleteTier(row.original.id as string)}
-              className="cursor-pointer font-bold text-red-600 transition hover:text-red-800 hover:underline"
-              type="button"
-            >
-              Delete
-            </button>
-          </div>
-        ),
+            Edit
+          </button>
+          <button
+            onClick={() => handleDeleteTier(row.original.id as string)}
+            className="cursor-pointer font-bold text-red-600 transition hover:text-red-800 hover:underline"
+            type="button"
+          >
+            Delete
+          </button>
+        </div>
+      ),
     },
   ];
 

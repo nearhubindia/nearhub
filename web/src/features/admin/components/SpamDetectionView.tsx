@@ -41,70 +41,70 @@ export default function SpamDetectionView() {
 
   const columns: ColumnDef<SpamRow>[] = [
     {
-        id: 'primary',
-        header: filter === 'pending' ? 'Report ID' : 'Reason',
-        enableColumnFilter: true,
-        accessorFn: (row) => String(filter === 'pending' ? row.id || '' : row.reason || ''),
-        meta: { filterPlaceholder: 'Filter value...' },
-        cell: ({ row }) => (
-          <span className="font-medium text-slate-900">
-            {filter === 'pending' ? row.original.id || '-' : row.original.reason || '-'}
-          </span>
+      id: 'primary',
+      header: filter === 'pending' ? 'Report ID' : 'Reason',
+      enableColumnFilter: true,
+      accessorFn: (row) => String(filter === 'pending' ? row.id || '' : row.reason || ''),
+      meta: { filterPlaceholder: 'Filter value...' },
+      cell: ({ row }) => (
+        <span className="font-medium text-slate-900">
+          {filter === 'pending' ? row.original.id || '-' : row.original.reason || '-'}
+        </span>
+      ),
+    },
+    {
+      id: 'secondary',
+      header: filter === 'pending' ? 'User' : 'Count',
+      enableColumnFilter: true,
+      accessorFn: (row) =>
+        String(filter === 'pending' ? row.reportedUserId || '' : (row.count ?? '')),
+      meta: { filterPlaceholder: 'Filter user/count...' },
+      cell: ({ row }) => (
+        <span className="text-slate-600">
+          {filter === 'pending' ? row.original.reportedUserId || '-' : (row.original.count ?? '-')}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'timestamp',
+      header: 'Date',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter date...' },
+      cell: ({ row }) =>
+        row.original.timestamp ? new Date(row.original.timestamp).toLocaleDateString() : 'N/A',
+    },
+    {
+      id: 'action',
+      header: 'Action',
+      enableSorting: false,
+      enableColumnFilter: false,
+      enableHiding: false,
+      accessorFn: () => '',
+      cell: ({ row }) =>
+        filter === 'pending' ? (
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleReview(row.original.id as string, 'approve')}
+              disabled={reviewSpam.isPending}
+              className="inline-flex items-center rounded-lg bg-green-100 px-3 py-1 text-green-700 transition hover:bg-green-200 disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+            >
+              <CheckCircle className="mr-1 h-4 w-4" />
+              Approve
+            </button>
+            <button
+              onClick={() => handleReview(row.original.id as string, 'reject')}
+              disabled={reviewSpam.isPending}
+              className="inline-flex items-center rounded-lg bg-red-100 px-3 py-1 text-red-700 transition hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+            >
+              <XCircle className="mr-1 h-4 w-4" />
+              Reject
+            </button>
+          </div>
+        ) : (
+          <span className="text-xs text-slate-500">View only</span>
         ),
-      },
-      {
-        id: 'secondary',
-        header: filter === 'pending' ? 'User' : 'Count',
-        enableColumnFilter: true,
-        accessorFn: (row) =>
-          String(filter === 'pending' ? row.reportedUserId || '' : row.count ?? ''),
-        meta: { filterPlaceholder: 'Filter user/count...' },
-        cell: ({ row }) => (
-          <span className="text-slate-600">
-            {filter === 'pending' ? row.original.reportedUserId || '-' : row.original.count ?? '-'}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'timestamp',
-        header: 'Date',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter date...' },
-        cell: ({ row }) =>
-          row.original.timestamp ? new Date(row.original.timestamp).toLocaleDateString() : 'N/A',
-      },
-      {
-        id: 'action',
-        header: 'Action',
-        enableSorting: false,
-        enableColumnFilter: false,
-        enableHiding: false,
-        accessorFn: () => '',
-        cell: ({ row }) =>
-          filter === 'pending' ? (
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleReview(row.original.id as string, 'approve')}
-                disabled={reviewSpam.isPending}
-                className="inline-flex items-center rounded-lg bg-green-100 px-3 py-1 text-green-700 transition hover:bg-green-200 disabled:cursor-not-allowed disabled:opacity-50"
-                type="button"
-              >
-                <CheckCircle className="mr-1 h-4 w-4" />
-                Approve
-              </button>
-              <button
-                onClick={() => handleReview(row.original.id as string, 'reject')}
-                disabled={reviewSpam.isPending}
-                className="inline-flex items-center rounded-lg bg-red-100 px-3 py-1 text-red-700 transition hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-50"
-                type="button"
-              >
-                <XCircle className="mr-1 h-4 w-4" />
-                Reject
-              </button>
-            </div>
-          ) : (
-            <span className="text-xs text-slate-500">View only</span>
-          ),
     },
   ];
 
@@ -160,7 +160,9 @@ export default function SpamDetectionView() {
         <DataTable
           columns={columns}
           data={reports}
-          searchPlaceholder={filter === 'pending' ? 'Search pending reports...' : 'Search trends...'}
+          searchPlaceholder={
+            filter === 'pending' ? 'Search pending reports...' : 'Search trends...'
+          }
         />
       </div>
     </div>

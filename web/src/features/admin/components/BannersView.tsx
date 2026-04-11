@@ -164,79 +164,79 @@ export default function BannersView() {
 
   const columns: ColumnDef<AppScreenBanner>[] = [
     {
-        id: 'preview',
-        header: 'Preview',
-        enableSorting: false,
-        enableColumnFilter: false,
-        enableHiding: false,
-        accessorFn: (banner) => banner.imageUrl,
-        cell: ({ row }) => (
-          <img
-            src={row.original.imageUrl}
-            alt={row.original.title}
-            className="h-16 w-28 rounded border border-slate-200 object-cover"
-          />
-        ),
-      },
-      {
-        accessorKey: 'title',
-        header: 'Title',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter title...' },
-      },
-      {
-        accessorKey: 'screen',
-        header: 'Screen',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter screen...' },
-        cell: ({ row }) => <span className="uppercase">{row.original.screen}</span>,
-      },
-      {
-        accessorKey: 'sortOrder',
-        header: 'Order',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter order...' },
-      },
-      {
-        accessorKey: 'isActive',
-        header: 'Status',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter status...' },
-        cell: ({ row }) => (
-          <span
-            className={`rounded px-3 py-1 text-xs font-bold ${
-              row.original.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-            }`}
+      id: 'preview',
+      header: 'Preview',
+      enableSorting: false,
+      enableColumnFilter: false,
+      enableHiding: false,
+      accessorFn: (banner) => banner.imageUrl,
+      cell: ({ row }) => (
+        <img
+          src={row.original.imageUrl}
+          alt={row.original.title}
+          className="h-16 w-28 rounded border border-slate-200 object-cover"
+        />
+      ),
+    },
+    {
+      accessorKey: 'title',
+      header: 'Title',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter title...' },
+    },
+    {
+      accessorKey: 'screen',
+      header: 'Screen',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter screen...' },
+      cell: ({ row }) => <span className="uppercase">{row.original.screen}</span>,
+    },
+    {
+      accessorKey: 'sortOrder',
+      header: 'Order',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter order...' },
+    },
+    {
+      accessorKey: 'isActive',
+      header: 'Status',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter status...' },
+      cell: ({ row }) => (
+        <span
+          className={`rounded px-3 py-1 text-xs font-bold ${
+            row.original.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}
+        >
+          {row.original.isActive ? 'Active' : 'Inactive'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      enableColumnFilter: false,
+      enableHiding: false,
+      accessorFn: () => '',
+      cell: ({ row }) => (
+        <div className="space-x-2">
+          <button
+            onClick={() => openEditForm(row.original)}
+            className="font-bold text-teal-600 transition hover:text-teal-800 hover:underline"
+            type="button"
           >
-            {row.original.isActive ? 'Active' : 'Inactive'}
-          </span>
-        ),
-      },
-      {
-        id: 'actions',
-        header: 'Actions',
-        enableSorting: false,
-        enableColumnFilter: false,
-        enableHiding: false,
-        accessorFn: () => '',
-        cell: ({ row }) => (
-          <div className="space-x-2">
-            <button
-              onClick={() => openEditForm(row.original)}
-              className="font-bold text-teal-600 transition hover:text-teal-800 hover:underline"
-              type="button"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => handleDelete(row.original.id)}
-              className="font-bold text-red-600 transition hover:text-red-800 hover:underline"
-              type="button"
-            >
-              Delete
-            </button>
-          </div>
-        ),
+            Edit
+          </button>
+          <button
+            onClick={() => handleDelete(row.original.id)}
+            className="font-bold text-red-600 transition hover:text-red-800 hover:underline"
+            type="button"
+          >
+            Delete
+          </button>
+        </div>
+      ),
     },
   ];
 
@@ -264,11 +264,7 @@ export default function BannersView() {
             No banners yet. Create your first banner.
           </div>
         ) : (
-          <DataTable
-            columns={columns}
-            data={banners}
-            searchPlaceholder="Search banners..."
-          />
+          <DataTable columns={columns} data={banners} searchPlaceholder="Search banners..." />
         )}
       </div>
 
@@ -345,9 +341,7 @@ export default function BannersView() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-900">
-                  Upload Image
-                </label>
+                <label className="mb-2 block text-sm font-bold text-slate-900">Upload Image</label>
                 <input
                   type="file"
                   accept="image/*"

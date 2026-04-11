@@ -72,7 +72,9 @@ export default function TransactionsView() {
         header: 'Transaction ID',
         enableColumnFilter: true,
         meta: { filterPlaceholder: 'Filter transaction...' },
-        cell: ({ row }) => <span className="font-mono text-xs text-slate-800">{row.original.id || 'N/A'}</span>,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-800">{row.original.id || 'N/A'}</span>
+        ),
       },
       {
         accessorKey: 'sellerId',
@@ -90,7 +92,9 @@ export default function TransactionsView() {
         accessorFn: (tx) => String(tx.amount ?? 0),
         meta: { filterPlaceholder: 'Filter amount...' },
         cell: ({ row }) => (
-          <span className="font-semibold text-slate-900">₹{toNumber(row.original.amount).toLocaleString()}</span>
+          <span className="font-semibold text-slate-900">
+            ₹{toNumber(row.original.amount).toLocaleString()}
+          </span>
         ),
       },
       {

@@ -123,127 +123,131 @@ export default function UsersView() {
 
   const columns: ColumnDef<AdminUserRow>[] = [
     {
-        id: 'displayName',
-        header: 'Display Name',
-        enableColumnFilter: true,
-        accessorFn: (user) => `${getUserLabel(user)} ${getUserMobile(user)}`,
-        meta: { filterPlaceholder: 'Filter name...' },
-        cell: ({ row }) => <div className="text-sm font-semibold text-slate-900">{getUserLabel(row.original)}</div>,
+      id: 'displayName',
+      header: 'Display Name',
+      enableColumnFilter: true,
+      accessorFn: (user) => `${getUserLabel(user)} ${getUserMobile(user)}`,
+      meta: { filterPlaceholder: 'Filter name...' },
+      cell: ({ row }) => (
+        <div className="text-sm font-semibold text-slate-900">{getUserLabel(row.original)}</div>
+      ),
+    },
+    {
+      accessorKey: 'mobile',
+      header: 'Mobile',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter mobile...' },
+      cell: ({ row }) => (
+        <span className="text-sm text-slate-700">{getUserMobile(row.original) || '-'}</span>
+      ),
+    },
+    {
+      id: 'location',
+      header: 'Auto Location',
+      enableColumnFilter: true,
+      accessorFn: (user) => `${user.autoDetectedLocation || ''} ${user.location || ''}`,
+      meta: { filterPlaceholder: 'Filter location...' },
+      cell: ({ row }) => (
+        <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700">
+          <MapPin size={12} />
+          {row.original.autoDetectedLocation || row.original.location || '-'}
+        </div>
+      ),
+    },
+    {
+      id: 'listings',
+      header: 'Listings',
+      enableColumnFilter: true,
+      accessorFn: (user) => String(Number(user.listingsCount ?? user.listings ?? 0)),
+      meta: { filterPlaceholder: 'Filter listings...' },
+      cell: ({ row }) => {
+        const listingCount = Number(row.original.listingsCount ?? row.original.listings ?? 0);
+        return (
+          <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-700">
+            {listingCount}
+          </span>
+        );
       },
-      {
-        accessorKey: 'mobile',
-        header: 'Mobile',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter mobile...' },
-        cell: ({ row }) => <span className="text-sm text-slate-700">{getUserMobile(row.original) || '-'}</span>,
-      },
-      {
-        id: 'location',
-        header: 'Auto Location',
-        enableColumnFilter: true,
-        accessorFn: (user) => `${user.autoDetectedLocation || ''} ${user.location || ''}`,
-        meta: { filterPlaceholder: 'Filter location...' },
-        cell: ({ row }) => (
-          <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700">
-            <MapPin size={12} />
-            {row.original.autoDetectedLocation || row.original.location || '-'}
+    },
+    {
+      id: 'listingLocations',
+      header: 'Listings Location',
+      enableColumnFilter: true,
+      accessorFn: (user) => (user.listingLocations || []).join(' '),
+      meta: { filterPlaceholder: 'Filter listing locations...' },
+      cell: ({ row }) => {
+        const listingLocations = Array.isArray(row.original.listingLocations)
+          ? row.original.listingLocations
+          : [];
+        return listingLocations.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {listingLocations.slice(0, 3).map((loc) => (
+              <span
+                key={`${row.original.id}-${loc}`}
+                className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700"
+              >
+                {loc}
+              </span>
+            ))}
+            {listingLocations.length > 3 && (
+              <span className="inline-flex rounded-full bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-700">
+                +{listingLocations.length - 3}
+              </span>
+            )}
           </div>
+        ) : (
+          <span className="text-sm text-slate-500">-</span>
+        );
+      },
+    },
+    {
+      accessorKey: 'isVerified',
+      header: 'Verified',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter verified...' },
+      cell: ({ row }) =>
+        row.original.isVerified ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+            <BadgeCheck size={12} />
+            Verified
+          </span>
+        ) : (
+          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+            Unverified
+          </span>
         ),
-      },
-      {
-        id: 'listings',
-        header: 'Listings',
-        enableColumnFilter: true,
-        accessorFn: (user) => String(Number(user.listingsCount ?? user.listings ?? 0)),
-        meta: { filterPlaceholder: 'Filter listings...' },
-        cell: ({ row }) => {
-          const listingCount = Number(row.original.listingsCount ?? row.original.listings ?? 0);
-          return (
-            <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-700">
-              {listingCount}
-            </span>
-          );
-        },
-      },
-      {
-        id: 'listingLocations',
-        header: 'Listings Location',
-        enableColumnFilter: true,
-        accessorFn: (user) => (user.listingLocations || []).join(' '),
-        meta: { filterPlaceholder: 'Filter listing locations...' },
-        cell: ({ row }) => {
-          const listingLocations = Array.isArray(row.original.listingLocations)
-            ? row.original.listingLocations
-            : [];
-          return listingLocations.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {listingLocations.slice(0, 3).map((loc) => (
-                <span
-                  key={`${row.original.id}-${loc}`}
-                  className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700"
-                >
-                  {loc}
-                </span>
-              ))}
-              {listingLocations.length > 3 && (
-                <span className="inline-flex rounded-full bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-700">
-                  +{listingLocations.length - 3}
-                </span>
-              )}
-            </div>
-          ) : (
-            <span className="text-sm text-slate-500">-</span>
-          );
-        },
-      },
-      {
-        accessorKey: 'isVerified',
-        header: 'Verified',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter verified...' },
-        cell: ({ row }) =>
-          row.original.isVerified ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
-              <BadgeCheck size={12} />
-              Verified
-            </span>
-          ) : (
-            <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
-              Unverified
-            </span>
-          ),
-      },
-      {
-        id: 'actions',
-        header: 'Actions',
-        enableSorting: false,
-        enableColumnFilter: false,
-        enableHiding: false,
-        accessorFn: () => '',
-        cell: ({ row }) => (
-          <div className="flex gap-2">
-            <button
-              onClick={() => handleEditClick(row.original)}
-              className="cursor-pointer rounded-lg p-2 transition hover:bg-teal-100"
-              title="Edit User"
-              type="button"
-            >
-              <Edit2 size={16} className="text-teal-600" />
-            </button>
-            <button
-              onClick={() => handleDeleteClick(row.original)}
-              className="cursor-pointer rounded-lg p-2 transition hover:bg-red-100"
-              title="Delete User"
-              disabled={deleteUser.isPending}
-              type="button"
-            >
-              <Trash2
-                size={16}
-                className={deleteUser.isPending ? 'text-slate-400' : 'text-red-600'}
-              />
-            </button>
-          </div>
-        ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      enableColumnFilter: false,
+      enableHiding: false,
+      accessorFn: () => '',
+      cell: ({ row }) => (
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleEditClick(row.original)}
+            className="cursor-pointer rounded-lg p-2 transition hover:bg-teal-100"
+            title="Edit User"
+            type="button"
+          >
+            <Edit2 size={16} className="text-teal-600" />
+          </button>
+          <button
+            onClick={() => handleDeleteClick(row.original)}
+            className="cursor-pointer rounded-lg p-2 transition hover:bg-red-100"
+            title="Delete User"
+            disabled={deleteUser.isPending}
+            type="button"
+          >
+            <Trash2
+              size={16}
+              className={deleteUser.isPending ? 'text-slate-400' : 'text-red-600'}
+            />
+          </button>
+        </div>
+      ),
     },
   ];
 
@@ -312,7 +316,9 @@ export default function UsersView() {
             pageCount={Math.max(1, Math.ceil(totalUsers / pageSize))}
             rowCount={totalUsers}
             toolbarRight={
-              isFetching ? <span className="text-xs font-medium text-slate-500">Updating...</span> : null
+              isFetching ? (
+                <span className="text-xs font-medium text-slate-500">Updating...</span>
+              ) : null
             }
           />
         )}

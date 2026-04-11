@@ -44,83 +44,83 @@ export default function CouponsView() {
 
   const columns: ColumnDef<CouponRow>[] = [
     {
-        accessorKey: 'code',
-        header: 'Code',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter code...' },
-        cell: ({ row }) => (
-          <span className="font-bold text-slate-900">
-            {formatters.formatCouponCode(row.original.code)}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'discountPercentage',
-        header: 'Discount',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter discount...' },
-        cell: ({ row }) => <span className="text-slate-600">{row.original.discountPercentage}%</span>,
-      },
-      {
-        id: 'usage',
-        header: 'Usage',
-        enableColumnFilter: true,
-        accessorFn: (coupon) => `${coupon.usageCount || 0}/${coupon.maxUsageCount}`,
-        meta: { filterPlaceholder: 'Filter usage...' },
-        cell: ({ row }) => (
-          <span className="rounded bg-slate-100 px-3 py-1 text-xs font-bold">
-            {row.original.usageCount || 0}/{row.original.maxUsageCount}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'expiresAt',
-        header: 'Expires',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter expiry...' },
-        cell: ({ row }) =>
-          row.original.expiresAt ? formatters.formatDate(row.original.expiresAt) : '-',
-      },
-      {
-        accessorKey: 'isActive',
-        header: 'Status',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter status...' },
-        cell: ({ row }) => (
-          <span
-            className={`rounded px-3 py-1 text-xs font-bold ${
-              row.original.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-            }`}
+      accessorKey: 'code',
+      header: 'Code',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter code...' },
+      cell: ({ row }) => (
+        <span className="font-bold text-slate-900">
+          {formatters.formatCouponCode(row.original.code)}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'discountPercentage',
+      header: 'Discount',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter discount...' },
+      cell: ({ row }) => <span className="text-slate-600">{row.original.discountPercentage}%</span>,
+    },
+    {
+      id: 'usage',
+      header: 'Usage',
+      enableColumnFilter: true,
+      accessorFn: (coupon) => `${coupon.usageCount || 0}/${coupon.maxUsageCount}`,
+      meta: { filterPlaceholder: 'Filter usage...' },
+      cell: ({ row }) => (
+        <span className="rounded bg-slate-100 px-3 py-1 text-xs font-bold">
+          {row.original.usageCount || 0}/{row.original.maxUsageCount}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'expiresAt',
+      header: 'Expires',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter expiry...' },
+      cell: ({ row }) =>
+        row.original.expiresAt ? formatters.formatDate(row.original.expiresAt) : '-',
+    },
+    {
+      accessorKey: 'isActive',
+      header: 'Status',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter status...' },
+      cell: ({ row }) => (
+        <span
+          className={`rounded px-3 py-1 text-xs font-bold ${
+            row.original.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}
+        >
+          {row.original.isActive ? 'Active' : 'Inactive'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      enableColumnFilter: false,
+      enableHiding: false,
+      accessorFn: () => '',
+      cell: ({ row }) => (
+        <div className="space-x-2">
+          <button
+            onClick={() => handleEdit(row.original)}
+            className="cursor-pointer font-bold text-teal-600 transition hover:text-teal-800 hover:underline"
+            type="button"
           >
-            {row.original.isActive ? 'Active' : 'Inactive'}
-          </span>
-        ),
-      },
-      {
-        id: 'actions',
-        header: 'Actions',
-        enableSorting: false,
-        enableColumnFilter: false,
-        enableHiding: false,
-        accessorFn: () => '',
-        cell: ({ row }) => (
-          <div className="space-x-2">
-            <button
-              onClick={() => handleEdit(row.original)}
-              className="cursor-pointer font-bold text-teal-600 transition hover:text-teal-800 hover:underline"
-              type="button"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => handleDelete(row.original)}
-              className="cursor-pointer font-bold text-red-600 transition hover:text-red-800 hover:underline"
-              type="button"
-            >
-              Delete
-            </button>
-          </div>
-        ),
+            Edit
+          </button>
+          <button
+            onClick={() => handleDelete(row.original)}
+            className="cursor-pointer font-bold text-red-600 transition hover:text-red-800 hover:underline"
+            type="button"
+          >
+            Delete
+          </button>
+        </div>
+      ),
     },
   ];
 
@@ -276,15 +276,15 @@ export default function CouponsView() {
                     }`}
                     required
                   />
-                  {formErrors.code && <p className="mt-1 text-sm text-red-600">{formErrors.code}</p>}
+                  {formErrors.code && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.code}</p>
+                  )}
                 </div>
               )}
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-900">
-                    Discount %
-                  </label>
+                  <label className="mb-2 block text-sm font-bold text-slate-900">Discount %</label>
                   <input
                     type="number"
                     value={formData.discountPercentage}
@@ -303,9 +303,7 @@ export default function CouponsView() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-900">
-                    Max Usage
-                  </label>
+                  <label className="mb-2 block text-sm font-bold text-slate-900">Max Usage</label>
                   <input
                     type="number"
                     value={formData.maxUsageCount}

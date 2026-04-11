@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import * as React from 'react';
 import {
@@ -192,7 +192,9 @@ export function DataTable<TData, TValue>({
       filterFn: 'includesString',
     },
     globalFilterFn: (row, _columnId, filterValue) => {
-      const query = String(filterValue ?? '').trim().toLowerCase();
+      const query = String(filterValue ?? '')
+        .trim()
+        .toLowerCase();
       if (!query) return true;
       const rowText = row
         .getVisibleCells()
@@ -243,8 +245,7 @@ export function DataTable<TData, TValue>({
     rowCount ?? table.getFilteredRowModel().rows.length ?? table.getRowModel().rows.length;
   const currentRowCount = table.getRowModel().rows.length;
   const rangeStart = filteredRowCount === 0 ? 0 : resolvedPageIndex * resolvedPageSize + 1;
-  const rangeEnd =
-    filteredRowCount === 0 ? 0 : rangeStart + Math.max(0, currentRowCount - 1);
+  const rangeEnd = filteredRowCount === 0 ? 0 : rangeStart + Math.max(0, currentRowCount - 1);
   const computedPageCount = pageCount ?? table.getPageCount();
 
   const toggleAllColumns = (): void => {
@@ -390,7 +391,9 @@ export function DataTable<TData, TValue>({
                     <TableHead key={header.id} className="p-2">
                       {header.column.getCanFilter() ? (
                         <Input
-                          placeholder={header.column.columnDef.meta?.filterPlaceholder ?? 'Filter...'}
+                          placeholder={
+                            header.column.columnDef.meta?.filterPlaceholder ?? 'Filter...'
+                          }
                           value={(header.column.getFilterValue() as string) ?? ''}
                           onChange={(event) => header.column.setFilterValue(event.target.value)}
                           className="h-8 text-xs shadow-none"
@@ -419,7 +422,10 @@ export function DataTable<TData, TValue>({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={visibleColumnCount} className="py-10 text-center text-slate-500">
+                <TableCell
+                  colSpan={visibleColumnCount}
+                  className="py-10 text-center text-slate-500"
+                >
                   No results.
                 </TableCell>
               </TableRow>

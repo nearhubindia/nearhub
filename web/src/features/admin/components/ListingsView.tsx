@@ -48,164 +48,164 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
 
   const columns: ColumnDef<Listing>[] = [
     {
-        accessorKey: 'title',
-        header: 'Title',
-        enableColumnFilter: true,
-        meta: {
-          filterPlaceholder: 'Filter title...',
-          cellClassName: 'font-medium text-slate-900',
-        },
-        cell: ({ row }) => {
-          const listing = row.original;
-          return (
-            <div className="flex items-center gap-2">
-              <span>{listing.title}</span>
-              {listing.sponsored && (
-                <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
-                  Sponsored
-                </span>
-              )}
-              {listing.featured && (
-                <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800">
-                  Featured
-                </span>
-              )}
-            </div>
-          );
-        },
+      accessorKey: 'title',
+      header: 'Title',
+      enableColumnFilter: true,
+      meta: {
+        filterPlaceholder: 'Filter title...',
+        cellClassName: 'font-medium text-slate-900',
       },
-      {
-        accessorKey: 'category',
-        header: 'Category',
-        enableColumnFilter: true,
-        meta: {
-          filterPlaceholder: 'Filter category...',
-        },
-        cell: ({ row }) => row.original.category || '-',
-      },
-      {
-        id: 'price',
-        header: 'Price',
-        enableColumnFilter: true,
-        accessorFn: (listing) => `${listing.price ?? ''} ${listing.offerPrice ?? ''}`,
-        meta: {
-          filterPlaceholder: 'Filter price...',
-        },
-        cell: ({ row }) => {
-          const listing = row.original;
-          return (
-            <div className="flex flex-col gap-1">
-              {listing.offerPrice && Number(listing.offerPrice) > 0 ? (
-                <>
-                  <span className="text-slate-500 line-through">₹{listing.price}</span>
-                  <span className="font-bold text-red-600">₹{listing.offerPrice}</span>
-                </>
-              ) : (
-                <span className="text-slate-600">₹{listing.price}</span>
-              )}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: 'location',
-        header: 'Location',
-        enableColumnFilter: true,
-        meta: {
-          filterPlaceholder: 'Filter location...',
-        },
-        cell: ({ row }) => row.original.location || 'N/A',
-      },
-      {
-        id: 'displayName',
-        header: 'Display Name',
-        enableColumnFilter: true,
-        accessorFn: (listing) => `${listing.displayName ?? ''} ${listing.userId ?? ''}`,
-        meta: {
-          filterPlaceholder: 'Filter user...',
-        },
-        cell: ({ row }) => {
-          const listing = row.original;
-          return (
-            <div className="flex flex-col">
-              <span>{listing.displayName || '-'}</span>
-              <span className="text-xs text-slate-400">ID: {listing.userId || 'N/A'}</span>
-            </div>
-          );
-        },
-      },
-      {
-        id: 'mobileNumber',
-        header: 'Mobile Number',
-        enableColumnFilter: true,
-        accessorFn: (listing) => `${listing.mobileNumber ?? ''} ${listing.contactPhone ?? ''}`,
-        meta: {
-          filterPlaceholder: 'Filter mobile...',
-        },
-        cell: ({ row }) => row.original.mobileNumber || row.original.contactPhone || '-',
-      },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        enableColumnFilter: true,
-        meta: {
-          filterPlaceholder: 'Filter status...',
-        },
-        cell: ({ row }) => {
-          const listing = row.original;
-          return (
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-bold ${
-                listing.status === 'active'
-                  ? 'bg-green-100 text-green-700'
-                  : listing.status === 'sold'
-                    ? 'bg-slate-100 text-slate-700'
-                    : 'bg-yellow-100 text-yellow-700'
-              }`}
-            >
-              {listing.status}
-            </span>
-          );
-        },
-      },
-      {
-        id: 'posted',
-        header: 'Posted',
-        enableColumnFilter: true,
-        accessorFn: (listing) => formatPostedDate(listing),
-        meta: {
-          filterPlaceholder: 'Filter date...',
-        },
-        cell: ({ row }) => formatPostedDate(row.original),
-      },
-      {
-        id: 'actions',
-        header: 'Actions',
-        enableSorting: false,
-        enableColumnFilter: false,
-        enableHiding: false,
-        accessorFn: () => '',
-        cell: ({ row }) => (
-          <div className="flex gap-2">
-            <button
-              onClick={() => onEditListing && onEditListing(row.original)}
-              className="rounded-lg p-2 transition hover:bg-teal-100"
-              title="Edit"
-              type="button"
-            >
-              <Edit2 size={16} className="text-slate-600" />
-            </button>
-            <button
-              onClick={() => handleDelete(row.original.id)}
-              disabled={deleteListing.isPending}
-              className="rounded-lg p-2 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-              title="Delete"
-              type="button"
-            >
-              <Trash2 size={16} className="text-red-600" />
-            </button>
+      cell: ({ row }) => {
+        const listing = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            <span>{listing.title}</span>
+            {listing.sponsored && (
+              <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                Sponsored
+              </span>
+            )}
+            {listing.featured && (
+              <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800">
+                Featured
+              </span>
+            )}
           </div>
-        ),
+        );
+      },
+    },
+    {
+      accessorKey: 'category',
+      header: 'Category',
+      enableColumnFilter: true,
+      meta: {
+        filterPlaceholder: 'Filter category...',
+      },
+      cell: ({ row }) => row.original.category || '-',
+    },
+    {
+      id: 'price',
+      header: 'Price',
+      enableColumnFilter: true,
+      accessorFn: (listing) => `${listing.price ?? ''} ${listing.offerPrice ?? ''}`,
+      meta: {
+        filterPlaceholder: 'Filter price...',
+      },
+      cell: ({ row }) => {
+        const listing = row.original;
+        return (
+          <div className="flex flex-col gap-1">
+            {listing.offerPrice && Number(listing.offerPrice) > 0 ? (
+              <>
+                <span className="text-slate-500 line-through">₹{listing.price}</span>
+                <span className="font-bold text-red-600">₹{listing.offerPrice}</span>
+              </>
+            ) : (
+              <span className="text-slate-600">₹{listing.price}</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'location',
+      header: 'Location',
+      enableColumnFilter: true,
+      meta: {
+        filterPlaceholder: 'Filter location...',
+      },
+      cell: ({ row }) => row.original.location || 'N/A',
+    },
+    {
+      id: 'displayName',
+      header: 'Display Name',
+      enableColumnFilter: true,
+      accessorFn: (listing) => `${listing.displayName ?? ''} ${listing.userId ?? ''}`,
+      meta: {
+        filterPlaceholder: 'Filter user...',
+      },
+      cell: ({ row }) => {
+        const listing = row.original;
+        return (
+          <div className="flex flex-col">
+            <span>{listing.displayName || '-'}</span>
+            <span className="text-xs text-slate-400">ID: {listing.userId || 'N/A'}</span>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'mobileNumber',
+      header: 'Mobile Number',
+      enableColumnFilter: true,
+      accessorFn: (listing) => `${listing.mobileNumber ?? ''} ${listing.contactPhone ?? ''}`,
+      meta: {
+        filterPlaceholder: 'Filter mobile...',
+      },
+      cell: ({ row }) => row.original.mobileNumber || row.original.contactPhone || '-',
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      enableColumnFilter: true,
+      meta: {
+        filterPlaceholder: 'Filter status...',
+      },
+      cell: ({ row }) => {
+        const listing = row.original;
+        return (
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-bold ${
+              listing.status === 'active'
+                ? 'bg-green-100 text-green-700'
+                : listing.status === 'sold'
+                  ? 'bg-slate-100 text-slate-700'
+                  : 'bg-yellow-100 text-yellow-700'
+            }`}
+          >
+            {listing.status}
+          </span>
+        );
+      },
+    },
+    {
+      id: 'posted',
+      header: 'Posted',
+      enableColumnFilter: true,
+      accessorFn: (listing) => formatPostedDate(listing),
+      meta: {
+        filterPlaceholder: 'Filter date...',
+      },
+      cell: ({ row }) => formatPostedDate(row.original),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      enableColumnFilter: false,
+      enableHiding: false,
+      accessorFn: () => '',
+      cell: ({ row }) => (
+        <div className="flex gap-2">
+          <button
+            onClick={() => onEditListing && onEditListing(row.original)}
+            className="rounded-lg p-2 transition hover:bg-teal-100"
+            title="Edit"
+            type="button"
+          >
+            <Edit2 size={16} className="text-slate-600" />
+          </button>
+          <button
+            onClick={() => handleDelete(row.original.id)}
+            disabled={deleteListing.isPending}
+            className="rounded-lg p-2 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Delete"
+            type="button"
+          >
+            <Trash2 size={16} className="text-red-600" />
+          </button>
+        </div>
+      ),
     },
   ];
 

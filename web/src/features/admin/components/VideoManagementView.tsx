@@ -55,93 +55,91 @@ export default function VideoManagementView() {
 
   const columns: ColumnDef<VideoRow>[] = [
     {
-        accessorKey: 'title',
-        header: 'Title',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter title...' },
-      },
-      {
-        accessorKey: 'userId',
-        header: 'Seller',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter seller...' },
-        cell: ({ row }) => (
-          <span>{String(row.original.userId || 'N/A').slice(0, 8)}...</span>
-        ),
-      },
-      {
-        accessorKey: 'durationDays',
-        header: 'Duration',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter duration...' },
-        cell: ({ row }) => `${row.original.durationDays || 'N/A'} days`,
-      },
-      {
-        accessorKey: 'isActive',
-        header: 'Status',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter status...' },
-        cell: ({ row }) => (
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-bold ${
-              row.original.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-            }`}
+      accessorKey: 'title',
+      header: 'Title',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter title...' },
+    },
+    {
+      accessorKey: 'userId',
+      header: 'Seller',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter seller...' },
+      cell: ({ row }) => <span>{String(row.original.userId || 'N/A').slice(0, 8)}...</span>,
+    },
+    {
+      accessorKey: 'durationDays',
+      header: 'Duration',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter duration...' },
+      cell: ({ row }) => `${row.original.durationDays || 'N/A'} days`,
+    },
+    {
+      accessorKey: 'isActive',
+      header: 'Status',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter status...' },
+      cell: ({ row }) => (
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-bold ${
+            row.original.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}
+        >
+          {row.original.isActive ? 'Active' : 'Inactive'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'createdAt',
+      header: 'Created',
+      enableColumnFilter: true,
+      meta: { filterPlaceholder: 'Filter date...' },
+      cell: ({ row }) =>
+        row.original.createdAt ? new Date(row.original.createdAt).toLocaleDateString() : 'N/A',
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      enableColumnFilter: false,
+      enableHiding: false,
+      accessorFn: () => '',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleToggleStatus(row.original.id)}
+            disabled={toggleVideoStatus.isPending}
+            className={`inline-flex items-center rounded-lg px-3 py-1 text-xs font-medium transition ${
+              row.original.isActive
+                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                : 'bg-green-100 text-green-700 hover:bg-green-200'
+            } disabled:cursor-not-allowed disabled:opacity-50`}
+            type="button"
           >
-            {row.original.isActive ? 'Active' : 'Inactive'}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'createdAt',
-        header: 'Created',
-        enableColumnFilter: true,
-        meta: { filterPlaceholder: 'Filter date...' },
-        cell: ({ row }) =>
-          row.original.createdAt ? new Date(row.original.createdAt).toLocaleDateString() : 'N/A',
-      },
-      {
-        id: 'actions',
-        header: 'Actions',
-        enableSorting: false,
-        enableColumnFilter: false,
-        enableHiding: false,
-        accessorFn: () => '',
-        cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleToggleStatus(row.original.id)}
-              disabled={toggleVideoStatus.isPending}
-              className={`inline-flex items-center rounded-lg px-3 py-1 text-xs font-medium transition ${
-                row.original.isActive
-                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                  : 'bg-green-100 text-green-700 hover:bg-green-200'
-              } disabled:cursor-not-allowed disabled:opacity-50`}
-              type="button"
-            >
-              {row.original.isActive ? (
-                <>
-                  <XCircle className="mr-1 h-3 w-3" />
-                  Deactivate
-                </>
-              ) : (
-                <>
-                  <Play className="mr-1 h-3 w-3" />
-                  Activate
-                </>
-              )}
-            </button>
-            <button
-              onClick={() => {
-                setVideoToDelete(row.original);
-                setShowDeleteModal(true);
-              }}
-              className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-200"
-              type="button"
-            >
-              <MoreHorizontal className="h-3 w-3" />
-            </button>
-          </div>
-        ),
+            {row.original.isActive ? (
+              <>
+                <XCircle className="mr-1 h-3 w-3" />
+                Deactivate
+              </>
+            ) : (
+              <>
+                <Play className="mr-1 h-3 w-3" />
+                Activate
+              </>
+            )}
+          </button>
+          <button
+            onClick={() => {
+              setVideoToDelete(row.original);
+              setShowDeleteModal(true);
+            }}
+            className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-200"
+            type="button"
+          >
+            <MoreHorizontal className="h-3 w-3" />
+          </button>
+        </div>
+      ),
     },
   ];
 

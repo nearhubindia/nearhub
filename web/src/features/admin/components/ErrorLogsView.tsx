@@ -57,7 +57,9 @@ export default function ErrorLogsView() {
         header: 'Time',
         enableColumnFilter: true,
         meta: { filterPlaceholder: 'Filter time...' },
-        cell: ({ row }) => <span className="text-sm text-slate-600">{formatDateTime(row.original.createdAt)}</span>,
+        cell: ({ row }) => (
+          <span className="text-sm text-slate-600">{formatDateTime(row.original.createdAt)}</span>
+        ),
       },
       {
         accessorKey: 'level',
@@ -95,7 +97,8 @@ export default function ErrorLogsView() {
         id: 'app',
         header: 'App/Env',
         enableColumnFilter: true,
-        accessorFn: (log) => `${log.appName || 'nearhub'} ${log.environment} ${log.appVersion || ''}`,
+        accessorFn: (log) =>
+          `${log.appName || 'nearhub'} ${log.environment} ${log.appVersion || ''}`,
         meta: { filterPlaceholder: 'Filter app...' },
         cell: ({ row }) => (
           <div className="text-sm text-slate-700">

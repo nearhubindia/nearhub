@@ -42,7 +42,8 @@ export default function ContactSubmissionsView() {
   const updateComment = useUpdateContactSubmissionComment();
   const deleteComment = useDeleteContactSubmissionComment();
 
-  const submissions = (data?.submissions as ContactSubmissionRow[] | undefined) ?? EMPTY_SUBMISSIONS;
+  const submissions =
+    (data?.submissions as ContactSubmissionRow[] | undefined) ?? EMPTY_SUBMISSIONS;
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -106,7 +107,9 @@ export default function ContactSubmissionsView() {
         header: 'Message',
         enableColumnFilter: true,
         meta: { filterPlaceholder: 'Filter message...' },
-        cell: ({ row }) => <p className="whitespace-pre-wrap text-sm text-slate-700">{row.original.message}</p>,
+        cell: ({ row }) => (
+          <p className="whitespace-pre-wrap text-sm text-slate-700">{row.original.message}</p>
+        ),
       },
       {
         id: 'status',
@@ -181,7 +184,10 @@ export default function ContactSubmissionsView() {
               {comments.map((commentItem) => {
                 const isEditing = editingCommentIds[commentItem.id] || false;
                 return (
-                  <div key={commentItem.id} className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <div
+                    key={commentItem.id}
+                    className="rounded-md border border-slate-200 bg-slate-50 p-2"
+                  >
                     {isEditing ? (
                       <div className="space-y-2">
                         <textarea
@@ -239,7 +245,9 @@ export default function ContactSubmissionsView() {
                       </div>
                     ) : (
                       <div>
-                        <p className="whitespace-pre-wrap text-sm text-slate-700">{commentItem.comment}</p>
+                        <p className="whitespace-pre-wrap text-sm text-slate-700">
+                          {commentItem.comment}
+                        </p>
                         <div className="mt-2 flex items-center justify-between">
                           <span className="text-xs text-slate-500">
                             {formatDateTime(commentItem.createdAt || null)}
