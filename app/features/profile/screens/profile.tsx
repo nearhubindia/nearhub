@@ -75,20 +75,17 @@ export default function ProfileScreen() {
     ? serializedPayload !== lastSavedPayloadRef.current || !!avatarDraftUri
     : false;
 
-  const scrollToBio = useCallback(
-    (animated = true) => {
-      const bioSectionY = bioSectionYRef.current;
-      if (bioSectionY === null) return;
+  const scrollToBio = useCallback((animated = true) => {
+    const bioSectionY = bioSectionYRef.current;
+    if (bioSectionY === null) return;
 
-      requestAnimationFrame(() => {
-        scrollViewRef.current?.scrollTo({
-          y: Math.max(0, bioSectionY - 24),
-          animated,
-        });
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollTo({
+        y: Math.max(0, bioSectionY - 24),
+        animated,
       });
-    },
-    []
-  );
+    });
+  }, []);
 
   const syncProfileToServer = async (payload: {
     name: string;
@@ -283,10 +280,7 @@ export default function ProfileScreen() {
       <KeyboardAwareScrollViewCompat
         ref={scrollViewRef}
         style={styles.scrollView}
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: insets.bottom + 40, flexGrow: 1 },
-        ]}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40, flexGrow: 1 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >

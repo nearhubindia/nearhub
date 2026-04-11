@@ -1,5 +1,12 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 import Colors from '@/constants/colors';
 import { parseRichText } from '@/lib/rich-text';
 
