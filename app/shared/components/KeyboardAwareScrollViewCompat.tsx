@@ -1,4 +1,5 @@
 // Keyboard-aware ScrollView component with fallback for platforms without the module
+import React from 'react';
 import { Platform, ScrollView, ScrollViewProps } from 'react-native';
 
 // Conditionally import the keyboard controller only if available
@@ -15,22 +16,27 @@ try {
 
 type Props = ScrollViewProps;
 
-export function KeyboardAwareScrollViewCompat({
-  children,
-  keyboardShouldPersistTaps = 'handled',
-  ...props
-}: Props) {
-  if (Platform.OS === 'web') {
+export const KeyboardAwareScrollViewCompat = React.forwardRef<ScrollView, Props>(
+  ({ children, keyboardShouldPersistTaps = 'handled', ...props }, ref) => {
+    if (Platform.OS === 'web') {
+      return (
+        <ScrollView ref={ref} keyboardShouldPersistTaps={keyboardShouldPersistTaps} {...props}>
+          {children}
+        </ScrollView>
+      );
+    }
+
+    // Use KeyboardAwareScrollView if available, otherwise fallback to ScrollView
     return (
-      <ScrollView keyboardShouldPersistTaps={keyboardShouldPersistTaps} {...props}>
+      <KeyboardAwareScrollView
+        ref={ref}
+        keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        {...props}
+      >
         {children}
-      </ScrollView>
+      </KeyboardAwareScrollView>
     );
   }
-  // Use KeyboardAwareScrollView if available, otherwise fallback to ScrollView
-  return (
-    <KeyboardAwareScrollView keyboardShouldPersistTaps={keyboardShouldPersistTaps} {...props}>
-      {children}
-    </KeyboardAwareScrollView>
-  );
-}
+);
+
+KeyboardAwareScrollViewCompat.displayName = 'KeyboardAwareScrollViewCompat';

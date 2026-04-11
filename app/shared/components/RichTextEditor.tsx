@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { View, TextInput, StyleSheet, Pressable, Text } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
+import RichTextPreview from '@/shared/components/RichTextPreview';
 
 const MAX_CHARS = 1200;
 
@@ -11,6 +12,8 @@ interface RichTextEditorProps {
   onAIGenerate?: () => void;
   isGenerating?: boolean;
   placeholder?: string;
+  showPreview?: boolean;
+  previewLabel?: string;
 }
 
 /**
@@ -25,40 +28,52 @@ export default function RichTextEditor({
   onAIGenerate,
   isGenerating = false,
   placeholder = 'Describe your item...',
+  showPreview = false,
+  previewLabel = 'Live Preview',
 }: RichTextEditorProps) {
   const [selectedRange, setSelectedRange] = useState({ start: 0, end: 0 });
   const textInputRef = useRef<TextInput>(null);
 
-  // Simplified formatting: store markdown-style formatting
+  const applyTextChange = (nextValue: string, nextCursor: number) => {
+    onChange(nextValue);
+    setSelectedRange({ start: nextCursor, end: nextCursor });
+    textInputRef.current?.focus();
+  };
+
   const addFormatting = (format: 'bold' | 'italic' | 'underline') => {
-    const { start, end } = selectedRange;
-    if (start === end) return; // No selection
-
+    const start = Math.min(selectedRange.start, selectedRange.end);
+    const end = Math.max(selectedRange.start, selectedRange.end);
+    const hasSelection = end > start;
     const selectedText = value.substring(start, end);
-    let formattedText = selectedText;
 
-    switch (format) {
-      case 'bold':
-        formattedText = `**${selectedText}**`;
-        break;
-      case 'italic':
-        formattedText = `_${selectedText}_`;
-        break;
-      case 'underline':
-        formattedText = `__${selectedText}__`;
-        break;
-    }
+    const markers = {
+      bold: '**',
+      italic: '_',
+      underline: '__',
+    } as const;
 
-    const newValue = value.substring(0, start) + formattedText + value.substring(end);
-    onChange(newValue);
+    const prefix = markers[format];
+    const suffix = markers[format];
+    const insertedText = hasSelection ? `${prefix}${selectedText}${suffix}` : `${prefix}${suffix}`;
+    const nextValue = value.substring(0, start) + insertedText + value.substring(end);
+    const nextCursor = hasSelection ? start + insertedText.length : start + prefix.length;
+
+    applyTextChange(nextValue, nextCursor);
   };
 
   const addBulletPoint = () => {
-    const cursorPos = selectedRange.start;
-    const beforeText = value.substring(0, cursorPos);
-    const afterText = value.substring(cursorPos);
-    const newValue = beforeText + '\n• ' + afterText;
-    onChange(newValue);
+    const start = Math.min(selectedRange.start, selectedRange.end);
+    const end = Math.max(selectedRange.start, selectedRange.end);
+    const beforeText = value.substring(0, start);
+    const afterText = value.substring(end);
+    const hasSelection = end > start;
+    const needsLeadingNewLine = beforeText.length > 0 && !beforeText.endsWith('\n');
+    const bulletPrefix = needsLeadingNewLine ? '\n• ' : '• ';
+    const selectedText = value.substring(start, end);
+    const insertedText = hasSelection ? `${bulletPrefix}${selectedText}` : bulletPrefix;
+    const nextValue = beforeText + insertedText + afterText;
+
+    applyTextChange(nextValue, start + insertedText.length);
   };
 
   const charCountColor =
@@ -76,6 +91,7 @@ export default function RichTextEditor({
         value={value}
         onChangeText={onChange}
         onSelectionChange={(e) => setSelectedRange(e.nativeEvent.selection)}
+        selection={selectedRange}
         maxLength={MAX_CHARS}
         multiline
         numberOfLines={5}
@@ -144,6 +160,16 @@ export default function RichTextEditor({
       <Text style={styles.helpText}>
         💡 Use **bold**, _italic_, __underline__ for formatting. Add • for lists.
       </Text>
+
+      {showPreview && value.trim().length > 0 && (
+        <View style={styles.previewCard}>
+          <View style={styles.previewHeader}>
+            <Feather name="eye" size={13} color={Colors.primary} />
+            <Text style={styles.previewHeaderText}>{previewLabel}</Text>
+          </View>
+          <RichTextPreview text={value} textStyle={styles.previewText} />
+        </View>
+      )}
     </View>
   );
 }
@@ -249,5 +275,31 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     marginTop: 6,
     fontStyle: 'italic',
+  },
+  previewCard: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  previewHeaderText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  previewText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: Colors.text,
   },
 });

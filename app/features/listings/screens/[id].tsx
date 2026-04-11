@@ -22,6 +22,7 @@ import { getTimeAgo, formatCondition } from '@/lib/utils';
 import { getBackendURL } from '@/lib/config';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 import MediaCarousel from '@/shared/components/MediaCarousel';
+import RichTextPreview from '@/shared/components/RichTextPreview';
 import { createResponsiveStyles } from '@/lib/responsive';
 
 const { width } = Dimensions.get('window');
@@ -326,7 +327,7 @@ export default function ListingDetailScreen() {
           <View style={styles.divider} />
 
           <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.description}>{listing.description}</Text>
+          <RichTextPreview text={listing.description || ''} textStyle={styles.description} />
 
           <View style={styles.divider} />
 

@@ -23,7 +23,6 @@ import { MessagesProvider } from '@/shared/contexts/messages-context';
 import { SearchHistoryProvider } from '@/shared/contexts/search-history-context';
 import { UserInterestsProvider } from '@/shared/contexts/user-interests-context';
 import { NotificationsProvider } from '@/shared/contexts/notifications-context';
-import { NotificationCenter } from '@/shared/components/NotificationCenter';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -231,7 +230,6 @@ export default function RootLayout() {
                       <MessagesProvider>
                         <NotificationsProvider>
                           <RootLayoutNav />
-                          <NotificationCenter />
                         </NotificationsProvider>
                       </MessagesProvider>
                     </ListingsProvider>

@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
 import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
+import { stripRichTextFormatting } from '@/lib/rich-text';
 
 interface ListingCardProps {
   id: string;
@@ -48,6 +49,7 @@ export default function ListingCard({
   const hasValidOfferPrice = typeof offerPrice === 'number' && offerPrice > 0 && offerPrice < price;
   const displayPrice = hasValidOfferPrice ? offerPrice : price;
   const normalizedTitle = title.trim();
+  const normalizedDescription = stripRichTextFormatting(description || '');
   const shouldTruncateTitle =
     typeof titleMaxChars === 'number' &&
     titleMaxChars > 0 &&
@@ -55,6 +57,7 @@ export default function ListingCard({
   const displayTitle = shouldTruncateTitle
     ? `${normalizedTitle.slice(0, titleMaxChars).trimEnd()}...`
     : normalizedTitle;
+  const displayDescription = normalizedDescription || normalizedTitle;
 
   return (
     <Pressable
@@ -103,7 +106,7 @@ export default function ListingCard({
           {displayTitle}
         </Text>
         <Text style={styles.description} numberOfLines={1} ellipsizeMode="tail">
-          {description || title}
+          {displayDescription}
         </Text>
         <View style={styles.meta}>
           <Feather name="map-pin" size={responsiveModerateScale(11)} color={Colors.textTertiary} />

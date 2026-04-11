@@ -319,11 +319,6 @@ export default function ShortsCard({
           <Feather name="message-circle" size={26} color="#fff" />
           <Text style={styles.actionLabel}>Contact</Text>
         </Pressable>
-
-        <Pressable style={styles.actionButton} onPress={onDetails}>
-          <Feather name="maximize-2" size={24} color="#fff" />
-          <Text style={styles.actionLabel}>Details</Text>
-        </Pressable>
       </View>
 
       {/* Bottom overlay - auto sizes to content, no fixed height */}

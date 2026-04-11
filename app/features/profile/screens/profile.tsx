@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
   View,
@@ -7,16 +8,19 @@ import {
   Pressable,
   TextInput,
   Platform,
+  Keyboard,
   Alert,
   Image,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import Colors from '@/constants/colors';
 import AppScreenBanners from '@/shared/components/AppScreenBanners';
+import { KeyboardAwareScrollViewCompat } from '@/shared/components/KeyboardAwareScrollViewCompat';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
@@ -41,6 +45,7 @@ export default function ProfileScreen() {
   const [address, setAddress] = useState(user?.address || '');
   const [bio, setBio] = useState(user?.bio || '');
   const [gstin, setGstin] = useState(user?.gstin || '');
+  const [avatarDraftUri, setAvatarDraftUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [profileStats, setProfileStats] = useState<ProfileStats>({
     totalListings: 0,
@@ -49,12 +54,41 @@ export default function ProfileScreen() {
   });
   const lastSyncedUserIdRef = useRef<string | null>(null);
   const lastSavedPayloadRef = useRef<string>('');
+  const scrollViewRef = useRef<ScrollView>(null);
+  const bioSectionYRef = useRef<number | null>(null);
+  const isBioFocusedRef = useRef(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const sanitizedName = sanitizeAlphabeticName(name).trim();
   const trimmedEmail = email.trim();
-  const emailForSync =
-    trimmedEmail && isValidEmailAddress(trimmedEmail) ? trimmedEmail : (user?.email || '').trim();
+  const isEmailValid = !trimmedEmail || isValidEmailAddress(trimmedEmail);
+  const currentPayload = {
+    name: sanitizedName,
+    email: trimmedEmail,
+    address: address.trim(),
+    bio: bio.trim(),
+    gstin: gstin.trim(),
+  };
+  const serializedPayload = JSON.stringify(currentPayload);
+  const hasInitializedProfile = Boolean(user?.id && lastSyncedUserIdRef.current === user.id);
+  const hasUnsavedChanges = hasInitializedProfile
+    ? serializedPayload !== lastSavedPayloadRef.current || !!avatarDraftUri
+    : false;
+
+  const scrollToBio = useCallback(
+    (animated = true) => {
+      const bioSectionY = bioSectionYRef.current;
+      if (bioSectionY === null) return;
+
+      requestAnimationFrame(() => {
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, bioSectionY - 24),
+          animated,
+        });
+      });
+    },
+    []
+  );
 
   const syncProfileToServer = async (payload: {
     name: string;
@@ -130,24 +164,51 @@ export default function ProfileScreen() {
 
     if (result.canceled || result.assets.length === 0) return;
 
+    setAvatarDraftUri(result.assets[0].uri);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user?.id) return;
+
+    if (!sanitizedName) {
+      Alert.alert('Required', 'Please enter your name.');
+      return;
+    }
+
+    if (!isEmailValid) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
+
+    setSaving(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
     try {
-      setSaving(true);
-      const uploaded = await uploadMediaToCloudflare({
-        uri: result.assets[0].uri,
-        mediaType: 'image',
-        userId: user?.id,
-      });
-      await syncProfileToServer({
-        name: sanitizedName || sanitizeAlphabeticName(user?.name || 'User').trim() || 'User',
-        email: emailForSync,
-        bio: (bio || user?.bio || '').trim(),
-        address: (address || user?.address || '').trim(),
-        gstin: (gstin || user?.gstin || '').trim(),
-        avatarUrl: uploaded.url,
-      });
-      await updateUser({ avatarUrl: uploaded.url });
+      let uploadedAvatarUrl: string | undefined;
+      if (avatarDraftUri) {
+        const uploaded = await uploadMediaToCloudflare({
+          uri: avatarDraftUri,
+          mediaType: 'image',
+          userId: user.id,
+        });
+        uploadedAvatarUrl = uploaded.url;
+      }
+
+      const payload = {
+        name: sanitizedName,
+        email: trimmedEmail,
+        bio: bio.trim(),
+        address: address.trim(),
+        gstin: gstin.trim(),
+        ...(uploadedAvatarUrl ? { avatarUrl: uploadedAvatarUrl } : {}),
+      };
+
+      await syncProfileToServer(payload);
+      await updateUser(payload);
+      lastSavedPayloadRef.current = serializedPayload;
+      setAvatarDraftUri(null);
     } catch (error) {
-      Alert.alert('Error', 'Failed to update profile photo');
+      Alert.alert('Error', 'Failed to save profile');
     } finally {
       setSaving(false);
     }
@@ -164,6 +225,7 @@ export default function ProfileScreen() {
     setAddress(user.address || '');
     setBio(user.bio || '');
     setGstin(user.gstin || '');
+    setAvatarDraftUri(null);
 
     const initialPayload = {
       name: sanitizeAlphabeticName(user.name || '').trim(),
@@ -176,50 +238,23 @@ export default function ProfileScreen() {
     lastSyncedUserIdRef.current = user.id;
   }, [user]);
 
-  // Auto-save profile changes with debounce
-  useEffect(() => {
-    if (!user?.id || lastSyncedUserIdRef.current !== user.id) {
-      return;
-    }
-
-    const payload = {
-      name: sanitizedName,
-      email: emailForSync,
-      address: address.trim(),
-      bio: bio.trim(),
-      gstin: gstin.trim(),
-    };
-
-    if (!payload.name) {
-      return;
-    }
-
-    const serializedPayload = JSON.stringify(payload);
-    if (serializedPayload === lastSavedPayloadRef.current) {
-      return;
-    }
-
-    const saveTimer = setTimeout(async () => {
-      setSaving(true);
-      try {
-        await syncProfileToServer(payload);
-        await updateUser(payload);
-        lastSavedPayloadRef.current = serializedPayload;
-      } catch (error) {
-        Alert.alert('Error', 'Failed to auto-save profile');
-      } finally {
-        setSaving(false);
-      }
-    }, 700);
-
-    return () => clearTimeout(saveTimer);
-  }, [user?.id, sanitizedName, emailForSync, address, bio, gstin, updateUser]);
-
   useFocusEffect(
     React.useCallback(() => {
       loadProfileStats();
     }, [loadProfileStats])
   );
+
+  useEffect(() => {
+    const keyboardDidShow = Keyboard.addListener('keyboardDidShow', () => {
+      if (isBioFocusedRef.current) {
+        scrollToBio(true);
+      }
+    });
+
+    return () => {
+      keyboardDidShow.remove();
+    };
+  }, [scrollToBio]);
 
   return (
     <View style={styles.container}>
@@ -237,21 +272,32 @@ export default function ProfileScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>My Profile</Text>
         <View style={styles.saveIndicator}>
-          {saving ? <Text style={styles.saveIndicatorText}>Saving...</Text> : null}
+          {saving ? (
+            <Text style={styles.saveIndicatorText}>Saving...</Text>
+          ) : hasUnsavedChanges ? (
+            <Text style={styles.saveIndicatorTextWarning}>Unsaved</Text>
+          ) : null}
         </View>
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollViewCompat
+        ref={scrollViewRef}
         style={styles.scrollView}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: insets.bottom + 40, flexGrow: 1 },
+        ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <AppScreenBanners banners={profileBanners} isLoading={isProfileBannersLoading} />
 
         {/* Avatar Section */}
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
-            {user?.avatarUrl ? (
+            {avatarDraftUri ? (
+              <Image source={{ uri: avatarDraftUri }} style={styles.avatarImage} />
+            ) : user?.avatarUrl ? (
               <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
             ) : (
               <Text style={styles.avatarText}>
@@ -309,6 +355,9 @@ export default function ProfileScreen() {
               editable
             />
           </View>
+          {!isEmailValid ? (
+            <Text style={styles.helperTextError}>Enter a valid email address with @.</Text>
+          ) : null}
         </View>
 
         {/* Address */}
@@ -345,7 +394,12 @@ export default function ProfileScreen() {
         </View>
 
         {/* Bio */}
-        <View style={styles.section}>
+        <View
+          style={styles.section}
+          onLayout={(event) => {
+            bioSectionYRef.current = event.nativeEvent.layout.y;
+          }}
+        >
           <Text style={styles.label}>Bio</Text>
           <View style={[styles.input, styles.textAreaInput]}>
             <TextInput
@@ -358,9 +412,47 @@ export default function ProfileScreen() {
               numberOfLines={4}
               textAlignVertical="top"
               editable
+              onFocus={() => {
+                isBioFocusedRef.current = true;
+                scrollToBio(true);
+              }}
+              onBlur={() => {
+                isBioFocusedRef.current = false;
+              }}
+              onContentSizeChange={() => {
+                if (isBioFocusedRef.current) {
+                  scrollToBio(false);
+                }
+              }}
             />
           </View>
         </View>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.saveButton,
+            pressed && styles.saveButtonPressed,
+            (saving || !hasUnsavedChanges || !isEmailValid) && styles.saveButtonDisabled,
+          ]}
+          onPress={handleSaveProfile}
+          disabled={saving || !hasUnsavedChanges || !isEmailValid}
+        >
+          <LinearGradient
+            colors={[Colors.primaryLight, Colors.primary, Colors.primaryDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.saveGradient}
+          >
+            {saving ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Feather name="save" size={18} color="#fff" />
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </>
+            )}
+          </LinearGradient>
+        </Pressable>
 
         {/* Stats */}
         <View style={styles.statsSection}>
@@ -379,7 +471,7 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>Rating</Text>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollViewCompat>
     </View>
   );
 }
@@ -419,6 +511,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
     color: Colors.primary,
+  },
+  saveIndicatorTextWarning: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.warning,
   },
   scrollView: {
     flex: 1,
@@ -498,11 +595,45 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
   },
+  helperTextError: {
+    marginTop: 6,
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.error,
+  },
   textAreaInput: {
     alignItems: 'flex-start',
   },
   textArea: {
     minHeight: 80,
+  },
+  saveButton: {
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  saveButtonPressed: {
+    opacity: 0.95,
+  },
+  saveButtonDisabled: {
+    opacity: 0.65,
+  },
+  saveGradient: {
+    minHeight: 50,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    shadowColor: Colors.primaryDark,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  saveButtonText: {
+    fontSize: 15,
+    fontFamily: 'Inter_700Bold',
+    color: '#fff',
   },
   statsSection: {
     flexDirection: 'row',

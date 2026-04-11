@@ -196,7 +196,8 @@ export default function CreateScreen() {
         ? SERVICE_CATEGORIES
         : CATEGORIES;
 
-  const totalSteps = 9;
+  const showConditionField = listingType !== 'job';
+  const totalSteps = showConditionField ? 9 : 8;
   const completedSteps = [
     Boolean(listingType),
     listingType === 'job' ? true : images.length > 0,
@@ -205,10 +206,11 @@ export default function CreateScreen() {
     price.trim().length > 0 && !Number.isNaN(Number(price)),
     Boolean(category),
     Boolean(locationCity || (latitude !== null && longitude !== null)),
-    Boolean(condition),
+    showConditionField ? Boolean(condition) : true,
     description.trim().length > 0,
   ].filter(Boolean).length;
   const completionPercentage = Math.round((completedSteps / totalSteps) * 100);
+  const descriptionStepNumber = showConditionField ? 9 : 8;
 
   const subscriptionStats = useMemo(() => {
     let totalUsed = 0;
@@ -1865,39 +1867,42 @@ export default function CreateScreen() {
             )}
           </View>
 
-          <View style={styles.section}>
-            <View style={styles.stepHeader}>
-              <View style={styles.stepBadge}>
-                <Text style={styles.stepBadgeText}>8</Text>
+          {showConditionField && (
+            <View style={styles.section}>
+              <View style={styles.stepHeader}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>8</Text>
+                </View>
+                <Text style={styles.sectionLabel}>Condition</Text>
               </View>
-              <Text style={styles.sectionLabel}>Condition</Text>
+              <View style={styles.chipRow}>
+                {CONDITIONS.map((c) => (
+                  <Pressable
+                    key={c.value}
+                    style={[styles.chip, condition === c.value && styles.chipActive]}
+                    onPress={() => setCondition(c.value)}
+                  >
+                    <Text style={[styles.chipText, condition === c.value && styles.chipTextActive]}>
+                      {c.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
-            <View style={styles.chipRow}>
-              {CONDITIONS.map((c) => (
-                <Pressable
-                  key={c.value}
-                  style={[styles.chip, condition === c.value && styles.chipActive]}
-                  onPress={() => setCondition(c.value)}
-                >
-                  <Text style={[styles.chipText, condition === c.value && styles.chipTextActive]}>
-                    {c.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          )}
 
           <View style={styles.section}>
             <View style={styles.stepHeader}>
               <View style={styles.stepBadge}>
-                <Text style={styles.stepBadgeText}>9</Text>
+                <Text style={styles.stepBadgeText}>{descriptionStepNumber}</Text>
               </View>
               <Text style={styles.sectionLabel}>Description</Text>
             </View>
             <RichTextEditor
               value={description}
               onChange={setDescription}
-              placeholder="Describe your item... (up to 800 characters)"
+              placeholder="Describe your item... (up to 1200 characters)"
+              showPreview
             />
           </View>
 

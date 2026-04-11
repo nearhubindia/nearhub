@@ -46,17 +46,10 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     const completeNotification: Notification = {
       ...notification,
       id,
-      duration: notification.duration || 4000,
+      duration: notification.duration,
     };
 
     setNotifications((prev) => [...prev, completeNotification]);
-
-    // Auto-remove after duration
-    if (completeNotification.duration && completeNotification.duration > 0) {
-      setTimeout(() => {
-        removeNotification(id);
-      }, completeNotification.duration);
-    }
 
     return id;
   }, []);
