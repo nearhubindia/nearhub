@@ -24,6 +24,16 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function resolveNumericMetric(source: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = Number(source?.[key]);
+    if (Number.isFinite(value) && value >= 0) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 function mergeListings(existing: Listing | undefined, incoming: Listing): Listing {
   if (!existing) return incoming;
 
@@ -292,6 +302,13 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                     listing.boostCount !== undefined && listing.boostCount !== null
                       ? Number(listing.boostCount)
                       : undefined,
+                  viewCount: resolveNumericMetric(listing, [
+                    'viewCount',
+                    'view_count',
+                    'views',
+                    'totalViews',
+                    'total_views',
+                  ]),
                   chatCount:
                     listing.chatCount !== undefined && listing.chatCount !== null
                       ? Number(listing.chatCount)
@@ -794,6 +811,13 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
               listing.boostCount !== undefined && listing.boostCount !== null
                 ? Number(listing.boostCount)
                 : undefined,
+            viewCount: resolveNumericMetric(listing, [
+              'viewCount',
+              'view_count',
+              'views',
+              'totalViews',
+              'total_views',
+            ]),
             chatCount:
               listing.chatCount !== undefined && listing.chatCount !== null
                 ? Number(listing.chatCount)

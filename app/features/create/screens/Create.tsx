@@ -1677,7 +1677,13 @@ export default function CreateScreen() {
             </View>
             <TextInput
               style={styles.input}
-              placeholder="What are you selling?"
+              placeholder={
+                listingType === 'service'
+                  ? 'What services are you willing to provide?'
+                  : listingType === 'job'
+                    ? 'What type of job are you providing?'
+                    : 'What are you selling?'
+              }
               placeholderTextColor={Colors.textTertiary}
               value={title}
               onChangeText={setTitle}

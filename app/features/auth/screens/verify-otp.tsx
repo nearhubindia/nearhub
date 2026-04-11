@@ -123,7 +123,7 @@ export default function VerifyOTPScreen() {
             params: { phone: data.user.phone || phone },
           });
         } else {
-          router.replace('/(tabs)');
+          router.dismissTo('/(tabs)');
         }
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

@@ -32,6 +32,7 @@ export interface ChatThread {
 interface MessagesContextValue {
   threads: ChatThread[];
   isLoading: boolean;
+  unreadChatsCount: number;
   getThread: (id: string) => ChatThread | undefined;
   refreshThreads: () => Promise<void>;
   loadThreadMessages: (id: string) => Promise<ChatMessage[]>;
@@ -86,6 +87,14 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const unreadChatsCount = useMemo(
+    () =>
+      threads.reduce(
+        (sum, thread) => sum + Math.max(0, Number.isFinite(thread.unreadCount) ? thread.unreadCount : 0),
+        0
+      ),
+    [threads]
+  );
 
   const getThread = useCallback(
     (id: string) => threads.find((t) => t.conversationId === id || t.listingId === id),
@@ -417,12 +426,13 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     () => ({
       threads,
       isLoading,
+      unreadChatsCount,
       getThread,
       refreshThreads,
       loadThreadMessages,
       sendMessage,
     }),
-    [getThread, isLoading, loadThreadMessages, refreshThreads, sendMessage, threads]
+    [getThread, isLoading, loadThreadMessages, refreshThreads, sendMessage, threads, unreadChatsCount]
   );
 
   return <MessagesContext.Provider value={value}>{children}</MessagesContext.Provider>;

@@ -11,11 +11,11 @@ import { openNotificationTarget } from '@/lib/notification-navigation';
 // Configure how notifications are handled when app is in foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: false,
-    shouldPlaySound: false,
+    shouldShowAlert: true,
+    shouldPlaySound: true,
     shouldSetBadge: true,
-    shouldShowBanner: false,
-    shouldShowList: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -41,6 +41,7 @@ export function usePushNotifications() {
 
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
+  const hasHandledLaunchResponse = useRef(false);
 
   useEffect(() => {
     if (!user || !pushEnabled) {
@@ -72,13 +73,30 @@ export function usePushNotifications() {
       });
     });
 
-    // Listen for user interactions with notifications
+    const handleNotificationTap = async (data: PushNotificationData) => {
+      console.log('[Push] Notification tapped:', data);
+      await openNotificationTarget(data);
+    };
+
+    // Handle notification tap used to launch app from killed/background state
+    if (!hasHandledLaunchResponse.current) {
+      hasHandledLaunchResponse.current = true;
+      Notifications.getLastNotificationResponseAsync()
+        .then(async (response) => {
+          if (!response) return;
+          const { data } = response.notification.request.content;
+          await handleNotificationTap(data as PushNotificationData);
+          await Notifications.clearLastNotificationResponseAsync();
+        })
+        .catch((error) => {
+          console.warn('[Push] Failed to handle launch notification response:', error);
+        });
+    }
+
+    // Listen for user interactions with notifications while app is running/backgrounded
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       const { data } = response.notification.request.content;
-      console.log('[Push] Notification tapped:', data);
-
-      // Handle navigation based on notification type
-      void openNotificationTarget(data as PushNotificationData);
+      void handleNotificationTap(data as PushNotificationData);
     });
 
     return () => {

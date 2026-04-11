@@ -114,7 +114,7 @@ export default function CompleteProfileScreen() {
       if (data.success && data.user) {
         await login(data.user);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.replace('/(tabs)');
+        router.dismissTo('/(tabs)');
       } else {
         Alert.alert('Error', data.message || 'Failed to complete profile.');
       }

@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/colors';
 import { useAuth } from '@/shared/contexts/auth-context';
+import { useMessages } from '@/shared/contexts/messages-context';
 import { responsiveFont, responsiveModerateScale, responsiveWidth } from '@/lib/responsive';
 
 interface ProfileMenuModalProps {
@@ -87,7 +88,9 @@ const MENU_ACCENT = '#0B6DD8';
 export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalProps) {
   const insets = useSafeAreaInsets();
   const { user, logout, isAuthenticated } = useAuth();
+  const { unreadChatsCount } = useMessages();
   const slideAnim = useRef(new Animated.Value(360)).current;
+  const unreadChatsLabel = unreadChatsCount > 99 ? '99+' : String(unreadChatsCount);
 
   useEffect(() => {
     if (visible) {
@@ -179,8 +182,16 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
               <View style={styles.profileInfo}>
                 <Text style={styles.profileName}>{user.name || 'User'}</Text>
                 <Text style={styles.profilePhone}>{user.phone}</Text>
-                <View style={styles.memberPill}>
-                  <Text style={styles.profileMeta}>NearHub member</Text>
+                <View style={styles.profileMetaRow}>
+                  <View style={styles.memberPill}>
+                    <Text style={styles.profileMeta}>NearHub member</Text>
+                  </View>
+                  {unreadChatsCount > 0 ? (
+                    <View style={styles.unreadPill}>
+                      <Feather name="message-circle" size={responsiveModerateScale(12)} color="#fff" />
+                      <Text style={styles.unreadPillText}>{unreadChatsLabel} new chats</Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
             </LinearGradient>
@@ -237,8 +248,19 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
                       />
                     </View>
                     <View style={styles.menuCardBody}>
-                      <Text style={styles.menuCardTitle}>{item.label}</Text>
-                      <Text style={styles.menuCardSubtitle}>{item.subtitle}</Text>
+                      <View style={styles.menuCardTitleRow}>
+                        <Text style={styles.menuCardTitle}>{item.label}</Text>
+                        {item.route === '/messages' && unreadChatsCount > 0 ? (
+                          <View style={styles.menuUnreadBadge}>
+                            <Text style={styles.menuUnreadBadgeText}>{unreadChatsLabel}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={styles.menuCardSubtitle}>
+                        {item.route === '/messages' && unreadChatsCount > 0
+                          ? `${unreadChatsLabel} unread chats`
+                          : item.subtitle}
+                      </Text>
                     </View>
                   </Pressable>
                 ))}
@@ -430,14 +452,35 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.92)',
   },
   memberPill: {
-    marginTop: 6,
     alignSelf: 'flex-start',
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
+  profileMetaRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   profileMeta: {
+    fontSize: responsiveFont(11),
+    fontFamily: 'Inter_600SemiBold',
+    color: '#FFFFFF',
+  },
+  unreadPill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(14, 165, 233, 0.28)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  unreadPillText: {
     fontSize: responsiveFont(11),
     fontFamily: 'Inter_600SemiBold',
     color: '#FFFFFF',
@@ -539,12 +582,32 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     color: '#2A3553',
   },
+  menuCardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   menuCardSubtitle: {
     marginTop: 2,
     fontSize: responsiveFont(11),
     lineHeight: responsiveModerateScale(15),
     fontFamily: 'Inter_500Medium',
     color: '#7484A2',
+  },
+  menuUnreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0B6DD8',
+  },
+  menuUnreadBadgeText: {
+    fontSize: responsiveFont(10),
+    fontFamily: 'Inter_700Bold',
+    color: '#fff',
   },
   divider: {
     height: 1,

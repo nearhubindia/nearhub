@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -9,6 +9,7 @@ import {
   TextInput,
   Platform,
   Keyboard,
+  KeyboardAvoidingView,
   Alert,
   Image,
 } from 'react-native';
@@ -22,6 +23,7 @@ import Colors from '@/constants/colors';
 import AppScreenBanners from '@/shared/components/AppScreenBanners';
 import { KeyboardAwareScrollViewCompat } from '@/shared/components/KeyboardAwareScrollViewCompat';
 import { useAuth } from '@/shared/contexts/auth-context';
+import { useListings } from '@/shared/contexts/listings-context';
 import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 import { getApiUrl } from '@/lib/query-client';
@@ -38,6 +40,7 @@ type ProfileStats = {
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, updateUser } = useAuth();
+  const { listings, refreshListings } = useListings();
   const { banners: profileBanners, isLoading: isProfileBannersLoading } =
     useAppScreenBanners('profile');
   const [name, setName] = useState(user?.name || '');
@@ -57,8 +60,44 @@ export default function ProfileScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const bioSectionYRef = useRef<number | null>(null);
   const isBioFocusedRef = useRef(false);
+  const scrollToBioTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+
+  const normalizeId = (value: string | undefined | null) => String(value || '').trim();
+  const userIdNormalized = normalizeId(user?.id);
+  const myListings = useMemo(
+    () =>
+      listings.filter((listing) => {
+        const listingUserId = normalizeId(listing.userId);
+        return Boolean(userIdNormalized && listingUserId && listingUserId === userIdNormalized);
+      }),
+    [listings, userIdNormalized]
+  );
+
+  const totalSavesAcrossListings = useMemo(
+    () =>
+      myListings.reduce((sum, listing) => {
+        const legacySavedCount = (listing as { savedCount?: unknown }).savedCount;
+        const candidates = [listing.saveCount, listing.likeCount, legacySavedCount];
+        for (const metric of candidates) {
+          const numeric = Number(metric);
+          if (Number.isFinite(numeric) && numeric >= 0) {
+            return sum + numeric;
+          }
+        }
+        return sum;
+      }, 0),
+    [myListings]
+  );
+
+  const ratingFromSaveCount = useMemo(() => {
+    if (myListings.length === 0 || totalSavesAcrossListings <= 0) return 0;
+    const averageSavesPerListing = totalSavesAcrossListings / myListings.length;
+    const normalizedRating = averageSavesPerListing / 10;
+    return Math.min(5, Number(normalizedRating.toFixed(1)));
+  }, [myListings.length, totalSavesAcrossListings]);
+
   const sanitizedName = sanitizeAlphabeticName(name).trim();
   const trimmedEmail = email.trim();
   const isEmailValid = !trimmedEmail || isValidEmailAddress(trimmedEmail);
@@ -79,12 +118,18 @@ export default function ProfileScreen() {
     const bioSectionY = bioSectionYRef.current;
     if (bioSectionY === null) return;
 
-    requestAnimationFrame(() => {
+    if (scrollToBioTimeoutRef.current) {
+      clearTimeout(scrollToBioTimeoutRef.current);
+      scrollToBioTimeoutRef.current = null;
+    }
+
+    const keyboardAdjustmentOffset = Platform.OS === 'ios' ? 110 : 160;
+    scrollToBioTimeoutRef.current = setTimeout(() => {
       scrollViewRef.current?.scrollTo({
-        y: Math.max(0, bioSectionY - 24),
+        y: Math.max(0, bioSectionY - keyboardAdjustmentOffset),
         animated,
       });
-    });
+    }, Platform.OS === 'ios' ? 120 : 80);
   }, []);
 
   const syncProfileToServer = async (payload: {
@@ -137,13 +182,20 @@ export default function ProfileScreen() {
       setProfileStats({
         totalListings: Number.isFinite(totalListings) ? totalListings : 0,
         soldListings: Number.isFinite(soldListings) ? soldListings : 0,
-        rating: Number.isFinite(rawRating) ? rawRating : null,
+        rating: Number.isFinite(rawRating) ? rawRating : 0,
       });
     } catch (error) {
       console.warn('[Profile] Failed to load stats:', error);
-      setProfileStats({ totalListings: 0, soldListings: 0, rating: null });
+      setProfileStats({ totalListings: 0, soldListings: 0, rating: 0 });
     }
   }, [user?.id]);
+
+  useEffect(() => {
+    setProfileStats((prev) => ({
+      ...prev,
+      rating: ratingFromSaveCount,
+    }));
+  }, [ratingFromSaveCount]);
 
   const handleChangePhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -238,7 +290,10 @@ export default function ProfileScreen() {
   useFocusEffect(
     React.useCallback(() => {
       loadProfileStats();
-    }, [loadProfileStats])
+      refreshListings().catch((error) => {
+        console.warn('[Profile] Failed to refresh listings for rating:', error);
+      });
+    }, [loadProfileStats, refreshListings])
   );
 
   useEffect(() => {
@@ -253,8 +308,21 @@ export default function ProfileScreen() {
     };
   }, [scrollToBio]);
 
+  useEffect(() => {
+    return () => {
+      if (scrollToBioTimeoutRef.current) {
+        clearTimeout(scrollToBioTimeoutRef.current);
+        scrollToBioTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
+    >
       {/* Header */}
       <View style={[styles.header, { paddingTop: (insets.top || webTopInset) + 12 }]}>
         <Pressable
@@ -283,6 +351,7 @@ export default function ProfileScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40, flexGrow: 1 }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
       >
         <AppScreenBanners banners={profileBanners} isLoading={isProfileBannersLoading} />
 
@@ -466,7 +535,7 @@ export default function ProfileScreen() {
           </View>
         </View>
       </KeyboardAwareScrollViewCompat>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
