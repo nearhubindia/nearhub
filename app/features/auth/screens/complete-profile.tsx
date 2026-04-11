@@ -22,6 +22,8 @@ import { useAuth } from '@/shared/contexts/auth-context';
 import { getApiUrl } from '@/lib/query-client';
 import { createResponsiveStyles } from '@/lib/responsive';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
+import { isValidEmailAddress } from '@/lib/email-utils';
+import { sanitizeAlphabeticName } from '@/lib/name-utils';
 
 export default function CompleteProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -38,7 +40,12 @@ export default function CompleteProfileScreen() {
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const phoneValue = typeof phone === 'string' ? phone : '';
 
-  const validateEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+  const handleNameChange = (value: string) => {
+    setName(sanitizeAlphabeticName(value));
+  };
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+  };
 
   const pickProfilePhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -60,7 +67,8 @@ export default function CompleteProfileScreen() {
   };
 
   const handleComplete = async () => {
-    if (!name.trim()) {
+    const sanitizedName = sanitizeAlphabeticName(name).trim();
+    if (!sanitizedName) {
       Alert.alert('Required', 'Please enter your name.');
       return;
     }
@@ -68,7 +76,7 @@ export default function CompleteProfileScreen() {
       Alert.alert('Required', 'Please select your gender.');
       return;
     }
-    if (!validateEmail(email.trim())) {
+    if (!isValidEmailAddress(email)) {
       Alert.alert('Invalid Email', 'Please enter a valid email address.');
       return;
     }
@@ -95,7 +103,7 @@ export default function CompleteProfileScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phone: phoneValue,
-          name: name.trim(),
+          name: sanitizedName,
           email: email.trim(),
           gender,
           avatarUrl: uploadedAvatarUrl,
@@ -168,7 +176,7 @@ export default function CompleteProfileScreen() {
                 placeholder="Enter your full name"
                 placeholderTextColor={Colors.textTertiary}
                 value={name}
-                onChangeText={setName}
+                onChangeText={handleNameChange}
                 autoCapitalize="words"
               />
             </View>
@@ -205,9 +213,12 @@ export default function CompleteProfileScreen() {
                 placeholder="you@example.com"
                 placeholderTextColor={Colors.textTertiary}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={handleEmailChange}
                 keyboardType="email-address"
+                autoComplete="email"
                 autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="emailAddress"
               />
             </View>
           </View>

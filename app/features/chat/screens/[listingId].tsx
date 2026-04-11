@@ -95,6 +95,11 @@ export default function ChatScreen() {
   const sellerAvatarUrl =
     thread?.otherUserAvatar || otherUserAvatarParam || listing?.sellerAvatar || '';
   const sellerAvatarInitial = sellerDisplayName.trim().charAt(0).toUpperCase() || 'S';
+  const hasValidOfferPrice =
+    typeof listing?.offerPrice === 'number' &&
+    listing.offerPrice > 0 &&
+    listing.offerPrice < listing.price;
+  const displayPrice = hasValidOfferPrice ? listing.offerPrice : listing?.price;
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -208,9 +213,9 @@ export default function ChatScreen() {
           </View>
         </View>
         <View style={styles.headerActions}>
-          {listing && (
+          {listing && typeof displayPrice === 'number' && (
             <View style={styles.headerPrice}>
-              <Text style={styles.priceText}>₹{listing.price.toLocaleString('en-IN')}</Text>
+              <Text style={styles.priceText}>₹{displayPrice.toLocaleString('en-IN')}</Text>
             </View>
           )}
           {profileTargetId ? (
@@ -246,8 +251,8 @@ export default function ChatScreen() {
             />
           ) : null}
           <Text style={styles.emptyTitle}>{listingTitle || listing?.title}</Text>
-          {listing && (
-            <Text style={styles.emptyPrice}>₹{listing.price.toLocaleString('en-IN')}</Text>
+          {listing && typeof displayPrice === 'number' && (
+            <Text style={styles.emptyPrice}>₹{displayPrice.toLocaleString('en-IN')}</Text>
           )}
           <Text style={styles.emptyHint}>Send a message to the seller to get started</Text>
 

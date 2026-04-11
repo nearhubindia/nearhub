@@ -22,6 +22,8 @@ import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 import { getApiUrl } from '@/lib/query-client';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
+import { isValidEmailAddress } from '@/lib/email-utils';
+import { sanitizeAlphabeticName } from '@/lib/name-utils';
 
 type ProfileStats = {
   totalListings: number;
@@ -49,6 +51,11 @@ export default function ProfileScreen() {
   const lastSavedPayloadRef = useRef<string>('');
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const sanitizedName = sanitizeAlphabeticName(name).trim();
+  const trimmedEmail = email.trim();
+  const emailForSync = trimmedEmail && isValidEmailAddress(trimmedEmail)
+    ? trimmedEmail
+    : (user?.email || '').trim();
 
   const syncProfileToServer = async (payload: {
     name: string;
@@ -132,8 +139,8 @@ export default function ProfileScreen() {
         userId: user?.id,
       });
       await syncProfileToServer({
-        name: (name || user?.name || 'User').trim(),
-        email: (email || user?.email || '').trim(),
+        name: sanitizedName || sanitizeAlphabeticName(user?.name || 'User').trim() || 'User',
+        email: emailForSync,
         bio: (bio || user?.bio || '').trim(),
         address: (address || user?.address || '').trim(),
         gstin: (gstin || user?.gstin || '').trim(),
@@ -160,7 +167,7 @@ export default function ProfileScreen() {
     setGstin(user.gstin || '');
 
     const initialPayload = {
-      name: (user.name || '').trim(),
+      name: sanitizeAlphabeticName(user.name || '').trim(),
       email: (user.email || '').trim(),
       address: (user.address || '').trim(),
       bio: (user.bio || '').trim(),
@@ -177,8 +184,8 @@ export default function ProfileScreen() {
     }
 
     const payload = {
-      name: name.trim(),
-      email: email.trim(),
+      name: sanitizedName,
+      email: emailForSync,
       address: address.trim(),
       bio: bio.trim(),
       gstin: gstin.trim(),
@@ -207,7 +214,7 @@ export default function ProfileScreen() {
     }, 700);
 
     return () => clearTimeout(saveTimer);
-  }, [user?.id, name, email, address, bio, gstin, updateUser]);
+  }, [user?.id, sanitizedName, emailForSync, address, bio, gstin, updateUser]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -276,7 +283,7 @@ export default function ProfileScreen() {
             <TextInput
               style={styles.inputText}
               value={name}
-              onChangeText={setName}
+              onChangeText={(value) => setName(sanitizeAlphabeticName(value))}
               placeholder="Enter your name"
               placeholderTextColor={Colors.textTertiary}
               editable
@@ -296,7 +303,10 @@ export default function ProfileScreen() {
               placeholder="Enter your email"
               placeholderTextColor={Colors.textTertiary}
               keyboardType="email-address"
+              autoComplete="email"
               autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="emailAddress"
               editable
             />
           </View>
