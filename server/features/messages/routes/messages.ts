@@ -518,7 +518,8 @@ export function registerMessageRoutes(app: Express) {
       const participantProfileMap = await getUserProfileMap([identity.userId, recipientId]);
       const senderProfile = participantProfileMap.get(identity.userId);
       const recipientProfile = participantProfileMap.get(recipientId);
-      const senderLabel = senderProfile?.displayName || participantLabel(identity.userId, senderRole);
+      const senderLabel =
+        senderProfile?.displayName || participantLabel(identity.userId, senderRole);
       notifyNewMessage(recipientId, senderLabel, text, conversation.id, identity.userId).catch(
         (err) => {
           console.error('[Messages] Failed to send new message notification:', err);
