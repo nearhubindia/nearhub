@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   StyleSheet,
@@ -23,7 +23,6 @@ import Colors from '@/constants/colors';
 import AppScreenBanners from '@/shared/components/AppScreenBanners';
 import { KeyboardAwareScrollViewCompat } from '@/shared/components/KeyboardAwareScrollViewCompat';
 import { useAuth } from '@/shared/contexts/auth-context';
-import { useListings } from '@/shared/contexts/listings-context';
 import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 import { getApiUrl } from '@/lib/query-client';
@@ -37,10 +36,35 @@ type ProfileStats = {
   rating: number | null;
 };
 
+function toFiniteNumber(value: unknown): number | null {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function extractListingSaveCount(listing: any): number {
+  const direct =
+    toFiniteNumber(listing?.saveCount) ??
+    toFiniteNumber(listing?.likeCount) ??
+    toFiniteNumber(listing?.likesCount) ??
+    toFiniteNumber(listing?.favoritesCount) ??
+    toFiniteNumber(listing?.savedCount);
+
+  return Math.max(0, direct ?? 0);
+}
+
+function computeSaveBasedRating(totalSaves: number, totalListings: number): number {
+  if (totalSaves <= 0 || totalListings <= 0) {
+    return 0;
+  }
+
+  const averageSavesPerListing = totalSaves / totalListings;
+  const score = Math.log2(averageSavesPerListing + 1) * 1.5;
+  return Math.min(5, Number(score.toFixed(1)));
+}
+
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, updateUser } = useAuth();
-  const { listings, refreshListings } = useListings();
   const { banners: profileBanners, isLoading: isProfileBannersLoading } =
     useAppScreenBanners('profile');
   const [name, setName] = useState(user?.name || '');
@@ -63,41 +87,6 @@ export default function ProfileScreen() {
   const scrollToBioTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
-
-  const normalizeId = (value: string | undefined | null) => String(value || '').trim();
-  const userIdNormalized = normalizeId(user?.id);
-  const myListings = useMemo(
-    () =>
-      listings.filter((listing) => {
-        const listingUserId = normalizeId(listing.userId);
-        return Boolean(userIdNormalized && listingUserId && listingUserId === userIdNormalized);
-      }),
-    [listings, userIdNormalized]
-  );
-
-  const totalSavesAcrossListings = useMemo(
-    () =>
-      myListings.reduce((sum, listing) => {
-        const legacySavedCount = (listing as { savedCount?: unknown }).savedCount;
-        const candidates = [listing.saveCount, listing.likeCount, legacySavedCount];
-        for (const metric of candidates) {
-          const numeric = Number(metric);
-          if (Number.isFinite(numeric) && numeric >= 0) {
-            return sum + numeric;
-          }
-        }
-        return sum;
-      }, 0),
-    [myListings]
-  );
-
-  const ratingFromSaveCount = useMemo(() => {
-    if (myListings.length === 0 || totalSavesAcrossListings <= 0) return 0;
-    const averageSavesPerListing = totalSavesAcrossListings / myListings.length;
-    const normalizedRating = averageSavesPerListing / 10;
-    return Math.min(5, Number(normalizedRating.toFixed(1)));
-  }, [myListings.length, totalSavesAcrossListings]);
-
   const sanitizedName = sanitizeAlphabeticName(name).trim();
   const trimmedEmail = email.trim();
   const isEmailValid = !trimmedEmail || isValidEmailAddress(trimmedEmail);
@@ -166,39 +155,67 @@ export default function ProfileScreen() {
     }
 
     try {
-      const response = await fetch(
-        `${getApiUrl()}/api/users/${encodeURIComponent(user.id)}/stats`,
-        {
+      const apiUrl = getApiUrl();
+      const [statsResponse, userListingsResponse] = await Promise.all([
+        fetch(`${apiUrl}/api/users/${encodeURIComponent(user.id)}/stats`, {
           headers: buildUserAuthHeaders({ id: user.id }),
-        }
-      );
-      if (!response.ok) {
-        throw new Error(`Failed to fetch stats (${response.status})`);
+        }),
+        fetch(`${apiUrl}/api/subscriptions/user/${encodeURIComponent(user.id)}/listings`, {
+          headers: buildUserAuthHeaders({ id: user.id }),
+        }),
+      ]);
+
+      if (!statsResponse.ok) {
+        throw new Error(`Failed to fetch stats (${statsResponse.status})`);
       }
 
-      const data = await response.json().catch(() => ({}));
-      const stats = data?.stats || {};
-      const totalListings = Number(stats.totalListings ?? 0);
-      const soldListings = Number(stats.soldListings ?? 0);
-      const rawRating = Number(stats.rating ?? stats.averageRating ?? stats.avgRating);
+      const statsPayload = await statsResponse.json().catch(() => ({}));
+      const stats = statsPayload?.stats || {};
+      const totalListings = Math.max(0, Number(stats.totalListings ?? 0));
+      const soldListings = Math.max(0, Number(stats.soldListings ?? 0));
+      const rawRating = toFiniteNumber(stats.rating ?? stats.averageRating ?? stats.avgRating);
+
+      let listingsForSaveScore: any[] = [];
+      if (userListingsResponse.ok) {
+        const listingsPayload = await userListingsResponse.json().catch(() => ({}));
+        listingsForSaveScore = Array.isArray(listingsPayload?.listings)
+          ? listingsPayload.listings
+          : Array.isArray(listingsPayload?.activeListings)
+            ? listingsPayload.activeListings
+            : [];
+      }
+
+      const savesFromListings = listingsForSaveScore.reduce(
+        (sum, listing) => sum + extractListingSaveCount(listing),
+        0
+      );
+      const statsReportedSaves =
+        toFiniteNumber(stats.totalSaves) ??
+        toFiniteNumber(stats.totalLikes) ??
+        toFiniteNumber(stats.saveCount);
+      const effectiveTotalSaves = Math.max(0, statsReportedSaves ?? savesFromListings);
+      const listingsUsedForRating = Math.max(
+        listingsForSaveScore.length,
+        Number.isFinite(totalListings) ? totalListings : 0
+      );
+      const saveBasedRating = computeSaveBasedRating(effectiveTotalSaves, listingsUsedForRating);
+      const resolvedRating =
+        effectiveTotalSaves > 0 || listingsUsedForRating > 0 ? saveBasedRating : rawRating;
+      const normalizedResolvedRating =
+        typeof resolvedRating === 'number' && Number.isFinite(resolvedRating)
+          ? resolvedRating
+          : null;
 
       setProfileStats({
         totalListings: Number.isFinite(totalListings) ? totalListings : 0,
         soldListings: Number.isFinite(soldListings) ? soldListings : 0,
-        rating: Number.isFinite(rawRating) ? rawRating : 0,
+        rating: normalizedResolvedRating,
       });
     } catch (error) {
       console.warn('[Profile] Failed to load stats:', error);
-      setProfileStats({ totalListings: 0, soldListings: 0, rating: 0 });
+      setProfileStats({ totalListings: 0, soldListings: 0, rating: null });
     }
   }, [user?.id]);
-
-  useEffect(() => {
-    setProfileStats((prev) => ({
-      ...prev,
-      rating: ratingFromSaveCount,
-    }));
-  }, [ratingFromSaveCount]);
 
   const handleChangePhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -293,10 +310,7 @@ export default function ProfileScreen() {
   useFocusEffect(
     React.useCallback(() => {
       loadProfileStats();
-      refreshListings().catch((error) => {
-        console.warn('[Profile] Failed to refresh listings for rating:', error);
-      });
-    }, [loadProfileStats, refreshListings])
+    }, [loadProfileStats])
   );
 
   useEffect(() => {

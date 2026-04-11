@@ -70,6 +70,10 @@ export default function RegisterScreen() {
     }
   };
 
+  const handleBackToHome = () => {
+    router.replace('/(tabs)');
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -85,9 +89,9 @@ export default function RegisterScreen() {
           },
         ]}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
       >
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
+        <Pressable style={styles.backButton} onPress={handleBackToHome}>
           <Feather name="arrow-left" size={20} color={Colors.text} />
         </Pressable>
 

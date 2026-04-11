@@ -1681,7 +1681,7 @@ export default function CreateScreen() {
                 listingType === 'service'
                   ? 'What services are you willing to provide?'
                   : listingType === 'job'
-                    ? 'What type of job are you providing?'
+                    ? 'What type of job you are posting?'
                     : 'What are you selling?'
               }
               placeholderTextColor={Colors.textTertiary}

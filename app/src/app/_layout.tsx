@@ -32,12 +32,31 @@ if (__DEV__) {
   const globalRef = globalThis as unknown as Record<string, unknown>;
   if (!globalRef[globalKey]) {
     const originalWarn = console.warn.bind(console);
+    const originalError = console.error.bind(console);
+    const isSafeAreaDeprecationLog = (args: unknown[]): boolean => {
+      const joined = args
+        .map((arg) => (typeof arg === 'string' ? arg : ''))
+        .filter(Boolean)
+        .join(' ');
+
+      return (
+        joined.includes('SafeAreaView has been deprecated') &&
+        joined.includes('react-native-safe-area-context')
+      );
+    };
+
     console.warn = (...args: unknown[]) => {
-      const firstArg = typeof args[0] === 'string' ? args[0] : '';
-      if (firstArg.includes('SafeAreaView has been deprecated')) {
+      if (isSafeAreaDeprecationLog(args)) {
         return;
       }
       originalWarn(...args);
+    };
+
+    console.error = (...args: unknown[]) => {
+      if (isSafeAreaDeprecationLog(args)) {
+        return;
+      }
+      originalError(...args);
     };
     globalRef[globalKey] = true;
   }
@@ -160,6 +179,13 @@ function RootLayoutNav() {
         name="settings"
         options={{
           headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="notifications"
+        options={{
+          headerShown: false,
+          presentation: 'card',
         }}
       />
       <Stack.Screen

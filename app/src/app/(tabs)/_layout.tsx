@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { BlurView } from 'expo-blur';
-import { Platform, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Platform, Pressable, StyleSheet, useColorScheme } from 'react-native';
 import React from 'react';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +9,6 @@ import Colors from '@/constants/colors';
 import { TAB_BAR_BASE_HEIGHT, TAB_BAR_MIN_BOTTOM_PADDING } from '@/constants/layout';
 import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
 import ProfileMenuModal from '@/shared/components/ProfileMenuModal';
-import { useMessages } from '@/shared/contexts/messages-context';
 
 function ClassicTabLayout() {
   const colorScheme = useColorScheme();
@@ -23,8 +22,6 @@ function ClassicTabLayout() {
     Platform.OS === 'web'
       ? 0
       : Math.max(bottomInset, responsiveModerateScale(TAB_BAR_MIN_BOTTOM_PADDING));
-  const { unreadChatsCount } = useMessages();
-  const unreadChatsLabel = unreadChatsCount > 99 ? '99+' : String(unreadChatsCount);
 
   return (
     <>
@@ -102,14 +99,7 @@ function ClassicTabLayout() {
           options={{
             title: 'Profile',
             tabBarIcon: ({ color }) => (
-              <View style={styles.profileIconWrap}>
-                <Feather size={responsiveModerateScale(21)} name="user" color={color} />
-                {unreadChatsCount > 0 ? (
-                  <View style={styles.profileUnreadBadge}>
-                    <Text style={styles.profileUnreadBadgeText}>{unreadChatsLabel}</Text>
-                  </View>
-                ) : null}
-              </View>
+              <Feather size={responsiveModerateScale(21)} name="user" color={color} />
             ),
             tabBarButton: (props) => (
               <Pressable
@@ -152,32 +142,3 @@ function ClassicTabLayout() {
 export default function TabLayout() {
   return <ClassicTabLayout />;
 }
-
-const styles = StyleSheet.create({
-  profileIconWrap: {
-    width: responsiveModerateScale(28),
-    height: responsiveModerateScale(24),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileUnreadBadge: {
-    position: 'absolute',
-    top: -7,
-    right: -10,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    paddingHorizontal: 4,
-    backgroundColor: '#DC2626',
-    borderWidth: 1,
-    borderColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileUnreadBadgeText: {
-    fontSize: responsiveFont(9),
-    lineHeight: responsiveModerateScale(11),
-    fontFamily: 'Inter_700Bold',
-    color: '#fff',
-  },
-});

@@ -24,11 +24,12 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function resolveNumericMetric(source: Record<string, unknown>, keys: string[]): number | undefined {
-  for (const key of keys) {
-    const value = Number(source?.[key]);
-    if (Number.isFinite(value) && value >= 0) {
-      return value;
+function parseOptionalCount(...candidates: unknown[]): number | undefined {
+  for (const candidate of candidates) {
+    if (candidate === undefined || candidate === null || candidate === '') continue;
+    const numericValue = Number(candidate);
+    if (Number.isFinite(numericValue) && numericValue >= 0) {
+      return numericValue;
     }
   }
   return undefined;
@@ -302,13 +303,12 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                     listing.boostCount !== undefined && listing.boostCount !== null
                       ? Number(listing.boostCount)
                       : undefined,
-                  viewCount: resolveNumericMetric(listing, [
-                    'viewCount',
-                    'view_count',
-                    'views',
-                    'totalViews',
-                    'total_views',
-                  ]),
+                  viewCount: parseOptionalCount(
+                    listing.viewCount,
+                    listing.views,
+                    listing.totalViews,
+                    listing['view_count']
+                  ),
                   chatCount:
                     listing.chatCount !== undefined && listing.chatCount !== null
                       ? Number(listing.chatCount)
@@ -811,13 +811,12 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
               listing.boostCount !== undefined && listing.boostCount !== null
                 ? Number(listing.boostCount)
                 : undefined,
-            viewCount: resolveNumericMetric(listing, [
-              'viewCount',
-              'view_count',
-              'views',
-              'totalViews',
-              'total_views',
-            ]),
+            viewCount: parseOptionalCount(
+              listing.viewCount,
+              listing.views,
+              listing.totalViews,
+              listing['view_count']
+            ),
             chatCount:
               listing.chatCount !== undefined && listing.chatCount !== null
                 ? Number(listing.chatCount)

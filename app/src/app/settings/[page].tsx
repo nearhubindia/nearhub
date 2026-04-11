@@ -106,7 +106,7 @@ const PAGE_CONFIG: Record<PageKey, DetailConfig> = {
 
 const LANGUAGE_OPTIONS = ['English'];
 const THEME_OPTIONS = ['System Default'];
-const HELP_SUPPORT_CONTACT_URL = 'https://nearhub.in/contact';
+const SUPPORT_QUERY_URL = 'https://nearhub.in/contact';
 
 export default function SettingDetailScreen() {
   const { page } = useLocalSearchParams<{ page: string }>();
@@ -148,13 +148,13 @@ export default function SettingDetailScreen() {
     Alert.alert('Support', 'Email client is not available on this device.');
   };
 
-  const handleContactLinkAction = async () => {
-    const canOpenContact = await Linking.canOpenURL(HELP_SUPPORT_CONTACT_URL);
-    if (canOpenContact) {
-      await Linking.openURL(HELP_SUPPORT_CONTACT_URL);
+  const handleSupportQueryLink = async () => {
+    const canOpenUrl = await Linking.canOpenURL(SUPPORT_QUERY_URL);
+    if (canOpenUrl) {
+      await Linking.openURL(SUPPORT_QUERY_URL);
       return;
     }
-    Alert.alert('Support', 'Unable to open the contact link on this device.');
+    Alert.alert('Support', 'Unable to open support webpage right now.');
   };
 
   const confirmDeleteAccount = () => {
@@ -246,12 +246,16 @@ export default function SettingDetailScreen() {
 
         {key === 'help-support' ? (
           <Pressable
-            style={styles.contactLinkCard}
-            onPress={handleContactLinkAction}
+            style={styles.group}
+            onPress={handleSupportQueryLink}
             android_ripple={{ color: '#E9F0FB' }}
           >
-            <Text style={styles.contactLinkLabel}>For any queries :</Text>
-            <Text style={styles.contactLinkUrl}>{HELP_SUPPORT_CONTACT_URL}</Text>
+            <View style={styles.pointRow}>
+              <Feather name="external-link" size={16} color="#0B6DD8" style={styles.pointIcon} />
+              <Text style={[styles.pointText, styles.supportLinkText]}>
+                For Any Queries: {SUPPORT_QUERY_URL}
+              </Text>
+            </View>
           </Pressable>
         ) : null}
 
@@ -428,6 +432,11 @@ const styles = StyleSheet.create({
     color: '#2B3A56',
     fontFamily: 'Inter_400Regular',
   },
+  supportLinkText: {
+    color: '#0B6DD8',
+    fontFamily: 'Inter_500Medium',
+    textDecorationLine: 'underline',
+  },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -448,27 +457,6 @@ const styles = StyleSheet.create({
   optionTextActive: {
     color: '#0B6DD8',
     fontFamily: 'Inter_600SemiBold',
-  },
-  contactLinkCard: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#DEE7F5',
-    backgroundColor: '#F8FAFE',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 12,
-  },
-  contactLinkLabel: {
-    fontSize: 13,
-    fontFamily: 'Inter_500Medium',
-    color: '#5D7393',
-    marginBottom: 4,
-  },
-  contactLinkUrl: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#0B6DD8',
-    textDecorationLine: 'underline',
   },
   ctaButton: {
     height: 48,

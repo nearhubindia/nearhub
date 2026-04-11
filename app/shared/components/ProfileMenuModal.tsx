@@ -186,16 +186,6 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
                   <View style={styles.memberPill}>
                     <Text style={styles.profileMeta}>NearHub member</Text>
                   </View>
-                  {unreadChatsCount > 0 ? (
-                    <View style={styles.unreadPill}>
-                      <Feather
-                        name="message-circle"
-                        size={responsiveModerateScale(12)}
-                        color="#fff"
-                      />
-                      <Text style={styles.unreadPillText}>{unreadChatsLabel} new chats</Text>
-                    </View>
-                  ) : null}
                 </View>
               </View>
             </LinearGradient>
@@ -456,6 +446,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.92)',
   },
   memberPill: {
+    marginTop: 6,
     alignSelf: 'flex-start',
     borderRadius: 999,
     paddingHorizontal: 10,

@@ -1,218 +1,39 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  useColorScheme,
-  Modal,
-  FlatList,
-  Platform,
-  Pressable,
-} from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useNotifications, type Notification } from '@/shared/contexts/notifications-context';
+import { useRouter } from 'expo-router';
+import { useNotifications } from '@/shared/contexts/notifications-context';
 import Colors from '@/constants/colors';
 import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
-import { openNotificationTarget } from '@/lib/notification-navigation';
 
 interface NotificationBellProps {
   tone?: 'light' | 'dark';
 }
 
 export function NotificationBell({ tone = 'light' }: NotificationBellProps) {
-  const { notifications, removeNotification, clearAll } = useNotifications();
-  const [isOpen, setIsOpen] = useState(false);
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const router = useRouter();
+  const { notifications } = useNotifications();
   const isDarkTone = tone === 'dark';
 
-  const getIconColor = (type: Notification['type']) => {
-    switch (type) {
-      case 'success':
-        return '#10b981';
-      case 'error':
-        return '#ef4444';
-      case 'warning':
-        return '#f59e0b';
-      case 'message':
-        return '#14b8a6';
-      case 'info':
-      default:
-        return '#3b82f6';
-    }
-  };
-
-  const getIconName = (type: Notification['type']) => {
-    switch (type) {
-      case 'success':
-        return 'check';
-      case 'error':
-        return 'alert-circle';
-      case 'warning':
-        return 'alert-triangle';
-      case 'message':
-        return 'message-circle';
-      case 'info':
-      default:
-        return 'info';
-    }
-  };
-
   return (
-    <>
-      <TouchableOpacity
-        style={[styles.bellButton, isDarkTone && styles.bellButtonDark]}
-        onPress={() => setIsOpen(true)}
-        activeOpacity={0.7}
-      >
-        <Feather
-          name="bell"
-          size={responsiveModerateScale(20)}
-          color={isDarkTone ? '#E2E8F0' : Colors.light.tint}
-        />
-        {notifications.length > 0 && (
-          <View style={[styles.badge, isDarkTone && styles.badgeDark]}>
-            <Text style={styles.badgeText}>
-              {notifications.length > 99 ? '99+' : notifications.length}
-            </Text>
-          </View>
-        )}
-      </TouchableOpacity>
-
-      <Modal
-        visible={isOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsOpen(false)}
-      >
-        <TouchableOpacity
-          style={styles.backdrop}
-          onPress={() => setIsOpen(false)}
-          activeOpacity={1}
-        >
-          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1f2937' : '#fff' }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: isDark ? '#f3f4f6' : '#1f2937' }]}>
-                Notifications
-              </Text>
-              <TouchableOpacity onPress={() => setIsOpen(false)}>
-                <Feather
-                  name="x"
-                  size={responsiveModerateScale(20)}
-                  color={isDark ? '#9ca3af' : '#6b7280'}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {notifications.length > 0 ? (
-              <>
-                <FlatList
-                  data={notifications}
-                  keyExtractor={(item) => item.id}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      style={[
-                        styles.notificationItem,
-                        {
-                          borderBottomColor: isDark ? '#374151' : '#e5e7eb',
-                          backgroundColor: isDark ? '#111827' : '#f9fafb',
-                        },
-                      ]}
-                      onPress={() => {
-                        if (item.data) {
-                          setIsOpen(false);
-                          void openNotificationTarget(item.data);
-                          return;
-                        }
-
-                        if (item.action) {
-                          item.action.onPress();
-                          removeNotification(item.id);
-                          setIsOpen(false);
-                        }
-                      }}
-                      accessibilityRole={item.data ? 'button' : undefined}
-                      accessibilityLabel={item.data ? `Open ${item.title}` : undefined}
-                    >
-                      <View style={styles.itemContent}>
-                        <View
-                          style={[
-                            styles.iconCircle,
-                            { backgroundColor: getIconColor(item.type) + '20' },
-                          ]}
-                        >
-                          <Feather
-                            name={getIconName(item.type)}
-                            size={responsiveModerateScale(14)}
-                            color={getIconColor(item.type)}
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text
-                            style={[styles.itemTitle, { color: isDark ? '#f3f4f6' : '#1f2937' }]}
-                          >
-                            {item.title}
-                          </Text>
-                          <Text
-                            style={[styles.itemMessage, { color: isDark ? '#d1d5db' : '#6b7280' }]}
-                            numberOfLines={2}
-                          >
-                            {item.message}
-                          </Text>
-                        </View>
-                        <TouchableOpacity
-                          onPress={() => removeNotification(item.id)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <Feather
-                            name="trash-2"
-                            size={responsiveModerateScale(16)}
-                            color={isDark ? '#6b7280' : '#9ca3af'}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    </Pressable>
-                  )}
-                  scrollEnabled={notifications.length > 5}
-                  style={{ maxHeight: 400 }}
-                />
-                {notifications.length > 0 && (
-                  <TouchableOpacity
-                    style={[styles.clearButton, { borderTopColor: isDark ? '#374151' : '#e5e7eb' }]}
-                    onPress={() => {
-                      clearAll();
-                      setIsOpen(false);
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: '#ef4444',
-                        fontWeight: '600',
-                        fontSize: 14,
-                      }}
-                    >
-                      Clear All
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </>
-            ) : (
-              <View style={styles.emptyState}>
-                <Feather
-                  name="bell-off"
-                  size={responsiveModerateScale(40)}
-                  color={isDark ? '#4b5563' : '#d1d5db'}
-                />
-                <Text style={[styles.emptyText, { color: isDark ? '#9ca3af' : '#6b7280' }]}>
-                  No notifications yet
-                </Text>
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </>
+    <TouchableOpacity
+      style={[styles.bellButton, isDarkTone && styles.bellButtonDark]}
+      onPress={() => router.push('/notifications')}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel="Open notifications"
+    >
+      <Feather
+        name="bell"
+        size={responsiveModerateScale(20)}
+        color={isDarkTone ? '#E2E8F0' : Colors.light.tint}
+      />
+      {notifications.length > 0 && (
+        <View style={[styles.badge, isDarkTone && styles.badgeDark]}>
+          <Text style={styles.badgeText}>{notifications.length > 99 ? '99+' : notifications.length}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
   );
 }
 
@@ -247,88 +68,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: responsiveFont(10),
     fontWeight: '700',
-  },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: Platform.OS === 'web' ? 'flex-start' : 'center',
-  },
-  modalContent: {
-    ...(Platform.OS === 'web'
-      ? {
-          position: 'absolute',
-          top: 60,
-          right: 16,
-          width: 380,
-          borderRadius: 12,
-        }
-      : {
-          marginHorizontal: 16,
-          borderRadius: 12,
-          maxHeight: '80%',
-        }),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-    overflow: 'hidden',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: responsiveModerateScale(14),
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  modalTitle: {
-    fontSize: responsiveFont(16),
-    fontWeight: '700',
-  },
-  notificationItem: {
-    paddingVertical: responsiveModerateScale(10),
-    paddingHorizontal: responsiveModerateScale(14),
-    borderBottomWidth: 1,
-  },
-  itemContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: responsiveModerateScale(10),
-  },
-  iconCircle: {
-    width: responsiveModerateScale(30),
-    height: responsiveModerateScale(30),
-    borderRadius: responsiveModerateScale(15),
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  itemTitle: {
-    fontSize: responsiveFont(13),
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  itemMessage: {
-    fontSize: responsiveFont(11),
-    lineHeight: responsiveModerateScale(15),
-  },
-  emptyState: {
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: 200,
-  },
-  emptyText: {
-    fontSize: 14,
-    marginTop: 12,
-    textAlign: 'center',
-  },
-  clearButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
-    alignItems: 'center',
   },
 });

@@ -45,6 +45,9 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     };
 
     setNotifications((prev) => [...prev, completeNotification]);
+    if (completeNotification.type === 'message') {
+      setPopupNotification(completeNotification);
+    }
 
     return id;
   }, []);

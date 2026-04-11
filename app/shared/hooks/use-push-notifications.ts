@@ -11,11 +11,11 @@ import { openNotificationTarget } from '@/lib/notification-navigation';
 // Configure how notifications are handled when app is in foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
+    shouldShowAlert: false,
+    shouldPlaySound: false,
     shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
+    shouldShowBanner: false,
+    shouldShowList: false,
   }),
 });
 
@@ -33,6 +33,20 @@ export interface ReceivedNotification {
   data?: PushNotificationData;
 }
 
+function isActionablePushData(data: unknown): data is PushNotificationData {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+
+  const payload = data as Record<string, unknown>;
+  return (
+    typeof payload.type === 'string' ||
+    typeof payload.listingId === 'string' ||
+    typeof payload.conversationId === 'string' ||
+    typeof payload.url === 'string'
+  );
+}
+
 export function usePushNotifications() {
   const [expoPushToken, setExpoPushToken] = useState<string>('');
   const [notification, setNotification] = useState<ReceivedNotification | null>(null);
@@ -41,7 +55,6 @@ export function usePushNotifications() {
 
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
-  const hasHandledLaunchResponse = useRef(false);
 
   useEffect(() => {
     if (!user || !pushEnabled) {
@@ -73,30 +86,18 @@ export function usePushNotifications() {
       });
     });
 
-    const handleNotificationTap = async (data: PushNotificationData) => {
-      console.log('[Push] Notification tapped:', data);
-      await openNotificationTarget(data);
-    };
-
-    // Handle notification tap used to launch app from killed/background state
-    if (!hasHandledLaunchResponse.current) {
-      hasHandledLaunchResponse.current = true;
-      Notifications.getLastNotificationResponseAsync()
-        .then(async (response) => {
-          if (!response) return;
-          const { data } = response.notification.request.content;
-          await handleNotificationTap(data as PushNotificationData);
-          await Notifications.clearLastNotificationResponseAsync();
-        })
-        .catch((error) => {
-          console.warn('[Push] Failed to handle launch notification response:', error);
-        });
-    }
-
-    // Listen for user interactions with notifications while app is running/backgrounded
+    // Listen for user interactions with notifications
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       const { data } = response.notification.request.content;
-      void handleNotificationTap(data as PushNotificationData);
+      console.log('[Push] Notification tapped:', data);
+
+      if (!isActionablePushData(data)) {
+        console.log('[Push] Ignoring non-app notification response payload');
+        return;
+      }
+
+      // Handle navigation based on notification type
+      void openNotificationTarget(data as PushNotificationData);
     });
 
     return () => {
