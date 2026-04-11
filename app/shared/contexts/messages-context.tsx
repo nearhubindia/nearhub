@@ -19,6 +19,7 @@ export interface ChatThread {
   conversationId: string;
   listingId: string;
   otherUserId?: string;
+  otherUserAvatar?: string;
   sellerName: string;
   listingTitle: string;
   listingImage: string;
@@ -50,6 +51,7 @@ interface ApiThread {
   conversationId: string;
   listingId: string;
   otherUserId?: string;
+  otherUserAvatar?: string;
   listingTitle: string;
   listingImage: string;
   otherUserLabel: string;
@@ -113,6 +115,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           conversationId: data.conversationId,
           listingId: data.listingId,
           otherUserId: typeof data.otherUserId === 'string' ? data.otherUserId : '',
+          otherUserAvatar: typeof data.otherUserAvatar === 'string' ? data.otherUserAvatar : '',
           sellerName: data.otherUserName || data.otherUserLabel || 'Seller',
           listingTitle: data.listingTitle || 'Listing',
           listingImage: data.listingImage || '',
@@ -164,6 +167,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
             conversationId: item.conversationId,
             listingId: item.listingId,
             otherUserId: item.otherUserId || existing?.otherUserId || '',
+            otherUserAvatar: item.otherUserAvatar || existing?.otherUserAvatar || '',
             sellerName:
               item.otherUserName || item.otherUserLabel || existing?.sellerName || 'Seller',
             listingTitle: item.listingTitle || existing?.listingTitle || 'Listing',
@@ -342,10 +346,16 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         if (existingIndex >= 0) {
           const updated = [...prev];
           const existing = updated[existingIndex];
+          const resolvedOtherUserId = result.otherUserId || existing.otherUserId || inferredOtherUserId;
+          const resolvedOtherUserAvatar = result.otherUserAvatar || existing.otherUserAvatar || '';
+          const resolvedSellerName =
+            result.otherUserName || result.otherUserLabel || existing.sellerName || sellerName || 'Seller';
           updated[existingIndex] = {
             ...existing,
             listingId: result.listingId || existing.listingId || listingId,
-            otherUserId: existing.otherUserId || inferredOtherUserId,
+            otherUserId: resolvedOtherUserId,
+            otherUserAvatar: resolvedOtherUserAvatar,
+            sellerName: resolvedSellerName,
             messages: [...existing.messages, localMessage],
             lastMessage: localMessage.text,
             lastTimestamp: localMessage.timestamp,
@@ -360,8 +370,9 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           {
             conversationId: resolvedConversationId,
             listingId: result.listingId || listingId,
-            otherUserId: inferredOtherUserId,
-            sellerName: sellerName || 'Seller',
+            otherUserId: result.otherUserId || inferredOtherUserId,
+            otherUserAvatar: result.otherUserAvatar || '',
+            sellerName: result.otherUserName || result.otherUserLabel || sellerName || 'Seller',
             listingTitle: listingTitle || 'Listing',
             listingImage: listingImage || '',
             messages: [localMessage],

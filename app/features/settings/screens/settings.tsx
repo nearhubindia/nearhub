@@ -33,6 +33,7 @@ interface SettingItem {
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout, updateUser } = useAuth();
+  const isAuthenticated = !!user;
   const { pushToken } = useNotifications();
   const [notifications, setNotifications] = useState(user?.preferences?.notifications ?? true);
   const [autoLocalize, setAutoLocalize] = useState(
@@ -87,30 +88,32 @@ export default function SettingsScreen() {
     }
   };
 
-  const accountSettings: SettingItem[] = [
-    {
-      icon: 'user',
-      label: 'Edit Profile',
-      subtitle: 'Manage personal details',
-      type: 'navigation',
-      onPress: () => router.push('/profile'),
-    },
-    {
-      icon: 'lock',
-      label: 'Privacy & Security',
-      subtitle: 'Password and account safety',
-      type: 'navigation',
-      onPress: () => router.push('/settings/privacy-security'),
-    },
-    {
-      icon: 'bell',
-      label: 'Push Notifications',
-      subtitle: 'Alerts for messages and activity',
-      type: 'toggle',
-      toggle: notifications,
-      onToggle: handlePushToggle,
-    },
-  ];
+  const accountSettings: SettingItem[] = isAuthenticated
+    ? [
+        {
+          icon: 'user',
+          label: 'Edit Profile',
+          subtitle: 'Manage personal details',
+          type: 'navigation',
+          onPress: () => router.push('/profile'),
+        },
+        {
+          icon: 'lock',
+          label: 'Privacy & Security',
+          subtitle: 'Password and account safety',
+          type: 'navigation',
+          onPress: () => router.push('/settings/privacy-security'),
+        },
+        {
+          icon: 'bell',
+          label: 'Push Notifications',
+          subtitle: 'Alerts for messages and activity',
+          type: 'toggle',
+          toggle: notifications,
+          onToggle: handlePushToggle,
+        },
+      ]
+    : [];
 
   const appSettings: SettingItem[] = [
     {
@@ -170,24 +173,26 @@ export default function SettingsScreen() {
     },
   ];
 
-  const dangerSettings: SettingItem[] = [
-    {
-      icon: 'trash-2',
-      label: 'Delete Account',
-      subtitle: 'Permanently erase your account',
-      type: 'navigation',
-      danger: true,
-      onPress: () => router.push('/settings/delete-account'),
-    },
-    {
-      icon: 'log-out',
-      label: 'Logout',
-      subtitle: 'Sign out from this device',
-      type: 'action',
-      danger: true,
-      onPress: handleLogout,
-    },
-  ];
+  const dangerSettings: SettingItem[] = isAuthenticated
+    ? [
+        {
+          icon: 'trash-2',
+          label: 'Delete Account',
+          subtitle: 'Permanently erase your account',
+          type: 'navigation',
+          danger: true,
+          onPress: () => router.push('/settings/delete-account'),
+        },
+        {
+          icon: 'log-out',
+          label: 'Logout',
+          subtitle: 'Sign out from this device',
+          type: 'action',
+          danger: true,
+          onPress: handleLogout,
+        },
+      ]
+    : [];
 
   const renderSettingItem = (item: SettingItem, index: number, items: SettingItem[]) => (
     <Pressable
@@ -253,11 +258,32 @@ export default function SettingsScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
+        {!isAuthenticated && (
+          <Pressable
+            style={styles.loginPrompt}
+            android_ripple={{ color: '#E6EEFC' }}
+            onPress={() => router.push('/auth/register')}
+          >
+            <View style={styles.loginPromptIcon}>
+              <Feather name="log-in" size={18} color={Colors.primary} />
+            </View>
+            <View style={styles.loginPromptCopy}>
+              <Text style={styles.loginPromptTitle}>Sign In / Register</Text>
+              <Text style={styles.loginPromptSubtitle}>
+                Manage your profile and account from one place.
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color="#8192AB" />
+          </Pressable>
+        )}
+
         {/* Account Settings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          <View style={styles.settingsGroup}>{accountSettings.map(renderSettingItem)}</View>
-        </View>
+        {isAuthenticated && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Account</Text>
+            <View style={styles.settingsGroup}>{accountSettings.map(renderSettingItem)}</View>
+          </View>
+        )}
 
         {/* App Settings */}
         <View style={styles.section}>
@@ -272,10 +298,12 @@ export default function SettingsScreen() {
         </View>
 
         {/* Danger Zone */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Danger Zone</Text>
-          <View style={styles.settingsGroup}>{dangerSettings.map(renderSettingItem)}</View>
-        </View>
+        {dangerSettings.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Danger Zone</Text>
+            <View style={styles.settingsGroup}>{dangerSettings.map(renderSettingItem)}</View>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -315,6 +343,52 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingTop: 8,
+  },
+  loginPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    backgroundColor: '#F8FAFE',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#DEE7F5',
+    marginBottom: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0E2445',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  loginPromptIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#EAF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginPromptCopy: {
+    flex: 1,
+  },
+  loginPromptTitle: {
+    fontSize: 15,
+    fontFamily: 'Inter_700Bold',
+    color: '#1A2C49',
+    marginBottom: 2,
+  },
+  loginPromptSubtitle: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: '#627A9A',
+    lineHeight: 16,
   },
   section: {
     marginBottom: 20,

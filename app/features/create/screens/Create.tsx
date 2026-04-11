@@ -1599,16 +1599,14 @@ export default function CreateScreen() {
             </Text>
 
             {isCompressing ? (
-              <View
-                style={[styles.videoSelected, { justifyContent: 'center', alignItems: 'center' }]}
-              >
+              <View style={styles.videoProcessingCard}>
                 <ActivityIndicator
                   size="large"
                   color={Colors.primary}
-                  style={{ marginBottom: 12 }}
+                  style={{ marginBottom: 2 }}
                 />
-                <Text style={styles.videoFileName}>Compressing video...</Text>
-                <Text style={styles.addVideoDuration}>{compressionProgress}%</Text>
+                <Text style={styles.videoProcessingTitle}>Compressing video...</Text>
+                <Text style={styles.videoProcessingPercent}>{compressionProgress}%</Text>
                 <View style={styles.progressBar}>
                   <View style={[styles.progressFill, { width: `${compressionProgress}%` }]} />
                 </View>
@@ -3234,15 +3232,32 @@ const styles = createResponsiveStyles({
     borderWidth: 1,
     borderColor: '#99F6E4',
   },
+  videoProcessingCard: {
+    backgroundColor: '#F0FDFA',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    gap: 8,
+  },
   videoInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  videoFileName: {
+  videoProcessingTitle: {
     fontSize: 14,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_600SemiBold',
     color: Colors.success,
+    textAlign: 'center',
+  },
+  videoProcessingPercent: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+    textAlign: 'center',
   },
   progressBar: {
     width: '100%',

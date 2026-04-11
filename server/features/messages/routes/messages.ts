@@ -9,7 +9,12 @@ import {
   type ChatConversation,
 } from '../../admin/models/admin-settings';
 import { notifyNewMessage } from '../../../shared/services/auto-notifications';
-import { resolveUserDisplayName, upsertUser } from '../../users/services/user-profiles';
+import {
+  normalizePhone,
+  pickMeaningfulDisplayName,
+  resolveUserDisplayName,
+  upsertUser,
+} from '../../users/services/user-profiles';
 import { resolveUserIdFromRequest } from '../../users/services/user-lifecycle';
 import { users } from '../../users/models/users';
 
@@ -17,6 +22,11 @@ type ParticipantRole = 'buyer' | 'seller';
 
 type CanonicalIdentity = {
   userId: string;
+};
+
+type UserProfileSummary = {
+  displayName: string;
+  avatarUrl: string;
 };
 
 function toPositiveInt(value: unknown, fallback: number, max: number): number {
@@ -62,51 +72,51 @@ function participantLabel(userId: string, role: 'buyer' | 'seller'): string {
   return resolveUserDisplayName(userId, role === 'seller' ? 'Seller' : 'Buyer');
 }
 
-function isValidDisplayName(value: unknown): value is string {
-  if (typeof value !== 'string') return false;
-  const trimmed = value.trim();
-  if (!trimmed) return false;
+function registerUserProfile(
+  map: Map<string, UserProfileSummary>,
+  key: unknown,
+  profile: UserProfileSummary
+): void {
+  const normalizedKey = String(key || '').trim();
+  if (!normalizedKey) return;
 
-  const normalized = trimmed.toLowerCase();
-  if (normalized === 'buyer' || normalized === 'seller' || normalized === 'unknown') {
-    return false;
+  const existing = map.get(normalizedKey);
+  if (!existing) {
+    map.set(normalizedKey, profile);
+    return;
   }
-  if (/^[0-9]{10,15}$/.test(trimmed)) {
-    return false;
-  }
-  if (/^[0-9a-f]{8,}$/i.test(trimmed)) {
-    return false;
-  }
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(trimmed)) {
-    return false;
-  }
-  if (/^(buyer|seller)\s+[0-9a-f]{4,}$/i.test(trimmed)) {
-    return false;
-  }
-  return true;
+
+  map.set(normalizedKey, {
+    displayName: existing.displayName || profile.displayName,
+    avatarUrl: existing.avatarUrl || profile.avatarUrl,
+  });
 }
 
-async function getUserLabelMap(userIds: string[]): Promise<Map<string, string>> {
+async function getUserProfileMap(userIds: string[]): Promise<Map<string, UserProfileSummary>> {
   const uniqueIds = [...new Set(userIds.map((id) => String(id || '').trim()).filter(Boolean))];
   if (uniqueIds.length === 0) return new Map();
 
   const rows = await db
     .select({
       id: users.id,
+      mobile: users.mobile,
       displayName: users.displayName,
       username: users.username,
+      avatarUrl: users.avatarUrl,
     })
     .from(users)
     .where(or(inArray(users.id, uniqueIds), inArray(users.mobile, uniqueIds))!);
 
-  const map = new Map<string, string>();
+  const map = new Map<string, UserProfileSummary>();
   for (const row of rows) {
-    const preferred =
-      (isValidDisplayName(row.displayName) && row.displayName.trim()) ||
-      (isValidDisplayName(row.username) && row.username.trim()) ||
-      '';
-    if (!preferred) continue;
-    map.set(String(row.id).trim(), preferred);
+    const profile: UserProfileSummary = {
+      displayName: pickMeaningfulDisplayName(row.displayName, row.username),
+      avatarUrl: typeof row.avatarUrl === 'string' ? row.avatarUrl.trim() : '',
+    };
+
+    registerUserProfile(map, row.id, profile);
+    registerUserProfile(map, row.mobile, profile);
+    registerUserProfile(map, normalizePhone(row.mobile), profile);
   }
   return map;
 }
@@ -202,7 +212,7 @@ export function registerMessageRoutes(app: Express) {
       const otherUserIds = pageRows.map((row) =>
         row.sellerId === identity.userId ? row.buyerId : row.sellerId
       );
-      const userLabelMap = await getUserLabelMap(otherUserIds);
+      const userProfileMap = await getUserProfileMap(otherUserIds);
       const conversationIds = pageRows.map((row) => row.conversationId);
       const unreadRows =
         conversationIds.length > 0
@@ -228,8 +238,9 @@ export function registerMessageRoutes(app: Express) {
       const threads = pageRows.map((row) => {
         const isSeller = row.sellerId === identity.userId;
         const otherUserId = isSeller ? row.buyerId : row.sellerId;
+        const otherUserProfile = userProfileMap.get(otherUserId);
         const otherUserLabel =
-          userLabelMap.get(otherUserId) ||
+          otherUserProfile?.displayName ||
           participantLabel(otherUserId, isSeller ? 'buyer' : 'seller');
 
         return {
@@ -240,6 +251,7 @@ export function registerMessageRoutes(app: Express) {
           otherUserId,
           otherUserLabel,
           otherUserName: otherUserLabel,
+          otherUserAvatar: otherUserProfile?.avatarUrl || '',
           lastMessage: row.lastMessage || '',
           lastTimestamp: (row.lastMessageAt || row.updatedAt).toISOString(),
           unreadCount: unreadCountMap.get(row.conversationId) || 0,
@@ -290,9 +302,11 @@ export function registerMessageRoutes(app: Express) {
       const listing = listingRow[0];
       const isSeller = participant.role === 'seller';
       const otherUserId = isSeller ? conversation.buyerId : conversation.sellerId;
-      const labelMap = await getUserLabelMap([otherUserId]);
+      const profileMap = await getUserProfileMap([otherUserId]);
+      const otherUserProfile = profileMap.get(otherUserId);
       const otherUserLabel =
-        labelMap.get(otherUserId) || participantLabel(otherUserId, isSeller ? 'buyer' : 'seller');
+        otherUserProfile?.displayName ||
+        participantLabel(otherUserId, isSeller ? 'buyer' : 'seller');
 
       return res.json({
         success: true,
@@ -304,6 +318,7 @@ export function registerMessageRoutes(app: Express) {
           otherUserId,
           otherUserLabel,
           otherUserName: otherUserLabel,
+          otherUserAvatar: otherUserProfile?.avatarUrl || '',
         },
       });
     } catch (error) {
@@ -412,6 +427,7 @@ export function registerMessageRoutes(app: Express) {
       let conversation: ChatConversation | null = null;
       let recipientId = '';
       let senderRole: ParticipantRole = 'buyer';
+      let recipientRole: ParticipantRole = 'seller';
 
       if (conversationId) {
         const participant = await resolveConversationParticipant(conversationId, identity.userId);
@@ -422,6 +438,7 @@ export function registerMessageRoutes(app: Express) {
         senderRole = participant.role;
 
         recipientId = senderRole === 'seller' ? conversation.buyerId : conversation.sellerId;
+        recipientRole = senderRole === 'seller' ? 'buyer' : 'seller';
       } else {
         const listingRows = await db
           .select({ id: listings.id, sellerId: listings.sellerId })
@@ -443,6 +460,7 @@ export function registerMessageRoutes(app: Express) {
 
         senderRole = 'buyer';
         recipientId = listing.sellerId;
+        recipientRole = 'seller';
 
         const existing = await db
           .select()
@@ -497,9 +515,10 @@ export function registerMessageRoutes(app: Express) {
         })
         .where(eq(chatConversations.id, conversation.id));
 
-      const senderLabelMap = await getUserLabelMap([identity.userId]);
-      const senderLabel =
-        senderLabelMap.get(identity.userId) || participantLabel(identity.userId, senderRole);
+      const participantProfileMap = await getUserProfileMap([identity.userId, recipientId]);
+      const senderProfile = participantProfileMap.get(identity.userId);
+      const recipientProfile = participantProfileMap.get(recipientId);
+      const senderLabel = senderProfile?.displayName || participantLabel(identity.userId, senderRole);
       notifyNewMessage(recipientId, senderLabel, text, conversation.id, identity.userId).catch(
         (err) => {
           console.error('[Messages] Failed to send new message notification:', err);
@@ -512,6 +531,12 @@ export function registerMessageRoutes(app: Express) {
         data: {
           conversationId: conversation.id,
           listingId: conversation.listingId,
+          otherUserId: recipientId,
+          otherUserLabel:
+            recipientProfile?.displayName || participantLabel(recipientId, recipientRole),
+          otherUserName:
+            recipientProfile?.displayName || participantLabel(recipientId, recipientRole),
+          otherUserAvatar: recipientProfile?.avatarUrl || '',
           message: {
             id: message.id,
             text: message.text,

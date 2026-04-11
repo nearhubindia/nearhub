@@ -37,6 +37,23 @@ describe('Users API - Strict Tests', () => {
     expect(typeof res.body?.profileComplete).toBe('boolean');
   });
 
+  it('DELETE /api/users/profile deletes the authenticated account', async () => {
+    const app = createTestApp();
+    const userId = randomUUID();
+    await seedUser(userId, 'Delete User');
+
+    const res = await request(app)
+      .delete('/api/users/profile')
+      .set('x-user-id', userId)
+      .set('x-user-phone', '9876543210');
+
+    expect(res.status).toBe(200);
+    expect(res.body?.success).toBe(true);
+
+    const afterDelete = await request(app).get('/api/users/profile').set('x-user-id', userId);
+    expect(afterDelete.status).toBe(404);
+  });
+
   it('GET /api/users/:userId/profile validates user id format', async () => {
     const app = createTestApp();
     const invalid = await request(app).get('/api/users/not-a-uuid/profile');

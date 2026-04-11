@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
+  ActivityIndicator,
   Linking,
   Platform,
   Pressable,
@@ -166,7 +167,7 @@ export default function SettingDetailScreen() {
               setIsDeletingAccount(true);
               const response = await fetch(`${getApiUrl()}/api/users/profile`, {
                 method: 'DELETE',
-                headers: buildUserAuthHeaders({ id: user.id }),
+                headers: buildUserAuthHeaders({ id: user.id, phone: user.phone }),
               });
 
               const payload = await response.json().catch(() => null);
@@ -296,12 +297,22 @@ export default function SettingDetailScreen() {
 
         {key === 'delete-account' ? (
           <Pressable
-            style={[styles.ctaButton, styles.dangerCta]}
+            style={[styles.ctaButton, styles.dangerCta, isDeletingAccount && styles.ctaButtonDisabled]}
             onPress={handleDeleteAccount}
+            disabled={isDeletingAccount}
             android_ripple={{ color: '#CC334D' }}
           >
-            <Feather name="trash-2" size={17} color="#FFFFFF" />
-            <Text style={styles.ctaTextWithIcon}>Request Account Deletion</Text>
+            {isDeletingAccount ? (
+              <>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={styles.ctaTextWithIcon}>Deleting account...</Text>
+              </>
+            ) : (
+              <>
+                <Feather name="trash-2" size={17} color="#FFFFFF" />
+                <Text style={styles.ctaTextWithIcon}>Request Account Deletion</Text>
+              </>
+            )}
           </Pressable>
         ) : null}
       </ScrollView>
@@ -423,6 +434,9 @@ const styles = StyleSheet.create({
   },
   dangerCta: {
     backgroundColor: '#E14E68',
+  },
+  ctaButtonDisabled: {
+    opacity: 0.82,
   },
   ctaText: {
     fontSize: 14.2,

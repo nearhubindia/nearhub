@@ -292,17 +292,38 @@ function getSellerDisplayName(listing: any, sellerMeta?: SellerMeta): string {
   return 'Seller';
 }
 
-function resolveContactPhone(rest: any): string {
+function normalizeContactPhoneCandidate(value: unknown): string {
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+  const digits = String(value).replace(/\D/g, '');
+  return digits.length >= 10 ? digits.slice(-10) : '';
+}
+
+async function resolveContactPhone(rest: any): Promise<string> {
   const candidates = [rest?.contactPhone, rest?.sellerPhone];
   for (const value of candidates) {
-    if (typeof value !== 'string') continue;
-    const trimmed = value.trim();
-    if (!trimmed) continue;
-    const digits = trimmed.replace(/\D/g, '');
-    if (digits.length >= 10) {
-      return digits.slice(-10);
-    }
+    const phone = normalizeContactPhoneCandidate(value);
+    if (phone) return phone;
   }
+
+  const sellerId = String(rest?.sellerId || rest?.userId || '').trim();
+  if (!sellerId) {
+    return '';
+  }
+
+  const seller = await db.query.users.findFirst({
+    where: or(eq(users.id, sellerId), eq(users.mobile, sellerId), eq(users.username, sellerId)),
+    columns: {
+      mobile: true,
+      username: true,
+    },
+  });
+
+  const fallbackCandidates = [seller?.mobile, seller?.username, sellerId];
+  for (const value of fallbackCandidates) {
+    const phone = normalizeContactPhoneCandidate(value);
+    if (phone) return phone;
+  }
+
   return '';
 }
 
@@ -626,7 +647,7 @@ export function registerListingRoutes(app: Express) {
         });
       }
 
-      const contactPhone = resolveContactPhone(listing);
+      const contactPhone = await resolveContactPhone(listing);
       if (!contactPhone) {
         return res.status(404).json({ success: false, error: 'Seller phone number not available' });
       }

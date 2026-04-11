@@ -149,6 +149,7 @@ export default function ListingDetailScreen() {
         params: {
           listingId: listing.id,
           otherUserId: listing.userId || '',
+          otherUserAvatar: listing.sellerAvatar || '',
           sellerName: listing.sellerName,
           listingTitle: listing.title,
           listingImage: listing.images[0],

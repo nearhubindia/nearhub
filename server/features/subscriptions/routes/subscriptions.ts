@@ -92,6 +92,12 @@ function roundToTwo(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function normalizeUserLookupPhone(value: unknown): string {
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+  const digits = String(value).replace(/\D/g, '');
+  return digits.length >= 10 ? digits.slice(-10) : '';
+}
+
 async function upsertCompletedTransaction(params: {
   subscriptionId: string;
   userId: string;
@@ -669,6 +675,7 @@ export function registerSubscriptionRoutes(app: Express) {
           priceUnit,
           listingType,
           sellerName,
+          contactPhone,
           pincode,
           latitude,
           longitude,
@@ -694,6 +701,20 @@ export function registerSubscriptionRoutes(app: Express) {
           });
         }
 
+        const ownerRecord = await db.query.users.findFirst({
+          where: eq(users.id, ownerId),
+          columns: {
+            id: true,
+            displayName: true,
+            mobile: true,
+            username: true,
+          },
+        });
+        const resolvedContactPhone =
+          normalizeUserLookupPhone(contactPhone) ||
+          normalizeUserLookupPhone(ownerRecord?.mobile) ||
+          normalizeUserLookupPhone(ownerRecord?.username);
+
         const normalizedSellerName =
           typeof sellerName === 'string' && sellerName.trim() ? sellerName.trim() : '';
         const isPhoneLikeName = /^\d{10,15}$/.test(normalizedSellerName);
@@ -701,11 +722,7 @@ export function registerSubscriptionRoutes(app: Express) {
           normalizedSellerName.toLowerCase()
         );
         if (normalizedSellerName && !isPhoneLikeName && !isPlaceholderName) {
-          const owner = await db.query.users.findFirst({
-            where: eq(users.id, ownerId),
-            columns: { id: true, displayName: true },
-          });
-          if (owner?.id) {
+          if (ownerRecord?.id) {
             await db
               .update(users)
               .set({ displayName: normalizedSellerName })
@@ -907,6 +924,7 @@ export function registerSubscriptionRoutes(app: Express) {
         try {
           createdListing = await createListing({
             sellerId: ownerId,
+            contactPhone: resolvedContactPhone || undefined,
             title: listingData.title,
             description: listingData.description || '',
             category: listingData.category,

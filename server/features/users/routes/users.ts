@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm';
 import { getListingsByUser } from '../../listings/services/listings';
 import {
   getUserById,
+  getUserByPhone,
   isMeaningfulDisplayName,
   normalizePhone,
   pickMeaningfulDisplayName,
@@ -223,18 +224,22 @@ export function registerUserRoutes(app: Express) {
   app.delete('/api/users/profile', async (req: Request, res: Response) => {
     try {
       const userId = String(getRequestUserId(req) || '').trim();
-      if (!userId || !isUuid(userId)) {
+      const userPhone = normalizePhone(req.get('x-user-phone') || '');
+      const memoryUser = getUserById(userId) || (userPhone ? getUserByPhone(userPhone) : undefined);
+      const deletionUserId = String(memoryUser?.id || userId).trim();
+
+      if (!deletionUserId || !isUuid(deletionUserId)) {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      const existing = await getDbUser(userId);
-      if (!existing) {
+      const existing = await getDbUser(deletionUserId);
+      if (!existing && !memoryUser) {
         return res.status(404).json({ error: 'User not found' });
       }
 
       const { deleteUserDataByAdmin } = await import('../services/user-lifecycle');
-      await deleteUserDataByAdmin(userId);
-      await db.delete(users).where(eq(users.id, userId));
+      await deleteUserDataByAdmin(deletionUserId);
+      await db.delete(users).where(eq(users.id, deletionUserId));
 
       return res.json({
         success: true,

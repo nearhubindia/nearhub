@@ -27,6 +27,11 @@ export function buildUserAuthHeaders(
     headers['x-user-id'] = userId;
   }
 
+  const userPhone = typeof user?.phone === 'string' ? user.phone.trim() : '';
+  if (userPhone) {
+    headers['x-user-phone'] = userPhone;
+  }
+
   if (includeName && userName) {
     headers['x-user-name'] = userName;
   }

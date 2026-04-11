@@ -53,6 +53,7 @@ export default function ChatScreen() {
     listingId?: string | string[];
     conversationId?: string | string[];
     otherUserId?: string | string[];
+    otherUserAvatar?: string | string[];
     sellerName?: string | string[];
     listingTitle?: string | string[];
     listingImage?: string | string[];
@@ -69,6 +70,9 @@ export default function ChatScreen() {
   const otherUserIdParam = Array.isArray(params.otherUserId)
     ? params.otherUserId[0]
     : params.otherUserId;
+  const otherUserAvatarParam = Array.isArray(params.otherUserAvatar)
+    ? params.otherUserAvatar[0]
+    : params.otherUserAvatar;
   const sellerName = Array.isArray(params.sellerName) ? params.sellerName[0] : params.sellerName;
   const listingTitle = Array.isArray(params.listingTitle)
     ? params.listingTitle[0]
@@ -81,11 +85,14 @@ export default function ChatScreen() {
   );
   const flatListRef = useRef<FlatList>(null);
 
-  const listing = getListingById(listingId);
   const thread = getThread(resolvedConversationId || listingId);
+  const listing = getListingById(listingId) || (thread?.listingId ? getListingById(thread.listingId) : undefined);
   const messages = thread?.messages || [];
   const profileTargetId =
     String(thread?.otherUserId || otherUserIdParam || listing?.userId || '').trim() || '';
+  const sellerDisplayName = sellerName || thread?.sellerName || listing?.sellerName || 'Seller';
+  const sellerAvatarUrl = thread?.otherUserAvatar || otherUserAvatarParam || listing?.sellerAvatar || '';
+  const sellerAvatarInitial = sellerDisplayName.trim().charAt(0).toUpperCase() || 'S';
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -127,7 +134,7 @@ export default function ChatScreen() {
       const nextConversationId = await sendMessage(
         thread?.listingId || listingId,
         text,
-        sellerName || listing?.sellerName || 'Seller',
+        sellerDisplayName,
         listingTitle || listing?.title || 'Item',
         listingImage || listing?.images[0] || '',
         thread?.conversationId || resolvedConversationId
@@ -146,7 +153,7 @@ export default function ChatScreen() {
     listingImage,
     listingTitle,
     resolvedConversationId,
-    sellerName,
+    sellerDisplayName,
     sendMessage,
     thread?.conversationId,
     thread?.listingId,
@@ -166,10 +173,10 @@ export default function ChatScreen() {
       pathname: '/user/[userId]',
       params: {
         userId: profileTargetId,
-        userName: sellerName || listing?.sellerName || 'Seller',
+        userName: sellerDisplayName,
       },
     });
-  }, [listing?.sellerName, profileTargetId, sellerName, user?.id]);
+  }, [profileTargetId, sellerDisplayName, user?.id]);
 
   return (
     <KeyboardAvoidingView
@@ -181,7 +188,7 @@ export default function ChatScreen() {
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Feather name="arrow-left" size={22} color={Colors.text} />
         </Pressable>
-        <Pressable style={styles.headerInfo} onPress={openUserProfile}>
+        <View style={styles.headerInfo}>
           {listingImage || listing?.images[0] ? (
             <Image
               source={{ uri: listingImage || listing?.images[0] }}
@@ -191,18 +198,40 @@ export default function ChatScreen() {
           ) : null}
           <View style={styles.headerText}>
             <Text style={styles.headerName} numberOfLines={1}>
-              {sellerName || listing?.sellerName || 'Seller'}
+              {sellerDisplayName}
             </Text>
             <Text style={styles.headerListing} numberOfLines={1}>
               {listingTitle || listing?.title || 'Item'}
             </Text>
           </View>
-        </Pressable>
-        {listing && (
-          <View style={styles.headerPrice}>
-            <Text style={styles.priceText}>₹{listing.price.toLocaleString('en-IN')}</Text>
-          </View>
-        )}
+        </View>
+        <View style={styles.headerActions}>
+          {listing && (
+            <View style={styles.headerPrice}>
+              <Text style={styles.priceText}>₹{listing.price.toLocaleString('en-IN')}</Text>
+            </View>
+          )}
+          {profileTargetId ? (
+            <Pressable
+              style={styles.profileBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                openUserProfile();
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Open seller profile"
+            >
+              {sellerAvatarUrl ? (
+                <Image source={{ uri: sellerAvatarUrl }} style={styles.profileAvatarImage} />
+              ) : (
+                <View style={styles.profileAvatarFallback}>
+                  <Text style={styles.profileAvatarText}>{sellerAvatarInitial}</Text>
+                </View>
+              )}
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       {messages.length === 0 && (
@@ -313,6 +342,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   headerThumb: {
     width: 40,
     height: 40,
@@ -337,6 +371,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 10,
+  },
+  profileBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  profileAvatarFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EEF4FF',
+  },
+  profileAvatarText: {
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
+    color: Colors.primary,
   },
   priceText: {
     fontSize: 14,

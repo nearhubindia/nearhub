@@ -6,13 +6,14 @@ import { users } from '../../features/users/models/users';
 import { createTestApp } from '../setup/test-app';
 
 describe('Messages API', () => {
-  async function seedUser(id: string, label: string) {
+  async function seedUser(id: string, label: string, avatarUrl = '') {
     await db
       .insert(users)
       .values({
         id,
         username: `${label}-${id.slice(0, 8)}`,
         displayName: label,
+        avatarUrl,
         password: 'otp-auth',
       })
       .onConflictDoNothing({ target: users.id });
@@ -52,8 +53,9 @@ describe('Messages API', () => {
     const buyerId = randomUUID();
     const listingId = randomUUID();
     const text = `hello-${Date.now()}`;
+    const sellerAvatar = `https://example.com/sellers/${Date.now()}.jpg`;
 
-    await seedUser(sellerId, 'Seller One');
+    await seedUser(sellerId, 'Seller One', sellerAvatar);
     await seedUser(buyerId, 'Buyer One');
     await seedListing(listingId, sellerId, `Phone ${Date.now()}`);
 
@@ -67,6 +69,7 @@ describe('Messages API', () => {
     expect(send.body?.success).toBe(true);
     expect(typeof send.body?.data?.conversationId).toBe('string');
     expect(send.body?.data?.listingId).toBe(listingId);
+    expect(send.body?.data?.otherUserAvatar).toBe(sellerAvatar);
     expect(send.body?.data?.message?.text).toBe(text);
 
     const conversationId = String(send.body.data.conversationId);
@@ -93,6 +96,7 @@ describe('Messages API', () => {
     expect(sellerConversation.body?.success).toBe(true);
     expect(sellerConversation.body?.data?.conversationId).toBe(conversationId);
     expect(sellerConversation.body?.data?.listingId).toBe(listingId);
+    expect(sellerConversation.body?.data?.otherUserAvatar).toBe(sellerAvatar);
 
     const sellerMessages = await request(app)
       .get(`/api/messages/conversations/${conversationId}/messages`)

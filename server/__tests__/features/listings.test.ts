@@ -6,7 +6,7 @@ import { createListing } from '../../features/listings/services/listings';
 import { createTestApp } from '../setup/test-app';
 
 describe('Listings API - Strict Tests', () => {
-  async function seedUser(id: string) {
+  async function seedUser(id: string, mobile?: string) {
     await db
       .insert(users)
       .values({
@@ -14,6 +14,7 @@ describe('Listings API - Strict Tests', () => {
         username: id,
         password: 'otp-auth',
         displayName: 'Test User',
+        mobile,
       })
       .onConflictDoNothing({ target: users.id });
   }
@@ -56,6 +57,25 @@ describe('Listings API - Strict Tests', () => {
     const missing = await request(app).get(`/api/listings/${randomUUID()}`);
     expect(missing.status).toBe(404);
     expect(missing.body?.success).toBe(false);
+  });
+
+  it('GET /api/listings/:id/contact falls back to the seller profile phone', async () => {
+    const app = createTestApp();
+    const ownerId = randomUUID();
+    const requesterId = randomUUID();
+    const sellerMobile = '9876543210';
+    await seedUser(ownerId, sellerMobile);
+    await seedUser(requesterId, '9123456780');
+    const listing = await seedListing(ownerId);
+
+    const res = await request(app)
+      .get(`/api/listings/${listing.id}/contact`)
+      .set('x-user-id', requesterId);
+
+    expect(res.status).toBe(200);
+    expect(res.body?.success).toBe(true);
+    expect(res.body?.contactPhone).toBe(sellerMobile);
+    expect(res.body?.sellerPhone).toBe(sellerMobile);
   });
 
   it('PATCH /api/listings/:id enforces ownership', async () => {

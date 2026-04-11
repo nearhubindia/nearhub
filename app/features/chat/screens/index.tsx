@@ -17,18 +17,6 @@ import { useMessages, ChatThread } from '@/shared/contexts/messages-context';
 import { getTimeAgo } from '@/lib/utils';
 
 function ChatThreadItem({ thread }: { thread: ChatThread }) {
-  const handleOpenProfile = () => {
-    const otherUserId = String(thread.otherUserId || '').trim();
-    if (!otherUserId) return;
-    router.push({
-      pathname: '/user/[userId]',
-      params: {
-        userId: otherUserId,
-        userName: thread.sellerName,
-      },
-    });
-  };
-
   const handlePress = () => {
     router.push({
       pathname: '/chat/[listingId]',
@@ -36,6 +24,7 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
         listingId: thread.listingId,
         conversationId: thread.conversationId,
         otherUserId: thread.otherUserId || '',
+        otherUserAvatar: thread.otherUserAvatar || '',
         sellerName: thread.sellerName,
         listingTitle: thread.listingTitle,
         listingImage: thread.listingImage,
@@ -62,13 +51,7 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
       onPress={handlePress}
     >
       <View style={styles.threadContent}>
-        <Pressable
-          style={styles.personPress}
-          onPress={(event) => {
-            event.stopPropagation?.();
-            handleOpenProfile();
-          }}
-        >
+        <View style={styles.personPress}>
           <View style={styles.mediaWrap}>
             {thread.listingImage ? (
               <Image
@@ -85,7 +68,7 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
               <Text style={styles.avatarBadgeText}>{initial}</Text>
             </View>
           </View>
-        </Pressable>
+        </View>
 
         <View style={styles.chatInfo}>
           <View style={styles.headerRow}>
@@ -105,11 +88,7 @@ function ChatThreadItem({ thread }: { thread: ChatThread }) {
               ) : null}
             </View>
           </View>
-          <Text
-            style={[styles.sellerName, unreadCount > 0 && styles.sellerNameUnread]}
-            numberOfLines={1}
-            onPress={handleOpenProfile}
-          >
+          <Text style={[styles.sellerName, unreadCount > 0 && styles.sellerNameUnread]} numberOfLines={1}>
             {thread.sellerName || 'User'}
           </Text>
           <Text

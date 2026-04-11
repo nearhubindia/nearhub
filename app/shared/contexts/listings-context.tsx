@@ -443,6 +443,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       const requestBody = {
         userId: ownerId,
         sellerName: listing.sellerName,
+        contactPhone: listing.contactPhone || listing.sellerPhone || '',
         title: listing.title,
         description: listing.description,
         category: listing.category,
