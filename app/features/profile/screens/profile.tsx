@@ -53,9 +53,8 @@ export default function ProfileScreen() {
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const sanitizedName = sanitizeAlphabeticName(name).trim();
   const trimmedEmail = email.trim();
-  const emailForSync = trimmedEmail && isValidEmailAddress(trimmedEmail)
-    ? trimmedEmail
-    : (user?.email || '').trim();
+  const emailForSync =
+    trimmedEmail && isValidEmailAddress(trimmedEmail) ? trimmedEmail : (user?.email || '').trim();
 
   const syncProfileToServer = async (payload: {
     name: string;
