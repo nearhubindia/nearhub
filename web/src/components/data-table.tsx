@@ -351,8 +351,8 @@ export function DataTable<TData, TValue>({
         </div>
       )}
 
-      <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <Table>
+      <div className="w-full overflow-x-auto border border-slate-200 bg-white shadow-sm">
+        <Table className="min-w-full">
           <TableHeader className="bg-slate-900">
             {table.getHeaderGroups().map((headerGroup) => (
               <React.Fragment key={headerGroup.id}>
