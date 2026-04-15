@@ -27,6 +27,9 @@ export interface Listing {
   condition?: string;
   category?: string;
   location?: string;
+  pincode?: string | null;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
   userId?: string;
   displayName?: string;
   mobileNumber?: string;

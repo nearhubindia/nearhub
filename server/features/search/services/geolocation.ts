@@ -14,6 +14,13 @@ interface GeometryPolygon {
   coordinates: number[][][];
 }
 
+interface GeometryMultiPolygon {
+  type: 'MultiPolygon';
+  coordinates: number[][][][];
+}
+
+type Geometry = GeometryPolygon | GeometryMultiPolygon;
+
 interface GeoJsonFeature {
   type: 'Feature';
   properties: {
@@ -23,7 +30,7 @@ interface GeoJsonFeature {
     Region?: string;
     Circle?: string;
   };
-  geometry: GeometryPolygon;
+  geometry: Geometry;
 }
 
 interface GeoJsonFeatureCollection {
@@ -49,6 +56,18 @@ interface PincodePolygon {
 class GeolocationService {
   private polygons: PincodePolygon[] = [];
   private initialized = false;
+
+  private getFeaturePolygons(geometry: Geometry): number[][][][] {
+    if (geometry.type === 'Polygon') {
+      return [geometry.coordinates];
+    }
+
+    if (geometry.type === 'MultiPolygon') {
+      return geometry.coordinates;
+    }
+
+    return [];
+  }
 
   /**
    * Load GeoJSON file and parse polygon boundaries
@@ -100,23 +119,29 @@ class GeolocationService {
 
       // Process each feature
       for (const feature of geoJson.features) {
-        if (feature.geometry.type !== 'Polygon') continue;
-
         const pincode = feature.properties.Pincode;
         if (!pincode) continue;
 
-        const polygon: PincodePolygon = {
-          pincode,
-          officeName: feature.properties.Office_Name || '',
-          division: feature.properties.Division || '',
-          region: feature.properties.Region,
-          circle: feature.properties.Circle,
-          polygon: feature.geometry.coordinates,
-          bbox: this.calculateBoundingBox(feature.geometry.coordinates[0]),
-        };
+        const polygons = this.getFeaturePolygons(feature.geometry);
+        if (!polygons.length) continue;
 
-        this.polygons.push(polygon);
-        featureCount++;
+        for (const polygonCoordinates of polygons) {
+          const exteriorRing = polygonCoordinates[0];
+          if (!exteriorRing || !exteriorRing.length) continue;
+
+          const polygon: PincodePolygon = {
+            pincode,
+            officeName: feature.properties.Office_Name || '',
+            division: feature.properties.Division || '',
+            region: feature.properties.Region,
+            circle: feature.properties.Circle,
+            polygon: polygonCoordinates,
+            bbox: this.calculateBoundingBox(exteriorRing),
+          };
+
+          this.polygons.push(polygon);
+          featureCount++;
+        }
       }
 
       const duration = Date.now() - startTime;
@@ -162,6 +187,22 @@ class GeolocationService {
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
       const [xi, yi] = ring[i];
       const [xj, yj] = ring[j];
+
+      const minX = Math.min(xi, xj);
+      const maxX = Math.max(xi, xj);
+      const minY = Math.min(yi, yj);
+      const maxY = Math.max(yi, yj);
+      const cross = (lon - xi) * (yj - yi) - (lat - yi) * (xj - xi);
+
+      if (
+        Math.abs(cross) <= 1e-10 &&
+        lon >= minX - 1e-10 &&
+        lon <= maxX + 1e-10 &&
+        lat >= minY - 1e-10 &&
+        lat <= maxY + 1e-10
+      ) {
+        return true;
+      }
 
       const intersect = yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
       if (intersect) inside = !inside;

@@ -64,6 +64,31 @@ export function registerAdminListingsRoutes(app: Express) {
     return value.replace(/\D/g, '').slice(-10);
   };
 
+  const normalizeOptionalText = (value: unknown): string | undefined => {
+    if (value === null || value === undefined) return undefined;
+    const raw = String(value).trim();
+    return raw ? raw : undefined;
+  };
+
+  const parseCoordinateInput = (
+    value: unknown,
+    fieldName: 'latitude' | 'longitude',
+    min: number,
+    max: number
+  ): { value?: number; error?: string } => {
+    if (value === null || value === undefined || String(value).trim() === '') {
+      return { value: undefined };
+    }
+
+    const parsed = Number.parseFloat(String(value));
+    if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+      return {
+        error: `${fieldName} must be a valid number between ${min} and ${max}`,
+      };
+    }
+    return { value: parsed };
+  };
+
   const looksLikePhone = (value: string): boolean => /^\d{10,15}$/.test(value.replace(/\D/g, ''));
 
   const resolveListingOwnerId = async (value: unknown): Promise<string | null> => {
@@ -175,6 +200,9 @@ export function registerAdminListingsRoutes(app: Express) {
             price: listing.price,
             condition: listing.condition,
             location: listing.location,
+            pincode: listing.pincode,
+            latitude: listing.latitude,
+            longitude: listing.longitude,
             status: listing.status,
             userId: listing.sellerId,
             displayName,
@@ -252,6 +280,26 @@ export function registerAdminListingsRoutes(app: Express) {
         });
       }
 
+      const normalizedPincode = normalizeOptionalText(pincode);
+      const parsedLatitude = parseCoordinateInput(latitude, 'latitude', -90, 90);
+      const parsedLongitude = parseCoordinateInput(longitude, 'longitude', -180, 180);
+
+      if (parsedLatitude.error || parsedLongitude.error) {
+        return res.status(400).json({
+          success: false,
+          error: parsedLatitude.error || parsedLongitude.error,
+        });
+      }
+
+      const hasLatitude = parsedLatitude.value !== undefined;
+      const hasLongitude = parsedLongitude.value !== undefined;
+      if (hasLatitude !== hasLongitude) {
+        return res.status(400).json({
+          success: false,
+          error: 'Both latitude and longitude are required together',
+        });
+      }
+
       const created = await createListing({
         sellerId: ownerId,
         title: String(title).trim(),
@@ -263,9 +311,10 @@ export function registerAdminListingsRoutes(app: Express) {
         contactPhone: normalizeContactPhone(contactPhone),
         priceUnit,
         listingType: listingType || 'mixed',
-        pincode,
-        latitude: latitude ? parseFloat(String(latitude)).toString() : undefined,
-        longitude: longitude ? parseFloat(String(longitude)).toString() : undefined,
+        pincode: normalizedPincode,
+        latitude: parsedLatitude.value !== undefined ? parsedLatitude.value.toString() : undefined,
+        longitude:
+          parsedLongitude.value !== undefined ? parsedLongitude.value.toString() : undefined,
         images: Array.isArray(images) ? images : [],
         videos: Array.isArray(videos) ? videos : [],
         status: status || 'active',
@@ -317,6 +366,9 @@ export function registerAdminListingsRoutes(app: Express) {
           price: listing.price,
           condition: listing.condition,
           location: listing.location,
+          pincode: listing.pincode,
+          latitude: listing.latitude,
+          longitude: listing.longitude,
           status: listing.status,
           userId: listing.sellerId,
           contactPhone: listing.contactPhone,
@@ -483,6 +535,9 @@ export function registerAdminListingsRoutes(app: Express) {
         price,
         condition,
         location,
+        pincode,
+        latitude,
+        longitude,
         status,
         isActive,
         featured,
@@ -497,6 +552,36 @@ export function registerAdminListingsRoutes(app: Express) {
       if (price !== undefined) updateData.price = price;
       if (condition !== undefined) updateData.condition = condition;
       if (location !== undefined) updateData.location = location;
+      if (pincode !== undefined) {
+        const normalizedPincode = normalizeOptionalText(pincode);
+        updateData.pincode = normalizedPincode ?? null;
+      }
+
+      const latitudeProvided = latitude !== undefined;
+      const longitudeProvided = longitude !== undefined;
+      if (latitudeProvided !== longitudeProvided) {
+        return res.status(400).json({
+          success: false,
+          error: 'Both latitude and longitude are required together',
+        });
+      }
+
+      if (latitudeProvided && longitudeProvided) {
+        const parsedLatitude = parseCoordinateInput(latitude, 'latitude', -90, 90);
+        const parsedLongitude = parseCoordinateInput(longitude, 'longitude', -180, 180);
+
+        if (parsedLatitude.error || parsedLongitude.error) {
+          return res.status(400).json({
+            success: false,
+            error: parsedLatitude.error || parsedLongitude.error,
+          });
+        }
+
+        updateData.latitude =
+          parsedLatitude.value !== undefined ? parsedLatitude.value.toString() : null;
+        updateData.longitude =
+          parsedLongitude.value !== undefined ? parsedLongitude.value.toString() : null;
+      }
       if (status !== undefined) updateData.status = status;
       if (isActive !== undefined) updateData.isActive = isActive;
       if (featured !== undefined) updateData.featured = featured;
@@ -524,6 +609,9 @@ export function registerAdminListingsRoutes(app: Express) {
           price: listing.price,
           condition: listing.condition,
           location: listing.location,
+          pincode: listing.pincode,
+          latitude: listing.latitude,
+          longitude: listing.longitude,
           status: listing.status,
           userId: listing.sellerId,
           contactPhone: listing.contactPhone,

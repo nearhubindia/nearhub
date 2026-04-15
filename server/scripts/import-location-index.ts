@@ -8,9 +8,16 @@ import { db } from '../data/db';
 import { locationIndex } from '../features/admin/models/admin-settings';
 
 interface GeometryPolygon {
-  type?: string;
+  type?: 'Polygon';
   coordinates?: number[][][];
 }
+
+interface GeometryMultiPolygon {
+  type?: 'MultiPolygon';
+  coordinates?: number[][][][];
+}
+
+type Geometry = GeometryPolygon | GeometryMultiPolygon;
 
 interface GeoJsonFeature {
   properties?: {
@@ -20,7 +27,7 @@ interface GeoJsonFeature {
     Region?: string;
     Circle?: string;
   };
-  geometry?: GeometryPolygon;
+  geometry?: Geometry;
 }
 
 interface GeoJsonFeatureCollection {
@@ -106,6 +113,62 @@ function computeCenter(ring: number[][]): { latitude: number; longitude: number 
   };
 }
 
+function calculateRingArea(ring: number[][]): number {
+  if (ring.length < 3) {
+    return 0;
+  }
+
+  let area = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const [x1, y1] = ring[i];
+    const [x2, y2] = ring[(i + 1) % ring.length];
+    if (
+      typeof x1 !== 'number' ||
+      typeof y1 !== 'number' ||
+      typeof x2 !== 'number' ||
+      typeof y2 !== 'number'
+    ) {
+      continue;
+    }
+    area += x1 * y2 - x2 * y1;
+  }
+
+  return Math.abs(area) / 2;
+}
+
+function getRepresentativeRing(geometry?: Geometry): number[][] {
+  if (!geometry) {
+    return [];
+  }
+
+  if (geometry.type === 'Polygon') {
+    return geometry.coordinates?.[0] || [];
+  }
+
+  if (geometry.type === 'MultiPolygon') {
+    const polygons = geometry.coordinates || [];
+    let bestRing: number[][] = [];
+    let bestArea = 0;
+
+    for (const polygon of polygons) {
+      const ring = polygon?.[0] || [];
+      if (!ring.length) {
+        continue;
+      }
+
+      const area = calculateRingArea(ring);
+      if (area > bestArea) {
+        bestArea = area;
+        bestRing = ring;
+      }
+    }
+
+    return bestRing;
+  }
+
+  return [];
+}
+
 function getGeoJsonPath(): string {
   const candidates = [
     path.join(process.cwd(), 'data/pincode_geo.geojson'),
@@ -154,7 +217,7 @@ async function importLocationIndex() {
     const district = (feature.properties?.Division || '').trim();
     const state = (feature.properties?.Circle || '').trim();
     const region = (feature.properties?.Region || '').trim();
-    const ring = feature.geometry?.coordinates?.[0] || [];
+    const ring = getRepresentativeRing(feature.geometry);
 
     if (!pincode || !/^\d{6}$/.test(pincode) || !officeName || ring.length === 0) {
       continue;

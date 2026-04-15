@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   CircleDollarSign,
   FileText,
+  MapPin,
   Sparkles,
   Star,
   Tag,
@@ -13,6 +14,7 @@ import {
 import type { Listing, Enhancements } from '@/features/admin/types/admin-types';
 import { useUpdateListing } from '@/features/admin/hooks';
 import { validators } from '@/features/admin/utils';
+import { getApiUrl } from '@/lib/config';
 
 interface EditListingModalProps {
   listing: Listing | null;
@@ -29,10 +31,20 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
     offerPrice: String(listing?.offerPrice ?? ''),
     category: listing?.category ?? 'Electronics',
     condition: listing?.condition ?? 'good',
+    location: listing?.location ?? '',
+    pincode: listing?.pincode ? String(listing.pincode) : '',
+    latitude: listing?.latitude !== null && listing?.latitude !== undefined ? String(listing.latitude) : '',
+    longitude:
+      listing?.longitude !== null && listing?.longitude !== undefined ? String(listing.longitude) : '',
     status: listing?.status ?? 'active',
     contactPhone: listing?.contactPhone ?? '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [isResolvingLocation, setIsResolvingLocation] = useState(false);
+  const [locationResolveError, setLocationResolveError] = useState('');
+  const [lastAutoFilledLocation, setLastAutoFilledLocation] = useState('');
+  const [lastAutoFilledPincode, setLastAutoFilledPincode] = useState('');
+  const resolveRequestIdRef = useRef(0);
   const [enhancements, setEnhancements] = useState<Enhancements>({
     featured: Boolean(listing?.featured || listing?.enhancements?.featured),
     priority: listing?.enhancements?.priority || false,
@@ -46,6 +58,169 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
 
   const categories = ['Electronics', 'Vehicles', 'Real Estate', 'Services', 'Jobs'];
   const conditions = ['new', 'like_new', 'good', 'fair', 'poor'];
+
+  const parseCoordinate = (
+    rawValue: string,
+    fieldName: 'latitude' | 'longitude',
+    min: number,
+    max: number
+  ): number | null => {
+    const trimmed = rawValue.trim();
+    if (!trimmed) return null;
+    const numeric = Number.parseFloat(trimmed);
+    if (!Number.isFinite(numeric) || numeric < min || numeric > max) {
+      throw new Error(`${fieldName} must be between ${min} and ${max}`);
+    }
+    return numeric;
+  };
+
+  useEffect(() => {
+    const latitudeRaw = formData.latitude.trim();
+    const longitudeRaw = formData.longitude.trim();
+
+    if (!latitudeRaw || !longitudeRaw) {
+      setIsResolvingLocation(false);
+      setLocationResolveError('');
+      return;
+    }
+
+    const latitude = Number.parseFloat(latitudeRaw);
+    const longitude = Number.parseFloat(longitudeRaw);
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      setIsResolvingLocation(false);
+      setLocationResolveError('');
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      const requestId = resolveRequestIdRef.current + 1;
+      resolveRequestIdRef.current = requestId;
+      setIsResolvingLocation(true);
+      setLocationResolveError('');
+
+      try {
+        const apiUrl = getApiUrl();
+        let resolvedLocation = '';
+        let resolvedPincode = '';
+
+        try {
+          const reverseResponse = await fetch(
+            `${apiUrl}/api/location/reverse-geocode?latitude=${encodeURIComponent(latitudeRaw)}&longitude=${encodeURIComponent(longitudeRaw)}`
+          );
+          if (!reverseResponse.ok) {
+            throw new Error('Reverse geocode failed');
+          }
+
+          const reversePayload = (await reverseResponse.json()) as {
+            success?: boolean;
+            data?: {
+              locationName?: string;
+              city?: string;
+              state?: string;
+              pincode?: string;
+            };
+          };
+
+          if (reversePayload.success && reversePayload.data) {
+            resolvedLocation = String(
+              reversePayload.data.locationName ||
+                reversePayload.data.city ||
+                reversePayload.data.state ||
+                ''
+            ).trim();
+            resolvedPincode = String(reversePayload.data.pincode || '').trim();
+          }
+        } catch {
+          // Fall through to nearby lookup
+        }
+
+        if (!resolvedLocation || !resolvedPincode) {
+          const nearbyResponse = await fetch(
+            `${apiUrl}/api/location/nearby?latitude=${encodeURIComponent(latitudeRaw)}&longitude=${encodeURIComponent(longitudeRaw)}&radius=50`
+          );
+          if (nearbyResponse.ok) {
+            const nearbyPayload = (await nearbyResponse.json()) as Array<{
+              locationName?: string;
+              city?: string;
+              state?: string;
+              pincode?: string;
+            }>;
+            const nearest = Array.isArray(nearbyPayload) ? nearbyPayload[0] : null;
+            if (nearest) {
+              if (!resolvedLocation) {
+                resolvedLocation = String(
+                  nearest.locationName || nearest.city || nearest.state || ''
+                ).trim();
+              }
+              if (!resolvedPincode) {
+                resolvedPincode = String(nearest.pincode || '').trim();
+              }
+            }
+          }
+        }
+
+        if (resolveRequestIdRef.current !== requestId) {
+          return;
+        }
+
+        if (!resolvedLocation && !resolvedPincode) {
+          throw new Error('No internal location match found');
+        }
+
+        let nextAutoLocation = '';
+        let nextAutoPincode = '';
+
+        setFormData((prev) => {
+          const next = { ...prev };
+          const canAutoReplaceLocation =
+            !prev.location.trim() || prev.location.trim() === lastAutoFilledLocation;
+          const canAutoReplacePincode =
+            !prev.pincode.trim() || prev.pincode.trim() === lastAutoFilledPincode;
+
+          if (resolvedLocation && canAutoReplaceLocation) {
+            next.location = resolvedLocation;
+            nextAutoLocation = resolvedLocation;
+          }
+          if (resolvedPincode && canAutoReplacePincode) {
+            next.pincode = resolvedPincode;
+            nextAutoPincode = resolvedPincode;
+          }
+          return next;
+        });
+
+        if (nextAutoLocation) {
+          setLastAutoFilledLocation(nextAutoLocation);
+        }
+        if (nextAutoPincode) {
+          setLastAutoFilledPincode(nextAutoPincode);
+        }
+      } catch {
+        if (resolveRequestIdRef.current === requestId) {
+          setLocationResolveError('Unable to auto-resolve location for these coordinates');
+        }
+      } finally {
+        if (resolveRequestIdRef.current === requestId) {
+          setIsResolvingLocation(false);
+        }
+      }
+    }, 450);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    formData.latitude,
+    formData.longitude,
+    lastAutoFilledLocation,
+    lastAutoFilledPincode,
+  ]);
 
   const generateTitleWithAI = async (): Promise<void> => {
     if (!formData.description) {
@@ -101,12 +276,41 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
       title: formData.title,
       description: formData.description,
       price: formData.price,
-      location: listing.location || '',
+      location: formData.location,
     });
 
     if (errors.length > 0) {
       const errorMap = errors.reduce((acc, err) => ({ ...acc, [err.field]: err.message }), {});
       setFormErrors(errorMap);
+      return;
+    }
+
+    const pincode = formData.pincode.trim();
+    if (pincode && !/^\d{6}$/.test(pincode)) {
+      setFormErrors({ pincode: 'Pincode must be a 6-digit number' });
+      return;
+    }
+
+    let latitude: number | null = null;
+    let longitude: number | null = null;
+    try {
+      latitude = parseCoordinate(formData.latitude, 'latitude', -90, 90);
+      longitude = parseCoordinate(formData.longitude, 'longitude', -180, 180);
+    } catch (error) {
+      setFormErrors({
+        latitude:
+          error instanceof Error ? error.message : 'Invalid coordinates. Check latitude/longitude.',
+      });
+      return;
+    }
+
+    const hasLatitude = latitude !== null;
+    const hasLongitude = longitude !== null;
+    if (hasLatitude !== hasLongitude) {
+      setFormErrors({
+        latitude: 'Both latitude and longitude are required together',
+        longitude: 'Both latitude and longitude are required together',
+      });
       return;
     }
 
@@ -117,11 +321,16 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
         price: Number(formData.price),
         category: formData.category,
         condition: formData.condition,
+        location: formData.location,
         status: formData.status as 'active' | 'sold' | 'pending',
         contactPhone: String(formData.contactPhone || '').trim(),
         sponsored,
         ...enhancements,
       };
+
+      payload.pincode = pincode || null;
+      payload.latitude = hasLatitude ? latitude : null;
+      payload.longitude = hasLongitude ? longitude : null;
 
       if (formData.offerPrice && Number(formData.offerPrice) > 0) {
         payload.offerPrice = Number(formData.offerPrice);
@@ -301,6 +510,73 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <label className={`${labelClass} flex items-center gap-2`}>
+                      <MapPin size={14} /> Location
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      className={inputClass}
+                      placeholder="City, State"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>
+                      Pincode <span className="text-xs font-normal text-slate-500">Optional</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.pincode}
+                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                      className={inputClass}
+                      placeholder="6-digit pincode"
+                      inputMode="numeric"
+                    />
+                    {formErrors.pincode && (
+                      <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.pincode}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>
+                      Latitude <span className="text-xs font-normal text-slate-500">Optional</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.latitude}
+                      onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g. 17.3850"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>
+                      Longitude <span className="text-xs font-normal text-slate-500">Optional</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.longitude}
+                      onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g. 78.4867"
+                    />
+                    {(formErrors.latitude || formErrors.longitude) && (
+                      <p className="mt-1 text-xs font-medium text-rose-600">
+                        {formErrors.latitude || formErrors.longitude}
+                      </p>
+                    )}
+                    {!formErrors.latitude && !formErrors.longitude && isResolvingLocation && (
+                      <p className="mt-1 text-xs text-cyan-700">Resolving location from coordinates...</p>
+                    )}
+                    {!formErrors.latitude && !formErrors.longitude && locationResolveError && (
+                      <p className="mt-1 text-xs text-slate-500">{locationResolveError}</p>
+                    )}
+                  </div>
+
                   <div>
                     <label className={labelClass}>Status</label>
                     <select

@@ -11,6 +11,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   BackHandler,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -181,13 +182,20 @@ export default function CreateScreen() {
   const [locationState, setLocationState] = useState('');
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
+  const [latitudeInput, setLatitudeInput] = useState('');
+  const [longitudeInput, setLongitudeInput] = useState('');
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [mapsLinkInput, setMapsLinkInput] = useState('');
+  const [isResolvingMapsLink, setIsResolvingMapsLink] = useState(false);
   const [pincodeSearchInput, setPincodeSearchInput] = useState('');
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   const [pincodeSearchError, setPincodeSearchError] = useState<string | null>(null);
+  const [isResolvingCoordinates, setIsResolvingCoordinates] = useState(false);
+  const [coordinateResolveError, setCoordinateResolveError] = useState<string | null>(null);
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const pincodeInputRef = useRef<TextInput>(null);
+  const coordinateResolveRequestIdRef = useRef(0);
 
   const visibleCategories =
     listingType === 'job'
@@ -262,12 +270,216 @@ export default function CreateScreen() {
     setLocationState(suggestion.state || '');
     setLatitude(suggestion.latitude);
     setLongitude(suggestion.longitude);
+    setLatitudeInput(String(suggestion.latitude));
+    setLongitudeInput(String(suggestion.longitude));
     setPincodeSearchInput('');
     setLocationSuggestions([]);
     setPincodeSearchError(null);
+    setCoordinateResolveError(null);
     setShowLocationModal(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, []);
+
+  const parseCoordinatesFromMapsLink = useCallback((input: string) => {
+    const raw = input.trim();
+    if (!raw) {
+      return null;
+    }
+
+    const isValidCoordinates = (lat: number, lon: number) =>
+      Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+
+    const buildCoordinates = (latRaw: string, lonRaw: string) => {
+      const parsedLatitude = Number.parseFloat(latRaw);
+      const parsedLongitude = Number.parseFloat(lonRaw);
+      if (!isValidCoordinates(parsedLatitude, parsedLongitude)) {
+        return null;
+      }
+      return {
+        latitude: parsedLatitude,
+        longitude: parsedLongitude,
+      };
+    };
+
+    const toDecimal = (degrees: string, minutes: string, seconds: string, direction: string) => {
+      const absolute =
+        Number.parseFloat(degrees) +
+        Number.parseFloat(minutes) / 60 +
+        Number.parseFloat(seconds) / 3600;
+      return /[SW]/i.test(direction) ? -absolute : absolute;
+    };
+
+    const queue: string[] = [raw];
+    const visited = new Set<string>();
+
+    while (queue.length > 0) {
+      const candidateRaw = queue.shift();
+      if (!candidateRaw) continue;
+      const candidate = candidateRaw.trim();
+      if (!candidate || visited.has(candidate)) continue;
+      visited.add(candidate);
+
+      const variants = [candidate];
+      let decodeAttempt = candidate;
+      for (let i = 0; i < 3; i += 1) {
+        try {
+          const next = decodeURIComponent(decodeAttempt);
+          if (!next || next === decodeAttempt) break;
+          variants.push(next);
+          decodeAttempt = next;
+        } catch {
+          break;
+        }
+      }
+
+      for (const variant of variants) {
+        const simplePatterns = [
+          /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
+          /[?&](?:q|query|ll|sll|daddr|destination|center)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
+          /\/search\/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
+          /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i,
+          /geo:(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
+          /(-?\d{1,2}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)/,
+        ];
+
+        for (const pattern of simplePatterns) {
+          const match = variant.match(pattern);
+          if (!match) continue;
+          const built = buildCoordinates(match[1] ?? '', match[2] ?? '');
+          if (built) return built;
+        }
+
+        const dmsMatch = variant.match(
+          /(\d{1,2})°\s*(\d{1,2})[’'′]\s*(\d{1,2}(?:\.\d+)?)[”"″]?\s*([NS]).*?(\d{1,3})°\s*(\d{1,2})[’'′]\s*(\d{1,2}(?:\.\d+)?)[”"″]?\s*([EW])/i
+        );
+        if (dmsMatch) {
+          const latitudeFromDms = toDecimal(dmsMatch[1], dmsMatch[2], dmsMatch[3], dmsMatch[4]);
+          const longitudeFromDms = toDecimal(dmsMatch[5], dmsMatch[6], dmsMatch[7], dmsMatch[8]);
+          if (isValidCoordinates(latitudeFromDms, longitudeFromDms)) {
+            return {
+              latitude: latitudeFromDms,
+              longitude: longitudeFromDms,
+            };
+          }
+        }
+
+        try {
+          const normalized = /^https?:\/\//i.test(variant) ? variant : `https://${variant}`;
+          const parsedUrl = new URL(normalized);
+          const queryCoordinateKeys = ['q', 'query', 'll', 'sll', 'daddr', 'destination', 'center'];
+          for (const key of queryCoordinateKeys) {
+            const value = parsedUrl.searchParams.get(key);
+            if (!value) continue;
+            const parts = value.split(',').map((part) => part.trim());
+            if (parts.length < 2) continue;
+            const built = buildCoordinates(parts[0] ?? '', parts[1] ?? '');
+            if (built) return built;
+          }
+
+          const nestedLink = parsedUrl.searchParams.get('link');
+          if (nestedLink && !visited.has(nestedLink)) {
+            queue.push(nestedLink);
+          }
+        } catch {
+          // Ignore invalid URL parsing and continue with next variant
+        }
+      }
+    }
+
+    return null;
+  }, []);
+
+  const expandGoogleMapsShortLink = useCallback(async (input: string): Promise<string> => {
+    const raw = input.trim();
+    if (!raw) {
+      return raw;
+    }
+
+    const normalized = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+
+    if (!/^https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(normalized)) {
+      return normalized;
+    }
+
+    try {
+      const response = await fetch(normalized, { method: 'GET' });
+      const redirected = response.url || normalized;
+
+      if (redirected && redirected !== normalized) {
+        return redirected;
+      }
+
+      const html = await response.text();
+      const canonicalMatch = html.match(
+        /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i
+      );
+      if (canonicalMatch?.[1]) {
+        return canonicalMatch[1];
+      }
+
+      return normalized;
+    } catch {
+      return normalized;
+    }
+  }, []);
+
+  const openGoogleMapsPicker = useCallback(async () => {
+    const latitudeCandidate = latitudeInput.trim();
+    const longitudeCandidate = longitudeInput.trim();
+    const fallbackCoords =
+      latitude !== null && longitude !== null ? `${latitude},${longitude}` : '';
+    const query =
+      latitudeCandidate && longitudeCandidate
+        ? `${latitudeCandidate},${longitudeCandidate}`
+        : fallbackCoords;
+
+    const mapsUrl = query
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+      : 'https://www.google.com/maps';
+
+    try {
+      await Linking.openURL(mapsUrl);
+    } catch {
+      Alert.alert(
+        'Unable to open Google Maps',
+        'Please open Google Maps manually, copy the share link, and paste it here.'
+      );
+    }
+  }, [latitude, longitude, latitudeInput, longitudeInput]);
+
+  const applyCoordinatesFromMapsLink = useCallback(async () => {
+    const raw = mapsLinkInput.trim();
+    if (!raw) {
+      setCoordinateResolveError('Paste a Google Maps link that contains coordinates');
+      return;
+    }
+
+    setIsResolvingMapsLink(true);
+    setCoordinateResolveError(null);
+
+    let parsed = parseCoordinatesFromMapsLink(raw);
+    if (!parsed) {
+      const expandedLink = await expandGoogleMapsShortLink(raw);
+      parsed = parseCoordinatesFromMapsLink(expandedLink);
+    }
+
+    if (!parsed) {
+      setCoordinateResolveError(
+        'Could not extract coordinates. Paste pin coordinates like 17.3850,78.4867'
+      );
+      setIsResolvingMapsLink(false);
+      return;
+    }
+
+    setLatitude(parsed.latitude);
+    setLongitude(parsed.longitude);
+    setLatitudeInput(String(parsed.latitude));
+    setLongitudeInput(String(parsed.longitude));
+    setCoordinateResolveError(null);
+    setMapsLinkInput('');
+    setIsResolvingMapsLink(false);
+    Haptics.selectionAsync();
+  }, [mapsLinkInput, parseCoordinatesFromMapsLink, expandGoogleMapsShortLink]);
 
   // Live search by location name / pincode (similar to select location page)
   useEffect(() => {
@@ -386,35 +598,171 @@ export default function CreateScreen() {
     };
   }, [pincodeSearchInput, showLocationModal]);
 
-  // Get location details from coordinates via reverse geocoding
-  const getLocationDetailsFromCoordinates = useCallback(async (lat: number, lon: number) => {
-    try {
-      const apiUrl = await getApiUrl();
-      const response = await fetch(
-        `${apiUrl}/api/location/reverse-geocode?latitude=${lat}&longitude=${lon}`
-      );
+  // Get location details from coordinates via internal APIs
+  const getLocationDetailsFromCoordinates = useCallback(
+    async (lat: number, lon: number, options?: { notify?: boolean }): Promise<boolean> => {
+      const notify = options?.notify ?? false;
 
-      if (response.ok) {
-        const responseData = await response.json();
-        const locationData = responseData.data;
+      try {
+        const apiUrl = getApiUrl();
+        let resolvedLocation = '';
+        let resolvedPincode = '';
+        let resolvedDistrict = '';
+        let resolvedState = '';
 
-        if (locationData) {
-          setPincode(locationData.pincode || '');
-          setLocationCity(
-            locationData.locationName || locationData.city || locationData.state || 'Unknown'
+        try {
+          const reverseResponse = await fetch(
+            `${apiUrl}/api/location/reverse-geocode?latitude=${encodeURIComponent(String(lat))}&longitude=${encodeURIComponent(String(lon))}`
           );
-          setLocationDistrict(locationData.district || '');
-          setLocationState(locationData.state || '');
+
+          if (reverseResponse.ok) {
+            const reverseData = (await reverseResponse.json()) as {
+              success?: boolean;
+              data?: {
+                locationName?: string;
+                city?: string;
+                state?: string;
+                district?: string;
+                pincode?: string;
+              };
+            };
+
+            if (reverseData.success && reverseData.data) {
+              resolvedLocation = String(
+                reverseData.data.locationName ||
+                  reverseData.data.city ||
+                  reverseData.data.state ||
+                  ''
+              ).trim();
+              resolvedPincode = String(reverseData.data.pincode || '').trim();
+              resolvedDistrict = String(reverseData.data.district || '').trim();
+              resolvedState = String(reverseData.data.state || '').trim();
+            }
+          }
+        } catch {
+          // Fall through to nearby lookup
+        }
+
+        if (!resolvedLocation || !resolvedPincode) {
+          const nearbyResponse = await fetch(
+            `${apiUrl}/api/location/nearby?latitude=${encodeURIComponent(String(lat))}&longitude=${encodeURIComponent(String(lon))}&radius=50`
+          );
+
+          if (nearbyResponse.ok) {
+            const nearbyData = (await nearbyResponse.json()) as Array<{
+              locationName?: string;
+              city?: string;
+              state?: string;
+              district?: string;
+              pincode?: string;
+            }>;
+            const nearest = Array.isArray(nearbyData) ? nearbyData[0] : null;
+
+            if (nearest) {
+              if (!resolvedLocation) {
+                resolvedLocation = String(
+                  nearest.locationName || nearest.city || nearest.state || ''
+                ).trim();
+              }
+              if (!resolvedPincode) {
+                resolvedPincode = String(nearest.pincode || '').trim();
+              }
+              if (!resolvedDistrict) {
+                resolvedDistrict = String(nearest.district || '').trim();
+              }
+              if (!resolvedState) {
+                resolvedState = String(nearest.state || '').trim();
+              }
+            }
+          }
+        }
+
+        if (!resolvedLocation && !resolvedPincode) {
+          return false;
+        }
+
+        if (resolvedPincode) {
+          setPincode(resolvedPincode);
+        }
+        if (resolvedLocation) {
+          setLocationCity(resolvedLocation);
+        }
+        setLocationDistrict(resolvedDistrict);
+        setLocationState(resolvedState);
+
+        if (notify) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
-      } else {
-        console.log('Reverse geocode not available, location set to coordinates only');
+
+        return true;
+      } catch (error) {
+        console.error('Error getting location details:', error);
+        return false;
       }
-    } catch (error) {
-      console.error('Error getting location details:', error);
-      // Silently fail - coordinates are already set
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!showLocationModal) {
+      return;
     }
-  }, []);
+
+    const latitudeRaw = latitudeInput.trim();
+    const longitudeRaw = longitudeInput.trim();
+
+    if (!latitudeRaw || !longitudeRaw) {
+      setIsResolvingCoordinates(false);
+      setCoordinateResolveError(null);
+      return;
+    }
+
+    const parsedLatitude = Number.parseFloat(latitudeRaw);
+    const parsedLongitude = Number.parseFloat(longitudeRaw);
+
+    if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) {
+      setIsResolvingCoordinates(false);
+      setCoordinateResolveError('Latitude and longitude must be valid numbers');
+      return;
+    }
+
+    if (parsedLatitude < -90 || parsedLatitude > 90) {
+      setIsResolvingCoordinates(false);
+      setCoordinateResolveError('Latitude must be between -90 and 90');
+      return;
+    }
+
+    if (parsedLongitude < -180 || parsedLongitude > 180) {
+      setIsResolvingCoordinates(false);
+      setCoordinateResolveError('Longitude must be between -180 and 180');
+      return;
+    }
+
+    setLatitude(parsedLatitude);
+    setLongitude(parsedLongitude);
+
+    const timeoutId = setTimeout(async () => {
+      const requestId = coordinateResolveRequestIdRef.current + 1;
+      coordinateResolveRequestIdRef.current = requestId;
+      setIsResolvingCoordinates(true);
+      setCoordinateResolveError(null);
+
+      const resolved = await getLocationDetailsFromCoordinates(parsedLatitude, parsedLongitude);
+      if (coordinateResolveRequestIdRef.current !== requestId) {
+        return;
+      }
+
+      if (!resolved) {
+        setCoordinateResolveError('Unable to auto-resolve city/pincode for these coordinates');
+      }
+
+      setIsResolvingCoordinates(false);
+    }, 450);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [getLocationDetailsFromCoordinates, latitudeInput, longitudeInput, showLocationModal]);
 
   // Auto-request device location on component mount
   useEffect(() => {
@@ -447,10 +795,13 @@ export default function CreateScreen() {
         // Set coordinates
         setLatitude(lat);
         setLongitude(lon);
+        setLatitudeInput(String(lat));
+        setLongitudeInput(String(lon));
         setLocationCity((prev) => prev || 'Current Location');
+        setCoordinateResolveError(null);
 
         // Try to get location details (pincode, city) from reverse geocoding
-        await getLocationDetailsFromCoordinates(lat, lon);
+        await getLocationDetailsFromCoordinates(lat, lon, { notify: true });
 
         console.log('[Create] Auto-captured location:', {
           lat,
@@ -1331,6 +1682,8 @@ export default function CreateScreen() {
         setShowLocationModal(false);
         setPincodeSearchInput('');
         setPincodeSearchError(null);
+        setCoordinateResolveError(null);
+        setIsResolvingCoordinates(false);
         return true;
       });
       return () => {
@@ -1849,6 +2202,10 @@ export default function CreateScreen() {
                     setPincodeSearchInput('');
                     setLocationSuggestions([]);
                     setPincodeSearchError(null);
+                    setCoordinateResolveError(null);
+                    setIsResolvingCoordinates(false);
+                    setLatitudeInput(latitude !== null ? String(latitude) : '');
+                    setLongitudeInput(longitude !== null ? String(longitude) : '');
                     setShowLocationModal(true);
                   }}
                   style={styles.changeLocationButton}
@@ -1863,6 +2220,10 @@ export default function CreateScreen() {
                   setPincodeSearchInput('');
                   setLocationSuggestions([]);
                   setPincodeSearchError(null);
+                  setCoordinateResolveError(null);
+                  setIsResolvingCoordinates(false);
+                  setLatitudeInput(latitude !== null ? String(latitude) : '');
+                  setLongitudeInput(longitude !== null ? String(longitude) : '');
                   setShowLocationModal(true);
                 }}
               >
@@ -2594,6 +2955,8 @@ export default function CreateScreen() {
                   setPincodeSearchInput('');
                   setLocationSuggestions([]);
                   setPincodeSearchError(null);
+                  setCoordinateResolveError(null);
+                  setIsResolvingCoordinates(false);
                 }}
               >
                 <Feather name="arrow-left" size={20} color={Colors.text} />
@@ -2607,90 +2970,105 @@ export default function CreateScreen() {
               style={styles.locationPageContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="always"
-              contentContainerStyle={{ paddingBottom: 40 }}
+              contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 96, 120) }}
             >
-              <Text style={styles.locationDescription}>Enter City or Pincode</Text>
+              <Text style={styles.locationDescription}>
+                Enter latitude and longitude first. We auto-fill pincode and city.
+              </Text>
 
-              {/* Pincode Search Input */}
-              <View style={styles.pincodeSearchContainer}>
-                <Feather
-                  name="map-pin"
-                  size={18}
-                  color={Colors.primary}
-                  style={styles.pincodeSearchIcon}
-                />
-                <TextInput
-                  ref={pincodeInputRef}
-                  style={styles.pincodeSearchInput}
-                  placeholder="Enter City or Pincode"
-                  placeholderTextColor={Colors.textTertiary}
-                  value={pincodeSearchInput}
-                  onChangeText={setPincodeSearchInput}
-                  autoFocus={true}
-                />
-                {pincodeSearchInput.trim().length > 0 && (
-                  <Pressable
-                    onPress={() => {
-                      setPincodeSearchInput('');
-                      setLocationSuggestions([]);
-                      setPincodeSearchError(null);
-                    }}
-                    style={styles.pincodeSearchClear}
-                  >
-                    <Ionicons name="close-circle" size={18} color={Colors.textTertiary} />
-                  </Pressable>
-                )}
+              <View style={styles.locationManualCard}>
+                <Text style={styles.locationManualTitle}>Coordinates</Text>
+
+                <View style={styles.locationManualRow}>
+                  <View style={styles.locationManualField}>
+                    <Text style={styles.locationManualLabel}>Latitude</Text>
+                    <TextInput
+                      style={styles.locationManualInput}
+                      value={latitudeInput}
+                      onChangeText={setLatitudeInput}
+                      placeholder="e.g. 17.3850"
+                      placeholderTextColor={Colors.textTertiary}
+                      keyboardType="numbers-and-punctuation"
+                    />
+                  </View>
+                  <View style={styles.locationManualField}>
+                    <Text style={styles.locationManualLabel}>Longitude</Text>
+                    <TextInput
+                      style={styles.locationManualInput}
+                      value={longitudeInput}
+                      onChangeText={setLongitudeInput}
+                      placeholder="e.g. 78.4867"
+                      placeholderTextColor={Colors.textTertiary}
+                      keyboardType="numbers-and-punctuation"
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.locationManualRow}>
+                  <View style={styles.locationManualField}>
+                    <Text style={styles.locationManualLabel}>Pincode</Text>
+                    <TextInput
+                      style={styles.locationManualInput}
+                      value={pincode}
+                      onChangeText={(text) =>
+                        setPincode(text.replace(/[^0-9]/g, '').slice(0, 6))
+                      }
+                      placeholder="Auto-filled from coordinates"
+                      placeholderTextColor={Colors.textTertiary}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                    />
+                  </View>
+                  <View style={styles.locationManualField}>
+                    <Text style={styles.locationManualLabel}>City / Location</Text>
+                    <TextInput
+                      style={styles.locationManualInput}
+                      value={locationCity}
+                      onChangeText={setLocationCity}
+                      placeholder="Auto-filled from coordinates"
+                      placeholderTextColor={Colors.textTertiary}
+                    />
+                  </View>
+                </View>
+
+                {isResolvingCoordinates ? (
+                  <Text style={styles.locationResolveHint}>
+                    Resolving city and pincode from coordinates...
+                  </Text>
+                ) : null}
+                {coordinateResolveError ? (
+                  <Text style={styles.locationResolveError}>{coordinateResolveError}</Text>
+                ) : null}
               </View>
 
-              {/* Error Message */}
-              {pincodeSearchError && (
-                <View style={styles.errorBanner}>
-                  <Feather name="alert-circle" size={16} color={Colors.error} />
-                  <Text style={styles.errorText}>{pincodeSearchError}</Text>
-                </View>
-              )}
-
-              <View style={styles.locationSuggestionsCard}>
-                {isSearchingLocation ? (
-                  <View style={styles.locationSearchLoading}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                    <Text style={styles.locationSearchLoadingText}>Searching locations...</Text>
-                  </View>
-                ) : null}
-
-                {locationSuggestions.length > 0 ? (
-                  locationSuggestions.map((item) => (
-                    <Pressable
-                      key={`${item.pincode}-${item.locationName}-${item.city}`}
-                      style={styles.locationSuggestionItem}
-                      onPress={() => applyLocationSuggestion(item)}
-                    >
-                      <View style={styles.locationSuggestionTextWrap}>
-                        <Text style={styles.locationSuggestionName}>
-                          {item.locationName || item.city}
-                        </Text>
-                        <Text style={styles.locationSuggestionMeta}>
-                          {item.district ? `${item.district}, ${item.state}` : item.state}
-                        </Text>
-                      </View>
-                      <Feather name="chevron-right" size={16} color={Colors.textTertiary} />
-                    </Pressable>
-                  ))
-                ) : (
-                  <View style={styles.locationSearchEmptyState}>
-                    <Text style={styles.locationSearchEmptyStateText}>
-                      {pincodeSearchInput.trim().length === 0
-                        ? 'Type location or pincode to search'
-                        : /^\d+$/.test(pincodeSearchInput.trim()) &&
-                            pincodeSearchInput.trim().length < 6
-                          ? 'Enter full 6-digit pincode'
-                          : !/^\d+$/.test(pincodeSearchInput.trim()) &&
-                              pincodeSearchInput.trim().length < 2
-                            ? 'Type at least 2 letters to search city'
-                            : 'No matching locations found'}
-                    </Text>
-                  </View>
-                )}
+              <View style={styles.mapLinkCard}>
+                <Text style={styles.mapLinkTitle}>Google Maps</Text>
+                <Pressable style={styles.mapActionButton} onPress={openGoogleMapsPicker}>
+                  <Feather name="external-link" size={16} color="#FFFFFF" />
+                  <Text style={styles.mapActionButtonText}>Find in Google Maps</Text>
+                </Pressable>
+                <TextInput
+                  style={styles.mapLinkInput}
+                  value={mapsLinkInput}
+                  onChangeText={setMapsLinkInput}
+                  placeholder="Paste Google Maps link with dropped pin"
+                  placeholderTextColor={Colors.textTertiary}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Pressable
+                  style={[
+                    styles.mapApplyButton,
+                    (mapsLinkInput.trim().length === 0 || isResolvingMapsLink) &&
+                      styles.mapApplyButtonDisabled,
+                  ]}
+                  onPress={applyCoordinatesFromMapsLink}
+                  disabled={mapsLinkInput.trim().length === 0 || isResolvingMapsLink}
+                >
+                  <Text style={styles.mapApplyButtonText}>
+                    {isResolvingMapsLink ? 'Resolving Link...' : 'Use Link Coordinates'}
+                  </Text>
+                </Pressable>
               </View>
 
               {/* Coverage Info */}
@@ -2710,7 +3088,8 @@ export default function CreateScreen() {
               <View style={styles.locationInfoBox}>
                 <Feather name="info" size={16} color={Colors.primary} />
                 <Text style={styles.locationInfoText}>
-                  Provide your location (or pincode) to help buyers find your listing nearby.
+                  Share a dropped pin from Google Maps or enter coordinates manually for accurate
+                  listing location.
                 </Text>
               </View>
             </ScrollView>
@@ -2857,6 +3236,12 @@ const styles = createResponsiveStyles({
     fontSize: 14,
     color: Colors.textSecondary,
     marginBottom: 20,
+  },
+  locationFallbackLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textSecondary,
+    marginBottom: 8,
   },
   content: {
     paddingHorizontal: 8,
@@ -4250,6 +4635,114 @@ const styles = createResponsiveStyles({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 20,
+  },
+  locationManualCard: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+    gap: 10,
+  },
+  locationManualTitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.text,
+  },
+  locationManualRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  locationManualField: {
+    flex: 1,
+    gap: 6,
+  },
+  locationManualLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textSecondary,
+  },
+  locationManualInput: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.text,
+  },
+  locationResolveHint: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.primary,
+  },
+  locationResolveError: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.error,
+  },
+  mapLinkCard: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+    gap: 10,
+  },
+  mapLinkTitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.text,
+  },
+  mapActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    minHeight: 42,
+  },
+  mapActionButtonText: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#FFFFFF',
+  },
+  mapLinkInput: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.text,
+  },
+  mapApplyButton: {
+    minHeight: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+  },
+  mapApplyButtonDisabled: {
+    opacity: 0.55,
+  },
+  mapApplyButtonText: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.primary,
   },
   pincodeSearchContainer: {
     flexDirection: 'row',
