@@ -137,7 +137,7 @@ function parseCoordinatesFromMapsInput(input: string): ParsedCoordinates | null 
   }
 
   const standaloneCoordinateMatch = raw.match(
-    /^\s*[\[(]?\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*[\])]?\s*$/
+    /^\s*(?:\(|\[)?\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*(?:\)|\])?\s*$/
   );
   if (standaloneCoordinateMatch) {
     const built = buildCoordinates(

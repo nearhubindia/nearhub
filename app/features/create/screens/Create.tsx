@@ -608,11 +608,6 @@ export default function CreateScreen() {
         }
       }
 
-      const htmlParsed = parseCoordinatesFromMapsLink(html);
-      if (htmlParsed) {
-        return `https://www.google.com/maps/search/?api=1&query=${htmlParsed.latitude},${htmlParsed.longitude}`;
-      }
-
       if (canonicalUrl) {
         return canonicalUrl;
       }
