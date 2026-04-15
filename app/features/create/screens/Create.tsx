@@ -355,7 +355,7 @@ export default function CreateScreen() {
       }
 
       let latitudePlaceValue =
-        pairCodeLength < 10 ? pairResolutions[pairCodeLength / 2 - 1] ?? 20 : gridSize;
+        pairCodeLength < 10 ? (pairResolutions[pairCodeLength / 2 - 1] ?? 20) : gridSize;
       let longitudePlaceValue = latitudePlaceValue;
 
       for (let i = pairCodeLength; i < codeWithoutSeparator.length; i += 1) {
