@@ -208,12 +208,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [
-    formData.latitude,
-    formData.longitude,
-    lastAutoFilledLocation,
-    lastAutoFilledPincode,
-  ]);
+  }, [formData.latitude, formData.longitude, lastAutoFilledLocation, lastAutoFilledPincode]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const files = Array.from(e.target.files || []);
@@ -566,7 +561,9 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                       </p>
                     )}
                     {!formErrors.latitude && !formErrors.longitude && isResolvingLocation && (
-                      <p className="mt-1 text-xs text-cyan-700">Resolving location from coordinates...</p>
+                      <p className="mt-1 text-xs text-cyan-700">
+                        Resolving location from coordinates...
+                      </p>
                     )}
                     {!formErrors.latitude && !formErrors.longitude && locationResolveError && (
                       <p className="mt-1 text-xs text-slate-500">{locationResolveError}</p>

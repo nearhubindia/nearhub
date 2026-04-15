@@ -33,9 +33,12 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
     condition: listing?.condition ?? 'good',
     location: listing?.location ?? '',
     pincode: listing?.pincode ? String(listing.pincode) : '',
-    latitude: listing?.latitude !== null && listing?.latitude !== undefined ? String(listing.latitude) : '',
+    latitude:
+      listing?.latitude !== null && listing?.latitude !== undefined ? String(listing.latitude) : '',
     longitude:
-      listing?.longitude !== null && listing?.longitude !== undefined ? String(listing.longitude) : '',
+      listing?.longitude !== null && listing?.longitude !== undefined
+        ? String(listing.longitude)
+        : '',
     status: listing?.status ?? 'active',
     contactPhone: listing?.contactPhone ?? '',
   });
@@ -215,12 +218,7 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [
-    formData.latitude,
-    formData.longitude,
-    lastAutoFilledLocation,
-    lastAutoFilledPincode,
-  ]);
+  }, [formData.latitude, formData.longitude, lastAutoFilledLocation, lastAutoFilledPincode]);
 
   const generateTitleWithAI = async (): Promise<void> => {
     if (!formData.description) {
@@ -570,7 +568,9 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                       </p>
                     )}
                     {!formErrors.latitude && !formErrors.longitude && isResolvingLocation && (
-                      <p className="mt-1 text-xs text-cyan-700">Resolving location from coordinates...</p>
+                      <p className="mt-1 text-xs text-cyan-700">
+                        Resolving location from coordinates...
+                      </p>
                     )}
                     {!formErrors.latitude && !formErrors.longitude && locationResolveError && (
                       <p className="mt-1 text-xs text-slate-500">{locationResolveError}</p>
