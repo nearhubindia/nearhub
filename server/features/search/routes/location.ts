@@ -21,7 +21,14 @@ type ParsedCoordinates = {
 };
 
 function isValidCoordinates(lat: number, lon: number): boolean {
-  return Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lon) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lon >= -180 &&
+    lon <= 180
+  );
 }
 
 function buildCoordinates(latRaw: string, lonRaw: string): ParsedCoordinates | null {
@@ -94,7 +101,7 @@ function decodeFullPlusCode(code: string): ParsedCoordinates | null {
   }
 
   let latitudePlaceValue =
-    pairCodeLength < 10 ? pairResolutions[pairCodeLength / 2 - 1] ?? 20 : gridSize;
+    pairCodeLength < 10 ? (pairResolutions[pairCodeLength / 2 - 1] ?? 20) : gridSize;
   let longitudePlaceValue = latitudePlaceValue;
 
   for (let i = pairCodeLength; i < codeWithoutSeparator.length; i += 1) {
@@ -228,9 +235,9 @@ function isStandaloneShortPlusCodeInput(value: string): boolean {
       return false;
     }
 
-    const match = normalized.trim().match(
-      /([23456789CFGHJMPQRVWX0]{2,8}\+[23456789CFGHJMPQRVWX0]{2,})/
-    );
+    const match = normalized
+      .trim()
+      .match(/([23456789CFGHJMPQRVWX0]{2,8}\+[23456789CFGHJMPQRVWX0]{2,})/);
     const code = match?.[1] ?? '';
     const separatorIndex = code.indexOf('+');
     return separatorIndex > 0 && separatorIndex < 8;
@@ -270,9 +277,7 @@ async function expandGoogleMapsShortLink(input: string): Promise<string> {
     }
 
     const html = await response.text();
-    const canonicalMatch = html.match(
-      /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i
-    );
+    const canonicalMatch = html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i);
     if (canonicalMatch?.[1]) {
       return canonicalMatch[1];
     }
