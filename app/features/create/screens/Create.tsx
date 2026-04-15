@@ -216,11 +216,11 @@ export default function CreateScreen() {
       source: string,
       lat: number,
       lon: number,
-      options?: { setInputs?: boolean; setCity?: boolean; pincode?: string }
+      options?: { setInputs?: boolean; setCity?: boolean; pincode?: string; force?: boolean }
     ) => {
       const newPriority = LOCATION_PRIORITY[source] ?? 0;
       const currentPriority = lastLocationSourceRef.current?.priority ?? 0;
-      if (newPriority < currentPriority) {
+      if (!options?.force && newPriority < currentPriority) {
         return false;
       }
 
@@ -705,7 +705,7 @@ export default function CreateScreen() {
       // Attempt to apply device coords only if allowed by priority
       const applied = setLocationIfAllowed('device', lat, lon, { setInputs: true });
       if (applied) {
-        markLocationAsUserManaged();
+        hasUserManagedLocationRef.current = true;
         setCoordinateResolveTrigger((value) => value + 1);
         setCoordinateResolveError(null);
         setCoordinateResolveSuccess('Current coordinates captured.');
@@ -809,15 +809,21 @@ export default function CreateScreen() {
     }
 
     // Prefer maps-link over lower-priority sources
+    hasUserManagedLocationRef.current = true;
+    const requestId = coordinateResolveRequestIdRef.current + 1;
+    coordinateResolveRequestIdRef.current = requestId;
     const applied = setLocationIfAllowed('maps-link', parsed.latitude, parsed.longitude, {
       setInputs: true,
+      force: true,
     });
     setMapsLinkInput('');
     setCoordinateResolveError(null);
 
     try {
       setIsResolvingMapsLink(true);
-      const resolved = await getLocationDetailsFromCoordinates(parsed.latitude, parsed.longitude);
+      const resolved = await getLocationDetailsFromCoordinates(parsed.latitude, parsed.longitude, {
+        requestId,
+      });
       setIsResolvingMapsLink(false);
       if (applied && resolved) {
         setCoordinateResolveSuccess('Coordinates captured from Google Maps.');
@@ -965,10 +971,11 @@ export default function CreateScreen() {
     async (
       lat: number,
       lon: number,
-      options?: { notify?: boolean; skipIfManualOverride?: boolean }
+      options?: { notify?: boolean; skipIfManualOverride?: boolean; requestId?: number }
     ): Promise<boolean> => {
       const notify = options?.notify ?? false;
       const skipIfManualOverride = options?.skipIfManualOverride ?? false;
+      const requestId = options?.requestId;
 
       if (skipIfManualOverride && hasUserManagedLocationRef.current) {
         return false;
@@ -1052,6 +1059,10 @@ export default function CreateScreen() {
           return false;
         }
 
+        if (requestId && coordinateResolveRequestIdRef.current !== requestId) {
+          return false;
+        }
+
         if (skipIfManualOverride && hasUserManagedLocationRef.current) {
           return false;
         }
@@ -1126,7 +1137,9 @@ export default function CreateScreen() {
       setIsResolvingCoordinates(true);
       setCoordinateResolveError(null);
 
-      const resolved = await getLocationDetailsFromCoordinates(parsedLatitude, parsedLongitude);
+      const resolved = await getLocationDetailsFromCoordinates(parsedLatitude, parsedLongitude, {
+        requestId,
+      });
       if (coordinateResolveRequestIdRef.current !== requestId) {
         return;
       }

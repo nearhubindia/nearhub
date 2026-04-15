@@ -4,6 +4,7 @@ import { db } from '../../../data/db';
 import { listings, locationIndex } from '../../admin/models/admin-settings';
 import { geolocationService } from '../services/geolocation';
 import {
+  type LocationRecord,
   type LocationMetrics,
   calculateDistance,
   computeDemandScore,
@@ -427,6 +428,120 @@ function extractMapsInputCandidates(input: string): string[] {
   return Array.from(candidates);
 }
 
+function extractPlaceNameFromMapsUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname;
+    
+    // Check if this is a place URL: /maps/place/{place-name}
+    const placeMatch = pathname.match(/\/maps\/place\/([^/]+)/i);
+    if (placeMatch?.[1]) {
+      // Decode URL-encoded place name
+      let placeName = decodeURIComponent(placeMatch[1]);
+      // Replace + with space and clean up
+      placeName = placeName.replace(/\+/g, ' ').trim();
+      
+      // Extract location components from Google Places format
+      // Pattern: "PlaceName, ...address..., City, State Pincode"
+      // Try to extract pincode first (6-digit number at the end)
+      const pincodeMatch = placeName.match(/(\d{6})/);
+      const pincode = pincodeMatch?.[1];
+      
+      // Extract state and city (usually after comma and before pincode)
+      const parts = placeName.split(',').map((p) => p.trim());
+      
+      // Look for city and state (usually the last meaningful parts before pincode)
+      let searchQuery = '';
+      if (pincode) {
+        // If we have pincode, search for it as primary
+        searchQuery = pincode;
+      } else if (parts.length > 0) {
+        // Otherwise search for the last meaningful part (usually city)
+        const lastPart = parts[parts.length - 1] ?? '';
+        // Filter out short parts and ones that look like addresses
+        const meaningfulParts = parts.filter(
+          (p) => p.length > 2 && !/^\d+/.test(p) && !/road|street|way|near/i.test(p)
+        );
+        if (meaningfulParts.length > 0) {
+          // Combine last 1-2 meaningful parts for search
+          searchQuery = meaningfulParts.slice(-2).join(', ');
+        }
+      }
+      
+      if (searchQuery.length > 0) {
+        console.log(`[Location] Extracted search query from place name: "${searchQuery}"`);
+        return searchQuery;
+      }
+    }
+  } catch {
+    // Ignore URL parsing errors
+  }
+  return null;
+}
+
+async function tryCoordinatesFromPlaceName(placeName: string): Promise<ParsedCoordinates | null> {
+  try {
+    if (!placeName || placeName.length < 2) {
+      return null;
+    }
+    
+    // Search for the place in the location index
+    const records = await searchLocationRecords(placeName, 5);
+    if (records && records.length > 0) {
+      const bestRecord = records[0];
+      if (
+        bestRecord &&
+        Number.isFinite(bestRecord.latitude) &&
+        Number.isFinite(bestRecord.longitude)
+      ) {
+        return {
+          latitude: bestRecord.latitude,
+          longitude: bestRecord.longitude,
+        };
+      }
+    }
+  } catch (error) {
+    console.warn('[Location] Error searching for place name:', placeName, error);
+  }
+  return null;
+}
+
+async function findNearestIndexedLocation(
+  lat: number,
+  lon: number,
+  radiusKm = 0.25
+): Promise<(LocationRecord & { distanceKm: number }) | null> {
+  const latDelta = radiusKm / 111;
+  const lonDelta = radiusKm / (111 * Math.max(0.1, Math.cos((lat * Math.PI) / 180)));
+
+  const candidates = await db
+    .select()
+    .from(locationIndex)
+    .where(
+      sql`cast(${locationIndex.latitude} as numeric) between ${lat - latDelta} and ${lat + latDelta}
+        and cast(${locationIndex.longitude} as numeric) between ${lon - lonDelta} and ${lon + lonDelta}`
+    )
+    .limit(50);
+
+  const nearest = candidates
+    .map((row) => {
+      const location = toLocationRecord(row);
+      const distanceKm = calculateDistance(lat, lon, location.latitude, location.longitude);
+      return { ...location, distanceKm };
+    })
+    .filter((row) => row.distanceKm <= radiusKm)
+    .sort((a, b) => a.distanceKm - b.distanceKm)[0];
+
+  if (!nearest) {
+    return null;
+  }
+
+  return {
+    ...nearest,
+    distanceKm: Number(nearest.distanceKm.toFixed(4)),
+  };
+}
+
 /**
  * Register location-based routes with the Express app
  */
@@ -517,6 +632,24 @@ export async function registerLocationRoutes(app: Express) {
           }
           parsed = null;
         }
+
+        // Fallback: Try to extract place name from Google Maps place URL and search for coordinates
+        if (!parsed) {
+          const placeName = extractPlaceNameFromMapsUrl(expandedCandidate);
+          if (placeName) {
+            console.log('[Location] Attempting place name search for:', placeName);
+            parsed = await tryCoordinatesFromPlaceName(placeName);
+            if (parsed) {
+              console.log(
+                '[Location] Found coordinates from place name search:',
+                parsed.latitude,
+                parsed.longitude
+              );
+              expanded = expandedCandidate;
+              break;
+            }
+          }
+        }
       }
 
       if (!parsed) {
@@ -580,6 +713,21 @@ export async function registerLocationRoutes(app: Express) {
         return res.status(400).json({
           success: false,
           error: 'Latitude must be -90 to 90, longitude -180 to 180',
+        });
+      }
+
+      const nearestIndexedLocation = await findNearestIndexedLocation(lat, lng);
+      if (nearestIndexedLocation) {
+        return res.json({
+          success: true,
+          data: {
+            ...nearestIndexedLocation,
+            matchType: 'nearest-index',
+            originalCoordinates: {
+              latitude: lat,
+              longitude: lng,
+            },
+          },
         });
       }
 

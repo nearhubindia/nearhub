@@ -644,6 +644,8 @@ export default function EditListingScreen() {
       return;
     }
 
+    const requestId = coordinateResolveRequestIdRef.current + 1;
+    coordinateResolveRequestIdRef.current = requestId;
     setLatitude(parsed.latitude);
     setLongitude(parsed.longitude);
     setLatitudeInput(String(parsed.latitude));
@@ -657,8 +659,13 @@ export default function EditListingScreen() {
     Haptics.selectionAsync();
   };
 
-  const getLocationDetailsFromCoordinates = async (lat: number, lon: number): Promise<boolean> => {
+  const getLocationDetailsFromCoordinates = async (
+    lat: number,
+    lon: number,
+    options?: { requestId?: number }
+  ): Promise<boolean> => {
     try {
+      const requestId = options?.requestId;
       const apiUrl = getApiUrl();
       let resolvedLocation = '';
       let resolvedPincode = '';
@@ -718,6 +725,10 @@ export default function EditListingScreen() {
       }
 
       if (!resolvedLocation && !resolvedPincode) {
+        return false;
+      }
+
+      if (requestId && coordinateResolveRequestIdRef.current !== requestId) {
         return false;
       }
 
@@ -782,7 +793,9 @@ export default function EditListingScreen() {
       setIsResolvingCoordinates(true);
       setCoordinateResolveError(null);
 
-      const resolved = await getLocationDetailsFromCoordinates(parsedLatitude, parsedLongitude);
+      const resolved = await getLocationDetailsFromCoordinates(parsedLatitude, parsedLongitude, {
+        requestId,
+      });
       if (coordinateResolveRequestIdRef.current !== requestId) {
         return;
       }
