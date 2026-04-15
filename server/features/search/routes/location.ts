@@ -173,7 +173,9 @@ function parseCoordinatesFromMapsInput(input: string): ParsedCoordinates | null 
     }
 
     for (const variant of variants) {
-      const encodedReverseDataMatch = variant.match(/%212d(-?\d+(?:\.\d+)?)%213d(-?\d+(?:\.\d+)?)/i);
+      const encodedReverseDataMatch = variant.match(
+        /%212d(-?\d+(?:\.\d+)?)%213d(-?\d+(?:\.\d+)?)/i
+      );
       if (encodedReverseDataMatch) {
         const built = buildCoordinates(
           encodedReverseDataMatch[2] ?? '',
@@ -267,7 +269,10 @@ function parseCoordinatesFromGoogleMapsHtml(html: string): ParsedCoordinates | n
 
   const encodedReverseDataMatch = trimmed.match(/%212d(-?\d+(?:\.\d+)?)%213d(-?\d+(?:\.\d+)?)/i);
   if (encodedReverseDataMatch) {
-    const built = buildCoordinates(encodedReverseDataMatch[2] ?? '', encodedReverseDataMatch[1] ?? '');
+    const built = buildCoordinates(
+      encodedReverseDataMatch[2] ?? '',
+      encodedReverseDataMatch[1] ?? ''
+    );
     if (built) {
       return built;
     }
@@ -463,7 +468,10 @@ export async function registerLocationRoutes(app: Express) {
       let parsed: ParsedCoordinates | null = null;
       let expanded = input;
 
-      const isHintMismatch = async (source: string, coordinates: ParsedCoordinates): Promise<boolean> => {
+      const isHintMismatch = async (
+        source: string,
+        coordinates: ParsedCoordinates
+      ): Promise<boolean> => {
         const hintedPincode = extractPincodeHint(source);
         if (!hintedPincode) {
           return false;
