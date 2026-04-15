@@ -187,7 +187,12 @@ export default function EditListingScreen() {
     }
 
     const isValidCoordinates = (lat: number, lon: number) =>
-      Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+      Number.isFinite(lat) &&
+      Number.isFinite(lon) &&
+      lat >= -90 &&
+      lat <= 90 &&
+      lon >= -180 &&
+      lon <= 180;
 
     const buildCoordinates = (latRaw: string, lonRaw: string) => {
       const parsedLatitude = Number.parseFloat(latRaw);
