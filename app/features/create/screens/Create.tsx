@@ -313,28 +313,36 @@ export default function CreateScreen() {
     lastLocationSourceRef.current = { source: 'user', priority: LOCATION_PRIORITY.user };
   }, []);
 
-  const applyLocationSuggestion = useCallback((suggestion: LocationSuggestion) => {
-    markLocationAsUserManaged();
-    const cityName = suggestion.locationName?.trim() || suggestion.city?.trim() || 'Unknown';
+  const applyLocationSuggestion = useCallback(
+    (suggestion: LocationSuggestion) => {
+      markLocationAsUserManaged();
+      const cityName = suggestion.locationName?.trim() || suggestion.city?.trim() || 'Unknown';
 
-    const applied = setLocationIfAllowed('suggestion', suggestion.latitude, suggestion.longitude, {
-      setInputs: true,
-      setCity: true,
-      pincode: suggestion.pincode || '',
-    });
+      const applied = setLocationIfAllowed(
+        'suggestion',
+        suggestion.latitude,
+        suggestion.longitude,
+        {
+          setInputs: true,
+          setCity: true,
+          pincode: suggestion.pincode || '',
+        }
+      );
 
-    if (applied) {
-      setLocationDistrict(suggestion.district || '');
-      setLocationState(suggestion.state || '');
-      setPincodeSearchInput('');
-      setLocationSuggestions([]);
-      setPincodeSearchError(null);
-      setCoordinateResolveError(null);
-      setCoordinateResolveSuccess(null);
-      setShowLocationModal(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  }, [markLocationAsUserManaged]);
+      if (applied) {
+        setLocationDistrict(suggestion.district || '');
+        setLocationState(suggestion.state || '');
+        setPincodeSearchInput('');
+        setLocationSuggestions([]);
+        setPincodeSearchError(null);
+        setCoordinateResolveError(null);
+        setCoordinateResolveSuccess(null);
+        setShowLocationModal(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    },
+    [markLocationAsUserManaged]
+  );
 
   const parseCoordinatesFromMapsLink = useCallback((input: string) => {
     const raw = input.trim();
