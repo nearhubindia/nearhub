@@ -73,6 +73,12 @@ export default function ListingDetailScreen() {
   const isExpired =
     listingStatus === 'expired' ||
     (!!listing?.expiresAt && new Date(listing.expiresAt).getTime() < Date.now());
+  const listingLatitude = listing?.location?.latitude;
+  const listingLongitude = listing?.location?.longitude;
+  const canShowDirections =
+    Number.isFinite(listingLatitude) &&
+    Number.isFinite(listingLongitude) &&
+    (listingLatitude !== 0 || listingLongitude !== 0);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -207,6 +213,23 @@ export default function ListingDetailScreen() {
     });
   };
 
+  const handleDirections = async () => {
+    if (!canShowDirections || listingLatitude === undefined || listingLongitude === undefined) {
+      Alert.alert('Directions unavailable', 'This listing does not have map coordinates yet.');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const destination = encodeURIComponent(`${listingLatitude},${listingLongitude}`);
+    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
+
+    try {
+      await Linking.openURL(mapsUrl);
+    } catch {
+      Alert.alert('Directions unavailable', 'Unable to open Google Maps on this device.');
+    }
+  };
+
   const handleSave = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     toggleSaved(id);
@@ -322,6 +345,13 @@ export default function ListingDetailScreen() {
                 <Text style={styles.renewNowButtonText}>Renew now</Text>
               </Pressable>
             </View>
+          )}
+
+          {canShowDirections && (
+            <Pressable style={styles.inlineDirectionsButton} onPress={handleDirections}>
+              <Feather name="navigation" size={15} color={Colors.primary} />
+              <Text style={styles.inlineDirectionsText}>Get Directions</Text>
+            </Pressable>
           )}
 
           <View style={styles.divider} />
@@ -586,6 +616,25 @@ const styles = createResponsiveStyles({
     height: 1,
     backgroundColor: Colors.borderLight,
     marginVertical: 18,
+  },
+  inlineDirectionsButton: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    gap: 8,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  inlineDirectionsText: {
+    color: Colors.primary,
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
   },
   sectionTitle: {
     fontSize: 16,
