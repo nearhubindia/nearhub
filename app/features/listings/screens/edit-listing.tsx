@@ -18,6 +18,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
@@ -113,6 +114,9 @@ export default function EditListingScreen() {
   const [pincodeSearchError, setPincodeSearchError] = useState<string | null>(null);
   const [isResolvingCoordinates, setIsResolvingCoordinates] = useState(false);
   const [coordinateResolveError, setCoordinateResolveError] = useState<string | null>(null);
+  const [coordinateResolveSuccess, setCoordinateResolveSuccess] = useState<string | null>(null);
+  const [coordinateResolveTrigger, setCoordinateResolveTrigger] = useState(0);
+  const [isResolvingCurrentCoordinates, setIsResolvingCurrentCoordinates] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
   const coordinateResolveRequestIdRef = useRef(0);
   const [images, setImages] = useState<string[]>(listing?.images || []);
@@ -174,6 +178,7 @@ export default function EditListingScreen() {
     setLocationSuggestions([]);
     setPincodeSearchError(null);
     setCoordinateResolveError(null);
+    setCoordinateResolveSuccess(null);
     setShowLocationModal(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
@@ -205,6 +210,17 @@ export default function EditListingScreen() {
         longitude: parsedLongitude,
       };
     };
+
+    const standaloneCoordinateMatch = raw.match(
+      /^\s*[\[(]?\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*[\])]?\s*$/
+    );
+    if (standaloneCoordinateMatch) {
+      const built = buildCoordinates(
+        standaloneCoordinateMatch[1] ?? '',
+        standaloneCoordinateMatch[2] ?? ''
+      );
+      if (built) return built;
+    }
 
     const extractPlusCodeCandidate = (value: string) => {
       const normalized = value.trim().toUpperCase();
@@ -316,13 +332,29 @@ export default function EditListingScreen() {
       }
 
       for (const variant of variants) {
+        const encodedReverseDataMatch = variant.match(
+          /%212d(-?\d+(?:\.\d+)?)%213d(-?\d+(?:\.\d+)?)/i
+        );
+        if (encodedReverseDataMatch) {
+          const built = buildCoordinates(
+            encodedReverseDataMatch[2] ?? '',
+            encodedReverseDataMatch[1] ?? ''
+          );
+          if (built) return built;
+        }
+
+        const reverseDataMatch = variant.match(/!2d(-?\d+(?:\.\d+)?)!3d(-?\d+(?:\.\d+)?)/i);
+        if (reverseDataMatch) {
+          const built = buildCoordinates(reverseDataMatch[2] ?? '', reverseDataMatch[1] ?? '');
+          if (built) return built;
+        }
+
         const simplePatterns = [
           /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i,
           /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
-          /[?&](?:q|query|ll|sll|daddr|destination|center)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
+          /[?&](?:q|query|ll|sll|daddr|destination|center)=(-?\d+(?:\.\d+)?)(?:,|%2C)(-?\d+(?:\.\d+)?)/i,
           /\/search\/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
           /geo:(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
-          /(-?\d{1,2}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)/,
         ];
 
         for (const pattern of simplePatterns) {
@@ -397,21 +429,71 @@ export default function EditListingScreen() {
       const redirected = response.url || normalized;
 
       if (redirected && redirected !== normalized) {
-        return redirected;
+        const redirectedParsed = parseCoordinatesFromMapsLink(redirected);
+        if (redirectedParsed) {
+          return redirected;
+        }
       }
 
       const html = await response.text();
       const canonicalMatch = html.match(
         /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i
       );
-      if (canonicalMatch?.[1]) {
-        return canonicalMatch[1];
+      const canonicalUrl = canonicalMatch?.[1]?.trim();
+      if (canonicalUrl) {
+        const canonicalParsed = parseCoordinatesFromMapsLink(canonicalUrl);
+        if (canonicalParsed) {
+          return canonicalUrl;
+        }
+      }
+
+      const htmlParsed = parseCoordinatesFromMapsLink(html);
+      if (htmlParsed) {
+        return `https://www.google.com/maps/search/?api=1&query=${htmlParsed.latitude},${htmlParsed.longitude}`;
+      }
+
+      if (canonicalUrl) {
+        return canonicalUrl;
+      }
+
+      if (redirected && redirected !== normalized) {
+        return redirected;
       }
 
       return normalized;
     } catch {
       return normalized;
     }
+  };
+
+  const extractMapsInputCandidate = (input: string): string => {
+    const normalizeToken = (value: string): string =>
+      value
+        .trim()
+        .replace(/^[<([{'"`\s]+/, '')
+        .replace(/[>\])}'"`,;!\s]+$/, '');
+
+    const normalizedInput = normalizeToken(input);
+    if (!normalizedInput) {
+      return '';
+    }
+
+    const mapsLinkRegex =
+      /(https?:\/\/[^\s<>"']+|(?:maps\.app\.goo\.gl|goo\.gl\/maps)\/[^\s<>"']+)/i;
+    const directMatch = normalizedInput.match(mapsLinkRegex);
+    if (directMatch?.[1]) {
+      return normalizeToken(directMatch[1]);
+    }
+
+    const lineMatch = normalizedInput
+      .split(/\r?\n/g)
+      .map((line) => line.trim())
+      .find((line) => mapsLinkRegex.test(line));
+    if (lineMatch) {
+      return normalizeToken(lineMatch);
+    }
+
+    return normalizedInput;
   };
 
   const openGoogleMapsPicker = async () => {
@@ -437,14 +519,59 @@ export default function EditListingScreen() {
     }
   };
 
-  const applyCoordinatesFromMapsLink = async () => {
-    const raw = mapsLinkInput.trim();
-    if (!raw) {
-      setCoordinateResolveError('Paste a Google Maps link that contains coordinates');
+  const applyCurrentCoordinatesFromDevice = async () => {
+    if (isResolvingCurrentCoordinates) {
       return;
     }
 
+    setIsResolvingCurrentCoordinates(true);
+    setCoordinateResolveError(null);
+    setCoordinateResolveSuccess(null);
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setCoordinateResolveError(
+          'Location permission is required to capture your current coordinates'
+        );
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+        mayShowUserSettingsDialog: true,
+      });
+
+      const lat = location.coords.latitude;
+      const lon = location.coords.longitude;
+      setLatitude(lat);
+      setLongitude(lon);
+      setLatitudeInput(String(lat));
+      setLongitudeInput(String(lon));
+      setCoordinateResolveTrigger((value) => value + 1);
+      setCoordinateResolveError(null);
+      setCoordinateResolveSuccess('Current coordinates captured.');
+      Haptics.selectionAsync();
+    } catch (error) {
+      console.error('[EditListing] Error capturing current coordinates:', error);
+      setCoordinateResolveSuccess(null);
+      setCoordinateResolveError('Unable to capture current coordinates. Please try again');
+    } finally {
+      setIsResolvingCurrentCoordinates(false);
+    }
+  };
+
+  const applyCoordinatesFromMapsLink = async () => {
+    const rawInput = mapsLinkInput.trim();
+    if (!rawInput) {
+      setCoordinateResolveSuccess(null);
+      setCoordinateResolveError('Paste a Google Maps link that contains coordinates');
+      return;
+    }
+    const raw = extractMapsInputCandidate(rawInput);
+
     setIsResolvingMapsLink(true);
+    setCoordinateResolveSuccess(null);
     setCoordinateResolveError(null);
 
     let parsed: { latitude: number; longitude: number } | null = null;
@@ -489,10 +616,13 @@ export default function EditListingScreen() {
       console.warn('[EditListing] Backend maps parser failed, trying local fallback:', error);
     }
 
-    // Emergency fallback if backend is temporarily unreachable.
-    if (!parsed && !backendErrorMessage) {
+    // Emergency fallback if backend is temporarily unreachable or returns a non-actionable parse error.
+    if (!parsed && backendErrorCode !== 'SHORT_PLUS_CODE_REQUIRES_CONTEXT') {
       let expandedLink = raw;
       parsed = parseCoordinatesFromMapsLink(raw);
+      if (!parsed) {
+        parsed = parseCoordinatesFromMapsLink(rawInput);
+      }
       if (!parsed) {
         expandedLink = await expandGoogleMapsShortLink(raw);
         parsed = parseCoordinatesFromMapsLink(expandedLink);
@@ -501,6 +631,7 @@ export default function EditListingScreen() {
 
     if (!parsed) {
       if (backendErrorCode === 'SHORT_PLUS_CODE_REQUIRES_CONTEXT') {
+        setCoordinateResolveSuccess(null);
         setCoordinateResolveError(
           backendErrorMessage ||
             'Short Plus Code needs area context. Paste full Plus Code or lat,long like 17.3850,78.4867'
@@ -509,6 +640,7 @@ export default function EditListingScreen() {
         return;
       }
 
+      setCoordinateResolveSuccess(null);
       setCoordinateResolveError(
         backendErrorMessage ||
           'Could not extract coordinates. Paste full Plus Code or pin coordinates like 17.3850,78.4867'
@@ -521,7 +653,10 @@ export default function EditListingScreen() {
     setLongitude(parsed.longitude);
     setLatitudeInput(String(parsed.latitude));
     setLongitudeInput(String(parsed.longitude));
+    // Ensure reverse-geocode runs even if parsed coordinates equal current inputs.
+    setCoordinateResolveTrigger((value) => value + 1);
     setCoordinateResolveError(null);
+    setCoordinateResolveSuccess('Coordinates captured from Google Maps.');
     setMapsLinkInput('');
     setIsResolvingMapsLink(false);
     Haptics.selectionAsync();
@@ -615,6 +750,7 @@ export default function EditListingScreen() {
     if (!latitudeRaw || !longitudeRaw) {
       setIsResolvingCoordinates(false);
       setCoordinateResolveError(null);
+      setCoordinateResolveSuccess(null);
       return;
     }
 
@@ -623,18 +759,21 @@ export default function EditListingScreen() {
 
     if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) {
       setIsResolvingCoordinates(false);
+      setCoordinateResolveSuccess(null);
       setCoordinateResolveError('Latitude and longitude must be valid numbers');
       return;
     }
 
     if (parsedLatitude < -90 || parsedLatitude > 90) {
       setIsResolvingCoordinates(false);
+      setCoordinateResolveSuccess(null);
       setCoordinateResolveError('Latitude must be between -90 and 90');
       return;
     }
 
     if (parsedLongitude < -180 || parsedLongitude > 180) {
       setIsResolvingCoordinates(false);
+      setCoordinateResolveSuccess(null);
       setCoordinateResolveError('Longitude must be between -180 and 180');
       return;
     }
@@ -654,6 +793,7 @@ export default function EditListingScreen() {
       }
 
       if (!resolved) {
+        setCoordinateResolveSuccess(null);
         setCoordinateResolveError('Unable to auto-resolve city/pincode for these coordinates');
       }
 
@@ -663,7 +803,7 @@ export default function EditListingScreen() {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [latitudeInput, longitudeInput, showLocationModal]);
+  }, [latitudeInput, longitudeInput, showLocationModal, coordinateResolveTrigger]);
 
   useEffect(() => {
     if (!showLocationModal) return;
@@ -1463,6 +1603,7 @@ export default function EditListingScreen() {
                 setLocationSuggestions([]);
                 setPincodeSearchError(null);
                 setCoordinateResolveError(null);
+                setCoordinateResolveSuccess(null);
                 setIsResolvingCoordinates(false);
                 setIsResolvingMapsLink(false);
               }}
@@ -1479,12 +1620,24 @@ export default function EditListingScreen() {
             keyboardShouldPersistTaps="always"
             contentContainerStyle={{ paddingBottom: insets.bottom + 36 }}
           >
-            <Text style={styles.locationModalDescription}>
-              Enter latitude and longitude first. We auto-fill pincode and city.
-            </Text>
-
             <View style={styles.locationManualCard}>
-              <Text style={styles.locationManualTitle}>Coordinates</Text>
+              <View style={styles.locationManualHeader}>
+                <Text style={styles.locationManualTitle}>Coordinates</Text>
+                <Pressable
+                  style={[
+                    styles.locationRefreshButton,
+                    isResolvingCurrentCoordinates && styles.locationRefreshButtonDisabled,
+                  ]}
+                  onPress={applyCurrentCoordinatesFromDevice}
+                  disabled={isResolvingCurrentCoordinates}
+                >
+                  {isResolvingCurrentCoordinates ? (
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                  ) : (
+                    <Feather name="refresh-cw" size={15} color={Colors.primary} />
+                  )}
+                </Pressable>
+              </View>
 
               <View style={styles.locationManualRow}>
                 <View style={styles.locationManualField}>
@@ -1555,7 +1708,10 @@ export default function EditListingScreen() {
               <TextInput
                 style={styles.mapLinkInput}
                 value={mapsLinkInput}
-                onChangeText={setMapsLinkInput}
+                onChangeText={(text) => {
+                  setMapsLinkInput(text);
+                  setCoordinateResolveSuccess(null);
+                }}
                 placeholder="Paste Google Maps link with dropped pin"
                 placeholderTextColor={Colors.textTertiary}
                 autoCapitalize="none"
@@ -1574,6 +1730,9 @@ export default function EditListingScreen() {
                   {isResolvingMapsLink ? 'Resolving Link...' : 'Use Link Coordinates'}
                 </Text>
               </Pressable>
+              {coordinateResolveSuccess ? (
+                <Text style={styles.mapResolveSuccess}>{coordinateResolveSuccess}</Text>
+              ) : null}
             </View>
           </ScrollView>
         </View>
@@ -1923,14 +2082,6 @@ const styles = StyleSheet.create({
   locationModalScroll: {
     flex: 1,
   },
-  locationModalDescription: {
-    marginTop: 14,
-    marginHorizontal: 16,
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-    color: Colors.textSecondary,
-    lineHeight: 17,
-  },
   locationFallbackLabel: {
     marginTop: 12,
     marginHorizontal: 16,
@@ -1952,6 +2103,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
     color: Colors.text,
+  },
+  locationManualHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  locationRefreshButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationRefreshButtonDisabled: {
+    opacity: 0.65,
   },
   locationManualRow: {
     flexDirection: 'row',
@@ -1987,6 +2156,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Inter_500Medium',
     color: Colors.error,
+  },
+  mapResolveSuccess: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.success,
   },
   mapLinkCard: {
     marginTop: 14,

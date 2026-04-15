@@ -136,6 +136,19 @@ function parseCoordinatesFromMapsInput(input: string): ParsedCoordinates | null 
     return null;
   }
 
+  const standaloneCoordinateMatch = raw.match(
+    /^\s*[\[(]?\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*[\])]?\s*$/
+  );
+  if (standaloneCoordinateMatch) {
+    const built = buildCoordinates(
+      standaloneCoordinateMatch[1] ?? '',
+      standaloneCoordinateMatch[2] ?? ''
+    );
+    if (built) {
+      return built;
+    }
+  }
+
   const queue: string[] = [raw];
   const visited = new Set<string>();
 
@@ -160,13 +173,31 @@ function parseCoordinatesFromMapsInput(input: string): ParsedCoordinates | null 
     }
 
     for (const variant of variants) {
+      const encodedReverseDataMatch = variant.match(/%212d(-?\d+(?:\.\d+)?)%213d(-?\d+(?:\.\d+)?)/i);
+      if (encodedReverseDataMatch) {
+        const built = buildCoordinates(
+          encodedReverseDataMatch[2] ?? '',
+          encodedReverseDataMatch[1] ?? ''
+        );
+        if (built) {
+          return built;
+        }
+      }
+
+      const reverseDataMatch = variant.match(/!2d(-?\d+(?:\.\d+)?)!3d(-?\d+(?:\.\d+)?)/i);
+      if (reverseDataMatch) {
+        const built = buildCoordinates(reverseDataMatch[2] ?? '', reverseDataMatch[1] ?? '');
+        if (built) {
+          return built;
+        }
+      }
+
       const simplePatterns = [
         /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i,
         /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
-        /[?&](?:q|query|ll|sll|daddr|destination|center)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
+        /[?&](?:q|query|ll|sll|daddr|destination|center)=(-?\d+(?:\.\d+)?)(?:,|%2C)(-?\d+(?:\.\d+)?)/i,
         /\/search\/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
         /geo:(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
-        /(-?\d{1,2}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)/,
       ];
 
       for (const pattern of simplePatterns) {
@@ -228,6 +259,49 @@ function parseCoordinatesFromMapsInput(input: string): ParsedCoordinates | null 
   return null;
 }
 
+function parseCoordinatesFromGoogleMapsHtml(html: string): ParsedCoordinates | null {
+  const trimmed = html.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const encodedReverseDataMatch = trimmed.match(/%212d(-?\d+(?:\.\d+)?)%213d(-?\d+(?:\.\d+)?)/i);
+  if (encodedReverseDataMatch) {
+    const built = buildCoordinates(encodedReverseDataMatch[2] ?? '', encodedReverseDataMatch[1] ?? '');
+    if (built) {
+      return built;
+    }
+  }
+
+  const reverseDataMatch = trimmed.match(/!2d(-?\d+(?:\.\d+)?)!3d(-?\d+(?:\.\d+)?)/i);
+  if (reverseDataMatch) {
+    const built = buildCoordinates(reverseDataMatch[2] ?? '', reverseDataMatch[1] ?? '');
+    if (built) {
+      return built;
+    }
+  }
+
+  const dataMatch = trimmed.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i);
+  if (dataMatch) {
+    const built = buildCoordinates(dataMatch[1] ?? '', dataMatch[2] ?? '');
+    if (built) {
+      return built;
+    }
+  }
+
+  const centerMatch = trimmed.match(
+    /(?:\?|&|&amp;)(?:q|query|ll|sll|daddr|destination|center)=(-?\d+(?:\.\d+)?)(?:,|%2C)(-?\d+(?:\.\d+)?)/i
+  );
+  if (centerMatch) {
+    const built = buildCoordinates(centerMatch[1] ?? '', centerMatch[2] ?? '');
+    if (built) {
+      return built;
+    }
+  }
+
+  return null;
+}
+
 function isStandaloneShortPlusCodeInput(value: string): boolean {
   try {
     const normalized = decodeURIComponent(value).toUpperCase();
@@ -273,13 +347,28 @@ async function expandGoogleMapsShortLink(input: string): Promise<string> {
 
     const redirected = response.url || normalized;
     if (redirected && redirected !== normalized) {
-      return redirected;
+      const redirectedCoordinates = parseCoordinatesFromMapsInput(redirected);
+      if (redirectedCoordinates) {
+        return redirected;
+      }
     }
 
     const html = await response.text();
     const canonicalMatch = html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i);
-    if (canonicalMatch?.[1]) {
-      return canonicalMatch[1];
+    const canonicalUrl = canonicalMatch?.[1]?.trim();
+    if (canonicalUrl) {
+      const canonicalCoordinates = parseCoordinatesFromMapsInput(canonicalUrl);
+      if (canonicalCoordinates) {
+        return canonicalUrl;
+      }
+    }
+
+    if (canonicalUrl) {
+      return canonicalUrl;
+    }
+
+    if (redirected && redirected !== normalized) {
+      return redirected;
     }
 
     return normalized;
@@ -290,6 +379,47 @@ async function expandGoogleMapsShortLink(input: string): Promise<string> {
       clearTimeout(timeoutId);
     }
   }
+}
+
+function normalizeMapsInputToken(value: string): string {
+  return value
+    .trim()
+    .replace(/^[<([{'"`\s]+/, '')
+    .replace(/[>\])}'"`,;!\s]+$/, '');
+}
+
+function extractPincodeHint(value: string): string | null {
+  const match = value.match(/(?:^|\D)(\d{6})(?:\D|$)/);
+  return match?.[1] ?? null;
+}
+
+function extractMapsInputCandidates(input: string): string[] {
+  const candidates = new Set<string>();
+  const addCandidate = (value: string) => {
+    const normalized = normalizeMapsInputToken(value);
+    if (normalized) {
+      candidates.add(normalized);
+    }
+  };
+
+  addCandidate(input);
+
+  const lines = input
+    .split(/\r?\n/g)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  for (const line of lines) {
+    addCandidate(line);
+  }
+
+  const mapsLinkRegex =
+    /(https?:\/\/[^\s<>"']+|(?:maps\.app\.goo\.gl|goo\.gl\/maps)\/[^\s<>"']+)/gi;
+  const matches = input.match(mapsLinkRegex) ?? [];
+  for (const match of matches) {
+    addCandidate(match);
+  }
+
+  return Array.from(candidates);
 }
 
 /**
@@ -329,12 +459,56 @@ export async function registerLocationRoutes(app: Express) {
         });
       }
 
-      let parsed = parseCoordinatesFromMapsInput(input);
+      const candidates = extractMapsInputCandidates(input);
+      let parsed: ParsedCoordinates | null = null;
       let expanded = input;
 
-      if (!parsed) {
-        expanded = await expandGoogleMapsShortLink(input);
-        parsed = parseCoordinatesFromMapsInput(expanded);
+      const isHintMismatch = async (source: string, coordinates: ParsedCoordinates): Promise<boolean> => {
+        const hintedPincode = extractPincodeHint(source);
+        if (!hintedPincode) {
+          return false;
+        }
+
+        const hintedLocation = await getLocationByPincode(hintedPincode);
+        if (!hintedLocation) {
+          return false;
+        }
+
+        const resolved = await geolocationService.getPincodeByCoordinates(
+          coordinates.latitude,
+          coordinates.longitude
+        );
+        if (!resolved?.pincode) {
+          return false;
+        }
+
+        return resolved.pincode !== hintedPincode;
+      };
+
+      for (const candidate of candidates) {
+        parsed = parseCoordinatesFromMapsInput(candidate);
+        if (parsed) {
+          const shouldReject = await isHintMismatch(`${input}\n${candidate}`, parsed);
+          if (!shouldReject) {
+            expanded = candidate;
+            break;
+          }
+          parsed = null;
+        }
+
+        const expandedCandidate = await expandGoogleMapsShortLink(candidate);
+        parsed = parseCoordinatesFromMapsInput(expandedCandidate);
+        if (parsed) {
+          const shouldReject = await isHintMismatch(
+            `${input}\n${candidate}\n${expandedCandidate}`,
+            parsed
+          );
+          if (!shouldReject) {
+            expanded = expandedCandidate;
+            break;
+          }
+          parsed = null;
+        }
       }
 
       if (!parsed) {

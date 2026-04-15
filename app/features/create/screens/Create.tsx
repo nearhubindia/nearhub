@@ -192,10 +192,57 @@ export default function CreateScreen() {
   const [pincodeSearchError, setPincodeSearchError] = useState<string | null>(null);
   const [isResolvingCoordinates, setIsResolvingCoordinates] = useState(false);
   const [coordinateResolveError, setCoordinateResolveError] = useState<string | null>(null);
+  const [coordinateResolveSuccess, setCoordinateResolveSuccess] = useState<string | null>(null);
+  const [coordinateResolveTrigger, setCoordinateResolveTrigger] = useState(0);
+  const [isResolvingCurrentCoordinates, setIsResolvingCurrentCoordinates] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const pincodeInputRef = useRef<TextInput>(null);
   const coordinateResolveRequestIdRef = useRef(0);
+  const hasUserManagedLocationRef = useRef(false);
+  const lastLocationSourceRef = useRef<{ source: string; priority: number } | null>(null);
+
+  const LOCATION_PRIORITY: Record<string, number> = {
+    user: 4,
+    suggestion: 4,
+    'manual-input': 4,
+    'maps-link': 3,
+    device: 2,
+    auto: 1,
+  };
+
+  const setLocationIfAllowed = useCallback(
+    (
+      source: string,
+      lat: number,
+      lon: number,
+      options?: { setInputs?: boolean; setCity?: boolean; pincode?: string }
+    ) => {
+      const newPriority = LOCATION_PRIORITY[source] ?? 0;
+      const currentPriority = lastLocationSourceRef.current?.priority ?? 0;
+      if (newPriority < currentPriority) {
+        return false;
+      }
+
+      lastLocationSourceRef.current = { source, priority: newPriority };
+
+      setLatitude(lat);
+      setLongitude(lon);
+      if (options?.setInputs) {
+        setLatitudeInput(String(lat));
+        setLongitudeInput(String(lon));
+      }
+      if (options?.pincode) {
+        setPincode(options.pincode);
+      }
+      if (options?.setCity) {
+        setLocationCity((prev) => prev || 'Current Location');
+      }
+
+      return true;
+    },
+    []
+  );
 
   const visibleCategories =
     listingType === 'job'
@@ -261,24 +308,33 @@ export default function CreateScreen() {
     }
   }, [listingType, category]);
 
+  const markLocationAsUserManaged = useCallback(() => {
+    hasUserManagedLocationRef.current = true;
+    lastLocationSourceRef.current = { source: 'user', priority: LOCATION_PRIORITY.user };
+  }, []);
+
   const applyLocationSuggestion = useCallback((suggestion: LocationSuggestion) => {
+    markLocationAsUserManaged();
     const cityName = suggestion.locationName?.trim() || suggestion.city?.trim() || 'Unknown';
 
-    setPincode(suggestion.pincode || '');
-    setLocationCity(cityName);
-    setLocationDistrict(suggestion.district || '');
-    setLocationState(suggestion.state || '');
-    setLatitude(suggestion.latitude);
-    setLongitude(suggestion.longitude);
-    setLatitudeInput(String(suggestion.latitude));
-    setLongitudeInput(String(suggestion.longitude));
-    setPincodeSearchInput('');
-    setLocationSuggestions([]);
-    setPincodeSearchError(null);
-    setCoordinateResolveError(null);
-    setShowLocationModal(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, []);
+    const applied = setLocationIfAllowed('suggestion', suggestion.latitude, suggestion.longitude, {
+      setInputs: true,
+      setCity: true,
+      pincode: suggestion.pincode || '',
+    });
+
+    if (applied) {
+      setLocationDistrict(suggestion.district || '');
+      setLocationState(suggestion.state || '');
+      setPincodeSearchInput('');
+      setLocationSuggestions([]);
+      setPincodeSearchError(null);
+      setCoordinateResolveError(null);
+      setCoordinateResolveSuccess(null);
+      setShowLocationModal(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, [markLocationAsUserManaged]);
 
   const parseCoordinatesFromMapsLink = useCallback((input: string) => {
     const raw = input.trim();
@@ -305,6 +361,19 @@ export default function CreateScreen() {
         longitude: parsedLongitude,
       };
     };
+
+    const standaloneCoordinateMatch = raw.match(
+      /^\s*[\[(]?\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*[\])]?\s*$/
+    );
+    if (standaloneCoordinateMatch) {
+      const built = buildCoordinates(
+        standaloneCoordinateMatch[1] ?? '',
+        standaloneCoordinateMatch[2] ?? ''
+      );
+      if (built) {
+        return built;
+      }
+    }
 
     const extractPlusCodeCandidate = (value: string) => {
       const normalized = value.trim().toUpperCase();
@@ -416,13 +485,29 @@ export default function CreateScreen() {
       }
 
       for (const variant of variants) {
+        const encodedReverseDataMatch = variant.match(
+          /%212d(-?\d+(?:\.\d+)?)%213d(-?\d+(?:\.\d+)?)/i
+        );
+        if (encodedReverseDataMatch) {
+          const built = buildCoordinates(
+            encodedReverseDataMatch[2] ?? '',
+            encodedReverseDataMatch[1] ?? ''
+          );
+          if (built) return built;
+        }
+
+        const reverseDataMatch = variant.match(/!2d(-?\d+(?:\.\d+)?)!3d(-?\d+(?:\.\d+)?)/i);
+        if (reverseDataMatch) {
+          const built = buildCoordinates(reverseDataMatch[2] ?? '', reverseDataMatch[1] ?? '');
+          if (built) return built;
+        }
+
         const simplePatterns = [
           /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i,
           /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
-          /[?&](?:q|query|ll|sll|daddr|destination|center)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
+          /[?&](?:q|query|ll|sll|daddr|destination|center)=(-?\d+(?:\.\d+)?)(?:,|%2C)(-?\d+(?:\.\d+)?)/i,
           /\/search\/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
           /geo:(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
-          /(-?\d{1,2}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)/,
         ];
 
         for (const pattern of simplePatterns) {
@@ -497,21 +582,71 @@ export default function CreateScreen() {
       const redirected = response.url || normalized;
 
       if (redirected && redirected !== normalized) {
-        return redirected;
+        const redirectedParsed = parseCoordinatesFromMapsLink(redirected);
+        if (redirectedParsed) {
+          return redirected;
+        }
       }
 
       const html = await response.text();
       const canonicalMatch = html.match(
         /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i
       );
-      if (canonicalMatch?.[1]) {
-        return canonicalMatch[1];
+      const canonicalUrl = canonicalMatch?.[1]?.trim();
+      if (canonicalUrl) {
+        const canonicalParsed = parseCoordinatesFromMapsLink(canonicalUrl);
+        if (canonicalParsed) {
+          return canonicalUrl;
+        }
+      }
+
+      const htmlParsed = parseCoordinatesFromMapsLink(html);
+      if (htmlParsed) {
+        return `https://www.google.com/maps/search/?api=1&query=${htmlParsed.latitude},${htmlParsed.longitude}`;
+      }
+
+      if (canonicalUrl) {
+        return canonicalUrl;
+      }
+
+      if (redirected && redirected !== normalized) {
+        return redirected;
       }
 
       return normalized;
     } catch {
       return normalized;
     }
+  }, []);
+
+  const extractMapsInputCandidate = useCallback((input: string): string => {
+    const normalizeToken = (value: string): string =>
+      value
+        .trim()
+        .replace(/^[<([{'"`\s]+/, '')
+        .replace(/[>\])}'"`,;!\s]+$/, '');
+
+    const normalizedInput = normalizeToken(input);
+    if (!normalizedInput) {
+      return '';
+    }
+
+    const mapsLinkRegex =
+      /(https?:\/\/[^\s<>"']+|(?:maps\.app\.goo\.gl|goo\.gl\/maps)\/[^\s<>"']+)/i;
+    const directMatch = normalizedInput.match(mapsLinkRegex);
+    if (directMatch?.[1]) {
+      return normalizeToken(directMatch[1]);
+    }
+
+    const lineMatch = normalizedInput
+      .split(/\r?\n/g)
+      .map((line) => line.trim())
+      .find((line) => mapsLinkRegex.test(line));
+    if (lineMatch) {
+      return normalizeToken(lineMatch);
+    }
+
+    return normalizedInput;
   }, []);
 
   const openGoogleMapsPicker = useCallback(async () => {
@@ -538,14 +673,61 @@ export default function CreateScreen() {
     }
   }, [latitude, longitude, latitudeInput, longitudeInput]);
 
-  const applyCoordinatesFromMapsLink = useCallback(async () => {
-    const raw = mapsLinkInput.trim();
-    if (!raw) {
-      setCoordinateResolveError('Paste a Google Maps link that contains coordinates');
+  const applyCurrentCoordinatesFromDevice = useCallback(async () => {
+    if (isResolvingCurrentCoordinates) {
       return;
     }
 
+    setIsResolvingCurrentCoordinates(true);
+    setCoordinateResolveError(null);
+    setCoordinateResolveSuccess(null);
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setCoordinateResolveError(
+          'Location permission is required to capture your current coordinates'
+        );
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+        mayShowUserSettingsDialog: true,
+      });
+
+      const lat = location.coords.latitude;
+      const lon = location.coords.longitude;
+
+      // Attempt to apply device coords only if allowed by priority
+      const applied = setLocationIfAllowed('device', lat, lon, { setInputs: true });
+      if (applied) {
+        markLocationAsUserManaged();
+        setCoordinateResolveTrigger((value) => value + 1);
+        setCoordinateResolveError(null);
+        setCoordinateResolveSuccess('Current coordinates captured.');
+        Haptics.selectionAsync();
+      }
+    } catch (error) {
+      console.error('[Create] Error capturing current coordinates:', error);
+      setCoordinateResolveSuccess(null);
+      setCoordinateResolveError('Unable to capture current coordinates. Please try again');
+    } finally {
+      setIsResolvingCurrentCoordinates(false);
+    }
+  }, [isResolvingCurrentCoordinates, markLocationAsUserManaged, setLocationIfAllowed]);
+
+  const applyCoordinatesFromMapsLink = useCallback(async () => {
+    const rawInput = mapsLinkInput.trim();
+    if (!rawInput) {
+      setCoordinateResolveSuccess(null);
+      setCoordinateResolveError('Paste a Google Maps link that contains coordinates');
+      return;
+    }
+    const raw = extractMapsInputCandidate(rawInput);
+
     setIsResolvingMapsLink(true);
+    setCoordinateResolveSuccess(null);
     setCoordinateResolveError(null);
 
     let parsed: { latitude: number; longitude: number } | null = null;
@@ -590,10 +772,13 @@ export default function CreateScreen() {
       console.warn('[Create] Backend maps parser failed, trying local fallback:', error);
     }
 
-    // Emergency fallback if backend is temporarily unreachable.
-    if (!parsed && !backendErrorMessage) {
+    // Emergency fallback if backend is temporarily unreachable or returns a non-actionable parse error.
+    if (!parsed && backendErrorCode !== 'SHORT_PLUS_CODE_REQUIRES_CONTEXT') {
       let expandedLink = raw;
       parsed = parseCoordinatesFromMapsLink(raw);
+      if (!parsed) {
+        parsed = parseCoordinatesFromMapsLink(rawInput);
+      }
       if (!parsed) {
         expandedLink = await expandGoogleMapsShortLink(raw);
         parsed = parseCoordinatesFromMapsLink(expandedLink);
@@ -602,6 +787,7 @@ export default function CreateScreen() {
 
     if (!parsed) {
       if (backendErrorCode === 'SHORT_PLUS_CODE_REQUIRES_CONTEXT') {
+        setCoordinateResolveSuccess(null);
         setCoordinateResolveError(
           backendErrorMessage ||
             'Short Plus Code needs area context. Paste full Plus Code or lat,long like 17.3850,78.4867'
@@ -610,6 +796,7 @@ export default function CreateScreen() {
         return;
       }
 
+      setCoordinateResolveSuccess(null);
       setCoordinateResolveError(
         backendErrorMessage ||
           'Could not extract coordinates. Paste full Plus Code or pin coordinates like 17.3850,78.4867'
@@ -618,15 +805,40 @@ export default function CreateScreen() {
       return;
     }
 
-    setLatitude(parsed.latitude);
-    setLongitude(parsed.longitude);
-    setLatitudeInput(String(parsed.latitude));
-    setLongitudeInput(String(parsed.longitude));
-    setCoordinateResolveError(null);
+    // Prefer maps-link over lower-priority sources
+    const applied = setLocationIfAllowed('maps-link', parsed.latitude, parsed.longitude, {
+      setInputs: true,
+    });
     setMapsLinkInput('');
-    setIsResolvingMapsLink(false);
-    Haptics.selectionAsync();
-  }, [mapsLinkInput, parseCoordinatesFromMapsLink, expandGoogleMapsShortLink]);
+    setCoordinateResolveError(null);
+
+    try {
+      setIsResolvingMapsLink(true);
+      const resolved = await getLocationDetailsFromCoordinates(parsed.latitude, parsed.longitude);
+      setIsResolvingMapsLink(false);
+      if (applied && resolved) {
+        setCoordinateResolveSuccess('Coordinates captured from Google Maps.');
+        setShowLocationModal(false);
+        Haptics.selectionAsync();
+      } else {
+        // Ensure reverse-geocode runs via trigger even if not immediate
+        setCoordinateResolveTrigger((value) => value + 1);
+        setCoordinateResolveSuccess('Coordinates captured from Google Maps.');
+        Haptics.selectionAsync();
+      }
+    } catch (err) {
+      setIsResolvingMapsLink(false);
+      setCoordinateResolveTrigger((value) => value + 1);
+      setCoordinateResolveSuccess('Coordinates captured from Google Maps.');
+      Haptics.selectionAsync();
+    }
+  }, [
+    mapsLinkInput,
+    parseCoordinatesFromMapsLink,
+    expandGoogleMapsShortLink,
+    extractMapsInputCandidate,
+    setLocationIfAllowed,
+  ]);
 
   // Live search by location name / pincode (similar to select location page)
   useEffect(() => {
@@ -747,8 +959,17 @@ export default function CreateScreen() {
 
   // Get location details from coordinates via internal APIs
   const getLocationDetailsFromCoordinates = useCallback(
-    async (lat: number, lon: number, options?: { notify?: boolean }): Promise<boolean> => {
+    async (
+      lat: number,
+      lon: number,
+      options?: { notify?: boolean; skipIfManualOverride?: boolean }
+    ): Promise<boolean> => {
       const notify = options?.notify ?? false;
+      const skipIfManualOverride = options?.skipIfManualOverride ?? false;
+
+      if (skipIfManualOverride && hasUserManagedLocationRef.current) {
+        return false;
+      }
 
       try {
         const apiUrl = getApiUrl();
@@ -828,6 +1049,10 @@ export default function CreateScreen() {
           return false;
         }
 
+        if (skipIfManualOverride && hasUserManagedLocationRef.current) {
+          return false;
+        }
+
         if (resolvedPincode) {
           setPincode(resolvedPincode);
         }
@@ -861,6 +1086,7 @@ export default function CreateScreen() {
     if (!latitudeRaw || !longitudeRaw) {
       setIsResolvingCoordinates(false);
       setCoordinateResolveError(null);
+      setCoordinateResolveSuccess(null);
       return;
     }
 
@@ -869,18 +1095,21 @@ export default function CreateScreen() {
 
     if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) {
       setIsResolvingCoordinates(false);
+      setCoordinateResolveSuccess(null);
       setCoordinateResolveError('Latitude and longitude must be valid numbers');
       return;
     }
 
     if (parsedLatitude < -90 || parsedLatitude > 90) {
       setIsResolvingCoordinates(false);
+      setCoordinateResolveSuccess(null);
       setCoordinateResolveError('Latitude must be between -90 and 90');
       return;
     }
 
     if (parsedLongitude < -180 || parsedLongitude > 180) {
       setIsResolvingCoordinates(false);
+      setCoordinateResolveSuccess(null);
       setCoordinateResolveError('Longitude must be between -180 and 180');
       return;
     }
@@ -900,6 +1129,7 @@ export default function CreateScreen() {
       }
 
       if (!resolved) {
+        setCoordinateResolveSuccess(null);
         setCoordinateResolveError('Unable to auto-resolve city/pincode for these coordinates');
       }
 
@@ -909,7 +1139,13 @@ export default function CreateScreen() {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [getLocationDetailsFromCoordinates, latitudeInput, longitudeInput, showLocationModal]);
+  }, [
+    getLocationDetailsFromCoordinates,
+    latitudeInput,
+    longitudeInput,
+    showLocationModal,
+    coordinateResolveTrigger,
+  ]);
 
   // Auto-request device location on component mount
   useEffect(() => {
@@ -937,6 +1173,12 @@ export default function CreateScreen() {
           mayShowUserSettingsDialog: true,
         });
 
+        if (hasUserManagedLocationRef.current) {
+          console.log('[Create] Skipping auto-location because user manually selected location');
+          setIsLoadingLocation(false);
+          return;
+        }
+
         const { latitude: lat, longitude: lon } = location.coords;
 
         // Set coordinates
@@ -946,9 +1188,13 @@ export default function CreateScreen() {
         setLongitudeInput(String(lon));
         setLocationCity((prev) => prev || 'Current Location');
         setCoordinateResolveError(null);
+        setCoordinateResolveSuccess(null);
 
         // Try to get location details (pincode, city) from reverse geocoding
-        await getLocationDetailsFromCoordinates(lat, lon, { notify: true });
+        await getLocationDetailsFromCoordinates(lat, lon, {
+          notify: true,
+          skipIfManualOverride: true,
+        });
 
         console.log('[Create] Auto-captured location:', {
           lat,
@@ -3103,6 +3349,7 @@ export default function CreateScreen() {
                   setLocationSuggestions([]);
                   setPincodeSearchError(null);
                   setCoordinateResolveError(null);
+                  setCoordinateResolveSuccess(null);
                   setIsResolvingCoordinates(false);
                 }}
               >
@@ -3119,12 +3366,24 @@ export default function CreateScreen() {
               keyboardShouldPersistTaps="always"
               contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 96, 120) }}
             >
-              <Text style={styles.locationDescription}>
-                Enter latitude and longitude first. We auto-fill pincode and city.
-              </Text>
-
               <View style={styles.locationManualCard}>
-                <Text style={styles.locationManualTitle}>Coordinates</Text>
+                <View style={styles.locationManualHeader}>
+                  <Text style={styles.locationManualTitle}>Coordinates</Text>
+                  <Pressable
+                    style={[
+                      styles.locationRefreshButton,
+                      isResolvingCurrentCoordinates && styles.locationRefreshButtonDisabled,
+                    ]}
+                    onPress={applyCurrentCoordinatesFromDevice}
+                    disabled={isResolvingCurrentCoordinates}
+                  >
+                    {isResolvingCurrentCoordinates ? (
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                    ) : (
+                      <Feather name="refresh-cw" size={15} color={Colors.primary} />
+                    )}
+                  </Pressable>
+                </View>
 
                 <View style={styles.locationManualRow}>
                   <View style={styles.locationManualField}>
@@ -3132,7 +3391,10 @@ export default function CreateScreen() {
                     <TextInput
                       style={styles.locationManualInput}
                       value={latitudeInput}
-                      onChangeText={setLatitudeInput}
+                      onChangeText={(text) => {
+                        markLocationAsUserManaged();
+                        setLatitudeInput(text);
+                      }}
                       placeholder="e.g. 17.3850"
                       placeholderTextColor={Colors.textTertiary}
                       keyboardType="numbers-and-punctuation"
@@ -3143,7 +3405,10 @@ export default function CreateScreen() {
                     <TextInput
                       style={styles.locationManualInput}
                       value={longitudeInput}
-                      onChangeText={setLongitudeInput}
+                      onChangeText={(text) => {
+                        markLocationAsUserManaged();
+                        setLongitudeInput(text);
+                      }}
                       placeholder="e.g. 78.4867"
                       placeholderTextColor={Colors.textTertiary}
                       keyboardType="numbers-and-punctuation"
@@ -3157,7 +3422,10 @@ export default function CreateScreen() {
                     <TextInput
                       style={styles.locationManualInput}
                       value={pincode}
-                      onChangeText={(text) => setPincode(text.replace(/[^0-9]/g, '').slice(0, 6))}
+                      onChangeText={(text) => {
+                        markLocationAsUserManaged();
+                        setPincode(text.replace(/[^0-9]/g, '').slice(0, 6));
+                      }}
                       placeholder="Auto-filled from coordinates"
                       placeholderTextColor={Colors.textTertiary}
                       keyboardType="number-pad"
@@ -3169,7 +3437,10 @@ export default function CreateScreen() {
                     <TextInput
                       style={styles.locationManualInput}
                       value={locationCity}
-                      onChangeText={setLocationCity}
+                      onChangeText={(text) => {
+                        markLocationAsUserManaged();
+                        setLocationCity(text);
+                      }}
                       placeholder="Auto-filled from coordinates"
                       placeholderTextColor={Colors.textTertiary}
                     />
@@ -3195,7 +3466,10 @@ export default function CreateScreen() {
                 <TextInput
                   style={styles.mapLinkInput}
                   value={mapsLinkInput}
-                  onChangeText={setMapsLinkInput}
+                  onChangeText={(text) => {
+                    setMapsLinkInput(text);
+                    setCoordinateResolveSuccess(null);
+                  }}
                   placeholder="Paste Google Maps link with dropped pin"
                   placeholderTextColor={Colors.textTertiary}
                   autoCapitalize="none"
@@ -3214,28 +3488,9 @@ export default function CreateScreen() {
                     {isResolvingMapsLink ? 'Resolving Link...' : 'Use Link Coordinates'}
                   </Text>
                 </Pressable>
-              </View>
-
-              {/* Coverage Info */}
-              <View style={styles.coverageInfoBox}>
-                <View style={styles.coverageIconContainer}>
-                  <Feather name="map-pin" size={16} color={Colors.success} />
-                </View>
-                <View style={styles.coverageTextContainer}>
-                  <Text style={styles.coverageTitle}>Listing Coverage</Text>
-                  <Text style={styles.coverageText}>
-                    Your listing will be shown to buyers within 100 km from your selected location.
-                  </Text>
-                </View>
-              </View>
-
-              {/* Info */}
-              <View style={styles.locationInfoBox}>
-                <Feather name="info" size={16} color={Colors.primary} />
-                <Text style={styles.locationInfoText}>
-                  Share a dropped pin from Google Maps or enter coordinates manually for accurate
-                  listing location.
-                </Text>
+                {coordinateResolveSuccess ? (
+                  <Text style={styles.mapResolveSuccess}>{coordinateResolveSuccess}</Text>
+                ) : null}
               </View>
             </ScrollView>
           </View>
@@ -3376,11 +3631,6 @@ const styles = createResponsiveStyles({
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 16,
-  },
-  locationDescription: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: 20,
   },
   locationFallbackLabel: {
     fontSize: 12,
@@ -4796,6 +5046,24 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_600SemiBold',
     color: Colors.text,
   },
+  locationManualHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  locationRefreshButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationRefreshButtonDisabled: {
+    opacity: 0.65,
+  },
   locationManualRow: {
     flexDirection: 'row',
     gap: 10,
@@ -4830,6 +5098,11 @@ const styles = createResponsiveStyles({
     fontSize: 12,
     fontFamily: 'Inter_500Medium',
     color: Colors.error,
+  },
+  mapResolveSuccess: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.success,
   },
   mapLinkCard: {
     backgroundColor: Colors.surface,
@@ -5020,56 +5293,6 @@ const styles = createResponsiveStyles({
     fontSize: 12,
     fontFamily: 'Inter_600SemiBold',
     color: Colors.primary,
-  },
-  coverageInfoBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: 'rgba(34, 197, 94, 0.08)',
-    borderWidth: 1.5,
-    borderColor: Colors.success,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    marginTop: 16,
-    marginBottom: 12,
-    gap: 12,
-  },
-  coverageIconContainer: {
-    paddingTop: 2,
-  },
-  coverageTextContainer: {
-    flex: 1,
-  },
-  coverageTitle: {
-    fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
-    color: Colors.success,
-    marginBottom: 2,
-  },
-  coverageText: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: Colors.textSecondary,
-    lineHeight: 16,
-  },
-  locationInfoBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: 'rgba(10, 102, 194, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(10, 102, 194, 0.2)',
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginTop: 12,
-    gap: 10,
-  },
-  locationInfoText: {
-    flex: 1,
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    color: Colors.textSecondary,
-    lineHeight: 16,
   },
   submitOverlay: {
     ...StyleSheet.absoluteFillObject,
