@@ -15,6 +15,278 @@ import {
   toNumber,
 } from '../services/location';
 
+type ParsedCoordinates = {
+  latitude: number;
+  longitude: number;
+};
+
+function isValidCoordinates(lat: number, lon: number): boolean {
+  return Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+}
+
+function buildCoordinates(latRaw: string, lonRaw: string): ParsedCoordinates | null {
+  const parsedLatitude = Number.parseFloat(latRaw);
+  const parsedLongitude = Number.parseFloat(lonRaw);
+  if (!isValidCoordinates(parsedLatitude, parsedLongitude)) {
+    return null;
+  }
+
+  return {
+    latitude: parsedLatitude,
+    longitude: parsedLongitude,
+  };
+}
+
+function toDecimal(degrees: string, minutes: string, seconds: string, direction: string): number {
+  const absolute =
+    Number.parseFloat(degrees) +
+    Number.parseFloat(minutes) / 60 +
+    Number.parseFloat(seconds) / 3600;
+  return /[SW]/i.test(direction) ? -absolute : absolute;
+}
+
+function extractPlusCodeCandidate(value: string): string | null {
+  const normalized = value.trim().toUpperCase();
+  if (!normalized) {
+    return null;
+  }
+
+  const match = normalized.match(/([23456789CFGHJMPQRVWX0]{2,8}\+[23456789CFGHJMPQRVWX0]{2,})/);
+  return match?.[1] ?? null;
+}
+
+function isShortPlusCode(code: string): boolean {
+  const separatorIndex = code.indexOf('+');
+  return separatorIndex > 0 && separatorIndex < 8;
+}
+
+function decodeFullPlusCode(code: string): ParsedCoordinates | null {
+  const normalized = code.trim().toUpperCase();
+  if (!/^[23456789CFGHJMPQRVWX]{8}\+[23456789CFGHJMPQRVWX]{2,}$/.test(normalized)) {
+    return null;
+  }
+
+  const alphabet = '23456789CFGHJMPQRVWX';
+  const pairResolutions = [20, 1, 0.05, 0.0025, 0.000125];
+  const gridRows = 5;
+  const gridColumns = 4;
+  const gridSize = 0.000125;
+  const codeWithoutSeparator = normalized.replace('+', '');
+  const pairCodeLength = Math.min(codeWithoutSeparator.length, 10);
+
+  if (pairCodeLength < 2 || pairCodeLength % 2 !== 0) {
+    return null;
+  }
+
+  let decodedLatitude = -90;
+  let decodedLongitude = -180;
+
+  for (let i = 0; i < pairCodeLength; i += 2) {
+    const latitudeDigit = alphabet.indexOf(codeWithoutSeparator[i] ?? '');
+    const longitudeDigit = alphabet.indexOf(codeWithoutSeparator[i + 1] ?? '');
+    if (latitudeDigit < 0 || longitudeDigit < 0) {
+      return null;
+    }
+
+    const resolution = pairResolutions[i / 2] ?? pairResolutions[pairResolutions.length - 1];
+    decodedLatitude += latitudeDigit * resolution;
+    decodedLongitude += longitudeDigit * resolution;
+  }
+
+  let latitudePlaceValue =
+    pairCodeLength < 10 ? pairResolutions[pairCodeLength / 2 - 1] ?? 20 : gridSize;
+  let longitudePlaceValue = latitudePlaceValue;
+
+  for (let i = pairCodeLength; i < codeWithoutSeparator.length; i += 1) {
+    const digit = alphabet.indexOf(codeWithoutSeparator[i] ?? '');
+    if (digit < 0) {
+      return null;
+    }
+
+    const row = Math.floor(digit / gridColumns);
+    const column = digit % gridColumns;
+    latitudePlaceValue /= gridRows;
+    longitudePlaceValue /= gridColumns;
+    decodedLatitude += row * latitudePlaceValue;
+    decodedLongitude += column * longitudePlaceValue;
+  }
+
+  const centerLatitude = decodedLatitude + latitudePlaceValue / 2;
+  const centerLongitude = decodedLongitude + longitudePlaceValue / 2;
+  if (!isValidCoordinates(centerLatitude, centerLongitude)) {
+    return null;
+  }
+
+  return {
+    latitude: centerLatitude,
+    longitude: centerLongitude,
+  };
+}
+
+function parseCoordinatesFromMapsInput(input: string): ParsedCoordinates | null {
+  const raw = input.trim();
+  if (!raw) {
+    return null;
+  }
+
+  const queue: string[] = [raw];
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const candidateRaw = queue.shift();
+    if (!candidateRaw) continue;
+    const candidate = candidateRaw.trim();
+    if (!candidate || visited.has(candidate)) continue;
+    visited.add(candidate);
+
+    const variants = [candidate];
+    let decodeAttempt = candidate;
+    for (let i = 0; i < 3; i += 1) {
+      try {
+        const next = decodeURIComponent(decodeAttempt);
+        if (!next || next === decodeAttempt) break;
+        variants.push(next);
+        decodeAttempt = next;
+      } catch {
+        break;
+      }
+    }
+
+    for (const variant of variants) {
+      const simplePatterns = [
+        /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i,
+        /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
+        /[?&](?:q|query|ll|sll|daddr|destination|center)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
+        /\/search\/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
+        /geo:(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
+        /(-?\d{1,2}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)/,
+      ];
+
+      for (const pattern of simplePatterns) {
+        const match = variant.match(pattern);
+        if (!match) continue;
+        const built = buildCoordinates(match[1] ?? '', match[2] ?? '');
+        if (built) {
+          return built;
+        }
+      }
+
+      const dmsMatch = variant.match(
+        /(\d{1,2})°\s*(\d{1,2})[’'′]\s*(\d{1,2}(?:\.\d+)?)[”"″]?\s*([NS]).*?(\d{1,3})°\s*(\d{1,2})[’'′]\s*(\d{1,2}(?:\.\d+)?)[”"″]?\s*([EW])/i
+      );
+      if (dmsMatch) {
+        const latitudeFromDms = toDecimal(dmsMatch[1], dmsMatch[2], dmsMatch[3], dmsMatch[4]);
+        const longitudeFromDms = toDecimal(dmsMatch[5], dmsMatch[6], dmsMatch[7], dmsMatch[8]);
+        if (isValidCoordinates(latitudeFromDms, longitudeFromDms)) {
+          return {
+            latitude: latitudeFromDms,
+            longitude: longitudeFromDms,
+          };
+        }
+      }
+
+      const plusCodeCandidate = extractPlusCodeCandidate(variant);
+      if (plusCodeCandidate && !isShortPlusCode(plusCodeCandidate)) {
+        const decodedPlusCode = decodeFullPlusCode(plusCodeCandidate);
+        if (decodedPlusCode) {
+          return decodedPlusCode;
+        }
+      }
+
+      try {
+        const normalized = /^https?:\/\//i.test(variant) ? variant : `https://${variant}`;
+        const parsedUrl = new URL(normalized);
+        const queryCoordinateKeys = ['q', 'query', 'll', 'sll', 'daddr', 'destination', 'center'];
+        for (const key of queryCoordinateKeys) {
+          const value = parsedUrl.searchParams.get(key);
+          if (!value) continue;
+          const parts = value.split(',').map((part) => part.trim());
+          if (parts.length < 2) continue;
+          const built = buildCoordinates(parts[0] ?? '', parts[1] ?? '');
+          if (built) {
+            return built;
+          }
+        }
+
+        const nestedLink = parsedUrl.searchParams.get('link');
+        if (nestedLink && !visited.has(nestedLink)) {
+          queue.push(nestedLink);
+        }
+      } catch {
+        // Ignore invalid URL parsing and continue
+      }
+    }
+  }
+
+  return null;
+}
+
+function isStandaloneShortPlusCodeInput(value: string): boolean {
+  try {
+    const normalized = decodeURIComponent(value).toUpperCase();
+    if (/^https?:\/\//i.test(normalized) || normalized.includes('/')) {
+      return false;
+    }
+
+    const match = normalized.trim().match(
+      /([23456789CFGHJMPQRVWX0]{2,8}\+[23456789CFGHJMPQRVWX0]{2,})/
+    );
+    const code = match?.[1] ?? '';
+    const separatorIndex = code.indexOf('+');
+    return separatorIndex > 0 && separatorIndex < 8;
+  } catch {
+    return false;
+  }
+}
+
+async function expandGoogleMapsShortLink(input: string): Promise<string> {
+  const raw = input.trim();
+  if (!raw) {
+    return raw;
+  }
+
+  const normalized = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  if (!/^https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(normalized)) {
+    return normalized;
+  }
+
+  let timeoutId: NodeJS.Timeout | null = null;
+  try {
+    const controller = new AbortController();
+    timeoutId = setTimeout(() => controller.abort(), 7000);
+
+    const response = await fetch(normalized, {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'NearHub/1.0 (+maps-link-parser)',
+      },
+    });
+
+    const redirected = response.url || normalized;
+    if (redirected && redirected !== normalized) {
+      return redirected;
+    }
+
+    const html = await response.text();
+    const canonicalMatch = html.match(
+      /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i
+    );
+    if (canonicalMatch?.[1]) {
+      return canonicalMatch[1];
+    }
+
+    return normalized;
+  } catch {
+    return normalized;
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 /**
  * Register location-based routes with the Express app
  */
@@ -29,6 +301,72 @@ export async function registerLocationRoutes(app: Express) {
       `[Location] ✅ Geolocation ready with ${geolocationService.getPolygonCount()} pincode boundaries`
     );
   }
+
+  app.post('/api/location/parse-maps-link', async (req: Request, res: Response) => {
+    try {
+      const body = (req.body ?? {}) as { input?: unknown; url?: unknown };
+      const rawInput = body.input ?? body.url;
+      const input = typeof rawInput === 'string' ? rawInput.trim() : '';
+
+      if (!input) {
+        return res.status(400).json({
+          success: false,
+          error: 'input is required',
+          code: 'INPUT_REQUIRED',
+        });
+      }
+
+      if (input.length > 4096) {
+        return res.status(400).json({
+          success: false,
+          error: 'input is too long',
+          code: 'INPUT_TOO_LONG',
+        });
+      }
+
+      let parsed = parseCoordinatesFromMapsInput(input);
+      let expanded = input;
+
+      if (!parsed) {
+        expanded = await expandGoogleMapsShortLink(input);
+        parsed = parseCoordinatesFromMapsInput(expanded);
+      }
+
+      if (!parsed) {
+        if (isStandaloneShortPlusCodeInput(input)) {
+          return res.status(422).json({
+            success: false,
+            code: 'SHORT_PLUS_CODE_REQUIRES_CONTEXT',
+            error:
+              'Short Plus Code needs area context. Paste full Plus Code or lat,long like 17.3850,78.4867',
+          });
+        }
+
+        return res.status(422).json({
+          success: false,
+          code: 'COORDINATES_NOT_FOUND',
+          error:
+            'Could not extract coordinates. Paste full Plus Code or pin coordinates like 17.3850,78.4867',
+        });
+      }
+
+      return res.json({
+        success: true,
+        data: {
+          latitude: parsed.latitude,
+          longitude: parsed.longitude,
+          expandedUrl: expanded !== input ? expanded : null,
+        },
+      });
+    } catch (error) {
+      console.error('[Location] Error parsing maps link:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to parse maps link',
+        code: 'PARSE_FAILED',
+      });
+    }
+  });
 
   app.get('/api/location/reverse-geocode', async (req: Request, res: Response) => {
     try {

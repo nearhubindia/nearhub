@@ -306,6 +306,84 @@ export default function CreateScreen() {
       };
     };
 
+    const extractPlusCodeCandidate = (value: string) => {
+      const normalized = value.trim().toUpperCase();
+      if (!normalized) {
+        return null;
+      }
+
+      const match = normalized.match(/([23456789CFGHJMPQRVWX0]{2,8}\+[23456789CFGHJMPQRVWX0]{2,})/);
+      return match?.[1] ?? null;
+    };
+
+    const isShortPlusCode = (code: string) => {
+      const separatorIndex = code.indexOf('+');
+      return separatorIndex > 0 && separatorIndex < 8;
+    };
+
+    const decodeFullPlusCode = (code: string) => {
+      const normalized = code.trim().toUpperCase();
+      if (!/^[23456789CFGHJMPQRVWX]{8}\+[23456789CFGHJMPQRVWX]{2,}$/.test(normalized)) {
+        return null;
+      }
+
+      const alphabet = '23456789CFGHJMPQRVWX';
+      const pairResolutions = [20, 1, 0.05, 0.0025, 0.000125];
+      const gridRows = 5;
+      const gridColumns = 4;
+      const gridSize = 0.000125;
+      const codeWithoutSeparator = normalized.replace('+', '');
+      const pairCodeLength = Math.min(codeWithoutSeparator.length, 10);
+
+      if (pairCodeLength < 2 || pairCodeLength % 2 !== 0) {
+        return null;
+      }
+
+      let decodedLatitude = -90;
+      let decodedLongitude = -180;
+
+      for (let i = 0; i < pairCodeLength; i += 2) {
+        const latitudeDigit = alphabet.indexOf(codeWithoutSeparator[i] ?? '');
+        const longitudeDigit = alphabet.indexOf(codeWithoutSeparator[i + 1] ?? '');
+        if (latitudeDigit < 0 || longitudeDigit < 0) {
+          return null;
+        }
+
+        const resolution = pairResolutions[i / 2] ?? pairResolutions[pairResolutions.length - 1];
+        decodedLatitude += latitudeDigit * resolution;
+        decodedLongitude += longitudeDigit * resolution;
+      }
+
+      let latitudePlaceValue =
+        pairCodeLength < 10 ? pairResolutions[pairCodeLength / 2 - 1] ?? 20 : gridSize;
+      let longitudePlaceValue = latitudePlaceValue;
+
+      for (let i = pairCodeLength; i < codeWithoutSeparator.length; i += 1) {
+        const digit = alphabet.indexOf(codeWithoutSeparator[i] ?? '');
+        if (digit < 0) {
+          return null;
+        }
+
+        const row = Math.floor(digit / gridColumns);
+        const column = digit % gridColumns;
+        latitudePlaceValue /= gridRows;
+        longitudePlaceValue /= gridColumns;
+        decodedLatitude += row * latitudePlaceValue;
+        decodedLongitude += column * longitudePlaceValue;
+      }
+
+      const centerLatitude = decodedLatitude + latitudePlaceValue / 2;
+      const centerLongitude = decodedLongitude + longitudePlaceValue / 2;
+      if (!isValidCoordinates(centerLatitude, centerLongitude)) {
+        return null;
+      }
+
+      return {
+        latitude: centerLatitude,
+        longitude: centerLongitude,
+      };
+    };
+
     const toDecimal = (degrees: string, minutes: string, seconds: string, direction: string) => {
       const absolute =
         Number.parseFloat(degrees) +
@@ -339,10 +417,10 @@ export default function CreateScreen() {
 
       for (const variant of variants) {
         const simplePatterns = [
+          /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i,
           /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
           /[?&](?:q|query|ll|sll|daddr|destination|center)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
           /\/search\/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
-          /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i,
           /geo:(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/i,
           /(-?\d{1,2}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)/,
         ];
@@ -365,6 +443,14 @@ export default function CreateScreen() {
               latitude: latitudeFromDms,
               longitude: longitudeFromDms,
             };
+          }
+        }
+
+        const plusCodeCandidate = extractPlusCodeCandidate(variant);
+        if (plusCodeCandidate && !isShortPlusCode(plusCodeCandidate)) {
+          const decodedPlusCode = decodeFullPlusCode(plusCodeCandidate);
+          if (decodedPlusCode) {
+            return decodedPlusCode;
           }
         }
 
@@ -462,15 +548,71 @@ export default function CreateScreen() {
     setIsResolvingMapsLink(true);
     setCoordinateResolveError(null);
 
-    let parsed = parseCoordinatesFromMapsLink(raw);
-    if (!parsed) {
-      const expandedLink = await expandGoogleMapsShortLink(raw);
-      parsed = parseCoordinatesFromMapsLink(expandedLink);
+    let parsed: { latitude: number; longitude: number } | null = null;
+    let backendErrorCode = '';
+    let backendErrorMessage = '';
+
+    try {
+      const apiUrl = getApiUrl();
+      const response = await fetch(`${apiUrl}/api/location/parse-maps-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ input: raw }),
+      });
+
+      const responseData = (await response.json()) as {
+        success?: boolean;
+        code?: string;
+        error?: string;
+        data?: {
+          latitude?: number;
+          longitude?: number;
+        };
+      };
+
+      if (
+        response.ok &&
+        responseData?.success &&
+        Number.isFinite(responseData.data?.latitude) &&
+        Number.isFinite(responseData.data?.longitude)
+      ) {
+        parsed = {
+          latitude: Number(responseData.data?.latitude),
+          longitude: Number(responseData.data?.longitude),
+        };
+      } else {
+        backendErrorCode = String(responseData?.code || '');
+        backendErrorMessage = String(responseData?.error || '');
+      }
+    } catch (error) {
+      console.warn('[Create] Backend maps parser failed, trying local fallback:', error);
+    }
+
+    // Emergency fallback if backend is temporarily unreachable.
+    if (!parsed && !backendErrorMessage) {
+      let expandedLink = raw;
+      parsed = parseCoordinatesFromMapsLink(raw);
+      if (!parsed) {
+        expandedLink = await expandGoogleMapsShortLink(raw);
+        parsed = parseCoordinatesFromMapsLink(expandedLink);
+      }
     }
 
     if (!parsed) {
+      if (backendErrorCode === 'SHORT_PLUS_CODE_REQUIRES_CONTEXT') {
+        setCoordinateResolveError(
+          backendErrorMessage ||
+            'Short Plus Code needs area context. Paste full Plus Code or lat,long like 17.3850,78.4867'
+        );
+        setIsResolvingMapsLink(false);
+        return;
+      }
+
       setCoordinateResolveError(
-        'Could not extract coordinates. Paste pin coordinates like 17.3850,78.4867'
+        backendErrorMessage ||
+          'Could not extract coordinates. Paste full Plus Code or pin coordinates like 17.3850,78.4867'
       );
       setIsResolvingMapsLink(false);
       return;
