@@ -662,6 +662,9 @@ export function registerSubscriptionRoutes(app: Express) {
           userId,
           title,
           description,
+          mainCategory,
+          subCategory,
+          subcategory,
           category,
           price,
           offerPrice,
@@ -683,6 +686,18 @@ export function registerSubscriptionRoutes(app: Express) {
         } = req.body;
 
         const ownerId = typeof userId === 'string' ? userId.trim() : '';
+        const normalizedSubCategory =
+          typeof subCategory === 'string' && subCategory.trim()
+            ? subCategory.trim()
+            : typeof subcategory === 'string' && subcategory.trim()
+              ? subcategory.trim()
+              : typeof category === 'string' && category.trim()
+                ? category.trim()
+                : '';
+        const normalizedMainCategory =
+          typeof mainCategory === 'string' && mainCategory.trim()
+            ? mainCategory.trim()
+            : normalizedSubCategory;
 
         // if ownerId appears to be an admin account, ensure request includes a valid admin JWT
         if (ownerId.startsWith('admin')) {
@@ -695,7 +710,7 @@ export function registerSubscriptionRoutes(app: Express) {
         }
 
         // Validate required fields
-        if (!ownerId || !title || !price || !category || !condition || !location) {
+        if (!ownerId || !title || !price || !normalizedSubCategory || !condition || !location) {
           return res.status(400).json({
             error: 'Missing required fields: userId, title, price, category, condition, location',
           });
@@ -900,7 +915,9 @@ export function registerSubscriptionRoutes(app: Express) {
           userId: ownerId,
           title,
           description,
-          category,
+          mainCategory: normalizedMainCategory,
+          subCategory: normalizedSubCategory,
+          category: normalizedSubCategory,
           price: parseFloat(price as string),
           offerPrice:
             offerPrice !== undefined && offerPrice !== null
@@ -927,6 +944,8 @@ export function registerSubscriptionRoutes(app: Express) {
             contactPhone: resolvedContactPhone || undefined,
             title: listingData.title,
             description: listingData.description || '',
+            mainCategory: listingData.mainCategory,
+            subCategory: listingData.subCategory,
             category: listingData.category,
             price: listingData.price.toString(),
             offerPrice: listingData.offerPrice?.toString(),

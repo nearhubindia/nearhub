@@ -70,6 +70,26 @@ export function registerAdminListingsRoutes(app: Express) {
     return raw ? raw : undefined;
   };
 
+  const normalizeCategoryHierarchy = (input: {
+    mainCategory?: unknown;
+    subCategory?: unknown;
+    subcategory?: unknown;
+    category?: unknown;
+  }): { mainCategory?: string; subCategory?: string; category?: string } => {
+    const normalizedSubCategory =
+      normalizeOptionalText(input.subCategory) ||
+      normalizeOptionalText(input.subcategory) ||
+      normalizeOptionalText(input.category);
+    const normalizedMainCategory =
+      normalizeOptionalText(input.mainCategory) || normalizedSubCategory;
+
+    return {
+      mainCategory: normalizedMainCategory,
+      subCategory: normalizedSubCategory,
+      category: normalizedSubCategory,
+    };
+  };
+
   const parseCoordinateInput = (
     value: unknown,
     fieldName: 'latitude' | 'longitude',
@@ -196,6 +216,8 @@ export function registerAdminListingsRoutes(app: Express) {
             id: listing.id,
             title: listing.title,
             description: listing.description,
+            mainCategory: listing.mainCategory,
+            subCategory: listing.subCategory || listing.category,
             category: listing.category,
             price: listing.price,
             condition: listing.condition,
@@ -238,6 +260,9 @@ export function registerAdminListingsRoutes(app: Express) {
         userId,
         title,
         description,
+        mainCategory,
+        subCategory,
+        subcategory,
         category,
         price,
         condition,
@@ -256,8 +281,14 @@ export function registerAdminListingsRoutes(app: Express) {
         sponsored,
         contactPhone,
       } = req.body;
+      const normalizedCategory = normalizeCategoryHierarchy({
+        mainCategory,
+        subCategory,
+        subcategory,
+        category,
+      });
 
-      if (!title || !description || !category || !location) {
+      if (!title || !description || !normalizedCategory.subCategory || !location) {
         return res.status(400).json({
           success: false,
           error: 'Missing required fields: title, description, category, location',
@@ -304,7 +335,9 @@ export function registerAdminListingsRoutes(app: Express) {
         sellerId: ownerId,
         title: String(title).trim(),
         description: String(description).trim(),
-        category: String(category),
+        mainCategory: normalizedCategory.mainCategory,
+        subCategory: normalizedCategory.subCategory,
+        category: normalizedCategory.category || String(category || ''),
         price: parsedPrice.toString(),
         condition: condition || 'good',
         location: String(location),
@@ -328,6 +361,8 @@ export function registerAdminListingsRoutes(app: Express) {
         success: true,
         data: {
           ...created,
+          mainCategory: created.mainCategory,
+          subCategory: created.subCategory || created.category,
           userId: created.sellerId,
           createdAt: created.createdAt?.toISOString() || null,
           expiresAt: created.expiresAt?.toISOString() || null,
@@ -362,6 +397,8 @@ export function registerAdminListingsRoutes(app: Express) {
           id: listing.id,
           title: listing.title,
           description: listing.description,
+          mainCategory: listing.mainCategory,
+          subCategory: listing.subCategory || listing.category,
           category: listing.category,
           price: listing.price,
           condition: listing.condition,
@@ -531,6 +568,9 @@ export function registerAdminListingsRoutes(app: Express) {
       const {
         title,
         description,
+        mainCategory,
+        subCategory,
+        subcategory,
         category,
         price,
         condition,
@@ -548,7 +588,31 @@ export function registerAdminListingsRoutes(app: Express) {
       const updateData: Partial<typeof listings.$inferInsert> = {};
       if (title !== undefined) updateData.title = title;
       if (description !== undefined) updateData.description = description;
-      if (category !== undefined) updateData.category = category;
+      const hasSubCategoryInput =
+        subCategory !== undefined || subcategory !== undefined || category !== undefined;
+      if (hasSubCategoryInput) {
+        const normalizedCategory = normalizeCategoryHierarchy({
+          mainCategory,
+          subCategory,
+          subcategory,
+          category,
+        });
+        if (!normalizedCategory.subCategory) {
+          return res.status(400).json({
+            success: false,
+            error: 'Category cannot be empty',
+          });
+        }
+        updateData.subCategory = normalizedCategory.subCategory;
+        updateData.category = normalizedCategory.category || normalizedCategory.subCategory;
+        if (mainCategory === undefined) {
+          updateData.mainCategory = normalizedCategory.mainCategory || normalizedCategory.subCategory;
+        }
+      }
+      if (mainCategory !== undefined) {
+        const normalizedMainCategory = normalizeOptionalText(mainCategory);
+        updateData.mainCategory = normalizedMainCategory ?? null;
+      }
       if (price !== undefined) updateData.price = price;
       if (condition !== undefined) updateData.condition = condition;
       if (location !== undefined) updateData.location = location;
@@ -605,6 +669,8 @@ export function registerAdminListingsRoutes(app: Express) {
           id: listing.id,
           title: listing.title,
           description: listing.description,
+          mainCategory: listing.mainCategory,
+          subCategory: listing.subCategory || listing.category,
           category: listing.category,
           price: listing.price,
           condition: listing.condition,

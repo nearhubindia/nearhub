@@ -8,6 +8,9 @@ export interface Listing {
   price: number;
   offerPrice?: number; // Optional discount/offer price
   priceUnit?: PriceUnit; // Unit for pricing (per sqft, per litre, per month, etc.)
+  mainCategory?: string; // Top-level grouping (e.g. "Electronics & Appliances")
+  subCategory?: Category; // Explicit subcategory for new taxonomy model
+  subcategory?: Category; // Backward/alternate casing from APIs
   category: Category;
   images: string[]; // Up to 5 images
   imageHashes?: string[]; // SHA256 hashes for deduplication

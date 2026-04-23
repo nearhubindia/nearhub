@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -25,6 +25,13 @@ import Svg, { Circle } from 'react-native-svg';
 import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
 import { Category, CATEGORIES, CONDITIONS, PriceUnit, PRICE_UNITS } from '@/lib/types';
+import {
+  MainCategory,
+  getCategoryGroupsForListingType,
+  getDefaultCategoryForListingType,
+  getDefaultMainCategoryForListingType,
+  getMainCategoryForSubcategory,
+} from '@/lib/listing-taxonomy';
 import UploadProgressBar from '@/shared/components/UploadProgressBar';
 import { deleteCloudflareMedia, uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 import { VideoRecorderModal } from '@/shared/components/VideoRecorderModal';
@@ -35,28 +42,6 @@ import {
   toPortableImageUri,
   uploadImagesToCloudflare as uploadImagesToCloudflareUtil,
 } from '@/lib/media-images';
-
-const JOB_CATEGORIES: Category[] = [
-  'Jobs',
-  'Freelance',
-  'Services',
-  'Business',
-  'Education',
-  'Health',
-  'Other',
-];
-
-const SERVICE_CATEGORIES: Category[] = [
-  'Services',
-  'Freelance',
-  'Home & Garden',
-  'Education',
-  'Health',
-  'Business',
-  'Events',
-  'Food',
-  'Other',
-];
 
 interface LocationSuggestion {
   pincode: string;
@@ -93,6 +78,10 @@ export default function EditListingScreen() {
     listing?.listingType || 'sell'
   );
   const [category, setCategory] = useState<Category>(listing?.category || 'Electronics');
+  const [mainCategory, setMainCategory] = useState<MainCategory>(
+    getMainCategoryForSubcategory(listing?.category || 'Electronics', listing?.listingType || 'sell') ||
+      getDefaultMainCategoryForListingType(listing?.listingType || 'sell')
+  );
   const [condition, setCondition] = useState<'new' | 'like_new' | 'good' | 'fair' | 'poor'>(
     listing?.condition || 'good'
   );
@@ -128,17 +117,27 @@ export default function EditListingScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitProgress, setSubmitProgress] = useState(0);
   const [submitStatusMessage, setSubmitStatusMessage] = useState('');
+  const [showMainCategoryPicker, setShowMainCategoryPicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showConditionPicker, setShowConditionPicker] = useState(false);
   const [showPriceUnitPicker, setShowPriceUnitPicker] = useState(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
-  const visibleCategories =
-    listingType === 'job'
-      ? JOB_CATEGORIES
-      : listingType === 'service'
-        ? SERVICE_CATEGORIES
-        : CATEGORIES;
+  const categoryGroups = useMemo(
+    () => getCategoryGroupsForListingType(listingType),
+    [listingType]
+  );
+  const visibleMainCategories = useMemo(
+    () => categoryGroups.map((group) => group.mainCategory),
+    [categoryGroups]
+  );
+  const visibleSubcategories = useMemo(
+    () =>
+      categoryGroups.find((group) => group.mainCategory === mainCategory)?.subcategories ||
+      categoryGroups[0]?.subcategories ||
+      [],
+    [categoryGroups, mainCategory]
+  );
 
   if (!listing) {
     return (
@@ -158,13 +157,26 @@ export default function EditListingScreen() {
   };
 
   useEffect(() => {
-    if (listingType === 'job' && !JOB_CATEGORIES.includes(category)) {
-      setCategory('Jobs');
+    if (categoryGroups.length === 0) return;
+
+    const inferredMain = getMainCategoryForSubcategory(category, listingType);
+    const hasCurrentMain = categoryGroups.some((group) => group.mainCategory === mainCategory);
+    const normalizedMain = hasCurrentMain ? mainCategory : inferredMain || categoryGroups[0].mainCategory;
+
+    if (normalizedMain !== mainCategory) {
+      setMainCategory(normalizedMain);
+      return;
     }
-    if (listingType === 'service' && !SERVICE_CATEGORIES.includes(category)) {
-      setCategory('Services');
+
+    const currentGroup =
+      categoryGroups.find((group) => group.mainCategory === normalizedMain) || categoryGroups[0];
+    const fallbackCategory =
+      currentGroup.subcategories[0] || getDefaultCategoryForListingType(listingType);
+
+    if (!currentGroup.subcategories.includes(category) && fallbackCategory !== category) {
+      setCategory(fallbackCategory);
     }
-  }, [listingType, category]);
+  }, [categoryGroups, mainCategory, category, listingType]);
 
   const applyLocationSuggestion = (suggestion: LocationSuggestion) => {
     const cityName = suggestion.locationName?.trim() || suggestion.city?.trim() || 'Unknown';
@@ -1122,6 +1134,8 @@ export default function EditListingScreen() {
         offerPrice: offerPrice ? Number(offerPrice) : undefined,
         priceUnit,
         listingType,
+        mainCategory,
+        subCategory: category,
         category,
         condition,
         location: {
@@ -1356,6 +1370,46 @@ export default function EditListingScreen() {
 
           {/* Category */}
           <View style={styles.section}>
+            <Text style={styles.label}>Main Category *</Text>
+            <Pressable
+              style={styles.picker}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowMainCategoryPicker(!showMainCategoryPicker);
+              }}
+            >
+              <Text style={styles.pickerText}>{mainCategory}</Text>
+              <Feather name="chevron-down" size={20} color={Colors.textSecondary} />
+            </Pressable>
+            {showMainCategoryPicker && (
+              <View style={styles.pickerOptions}>
+                {visibleMainCategories.map((main) => (
+                  <Pressable
+                    key={main}
+                    style={[
+                      styles.pickerOption,
+                      main === mainCategory && styles.pickerOptionActive,
+                    ]}
+                    onPress={() => {
+                      setMainCategory(main);
+                      setShowMainCategoryPicker(false);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.pickerOptionText,
+                        main === mainCategory && styles.pickerOptionTextActive,
+                      ]}
+                    >
+                      {main}
+                    </Text>
+                    {main === mainCategory && <Feather name="check" size={20} color="#FFFFFF" />}
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
             <Text style={styles.label}>Category *</Text>
             <Pressable
               style={styles.picker}
@@ -1369,7 +1423,7 @@ export default function EditListingScreen() {
             </Pressable>
             {showCategoryPicker && (
               <View style={styles.pickerOptions}>
-                {visibleCategories.map((cat) => (
+                {visibleSubcategories.map((cat) => (
                   <Pressable
                     key={cat}
                     style={[styles.pickerOption, cat === category && styles.pickerOptionActive]}

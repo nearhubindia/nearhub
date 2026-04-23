@@ -9,11 +9,17 @@ import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useUserInterests } from '@/shared/contexts/user-interests-context';
 import { calculateDistance } from '@/lib/location-data';
+import { isHotelDeal, isNewProductDeal, isRestaurantDeal } from '@/lib/deals';
 import { formatCondition } from '@/lib/utils';
 import ListingCard from '@/shared/components/ListingCard';
 import { createResponsiveStyles } from '@/lib/responsive';
 
-type SectionType = 'nearby' | 'featured';
+type SectionType =
+  | 'nearby'
+  | 'featured'
+  | 'restaurantDeals'
+  | 'hotelDeals'
+  | 'newProductDeals';
 
 export default function HomeSectionListScreen() {
   const insets = useSafeAreaInsets();
@@ -34,7 +40,16 @@ export default function HomeSectionListScreen() {
     ? Number(radiusParam)
     : (user?.preferences?.searchRadiusKm ?? 50);
 
-  const headerTitle = sectionParam === 'featured' ? 'Featured Deals' : 'Near You';
+  const headerTitle =
+    sectionParam === 'featured'
+      ? 'Featured Deals'
+      : sectionParam === 'restaurantDeals'
+        ? 'Restaurant Deals'
+        : sectionParam === 'hotelDeals'
+          ? 'Hotel Deals'
+          : sectionParam === 'newProductDeals'
+            ? 'New Product Deals'
+            : 'Near You';
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const visibleListings = useMemo(
@@ -77,7 +92,31 @@ export default function HomeSectionListScreen() {
     [listingsByLocation]
   );
 
-  const data = sectionParam === 'featured' ? featuredListings : nearYouListings;
+  const restaurantDeals = useMemo(
+    () => nearYouListings.filter((item) => isRestaurantDeal(item)),
+    [nearYouListings]
+  );
+
+  const hotelDeals = useMemo(
+    () => nearYouListings.filter((item) => isHotelDeal(item)),
+    [nearYouListings]
+  );
+
+  const newProductDeals = useMemo(
+    () => nearYouListings.filter((item) => isNewProductDeal(item)),
+    [nearYouListings]
+  );
+
+  const data =
+    sectionParam === 'featured'
+      ? featuredListings
+      : sectionParam === 'restaurantDeals'
+        ? restaurantDeals
+        : sectionParam === 'hotelDeals'
+          ? hotelDeals
+          : sectionParam === 'newProductDeals'
+            ? newProductDeals
+            : nearYouListings;
   const gridData = useMemo(
     () =>
       data.length % 2 === 0
@@ -159,7 +198,13 @@ export default function HomeSectionListScreen() {
             <Text style={styles.emptySubtitle}>
               {sectionParam === 'featured'
                 ? 'No featured deals available for this location yet.'
-                : 'No nearby listings found for this location yet.'}
+                : sectionParam === 'restaurantDeals'
+                  ? 'No restaurant deals found nearby yet.'
+                  : sectionParam === 'hotelDeals'
+                    ? 'No hotel deals found nearby yet.'
+                    : sectionParam === 'newProductDeals'
+                      ? 'No new product deals found nearby yet.'
+                      : 'No nearby listings found for this location yet.'}
             </Text>
           </View>
         }

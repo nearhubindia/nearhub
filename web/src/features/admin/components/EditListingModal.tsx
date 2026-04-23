@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CircleDollarSign,
   FileText,
@@ -11,6 +11,12 @@ import {
   Zap,
   Check,
 } from 'lucide-react';
+import {
+  ADMIN_CATEGORY_GROUPS,
+  getDefaultAdminSubCategory,
+  getMainCategoryForSubCategory,
+  getSubCategoriesForMainCategory,
+} from '@/features/admin/constants/listing-taxonomy';
 import type { Listing, Enhancements } from '@/features/admin/types/admin-types';
 import { useUpdateListing } from '@/features/admin/hooks';
 import { validators } from '@/features/admin/utils';
@@ -23,13 +29,18 @@ interface EditListingModalProps {
 
 export default function EditListingModal({ listing, onClose }: EditListingModalProps) {
   const updateListing = useUpdateListing();
+  const initialSubCategory = listing?.subCategory || listing?.category || getDefaultAdminSubCategory();
+  const initialMainCategory =
+    listing?.mainCategory || getMainCategoryForSubCategory(initialSubCategory);
 
   const [formData, setFormData] = useState({
     title: listing?.title ?? '',
     description: listing?.description ?? '',
     price: String(listing?.price ?? ''),
     offerPrice: String(listing?.offerPrice ?? ''),
-    category: listing?.category ?? 'Electronics',
+    mainCategory: initialMainCategory,
+    subCategory: initialSubCategory,
+    category: initialSubCategory,
     condition: listing?.condition ?? 'good',
     location: listing?.location ?? '',
     pincode: listing?.pincode ? String(listing.pincode) : '',
@@ -59,7 +70,14 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
   const [isSuggestingCategory, setIsSuggestingCategory] = useState(false);
   const [sponsored, setSponsored] = useState(Boolean(listing?.sponsored));
 
-  const categories = ['Electronics', 'Vehicles', 'Real Estate', 'Services', 'Jobs'];
+  const mainCategories = useMemo(
+    () => ADMIN_CATEGORY_GROUPS.map((group) => group.mainCategory),
+    []
+  );
+  const subCategories = useMemo(
+    () => getSubCategoriesForMainCategory(formData.mainCategory),
+    [formData.mainCategory]
+  );
   const conditions = ['new', 'like_new', 'good', 'fair', 'poor'];
 
   const parseCoordinate = (
@@ -220,6 +238,18 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
     };
   }, [formData.latitude, formData.longitude, lastAutoFilledLocation, lastAutoFilledPincode]);
 
+  useEffect(() => {
+    if (subCategories.includes(formData.subCategory)) {
+      return;
+    }
+    const fallbackSubCategory = subCategories[0] || getDefaultAdminSubCategory();
+    setFormData((prev) => ({
+      ...prev,
+      subCategory: fallbackSubCategory,
+      category: fallbackSubCategory,
+    }));
+  }, [formData.subCategory, subCategories]);
+
   const generateTitleWithAI = async (): Promise<void> => {
     if (!formData.description) {
       alert('Please enter a description first');
@@ -317,7 +347,9 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
         title: formData.title,
         description: formData.description,
         price: Number(formData.price),
-        category: formData.category,
+        mainCategory: formData.mainCategory,
+        subCategory: formData.subCategory,
+        category: formData.subCategory,
         condition: formData.condition,
         location: formData.location,
         status: formData.status as 'active' | 'sold' | 'pending',
@@ -468,7 +500,7 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-2">
-                      <label className={labelClass}>Category</label>
+                      <label className={labelClass}>Main Category</label>
                       <button
                         type="button"
                         onClick={suggestCategoryWithAI}
@@ -479,14 +511,44 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                       </button>
                     </div>
                     <select
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      value={formData.mainCategory}
+                      onChange={(e) => {
+                        const nextMainCategory = e.target.value;
+                        const nextSubCategories = getSubCategoriesForMainCategory(nextMainCategory);
+                        const nextSubCategory = nextSubCategories[0] || getDefaultAdminSubCategory();
+                        setFormData({
+                          ...formData,
+                          mainCategory: nextMainCategory,
+                          subCategory: nextSubCategory,
+                          category: nextSubCategory,
+                        });
+                      }}
                       className={inputClass}
                     >
-                      <option value="">Select Category</option>
-                      {categories.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
+                      <option value="">Select Main Category</option>
+                      {mainCategories.map((main) => (
+                        <option key={main} value={main}>
+                          {main}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Subcategory</label>
+                    <select
+                      value={formData.subCategory}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          subCategory: e.target.value,
+                          category: e.target.value,
+                        })
+                      }
+                      className={inputClass}
+                    >
+                      {subCategories.map((sub) => (
+                        <option key={sub} value={sub}>
+                          {sub}
                         </option>
                       ))}
                     </select>

@@ -276,7 +276,17 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                         ? parseFloat(listing.offerPrice)
                         : listing.offerPrice
                       : undefined,
-                  category: listing.category as Category,
+                  mainCategory:
+                    typeof listing.mainCategory === 'string' && listing.mainCategory.trim()
+                      ? listing.mainCategory.trim()
+                      : undefined,
+                  subCategory: (listing.subCategory || listing.subcategory || listing.category) as
+                    | Category
+                    | undefined,
+                  subcategory: (listing.subCategory || listing.subcategory || listing.category) as
+                    | Category
+                    | undefined,
+                  category: (listing.subCategory || listing.subcategory || listing.category) as Category,
                   condition: listing.condition || 'good',
                   images: (images || []).map(normalizeMediaUrl).filter(Boolean),
                   videos: (videos || []).map(normalizeMediaUrl).filter(Boolean),
@@ -463,6 +473,8 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         contactPhone: listing.contactPhone || listing.sellerPhone || '',
         title: listing.title,
         description: listing.description,
+        mainCategory: listing.mainCategory || undefined,
+        subCategory: listing.subCategory || listing.subcategory || listing.category,
         category: listing.category,
         price: listing.price,
         offerPrice: listing.offerPrice,
@@ -564,11 +576,15 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         headers: buildUserAuthHeaders({ id: ownerUserId }),
         body: JSON.stringify({
           status: updates.status,
+          listingType: updates.listingType,
           title: updates.title,
           description: updates.description,
           price: updates.price,
           offerPrice: updates.offerPrice,
           priceUnit: updates.priceUnit,
+          mainCategory: updates.mainCategory,
+          subCategory: updates.subCategory || updates.subcategory || updates.category,
+          category: updates.category,
           condition: updates.condition,
           location: updates.location?.city || updates.location,
           pincode: updates.pincode,
@@ -784,7 +800,17 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                   ? Number(listing.offerPrice)
                   : listing.offerPrice
                 : undefined,
-            category: listing.category as Category,
+            mainCategory:
+              typeof listing.mainCategory === 'string' && listing.mainCategory.trim()
+                ? listing.mainCategory.trim()
+                : undefined,
+            subCategory: (listing.subCategory || listing.subcategory || listing.category) as
+              | Category
+              | undefined,
+            subcategory: (listing.subCategory || listing.subcategory || listing.category) as
+              | Category
+              | undefined,
+            category: (listing.subCategory || listing.subcategory || listing.category) as Category,
             condition: listing.condition,
             images: parseMedia(listing.images),
             videos: parseMedia(listing.videos),

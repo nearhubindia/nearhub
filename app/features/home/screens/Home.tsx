@@ -27,6 +27,11 @@ import { getTabOverlayContentPadding } from '@/constants/layout';
 import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useUserInterests } from '@/shared/contexts/user-interests-context';
+import {
+  hasValidOfferPrice,
+  isNewProductDeal,
+  isRestaurantDeal,
+} from '@/lib/deals';
 import { calculateDistance } from '@/lib/location-data';
 import { Category } from '@/lib/types';
 import { formatCondition } from '@/lib/utils';
@@ -41,6 +46,8 @@ import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
 import { createResponsiveStyles } from '@/lib/responsive';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const HOME_HORIZONTAL_INSET = 10;
+const HOME_RAIL_GAP = 3;
 
 interface CitySuggestion {
   pincode: string;
@@ -418,6 +425,14 @@ export default function HomeScreen() {
     [filteredListingsByLocation]
   );
   const boostedListings = useMemo(() => allBoostedListings.slice(0, 4), [allBoostedListings]);
+  const restaurantDeals = useMemo(
+    () => allNearYouListings.filter((listing) => isRestaurantDeal(listing)).slice(0, 4),
+    [allNearYouListings]
+  );
+  const newProductDeals = useMemo(
+    () => allNearYouListings.filter((listing) => isNewProductDeal(listing)).slice(0, 4),
+    [allNearYouListings]
+  );
 
   const onRefresh = useCallback(async () => {
     await Promise.all([refreshListings(), refreshBanners()]);
@@ -458,7 +473,10 @@ export default function HomeScreen() {
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const statusStripHeight = Platform.OS === 'web' ? webTopInset : Math.max(insets.top, 12);
   const tabAwareBottomPadding = getTabOverlayContentPadding(insets.bottom, 20);
-  const alignedResultCardWidth = useMemo(() => (SCREEN_WIDTH - 24 - 9) / 4, []);
+  const alignedResultCardWidth = useMemo(
+    () => (SCREEN_WIDTH - HOME_HORIZONTAL_INSET * 2 - HOME_RAIL_GAP * 3) / 4,
+    []
+  );
   const listingGridData = useMemo(
     () =>
       filteredListingsByLocation.length % 2 === 0
@@ -488,6 +506,7 @@ export default function HomeScreen() {
             offerPrice={item.offerPrice}
             priceUnit={item.priceUnit}
             image={item.images[0]}
+            imageHeight={100}
             location={item.location.city}
             condition={formatCondition(item.condition)}
             sellerVerified={Boolean(item.sellerVerified)}
@@ -502,6 +521,77 @@ export default function HomeScreen() {
     },
     [savedIds, handleSave]
   );
+
+  const renderCompactRailCard = useCallback(
+    (
+      item: (typeof listings)[0],
+      options?: {
+        showDistance?: boolean;
+        showFeaturedBadge?: boolean;
+        badgeLabel?: string;
+      }
+    ) => {
+      const basePrice = Number(item.price) || 0;
+      const displayPrice = hasValidOfferPrice(item) ? Number(item.offerPrice) : basePrice;
+
+      return (
+        <Pressable
+          key={item.id}
+          onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
+          style={[styles.featuredCard, { width: alignedResultCardWidth }]}
+        >
+          <Image source={{ uri: item.images[0] }} style={styles.cardImage} contentFit="cover" />
+          {options?.badgeLabel ? (
+            <View style={styles.cardLabelBadge}>
+              <Text style={styles.cardLabelBadgeText}>{options.badgeLabel}</Text>
+            </View>
+          ) : null}
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+          <View style={styles.cardPriceRow}>
+            <Text style={styles.cardPrice}>₹{displayPrice.toLocaleString('en-IN')}</Text>
+            {hasValidOfferPrice(item) ? (
+              <Text style={styles.cardOriginalPrice}>₹{basePrice.toLocaleString('en-IN')}</Text>
+            ) : null}
+          </View>
+          {options?.showDistance ? (
+            <Text style={styles.cardDistance}>
+              {userLat && userLon
+                ? Math.round(
+                    calculateDistance(userLat, userLon, item.location.latitude, item.location.longitude)
+                  )
+                : '?'}{' '}
+              km away
+            </Text>
+          ) : null}
+          {options?.showFeaturedBadge ? (
+            <View style={styles.cardBadgeStack}>
+              {Boolean(item.sellerVerified) ? (
+                <View style={[styles.cardBadge, styles.verifiedBadge]}>
+                  <Feather name="check-circle" size={10} color="#FFFFFF" />
+                </View>
+              ) : null}
+              <View style={styles.cardBadge}>
+                <Ionicons name="rocket" size={10} color="#FFFFFF" />
+              </View>
+            </View>
+          ) : null}
+        </Pressable>
+      );
+    },
+    [alignedResultCardWidth, userLat, userLon]
+  );
+
+  const renderEmptyRailState = useCallback((message: string) => {
+    return (
+      <View style={styles.emptyRailCard}>
+        <Feather name="tag" size={18} color={Colors.primary} />
+        <Text style={styles.emptyRailTitle}>No deals yet</Text>
+        <Text style={styles.emptyRailText}>{message}</Text>
+      </View>
+    );
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -584,179 +674,156 @@ export default function HomeScreen() {
             <AppScreenBanners banners={homeBanners} isLoading={isHomeBannersLoading} />
 
             {/* Near You Section */}
-            {nearYouListings.length > 0 && (
-              <View style={styles.nearYouSection}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionHeaderLeft}>
-                    <Feather name="map-pin" size={16} color={Colors.primary} />
-                    <Text style={styles.sectionTitle}>Near You</Text>
-                  </View>
-                  <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: '/home-section-list',
-                        params: {
-                          section: 'nearby',
-                          lat: userLat?.toString() || '',
-                          lon: userLon?.toString() || '',
-                          radius: selectedSearchRadiusKm.toString(),
-                          city: userCity,
-                        },
-                      })
-                    }
-                    style={styles.viewAllButton}
-                  >
-                    <Text style={styles.viewAllText}>View All</Text>
-                  </Pressable>
+            <View style={styles.nearYouSection}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderLeft}>
+                  <Feather name="map-pin" size={16} color={Colors.primary} />
+                  <Text style={styles.sectionTitle}>Near You</Text>
                 </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.nearYouScroll}
-                  contentContainerStyle={styles.horizontalResultsContent}
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/home-section-list',
+                      params: {
+                        section: 'nearby',
+                        lat: userLat?.toString() || '',
+                        lon: userLon?.toString() || '',
+                        radius: selectedSearchRadiusKm.toString(),
+                        city: userCity,
+                      },
+                    })
+                  }
+                  style={styles.viewAllButton}
                 >
-                  {nearYouListings.map((item) =>
-                    (() => {
-                      const basePrice = Number(item.price) || 0;
-                      const parsedOfferPrice = Number(item.offerPrice);
-                      const hasValidOfferPrice =
-                        Number.isFinite(parsedOfferPrice) &&
-                        parsedOfferPrice > 0 &&
-                        parsedOfferPrice < basePrice;
-                      const displayPrice = hasValidOfferPrice ? parsedOfferPrice : basePrice;
-
-                      return (
-                        <Pressable
-                          key={item.id}
-                          onPress={() =>
-                            router.push({ pathname: '/listing/[id]', params: { id: item.id } })
-                          }
-                          style={[styles.featuredCard, { width: alignedResultCardWidth }]}
-                        >
-                          <Image
-                            source={{ uri: item.images[0] }}
-                            style={styles.cardImage}
-                            contentFit="cover"
-                          />
-                          <Text style={styles.cardTitle} numberOfLines={2}>
-                            {item.title}
-                          </Text>
-                          <View style={styles.cardPriceRow}>
-                            <Text style={styles.cardPrice}>
-                              ₹{displayPrice.toLocaleString('en-IN')}
-                            </Text>
-                            {hasValidOfferPrice ? (
-                              <Text style={styles.cardOriginalPrice}>
-                                ₹{basePrice.toLocaleString('en-IN')}
-                              </Text>
-                            ) : null}
-                          </View>
-                          <Text style={styles.cardDistance}>
-                            {userLat && userLon
-                              ? Math.round(
-                                  calculateDistance(
-                                    userLat,
-                                    userLon,
-                                    item.location.latitude,
-                                    item.location.longitude
-                                  )
-                                )
-                              : '?'}{' '}
-                            km away
-                          </Text>
-                        </Pressable>
-                      );
-                    })()
-                  )}
-                </ScrollView>
+                  <Text style={styles.viewAllText}>View All</Text>
+                </Pressable>
               </View>
-            )}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.nearYouScroll}
+                contentContainerStyle={styles.horizontalResultsContent}
+              >
+                {nearYouListings.length > 0
+                  ? nearYouListings.map((item) => renderCompactRailCard(item, { showDistance: true }))
+                  : renderEmptyRailState('No nearby listings yet for this location.')}
+              </ScrollView>
+            </View>
+
+            <View style={styles.featuredSection}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderLeft}>
+                  <Feather name="coffee" size={16} color={Colors.primary} />
+                  <Text style={styles.sectionTitle}>Restaurant Deals</Text>
+                </View>
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/home-section-list',
+                      params: {
+                        section: 'restaurantDeals',
+                        lat: userLat?.toString() || '',
+                        lon: userLon?.toString() || '',
+                        radius: selectedSearchRadiusKm.toString(),
+                        city: userCity,
+                      },
+                    })
+                  }
+                  style={styles.viewAllButton}
+                >
+                  <Text style={styles.viewAllText}>View All</Text>
+                </Pressable>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.featuredScroll}
+                contentContainerStyle={styles.horizontalResultsContent}
+              >
+                {restaurantDeals.length > 0
+                  ? restaurantDeals.map((item) =>
+                      renderCompactRailCard(item, { showDistance: true, badgeLabel: 'Dining' })
+                    )
+                  : renderEmptyRailState('Food offers will appear here when sellers add them.')}
+              </ScrollView>
+            </View>
+
+            <View style={styles.featuredSection}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderLeft}>
+                  <Feather name="package" size={16} color={Colors.primary} />
+                  <Text style={styles.sectionTitle}>New Product Deals</Text>
+                </View>
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/home-section-list',
+                      params: {
+                        section: 'newProductDeals',
+                        lat: userLat?.toString() || '',
+                        lon: userLon?.toString() || '',
+                        radius: selectedSearchRadiusKm.toString(),
+                        city: userCity,
+                      },
+                    })
+                  }
+                  style={styles.viewAllButton}
+                >
+                  <Text style={styles.viewAllText}>View All</Text>
+                </Pressable>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.featuredScroll}
+                contentContainerStyle={styles.horizontalResultsContent}
+              >
+                {newProductDeals.length > 0
+                  ? newProductDeals.map((item) =>
+                      renderCompactRailCard(item, { showDistance: true, badgeLabel: 'Brand New' })
+                    )
+                  : renderEmptyRailState('Fresh product discounts will be listed here.')}
+              </ScrollView>
+            </View>
 
             {/* Featured Deals Section */}
-            {boostedListings.length > 0 && (
-              <View style={styles.featuredSection}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionHeaderLeft}>
-                    <Feather name="star" size={16} color={Colors.primary} />
-                    <Text style={styles.sectionTitle}>Featured Deals</Text>
-                  </View>
-                  <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: '/home-section-list',
-                        params: {
-                          section: 'featured',
-                          lat: userLat?.toString() || '',
-                          lon: userLon?.toString() || '',
-                          radius: selectedSearchRadiusKm.toString(),
-                          city: userCity,
-                        },
-                      })
-                    }
-                    style={styles.viewAllButton}
-                  >
-                    <Text style={styles.viewAllText}>View All</Text>
-                  </Pressable>
+            <View style={styles.featuredSection}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderLeft}>
+                  <Feather name="star" size={16} color={Colors.primary} />
+                  <Text style={styles.sectionTitle}>Featured Deals</Text>
                 </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.featuredScroll}
-                  contentContainerStyle={styles.horizontalResultsContent}
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/home-section-list',
+                      params: {
+                        section: 'featured',
+                        lat: userLat?.toString() || '',
+                        lon: userLon?.toString() || '',
+                        radius: selectedSearchRadiusKm.toString(),
+                        city: userCity,
+                      },
+                    })
+                  }
+                  style={styles.viewAllButton}
                 >
-                  {boostedListings.map((item) =>
-                    (() => {
-                      const basePrice = Number(item.price) || 0;
-                      const parsedOfferPrice = Number(item.offerPrice);
-                      const hasValidOfferPrice =
-                        Number.isFinite(parsedOfferPrice) &&
-                        parsedOfferPrice > 0 &&
-                        parsedOfferPrice < basePrice;
-                      const displayPrice = hasValidOfferPrice ? parsedOfferPrice : basePrice;
-
-                      return (
-                        <Pressable
-                          key={item.id}
-                          onPress={() =>
-                            router.push({ pathname: '/listing/[id]', params: { id: item.id } })
-                          }
-                          style={[styles.featuredCard, { width: alignedResultCardWidth }]}
-                        >
-                          <Image
-                            source={{ uri: item.images[0] }}
-                            style={styles.cardImage}
-                            contentFit="cover"
-                          />
-                          <Text style={styles.cardTitle} numberOfLines={2}>
-                            {item.title}
-                          </Text>
-                          <View style={styles.cardPriceRow}>
-                            <Text style={styles.cardPrice}>
-                              ₹{displayPrice.toLocaleString('en-IN')}
-                            </Text>
-                            {hasValidOfferPrice ? (
-                              <Text style={styles.cardOriginalPrice}>
-                                ₹{basePrice.toLocaleString('en-IN')}
-                              </Text>
-                            ) : null}
-                          </View>
-                          <View style={styles.cardBadgeStack}>
-                            {Boolean(item.sellerVerified) ? (
-                              <View style={[styles.cardBadge, styles.verifiedBadge]}>
-                                <Feather name="check-circle" size={10} color="#FFFFFF" />
-                              </View>
-                            ) : null}
-                            <View style={styles.cardBadge}>
-                              <Ionicons name="rocket" size={10} color="#FFFFFF" />
-                            </View>
-                          </View>
-                        </Pressable>
-                      );
-                    })()
-                  )}
-                </ScrollView>
+                  <Text style={styles.viewAllText}>View All</Text>
+                </Pressable>
               </View>
-            )}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.featuredScroll}
+                contentContainerStyle={styles.horizontalResultsContent}
+              >
+                {boostedListings.length > 0
+                  ? boostedListings.map((item) =>
+                      renderCompactRailCard(item, { showFeaturedBadge: true })
+                    )
+                  : renderEmptyRailState('Boosted and promoted listings will appear here.')}
+              </ScrollView>
+            </View>
 
             <View style={styles.allListingsSectionHeader}>
               <View style={styles.sectionHeaderCompact}>
@@ -1245,7 +1312,7 @@ const styles = createResponsiveStyles({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
+    paddingHorizontal: HOME_HORIZONTAL_INSET,
     marginBottom: 4,
   },
   sectionHeaderLeft: {
@@ -1273,6 +1340,20 @@ const styles = createResponsiveStyles({
   cardImage: {
     width: '100%',
     height: 100,
+  },
+  cardLabelBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(15, 23, 42, 0.78)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  cardLabelBadgeText: {
+    fontSize: 9,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#FFFFFF',
   },
   cardTitle: {
     fontSize: 11,
@@ -1323,6 +1404,28 @@ const styles = createResponsiveStyles({
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
+  emptyRailCard: {
+    width: SCREEN_WIDTH - HOME_HORIZONTAL_INSET * 2,
+    minHeight: 96,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 6,
+    justifyContent: 'center',
+  },
+  emptyRailTitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.text,
+  },
+  emptyRailText: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
   cardBadgeStack: {
     position: 'absolute',
     top: 8,
@@ -1348,26 +1451,27 @@ const styles = createResponsiveStyles({
   sectionHeaderCompact: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: HOME_HORIZONTAL_INSET,
     marginBottom: 2,
   },
   allListingsSectionSubtitle: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
-    paddingHorizontal: 16,
+    paddingHorizontal: HOME_HORIZONTAL_INSET,
     marginTop: -2,
   },
   listContent: {
-    paddingHorizontal: 12,
+    paddingHorizontal: HOME_HORIZONTAL_INSET,
     paddingVertical: 4,
   },
   horizontalResultsContent: {
-    paddingHorizontal: 12,
-    gap: 3,
+    paddingHorizontal: HOME_HORIZONTAL_INSET,
+    gap: HOME_RAIL_GAP,
   },
   row: {
-    gap: 3,
+    paddingHorizontal: HOME_HORIZONTAL_INSET,
+    justifyContent: 'space-between',
   },
   leftColumn: {
     flexBasis: '49%',

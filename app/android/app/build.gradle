@@ -1,9 +1,43 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
-apply plugin: "com.google.gms.google-services"
+
+import groovy.json.JsonSlurper
+import org.gradle.api.GradleException
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
+def appRoot = rootDir.getAbsoluteFile().getParentFile()
+def envOrProp = { String name, String fallback = null ->
+    def envValue = System.getenv(name)
+    if (envValue != null && !envValue.isBlank()) {
+        return envValue
+    }
+
+    def propValue = findProperty(name)
+    if (propValue != null && !propValue.toString().isBlank()) {
+        return propValue.toString()
+    }
+
+    return fallback
+}
+
+def releaseCredentialsFile = new File(appRoot, "credentials.json")
+def releaseCredentials = null
+if (releaseCredentialsFile.exists()) {
+    releaseCredentials = new JsonSlurper().parse(releaseCredentialsFile)?.android?.keystore
+}
+
+def releaseStoreFilePath = envOrProp(
+    "ANDROID_KEYSTORE_PATH",
+    releaseCredentials?.keystorePath ? new File(appRoot, releaseCredentials.keystorePath.toString()).absolutePath : null
+)
+def releaseStorePassword = envOrProp("ANDROID_KEYSTORE_PASSWORD", releaseCredentials?.keystorePassword?.toString())
+def releaseKeyAlias = envOrProp("ANDROID_KEY_ALIAS", releaseCredentials?.keyAlias?.toString())
+def releaseKeyPassword = envOrProp("ANDROID_KEY_PASSWORD", releaseCredentials?.keyPassword?.toString())
+def allowDebugReleaseSigning = envOrProp("ALLOW_DEBUG_RELEASE_SIGNING", "false").toBoolean()
+def configuredVersionCode = envOrProp("VERSION_CODE", "1").toInteger()
+def configuredVersionName = envOrProp("VERSION_NAME", "1.0.0")
+def configuredMinSdkVersion = envOrProp("MIN_SDK_VERSION", rootProject.ext.minSdkVersion.toString()).toInteger()
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -33,8 +67,7 @@ react {
     //   The list of variants to that are debuggable. For those we're going to
     //   skip the bundling of the JS bundle and the assets. By default is just 'debug'.
     //   If you add flavors like lite, prod, etc. you'll have to list your debuggableVariants.
-    // Bundle JS in debug too so APK can run on device without a live Metro server.
-    debuggableVariants = []
+    // debuggableVariants = ["liteDebug", "prodDebug"]
 
     /* Bundling */
     //   A list containing the node command and its flags. Default is just 'node'.
@@ -68,9 +101,7 @@ react {
 /**
  * Set this to true in release builds to optimize the app using [R8](https://developer.android.com/topic/performance/app-optimization/enable-app-optimization).
  */
-def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: System.getenv('ANDROID_ENABLE_MINIFY_IN_RELEASE_BUILDS') ?: true).toBoolean()
-def releaseArtifactVersionCode = (findProperty('VERSION_CODE') ?: System.getenv('VERSION_CODE') ?: "4").toInteger()
-def releaseArtifactVersionName = (findProperty('VERSION_NAME') ?: System.getenv('VERSION_NAME') ?: "1.0.1").toString()
+def enableMinifyInReleaseBuilds = envOrProp("ANDROID_ENABLE_MINIFY_IN_RELEASE_BUILDS", findProperty('android.enableMinifyInReleaseBuilds') ?: 'false').toBoolean()
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -94,21 +125,13 @@ android {
     namespace 'com.synvide.nearhub'
     defaultConfig {
         applicationId 'com.synvide.nearhub'
-        def configuredMinSdkVersion = (findProperty('MIN_SDK_VERSION') ?: System.getenv('MIN_SDK_VERSION') ?: "24").toInteger()
         minSdkVersion configuredMinSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode releaseArtifactVersionCode
-        versionName releaseArtifactVersionName
+        versionCode configuredVersionCode
+        versionName configuredVersionName
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
-
-    def releaseStoreFile = findProperty('NEARHUB_UPLOAD_STORE_FILE') ?: System.getenv('NEARHUB_UPLOAD_STORE_FILE')
-    def releaseStorePassword = findProperty('NEARHUB_UPLOAD_STORE_PASSWORD') ?: System.getenv('NEARHUB_UPLOAD_STORE_PASSWORD')
-    def releaseKeyAlias = findProperty('NEARHUB_UPLOAD_KEY_ALIAS') ?: System.getenv('NEARHUB_UPLOAD_KEY_ALIAS')
-    def releaseKeyPassword = findProperty('NEARHUB_UPLOAD_KEY_PASSWORD') ?: System.getenv('NEARHUB_UPLOAD_KEY_PASSWORD')
-    def hasReleaseSigning = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
-
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -116,9 +139,9 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
-        if (hasReleaseSigning) {
+        if (releaseStoreFilePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword) {
             release {
-                storeFile file(releaseStoreFile)
+                storeFile file(releaseStoreFilePath)
                 storePassword releaseStorePassword
                 keyAlias releaseKeyAlias
                 keyPassword releaseKeyPassword
@@ -130,18 +153,12 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            def allowDebugReleaseSigning = (findProperty('ALLOW_DEBUG_RELEASE_SIGNING') ?: System.getenv('ALLOW_DEBUG_RELEASE_SIGNING') ?: 'false').toBoolean()
-            def requestedTasks = gradle.startParameter.taskNames.collect { it.toLowerCase(Locale.ROOT) }
-            def isReleaseBuildRequested = requestedTasks.any { it.contains('release') || it.contains('bundle') || it.contains('publish') }
-            if (hasReleaseSigning) {
+            if (signingConfigs.findByName("release") != null) {
                 signingConfig signingConfigs.release
             } else if (allowDebugReleaseSigning) {
                 signingConfig signingConfigs.debug
-            } else if (!isReleaseBuildRequested) {
-                // Allow debug-only workflows (expo run:android / assembleDebug) without upload keys.
-                signingConfig signingConfigs.debug
             } else {
-                throw new GradleException("Release signing is not configured. Set NEARHUB_UPLOAD_* properties (or use EAS local build) to avoid debug-signed release bundles.")
+                throw new GradleException("Release signing is not configured. Provide Android keystore credentials or set ALLOW_DEBUG_RELEASE_SIGNING=true.")
             }
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
@@ -159,43 +176,6 @@ android {
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
-    }
-}
-
-tasks.register("copyReleaseBundleToAppRoot") {
-    doLast {
-        def sourceAab = file("$buildDir/outputs/bundle/release/app-release.aab")
-        if (!sourceAab.exists()) {
-            println "Release AAB not found at ${sourceAab}; skipping normalized artifact copy."
-            return
-        }
-
-        def safeVersionName = releaseArtifactVersionName.replaceAll(/[^0-9A-Za-z._-]/, "_")
-        def artifactBase = "build-${safeVersionName}-${releaseArtifactVersionCode}"
-        def targetAabName = "${artifactBase}.aab"
-        copy {
-            from sourceAab
-            into projectRoot
-            rename { targetAabName }
-        }
-        println "Copied release AAB to ${projectRoot}/${targetAabName}"
-
-        def mappingFile = file("$buildDir/outputs/mapping/release/mapping.txt")
-        if (mappingFile.exists()) {
-            def targetMappingName = "${artifactBase}-mapping.txt"
-            copy {
-                from mappingFile
-                into projectRoot
-                rename { targetMappingName }
-            }
-            println "Copied release mapping to ${projectRoot}/${targetMappingName}"
-        }
-    }
-}
-
-afterEvaluate {
-    tasks.matching { it.name == "bundleRelease" }.configureEach {
-        finalizedBy("copyReleaseBundleToAppRoot")
     }
 }
 
@@ -247,3 +227,5 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+apply plugin: 'com.google.gms.google-services'

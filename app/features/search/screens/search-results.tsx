@@ -16,6 +16,7 @@ import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useUserInterests } from '@/shared/contexts/user-interests-context';
+import { isProductCategory, matchesProductState, type ProductStateFilter } from '@/lib/deals';
 import {
   rankListingsByPersonalization,
   hasEnoughDataForPersonalization,
@@ -61,6 +62,7 @@ export default function SearchResultsScreen() {
 
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>(initialCategory);
   const [searchQuery, setSearchQuery] = useState(Array.isArray(query) ? query[0] : query || '');
+  const [productStateFilter, setProductStateFilter] = useState<ProductStateFilter>('all');
 
   const userLat = lat ? parseFloat(Array.isArray(lat) ? lat[0] : lat) : null;
   const userLon = lon ? parseFloat(Array.isArray(lon) ? lon[0] : lon) : null;
@@ -70,6 +72,7 @@ export default function SearchResultsScreen() {
     : (user?.preferences?.searchRadiusKm ?? geoRadiusKm);
   const hasEnoughData = hasEnoughDataForPersonalization(interests);
   const headerTitle = selectedCategory === 'All' ? 'Search Results' : `${selectedCategory} Results`;
+  const isProductCategorySelected = isProductCategory(selectedCategory);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -84,6 +87,10 @@ export default function SearchResultsScreen() {
     // Filter by category
     if (selectedCategory !== 'All') {
       results = results.filter((item) => item.category === selectedCategory);
+    }
+
+    if (isProductCategorySelected) {
+      results = results.filter((item) => matchesProductState(item, productStateFilter));
     }
 
     // Filter by search query
@@ -145,6 +152,8 @@ export default function SearchResultsScreen() {
     userLat,
     userLon,
     effectiveRadiusKm,
+    isProductCategorySelected,
+    productStateFilter,
   ]);
 
   const gridData = useMemo(() => {
@@ -282,7 +291,12 @@ export default function SearchResultsScreen() {
                 <CategoryPill
                   category={cat === 'All' ? 'All' : (cat as any)}
                   isSelected={selectedCategory === cat}
-                  onPress={() => setSelectedCategory(cat as any)}
+                  onPress={() => {
+                    setSelectedCategory(cat as any);
+                    if (!isProductCategory(cat)) {
+                      setProductStateFilter('all');
+                    }
+                  }}
                 />
               )}
               keyExtractor={(item) => item}
@@ -291,6 +305,39 @@ export default function SearchResultsScreen() {
               contentContainerStyle={styles.categoriesContainer}
               scrollEnabled
             />
+            {isProductCategorySelected ? (
+              <View style={styles.productFilterSection}>
+                <Text style={styles.productFilterLabel}>Product Type</Text>
+                <View style={styles.productFilterRow}>
+                  {[
+                    ['all', 'All'],
+                    ['brand_new', 'Brand New'],
+                    ['resale', 'Resale'],
+                  ].map(([value, label]) => {
+                    const isActive = productStateFilter === value;
+                    return (
+                      <Pressable
+                        key={value}
+                        style={[
+                          styles.productFilterChip,
+                          isActive && styles.productFilterChipActive,
+                        ]}
+                        onPress={() => setProductStateFilter(value as ProductStateFilter)}
+                      >
+                        <Text
+                          style={[
+                            styles.productFilterChipText,
+                            isActive && styles.productFilterChipTextActive,
+                          ]}
+                        >
+                          {label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
           </>
         }
         ListEmptyComponent={
@@ -376,6 +423,41 @@ const styles = createResponsiveStyles({
     paddingHorizontal: 16,
     paddingBottom: 12,
     gap: 8,
+  },
+  productFilterSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  productFilterLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textSecondary,
+    marginBottom: 8,
+  },
+  productFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  productFilterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  productFilterChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(10, 102, 194, 0.08)',
+  },
+  productFilterChipText: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textSecondary,
+  },
+  productFilterChipTextActive: {
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.primary,
   },
   listContent: {
     paddingHorizontal: 8,

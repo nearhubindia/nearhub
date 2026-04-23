@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.synvide.nearhub",
+      "sha256_cert_fingerprints": [
+        "A0:71:D7:3B:09:ED:58:4C:CB:A4:5B:26:D1:7B:E4:E1:86:8C:AD:85:74:AF:A0:39:40:4A:5C:61:5A:1F:7E:D2"
+      ]
+    }
+  }
+]

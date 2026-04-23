@@ -35,6 +35,16 @@ function coerceMediaToArray(value: unknown): unknown {
 export async function createListing(data: InsertListing): Promise<Listing> {
   // Validate schema
   const validated = insertListingSchema.parse(data);
+  const normalizedSubCategory =
+    typeof validated.subCategory === 'string' && validated.subCategory.trim()
+      ? validated.subCategory.trim()
+      : typeof validated.category === 'string' && validated.category.trim()
+        ? validated.category.trim()
+        : '';
+  const normalizedMainCategory =
+    typeof validated.mainCategory === 'string' && validated.mainCategory.trim()
+      ? validated.mainCategory.trim()
+      : normalizedSubCategory || null;
 
   // Keep both representations to support mixed schemas in production:
   // some DBs store media as text (JSON string), others as text[].
@@ -55,6 +65,9 @@ export async function createListing(data: InsertListing): Promise<Listing> {
   const insertValues = (imagesValue: unknown, videosValue: unknown) =>
     ({
       ...validated,
+      mainCategory: normalizedMainCategory,
+      subCategory: normalizedSubCategory || null,
+      category: normalizedSubCategory || validated.category,
       images: imagesValue,
       videos: videosValue,
       expiresAt,
@@ -102,13 +115,25 @@ export async function getActiveListing(
     limit?: number;
     offset?: number;
     category?: string;
+    mainCategory?: string;
+    subCategory?: string;
     ownerId?: string;
     latitude?: number;
     longitude?: number;
     radiusKm?: number;
   } = {}
 ): Promise<Listing[]> {
-  const { limit = 50, offset = 0, category, ownerId, latitude, longitude, radiusKm } = opts;
+  const {
+    limit = 50,
+    offset = 0,
+    category,
+    mainCategory,
+    subCategory,
+    ownerId,
+    latitude,
+    longitude,
+    radiusKm,
+  } = opts;
 
   const conditions = [
     eq(listings.isActive, true),
@@ -118,6 +143,12 @@ export async function getActiveListing(
 
   if (category) {
     conditions.push(eq(listings.category, category));
+  }
+  if (mainCategory) {
+    conditions.push(eq(listings.mainCategory, mainCategory));
+  }
+  if (subCategory) {
+    conditions.push(eq(listings.subCategory, subCategory));
   }
 
   if (ownerId) {
@@ -235,7 +266,35 @@ export async function updateListing(
   id: string,
   updates: Partial<InsertListing>
 ): Promise<Listing | null> {
-  const normalizedUpdates = { ...updates };
+  const normalizedUpdates = { ...updates } as Partial<InsertListing> & {
+    subcategory?: string;
+  };
+  const normalizedSubCategory =
+    typeof normalizedUpdates.subCategory === 'string' && normalizedUpdates.subCategory.trim()
+      ? normalizedUpdates.subCategory.trim()
+      : typeof normalizedUpdates.subcategory === 'string' && normalizedUpdates.subcategory.trim()
+        ? normalizedUpdates.subcategory.trim()
+        : typeof normalizedUpdates.category === 'string' && normalizedUpdates.category.trim()
+          ? normalizedUpdates.category.trim()
+          : '';
+  if (normalizedSubCategory) {
+    normalizedUpdates.subCategory = normalizedSubCategory;
+    normalizedUpdates.category = normalizedSubCategory;
+  }
+  if (
+    typeof normalizedUpdates.mainCategory === 'string' &&
+    !normalizedUpdates.mainCategory.trim()
+  ) {
+    normalizedUpdates.mainCategory = undefined;
+  }
+  if (
+    !normalizedUpdates.mainCategory &&
+    normalizedSubCategory &&
+    typeof normalizedSubCategory === 'string'
+  ) {
+    normalizedUpdates.mainCategory = normalizedSubCategory;
+  }
+  delete normalizedUpdates.subcategory;
 
   if (normalizedUpdates.status === 'sold') {
     normalizedUpdates.isActive = false;

@@ -10,6 +10,35 @@ function normalizeBaseUrl(value: string): string {
   return withProtocol.replace(/\/+$/, '');
 }
 
+function getHostname(value: string): string {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function isLocalhostHost(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '[::1]'
+  );
+}
+
+function isDevRuntime(): boolean {
+  if (typeof __DEV__ !== 'undefined') {
+    return __DEV__;
+  }
+  return process.env.NODE_ENV !== 'production';
+}
+
+function shouldIgnoreForProduction(url: string): boolean {
+  const host = getHostname(url);
+  return !isDevRuntime() && isLocalhostHost(host);
+}
+
 function isValidBackendUrl(value: string): boolean {
   try {
     const parsed = new URL(value);
@@ -32,6 +61,11 @@ export function getBackendURL(): string {
       if (getDebug()) {
         console.warn('[Config] Ignoring invalid EXPO_PUBLIC_API_URL:', envApiUrl);
       }
+    } else if (shouldIgnoreForProduction(normalized)) {
+      console.warn(
+        '[Config] Ignoring localhost EXPO_PUBLIC_API_URL in production build:',
+        normalized
+      );
     } else {
       if (getDebug()) {
         console.log('[Config] Using EXPO_PUBLIC_API_URL:', normalized);
@@ -51,6 +85,8 @@ export function getBackendURL(): string {
       if (getDebug()) {
         console.warn('[Config] Ignoring invalid EXPO_PUBLIC_DOMAIN:', envDomain);
       }
+    } else if (shouldIgnoreForProduction(url)) {
+      console.warn('[Config] Ignoring localhost EXPO_PUBLIC_DOMAIN in production build:', url);
     } else {
       if (getDebug()) {
         console.log('[Config] Using EXPO_PUBLIC_DOMAIN:', url);

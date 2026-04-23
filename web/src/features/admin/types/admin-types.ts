@@ -25,6 +25,8 @@ export interface Listing {
   date: string;
   description?: string;
   condition?: string;
+  mainCategory?: string | null;
+  subCategory?: string | null;
   category?: string;
   location?: string;
   pincode?: string | null;

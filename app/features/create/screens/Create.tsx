@@ -39,6 +39,13 @@ import {
   recommendCompressionForS3,
   compressVideoForS3,
 } from '@/lib/video-compressor-s3';
+import {
+  getCategoryGroupsForListingType,
+  getDefaultCategoryForListingType,
+  getDefaultMainCategoryForListingType,
+  getMainCategoryForSubcategory,
+  MainCategory,
+} from '@/lib/listing-taxonomy';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 import {
   toPortableImageUri,
@@ -71,28 +78,6 @@ interface UploadProgressState {
   isComplete: boolean;
 }
 
-const JOB_CATEGORIES: Category[] = [
-  'Jobs',
-  'Freelance',
-  'Services',
-  'Business',
-  'Education',
-  'Health',
-  'Other',
-];
-
-const SERVICE_CATEGORIES: Category[] = [
-  'Services',
-  'Freelance',
-  'Home & Garden',
-  'Education',
-  'Health',
-  'Business',
-  'Events',
-  'Food',
-  'Other',
-];
-
 export default function CreateScreen() {
   const insets = useSafeAreaInsets();
   const { addListing } = useListings();
@@ -106,6 +91,10 @@ export default function CreateScreen() {
   const [category, setCategory] = useState<Category>('Electronics');
   const [condition, setCondition] = useState<'new' | 'like_new' | 'good' | 'fair' | 'poor'>('good');
   const [listingType, setListingType] = useState<'sell' | 'buy' | 'service' | 'job'>('sell');
+  const [mainCategory, setMainCategory] = useState<MainCategory>(
+    getMainCategoryForSubcategory('Electronics', 'sell') ||
+      getDefaultMainCategoryForListingType('sell')
+  );
   const [mediaType, setMediaType] = useState<'photo' | 'video'>('photo');
   const [images, setImages] = useState<string[]>([]);
   const [imageHashes, setImageHashes] = useState<string[]>([]); // SHA256 hashes for deduplication
@@ -244,12 +233,18 @@ export default function CreateScreen() {
     []
   );
 
-  const visibleCategories =
-    listingType === 'job'
-      ? JOB_CATEGORIES
-      : listingType === 'service'
-        ? SERVICE_CATEGORIES
-        : CATEGORIES;
+  const categoryGroups = useMemo(
+    () => getCategoryGroupsForListingType(listingType),
+    [listingType]
+  );
+  const visibleMainCategories = useMemo(
+    () => categoryGroups.map((group) => group.mainCategory),
+    [categoryGroups]
+  );
+  const visibleSubcategories = useMemo(() => {
+    const current = categoryGroups.find((group) => group.mainCategory === mainCategory);
+    return current?.subcategories || categoryGroups[0]?.subcategories || [];
+  }, [categoryGroups, mainCategory]);
 
   const showConditionField = listingType !== 'job';
   const totalSteps = showConditionField ? 9 : 8;
@@ -300,13 +295,26 @@ export default function CreateScreen() {
   );
 
   useEffect(() => {
-    if (listingType === 'job' && !JOB_CATEGORIES.includes(category)) {
-      setCategory('Jobs');
+    if (categoryGroups.length === 0) return;
+
+    const inferredMain = getMainCategoryForSubcategory(category, listingType);
+    const hasCurrentMain = categoryGroups.some((group) => group.mainCategory === mainCategory);
+    const normalizedMain = hasCurrentMain ? mainCategory : inferredMain || categoryGroups[0].mainCategory;
+
+    if (normalizedMain !== mainCategory) {
+      setMainCategory(normalizedMain);
+      return;
     }
-    if (listingType === 'service' && !SERVICE_CATEGORIES.includes(category)) {
-      setCategory('Services');
+
+    const currentGroup =
+      categoryGroups.find((group) => group.mainCategory === normalizedMain) || categoryGroups[0];
+    const fallbackCategory =
+      currentGroup.subcategories[0] || getDefaultCategoryForListingType(listingType);
+
+    if (!currentGroup.subcategories.includes(category) && fallbackCategory !== category) {
+      setCategory(fallbackCategory);
     }
-  }, [listingType, category]);
+  }, [categoryGroups, mainCategory, category, listingType]);
 
   const markLocationAsUserManaged = useCallback(() => {
     hasUserManagedLocationRef.current = true;
@@ -1902,6 +1910,8 @@ export default function CreateScreen() {
           price: Number(price),
           offerPrice: offerPrice ? Number(offerPrice) : undefined,
           priceUnit,
+          mainCategory,
+          subCategory: category,
           category,
           images: listingImages,
           imageHashes: imageHashes.length > 0 ? imageHashes : undefined,
@@ -1915,7 +1925,7 @@ export default function CreateScreen() {
           },
           pincode: pincode || undefined,
           condition,
-          listingType: 'sell' as Listing['listingType'], // default to sell
+          listingType,
           duration, // Pass duration for paid listings
         },
         duration,
@@ -2566,8 +2576,24 @@ export default function CreateScreen() {
               </View>
               <Text style={styles.sectionLabel}>Category</Text>
             </View>
+            <Text style={styles.formSubLabel}>Main Category</Text>
             <View style={styles.chipRow}>
-              {visibleCategories.map((cat) => (
+              {visibleMainCategories.map((main) => (
+                <Pressable
+                  key={main}
+                  style={[styles.chip, mainCategory === main && styles.chipActive]}
+                  onPress={() => setMainCategory(main)}
+                >
+                  <Text style={[styles.chipText, mainCategory === main && styles.chipTextActive]}>
+                    {main}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.formSubLabel}>Subcategory</Text>
+            <View style={styles.chipRow}>
+              {visibleSubcategories.map((cat) => (
                 <Pressable
                   key={cat}
                   style={[styles.chip, category === cat && styles.chipActive]}
@@ -3866,6 +3892,13 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_600SemiBold',
     color: '#0F172A',
     marginBottom: 2,
+  },
+  formSubLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#64748B',
+    marginBottom: 8,
+    marginTop: 8,
   },
   sectionHeaderRow: {
     flexDirection: 'row' as const,

@@ -1,5 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CircleDollarSign, FileText, MapPin, Plus, Sparkles, Tag, X } from 'lucide-react';
+import {
+  ADMIN_CATEGORY_GROUPS,
+  getDefaultAdminMainCategory,
+  getDefaultAdminSubCategory,
+  getMainCategoryForSubCategory,
+  getSubCategoriesForMainCategory,
+} from '@/features/admin/constants/listing-taxonomy';
 import { useCreateListing } from '@/features/admin/hooks';
 import { validators } from '@/features/admin/utils';
 import { getApiUrl } from '@/lib/config';
@@ -10,13 +17,17 @@ interface CreateListingModalProps {
 
 export default function CreateListingModal({ onClose }: CreateListingModalProps) {
   const createListing = useCreateListing();
+  const defaultSubCategory = getDefaultAdminSubCategory();
+  const defaultMainCategory = getMainCategoryForSubCategory(defaultSubCategory);
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     price: '',
     offerPrice: '',
-    category: 'Electronics',
+    mainCategory: defaultMainCategory,
+    subCategory: defaultSubCategory,
+    category: defaultSubCategory,
     condition: 'good',
     location: '',
     pincode: '',
@@ -36,20 +47,14 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
   const [lastAutoFilledPincode, setLastAutoFilledPincode] = useState('');
   const resolveRequestIdRef = useRef(0);
 
-  const categories = [
-    'Electronics',
-    'Vehicles',
-    'Real Estate',
-    'Services',
-    'Jobs',
-    'Fashion',
-    'Home & Garden',
-    'Sports',
-    'Books',
-    'Pets',
-    'Food',
-    'Other',
-  ];
+  const mainCategories = useMemo(
+    () => ADMIN_CATEGORY_GROUPS.map((group) => group.mainCategory),
+    []
+  );
+  const subCategories = useMemo(
+    () => getSubCategoriesForMainCategory(formData.mainCategory),
+    [formData.mainCategory]
+  );
   const conditions = ['new', 'like_new', 'good', 'fair', 'poor'];
 
   const parseCoordinate = (
@@ -210,6 +215,20 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     };
   }, [formData.latitude, formData.longitude, lastAutoFilledLocation, lastAutoFilledPincode]);
 
+  useEffect(() => {
+    if (subCategories.includes(formData.subCategory)) {
+      return;
+    }
+
+    const fallbackSubCategory = subCategories[0] || getDefaultAdminSubCategory();
+    setFormData((prev) => ({
+      ...prev,
+      subCategory: fallbackSubCategory,
+      category: fallbackSubCategory,
+      mainCategory: prev.mainCategory || getDefaultAdminMainCategory(),
+    }));
+  }, [formData.subCategory, subCategories]);
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const files = Array.from(e.target.files || []);
 
@@ -314,7 +333,9 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
         title: formData.title,
         description: formData.description,
         price: Number(formData.price),
-        category: formData.category,
+        mainCategory: formData.mainCategory,
+        subCategory: formData.subCategory,
+        category: formData.subCategory,
         condition: formData.condition,
         location: formData.location,
         contactPhone: String(formData.contactPhone || '').trim(),
@@ -469,16 +490,48 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                   </div>
 
                   <div>
-                    <label className={labelClass}>Category *</label>
+                    <label className={labelClass}>Main Category *</label>
                     <select
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      value={formData.mainCategory}
+                      onChange={(e) => {
+                        const nextMainCategory = e.target.value;
+                        const nextSubCategories = getSubCategoriesForMainCategory(nextMainCategory);
+                        const nextSubCategory = nextSubCategories[0] || getDefaultAdminSubCategory();
+                        setFormData({
+                          ...formData,
+                          mainCategory: nextMainCategory,
+                          subCategory: nextSubCategory,
+                          category: nextSubCategory,
+                        });
+                      }}
                       className={inputClass}
                       required
                     >
-                      {categories.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
+                      {mainCategories.map((main) => (
+                        <option key={main} value={main}>
+                          {main}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Subcategory *</label>
+                    <select
+                      value={formData.subCategory}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          subCategory: e.target.value,
+                          category: e.target.value,
+                        })
+                      }
+                      className={inputClass}
+                      required
+                    >
+                      {subCategories.map((sub) => (
+                        <option key={sub} value={sub}>
+                          {sub}
                         </option>
                       ))}
                     </select>

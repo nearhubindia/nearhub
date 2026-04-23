@@ -572,6 +572,8 @@ export const listings = pgTable('listings', {
   // Listing details
   title: varchar('title', { length: 200 }).notNull(),
   description: text('description'),
+  mainCategory: varchar('main_category', { length: 80 }),
+  subCategory: varchar('sub_category', { length: 80 }),
   category: varchar('category', { length: 50 }).notNull(),
   listingType: varchar('listing_type', { length: 20 }).default('mixed'), // "image" | "video" | "mixed" - for categorization, not pricing
 

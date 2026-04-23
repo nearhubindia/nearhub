@@ -161,8 +161,18 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         }
       );
 
+      if (response.status === 401 || response.status === 403) {
+        // Treat auth failures as a signed-out/expired state for messaging only.
+        // This should not surface as a runtime red-box in development.
+        setThreads([]);
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error(`Failed to fetch message threads: ${response.status}`);
+        const errorBody = await response.text().catch(() => '');
+        throw new Error(
+          `Failed to fetch message threads: ${response.status}${errorBody ? ` - ${errorBody}` : ''}`
+        );
       }
 
       const payload = await response.json();
@@ -191,7 +201,8 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         });
       });
     } catch (error) {
-      console.error('Failed to load message threads:', error);
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`Failed to load message threads: ${message}`);
     } finally {
       setIsLoading(false);
     }

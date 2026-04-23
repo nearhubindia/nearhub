@@ -15,6 +15,8 @@ interface ListingCardProps {
   offerPrice?: number;
   priceUnit?: string;
   image?: string;
+  imageAspectRatio?: number;
+  imageHeight?: number;
   location: string;
   condition: string;
   sellerVerified?: boolean;
@@ -33,6 +35,8 @@ export default function ListingCard({
   offerPrice,
   priceUnit,
   image,
+  imageAspectRatio = 1.1,
+  imageHeight,
   location,
   condition,
   sellerVerified = false,
@@ -64,8 +68,18 @@ export default function ListingCard({
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={onPress}
     >
-      <View style={styles.imageContainer}>
-        <Image source={imageSource} style={styles.image} contentFit="cover" transition={200} />
+      <View
+        style={[
+          styles.imageContainer,
+          imageHeight ? { height: imageHeight } : { aspectRatio: imageAspectRatio },
+        ]}
+      >
+        <Image
+          source={imageSource}
+          style={styles.image}
+          contentFit="cover"
+          transition={200}
+        />
         <Pressable style={styles.saveButton} onPress={onSave} hitSlop={8}>
           <Ionicons
             name={isSaved ? 'heart' : 'heart-outline'}

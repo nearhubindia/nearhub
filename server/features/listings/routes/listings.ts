@@ -399,6 +399,15 @@ export function registerListingRoutes(app: Express) {
       const category = Array.isArray(req.query.category)
         ? (req.query.category[0] as string)
         : (req.query.category as string | undefined);
+      const mainCategory = Array.isArray(req.query.mainCategory)
+        ? (req.query.mainCategory[0] as string)
+        : (req.query.mainCategory as string | undefined);
+      const subCategory = Array.isArray(req.query.subCategory)
+        ? (req.query.subCategory[0] as string)
+        : Array.isArray(req.query.subcategory)
+          ? (req.query.subcategory[0] as string)
+          : ((req.query.subCategory as string | undefined) ||
+              (req.query.subcategory as string | undefined));
       const userId = Array.isArray(req.query.userId)
         ? (req.query.userId[0] as string)
         : (req.query.userId as string | undefined);
@@ -413,6 +422,8 @@ export function registerListingRoutes(app: Express) {
         limit,
         offset,
         category,
+        mainCategory,
+        subCategory,
         ownerId,
         latitude,
         longitude,
@@ -811,6 +822,25 @@ export function registerListingRoutes(app: Express) {
       const restrictedFields = ['id', 'userId', 'createdAt', 'viewCount'];
       const sanitizedUpdates = { ...req.body };
       restrictedFields.forEach((field) => delete sanitizedUpdates[field]);
+      const normalizedSubCategory =
+        typeof sanitizedUpdates.subCategory === 'string' && sanitizedUpdates.subCategory.trim()
+          ? sanitizedUpdates.subCategory.trim()
+          : typeof sanitizedUpdates.subcategory === 'string' && sanitizedUpdates.subcategory.trim()
+            ? sanitizedUpdates.subcategory.trim()
+            : typeof sanitizedUpdates.category === 'string' && sanitizedUpdates.category.trim()
+              ? sanitizedUpdates.category.trim()
+              : '';
+      if (normalizedSubCategory) {
+        sanitizedUpdates.subCategory = normalizedSubCategory;
+        sanitizedUpdates.category = normalizedSubCategory; // keep legacy category in sync
+      }
+      if (
+        typeof sanitizedUpdates.mainCategory === 'string' &&
+        !sanitizedUpdates.mainCategory.trim()
+      ) {
+        delete sanitizedUpdates.mainCategory;
+      }
+      delete sanitizedUpdates.subcategory;
 
       // If a seller edits an already approved listing, route it back to admin review.
       // Status-only actions (e.g. mark sold) should not trigger re-approval.

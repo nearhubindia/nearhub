@@ -21,6 +21,9 @@ export interface CreateListingRequest {
   userId: string;
   title: string;
   description: string;
+  mainCategory?: string;
+  subCategory?: string;
+  subcategory?: string;
   category: string;
   price: number;
   offerPrice?: number;

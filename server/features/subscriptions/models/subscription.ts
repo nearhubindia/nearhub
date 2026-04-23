@@ -13,6 +13,8 @@ export const listings = pgTable('listings', {
   sellerId: varchar('seller_id').notNull(),
   title: text('title').notNull(),
   description: text('description').notNull(),
+  mainCategory: text('main_category'),
+  subCategory: text('sub_category'),
   category: text('category').notNull(),
   price: decimal('price', { precision: 12, scale: 2 }).notNull(),
   offerPrice: decimal('offer_price', { precision: 12, scale: 2 }), // Discounted offer price (must be < price)
