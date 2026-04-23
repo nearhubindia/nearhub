@@ -29,7 +29,8 @@ interface EditListingModalProps {
 
 export default function EditListingModal({ listing, onClose }: EditListingModalProps) {
   const updateListing = useUpdateListing();
-  const initialSubCategory = listing?.subCategory || listing?.category || getDefaultAdminSubCategory();
+  const initialSubCategory =
+    listing?.subCategory || listing?.category || getDefaultAdminSubCategory();
   const initialMainCategory =
     listing?.mainCategory || getMainCategoryForSubCategory(initialSubCategory);
 
@@ -515,7 +516,8 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                       onChange={(e) => {
                         const nextMainCategory = e.target.value;
                         const nextSubCategories = getSubCategoriesForMainCategory(nextMainCategory);
-                        const nextSubCategory = nextSubCategories[0] || getDefaultAdminSubCategory();
+                        const nextSubCategory =
+                          nextSubCategories[0] || getDefaultAdminSubCategory();
                         setFormData({
                           ...formData,
                           mainCategory: nextMainCategory,

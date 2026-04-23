@@ -496,7 +496,8 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                       onChange={(e) => {
                         const nextMainCategory = e.target.value;
                         const nextSubCategories = getSubCategoriesForMainCategory(nextMainCategory);
-                        const nextSubCategory = nextSubCategories[0] || getDefaultAdminSubCategory();
+                        const nextSubCategory =
+                          nextSubCategories[0] || getDefaultAdminSubCategory();
                         setFormData({
                           ...formData,
                           mainCategory: nextMainCategory,
