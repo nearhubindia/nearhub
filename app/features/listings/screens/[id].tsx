@@ -21,6 +21,7 @@ import { useAuth } from '@/shared/contexts/auth-context';
 import { getTimeAgo, formatCondition } from '@/lib/utils';
 import { getBackendURL } from '@/lib/config';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
+import { shareAppDownloadLink } from '@/lib/share-app-link';
 import MediaCarousel from '@/shared/components/MediaCarousel';
 import RichTextPreview from '@/shared/components/RichTextPreview';
 import { createResponsiveStyles } from '@/lib/responsive';
@@ -234,6 +235,12 @@ export default function ListingDetailScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     toggleSaved(id);
   };
+
+  const handleShareApp = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await shareAppDownloadLink();
+  };
+
   const hasValidOfferPrice =
     typeof listing.offerPrice === 'number' &&
     listing.offerPrice > 0 &&
@@ -272,6 +279,17 @@ export default function ListingDetailScreen() {
               size={22}
               color={isSaved ? Colors.accent : '#fff'}
             />
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.headerButton,
+              styles.shareIcon,
+              { top: (insets.top || webTopInset) + 8 },
+            ]}
+            onPress={handleShareApp}
+          >
+            <Feather name="share-2" size={20} color="#fff" />
           </Pressable>
 
           {listing.aiValidated && (
@@ -462,6 +480,9 @@ const styles = createResponsiveStyles({
   },
   saveIcon: {
     right: 16,
+  },
+  shareIcon: {
+    right: 64,
   },
   aiBadge: {
     position: 'absolute',

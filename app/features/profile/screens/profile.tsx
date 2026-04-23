@@ -29,6 +29,7 @@ import { getApiUrl } from '@/lib/query-client';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 import { isValidEmailAddress } from '@/lib/email-utils';
 import { sanitizeAlphabeticName } from '@/lib/name-utils';
+import { shareAppDownloadLink } from '@/lib/share-app-link';
 
 type ProfileStats = {
   totalListings: number;
@@ -283,6 +284,11 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleShareApp = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await shareAppDownloadLink();
+  };
+
   // Sync profile form when user changes (initial load / account switch)
   useEffect(() => {
     if (!user?.id || lastSyncedUserIdRef.current === user.id) {
@@ -353,12 +359,17 @@ export default function ProfileScreen() {
           <Feather name="arrow-left" size={24} color={Colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>My Profile</Text>
-        <View style={styles.saveIndicator}>
-          {saving ? (
-            <Text style={styles.saveIndicatorText}>Saving...</Text>
-          ) : hasUnsavedChanges ? (
-            <Text style={styles.saveIndicatorTextWarning}>Unsaved</Text>
-          ) : null}
+        <View style={styles.headerRight}>
+          <View style={styles.saveIndicator}>
+            {saving ? (
+              <Text style={styles.saveIndicatorText}>Saving...</Text>
+            ) : hasUnsavedChanges ? (
+              <Text style={styles.saveIndicatorTextWarning}>Unsaved</Text>
+            ) : null}
+          </View>
+          <Pressable style={styles.shareButton} hitSlop={8} onPress={handleShareApp}>
+            <Feather name="share-2" size={18} color={Colors.text} />
+          </Pressable>
         </View>
       </View>
 
@@ -583,9 +594,24 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     color: Colors.text,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   saveIndicator: {
     minWidth: 72,
     alignItems: 'flex-end',
+  },
+  shareButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   saveIndicatorText: {
     fontSize: 14,

@@ -104,6 +104,21 @@ export function getBackendURL(): string {
   return fallback;
 }
 
+export function getAppDownloadUrl(): string {
+  const envDownloadUrl = String(process.env.EXPO_PUBLIC_APP_DOWNLOAD_URL || '').trim();
+
+  if (envDownloadUrl) {
+    if (isValidBackendUrl(envDownloadUrl)) {
+      return envDownloadUrl;
+    }
+    if (getDebug()) {
+      console.warn('[Config] Ignoring invalid EXPO_PUBLIC_APP_DOWNLOAD_URL:', envDownloadUrl);
+    }
+  }
+
+  return 'https://play.google.com/store/apps/details?id=com.synvide.nearhub&pcampaignid=web_share';
+}
+
 export function getDebug(): boolean {
   return process.env.EXPO_PUBLIC_DEBUG === 'true';
 }
