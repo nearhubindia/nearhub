@@ -606,7 +606,8 @@ export function registerAdminListingsRoutes(app: Express) {
         updateData.subCategory = normalizedCategory.subCategory;
         updateData.category = normalizedCategory.category || normalizedCategory.subCategory;
         if (mainCategory === undefined) {
-          updateData.mainCategory = normalizedCategory.mainCategory || normalizedCategory.subCategory;
+          updateData.mainCategory =
+            normalizedCategory.mainCategory || normalizedCategory.subCategory;
         }
       }
       if (mainCategory !== undefined) {

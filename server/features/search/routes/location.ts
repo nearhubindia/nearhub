@@ -432,7 +432,7 @@ function extractPlaceNameFromMapsUrl(url: string): string | null {
   try {
     const parsed = new URL(url);
     const pathname = parsed.pathname;
-    
+
     // Check if this is a place URL: /maps/place/{place-name}
     const placeMatch = pathname.match(/\/maps\/place\/([^/]+)/i);
     if (placeMatch?.[1]) {
@@ -440,16 +440,16 @@ function extractPlaceNameFromMapsUrl(url: string): string | null {
       let placeName = decodeURIComponent(placeMatch[1]);
       // Replace + with space and clean up
       placeName = placeName.replace(/\+/g, ' ').trim();
-      
+
       // Extract location components from Google Places format
       // Pattern: "PlaceName, ...address..., City, State Pincode"
       // Try to extract pincode first (6-digit number at the end)
       const pincodeMatch = placeName.match(/(\d{6})/);
       const pincode = pincodeMatch?.[1];
-      
+
       // Extract state and city (usually after comma and before pincode)
       const parts = placeName.split(',').map((p) => p.trim());
-      
+
       // Look for city and state (usually the last meaningful parts before pincode)
       let searchQuery = '';
       if (pincode) {
@@ -467,7 +467,7 @@ function extractPlaceNameFromMapsUrl(url: string): string | null {
           searchQuery = meaningfulParts.slice(-2).join(', ');
         }
       }
-      
+
       if (searchQuery.length > 0) {
         console.log(`[Location] Extracted search query from place name: "${searchQuery}"`);
         return searchQuery;
@@ -484,7 +484,7 @@ async function tryCoordinatesFromPlaceName(placeName: string): Promise<ParsedCoo
     if (!placeName || placeName.length < 2) {
       return null;
     }
-    
+
     // Search for the place in the location index
     const records = await searchLocationRecords(placeName, 5);
     if (records && records.length > 0) {

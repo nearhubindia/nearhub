@@ -406,8 +406,8 @@ export function registerListingRoutes(app: Express) {
         ? (req.query.subCategory[0] as string)
         : Array.isArray(req.query.subcategory)
           ? (req.query.subcategory[0] as string)
-          : ((req.query.subCategory as string | undefined) ||
-              (req.query.subcategory as string | undefined));
+          : (req.query.subCategory as string | undefined) ||
+            (req.query.subcategory as string | undefined);
       const userId = Array.isArray(req.query.userId)
         ? (req.query.userId[0] as string)
         : (req.query.userId as string | undefined);
