@@ -79,8 +79,10 @@ export default function EditListingScreen() {
   );
   const [category, setCategory] = useState<Category>(listing?.category || 'Electronics');
   const [mainCategory, setMainCategory] = useState<MainCategory>(
-    getMainCategoryForSubcategory(listing?.category || 'Electronics', listing?.listingType || 'sell') ||
-      getDefaultMainCategoryForListingType(listing?.listingType || 'sell')
+    getMainCategoryForSubcategory(
+      listing?.category || 'Electronics',
+      listing?.listingType || 'sell'
+    ) || getDefaultMainCategoryForListingType(listing?.listingType || 'sell')
   );
   const [condition, setCondition] = useState<'new' | 'like_new' | 'good' | 'fair' | 'poor'>(
     listing?.condition || 'good'
@@ -123,10 +125,7 @@ export default function EditListingScreen() {
   const [showPriceUnitPicker, setShowPriceUnitPicker] = useState(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
-  const categoryGroups = useMemo(
-    () => getCategoryGroupsForListingType(listingType),
-    [listingType]
-  );
+  const categoryGroups = useMemo(() => getCategoryGroupsForListingType(listingType), [listingType]);
   const visibleMainCategories = useMemo(
     () => categoryGroups.map((group) => group.mainCategory),
     [categoryGroups]
@@ -161,7 +160,9 @@ export default function EditListingScreen() {
 
     const inferredMain = getMainCategoryForSubcategory(category, listingType);
     const hasCurrentMain = categoryGroups.some((group) => group.mainCategory === mainCategory);
-    const normalizedMain = hasCurrentMain ? mainCategory : inferredMain || categoryGroups[0].mainCategory;
+    const normalizedMain = hasCurrentMain
+      ? mainCategory
+      : inferredMain || categoryGroups[0].mainCategory;
 
     if (normalizedMain !== mainCategory) {
       setMainCategory(normalizedMain);

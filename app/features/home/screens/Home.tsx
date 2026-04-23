@@ -27,11 +27,7 @@ import { getTabOverlayContentPadding } from '@/constants/layout';
 import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useUserInterests } from '@/shared/contexts/user-interests-context';
-import {
-  hasValidOfferPrice,
-  isNewProductDeal,
-  isRestaurantDeal,
-} from '@/lib/deals';
+import { hasValidOfferPrice, isNewProductDeal, isRestaurantDeal } from '@/lib/deals';
 import { calculateDistance } from '@/lib/location-data';
 import { Category } from '@/lib/types';
 import { formatCondition } from '@/lib/utils';
@@ -559,7 +555,12 @@ export default function HomeScreen() {
             <Text style={styles.cardDistance}>
               {userLat && userLon
                 ? Math.round(
-                    calculateDistance(userLat, userLon, item.location.latitude, item.location.longitude)
+                    calculateDistance(
+                      userLat,
+                      userLon,
+                      item.location.latitude,
+                      item.location.longitude
+                    )
                   )
                 : '?'}{' '}
               km away
@@ -705,7 +706,9 @@ export default function HomeScreen() {
                 contentContainerStyle={styles.horizontalResultsContent}
               >
                 {nearYouListings.length > 0
-                  ? nearYouListings.map((item) => renderCompactRailCard(item, { showDistance: true }))
+                  ? nearYouListings.map((item) =>
+                      renderCompactRailCard(item, { showDistance: true })
+                    )
                   : renderEmptyRailState('No nearby listings yet for this location.')}
               </ScrollView>
             </View>

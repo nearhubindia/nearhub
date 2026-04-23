@@ -49,7 +49,11 @@ export function isHotelDeal(listing: Listing): boolean {
 }
 
 export function isNewProductDeal(listing: Listing): boolean {
-  return isProductCategory(listing.category) && listing.condition === 'new' && hasValidOfferPrice(listing);
+  return (
+    isProductCategory(listing.category) &&
+    listing.condition === 'new' &&
+    hasValidOfferPrice(listing)
+  );
 }
 
 export function matchesProductState(listing: Listing, filter: ProductStateFilter): boolean {

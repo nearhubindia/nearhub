@@ -74,12 +74,7 @@ export default function ListingCard({
           imageHeight ? { height: imageHeight } : { aspectRatio: imageAspectRatio },
         ]}
       >
-        <Image
-          source={imageSource}
-          style={styles.image}
-          contentFit="cover"
-          transition={200}
-        />
+        <Image source={imageSource} style={styles.image} contentFit="cover" transition={200} />
         <Pressable style={styles.saveButton} onPress={onSave} hitSlop={8}>
           <Ionicons
             name={isSaved ? 'heart' : 'heart-outline'}

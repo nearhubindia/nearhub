@@ -80,9 +80,7 @@ export function getMainCategoryForSubcategory(
 ): MainCategory | null {
   if (!subcategory) return null;
   const groups = getCategoryGroupsForListingType(listingType);
-  const match = groups.find((group) =>
-    group.subcategories.includes(subcategory as Category)
-  );
+  const match = groups.find((group) => group.subcategories.includes(subcategory as Category));
   return match?.mainCategory || null;
 }
 

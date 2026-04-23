@@ -233,10 +233,7 @@ export default function CreateScreen() {
     []
   );
 
-  const categoryGroups = useMemo(
-    () => getCategoryGroupsForListingType(listingType),
-    [listingType]
-  );
+  const categoryGroups = useMemo(() => getCategoryGroupsForListingType(listingType), [listingType]);
   const visibleMainCategories = useMemo(
     () => categoryGroups.map((group) => group.mainCategory),
     [categoryGroups]
@@ -299,7 +296,9 @@ export default function CreateScreen() {
 
     const inferredMain = getMainCategoryForSubcategory(category, listingType);
     const hasCurrentMain = categoryGroups.some((group) => group.mainCategory === mainCategory);
-    const normalizedMain = hasCurrentMain ? mainCategory : inferredMain || categoryGroups[0].mainCategory;
+    const normalizedMain = hasCurrentMain
+      ? mainCategory
+      : inferredMain || categoryGroups[0].mainCategory;
 
     if (normalizedMain !== mainCategory) {
       setMainCategory(normalizedMain);

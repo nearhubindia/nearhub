@@ -286,7 +286,9 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                   subcategory: (listing.subCategory || listing.subcategory || listing.category) as
                     | Category
                     | undefined,
-                  category: (listing.subCategory || listing.subcategory || listing.category) as Category,
+                  category: (listing.subCategory ||
+                    listing.subcategory ||
+                    listing.category) as Category,
                   condition: listing.condition || 'good',
                   images: (images || []).map(normalizeMediaUrl).filter(Boolean),
                   videos: (videos || []).map(normalizeMediaUrl).filter(Boolean),

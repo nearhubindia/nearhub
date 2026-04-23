@@ -14,12 +14,7 @@ import { formatCondition } from '@/lib/utils';
 import ListingCard from '@/shared/components/ListingCard';
 import { createResponsiveStyles } from '@/lib/responsive';
 
-type SectionType =
-  | 'nearby'
-  | 'featured'
-  | 'restaurantDeals'
-  | 'hotelDeals'
-  | 'newProductDeals';
+type SectionType = 'nearby' | 'featured' | 'restaurantDeals' | 'hotelDeals' | 'newProductDeals';
 
 export default function HomeSectionListScreen() {
   const insets = useSafeAreaInsets();
