@@ -149,6 +149,7 @@
       "path": "/footer/terms-of-service",
       "title": "Terms of Service | NearHub",
       "description": "Read NearHub terms governing platform usage.",
+      "robots": "noindex,nofollow",
       "changefreq": "monthly",
       "priority": "0.5"
     },
@@ -156,6 +157,7 @@
       "path": "/footer/privacy-policy",
       "title": "Privacy Policy | NearHub",
       "description": "Understand how NearHub handles personal data and privacy.",
+      "robots": "noindex,nofollow",
       "changefreq": "monthly",
       "priority": "0.5"
     },
@@ -177,8 +179,153 @@
       "path": "/footer/sitemap",
       "title": "Sitemap | NearHub",
       "description": "Browse a structured overview of key NearHub routes and sections.",
+      "robots": "noindex,nofollow",
       "changefreq": "monthly",
       "priority": "0.4"
+    },
+    {
+      "path": "/admin/login",
+      "title": "Admin Login | NearHub",
+      "description": "Secure admin login for NearHub operations.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin",
+      "title": "Admin Dashboard | NearHub",
+      "description": "NearHub administration dashboard.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/listings",
+      "title": "Admin Listings | NearHub",
+      "description": "Manage listings in the NearHub admin panel.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/listings/pending",
+      "title": "Admin Pending Listings | NearHub",
+      "description": "Review pending listing approvals in NearHub admin.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/users",
+      "title": "Admin Users | NearHub",
+      "description": "Manage users in the NearHub admin panel.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/subscriptions",
+      "title": "Admin Subscriptions | NearHub",
+      "description": "Manage subscriptions in the NearHub admin panel.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/spam",
+      "title": "Admin Spam Detection | NearHub",
+      "description": "Moderate spam reports in NearHub admin.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/videos",
+      "title": "Admin Videos | NearHub",
+      "description": "Manage video content in NearHub admin.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/coupons",
+      "title": "Admin Coupons | NearHub",
+      "description": "Manage coupons in the NearHub admin panel.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/banners",
+      "title": "Admin Banners | NearHub",
+      "description": "Manage banners in NearHub admin.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/push",
+      "title": "Admin Push Notifications | NearHub",
+      "description": "Manage push notifications in NearHub admin.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/in-app",
+      "title": "Admin In-App Notifications | NearHub",
+      "description": "Manage in-app notifications in NearHub admin.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/revenue",
+      "title": "Admin Revenue | NearHub",
+      "description": "Review revenue insights in NearHub admin.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/transactions",
+      "title": "Admin Transactions | NearHub",
+      "description": "Review transactions in NearHub admin.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/reports",
+      "title": "Admin Reports | NearHub",
+      "description": "View reports in the NearHub admin panel.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/contact-submissions",
+      "title": "Admin Contact Submissions | NearHub",
+      "description": "Review contact submissions in NearHub admin.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/error-logs",
+      "title": "Admin Error Logs | NearHub",
+      "description": "Monitor error logs in NearHub admin.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/admin/settings",
+      "title": "Admin Settings | NearHub",
+      "description": "Configure platform settings in NearHub admin.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
     }
   ]
 }
