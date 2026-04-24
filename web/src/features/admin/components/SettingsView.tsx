@@ -63,7 +63,9 @@ export default function SettingsView() {
             setMinSupportedVersion(data.settings.minSupportedVersion || '1.0.0');
           }
           if (typeof data.settings?.minSupportedAndroidBuildNumber === 'number') {
-            setMinSupportedAndroidBuildNumber(Math.max(1, data.settings.minSupportedAndroidBuildNumber));
+            setMinSupportedAndroidBuildNumber(
+              Math.max(1, data.settings.minSupportedAndroidBuildNumber)
+            );
           }
           if (typeof data.settings?.minSupportedIosBuildNumber === 'number') {
             setMinSupportedIosBuildNumber(Math.max(1, data.settings.minSupportedIosBuildNumber));

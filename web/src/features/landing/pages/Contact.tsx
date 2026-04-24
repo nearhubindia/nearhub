@@ -96,8 +96,8 @@ export default function Contact(): ReactElement {
               <span className="block text-[#fff0db]"> Next Local Growth Milestone.</span>
             </h1>
             <p className="mt-4 max-w-4xl text-sm leading-relaxed text-blue-50/95 sm:text-base">
-              Tell us your goals and we will help shape the right local growth plan for your
-              market, categories, and customers near you.
+              Tell us your goals and we will help shape the right local growth plan for your market,
+              categories, and customers near you.
             </p>
           </div>
         </section>

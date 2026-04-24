@@ -192,12 +192,7 @@ function renderRouteHtml(templateHtml, route, context) {
   html = upsertMetaTag(html, 'property', 'og:url', canonicalUrl);
   html = upsertMetaTag(html, 'property', 'og:image', context.defaultImageUrl);
   const brandSignature = buildBrandSignature(context.brandName);
-  html = upsertMetaTag(
-    html,
-    'property',
-    'og:image:alt',
-    brandSignature
-  );
+  html = upsertMetaTag(html, 'property', 'og:image:alt', brandSignature);
   html = upsertMetaTag(html, 'property', 'og:locale', 'en_IN');
   html = upsertMetaTag(html, 'property', 'og:site_name', context.brandName);
   html = upsertMetaTag(html, 'name', 'application-name', context.brandName);
@@ -206,12 +201,7 @@ function renderRouteHtml(templateHtml, route, context) {
   html = upsertMetaTag(html, 'name', 'twitter:title', route.title);
   html = upsertMetaTag(html, 'name', 'twitter:description', route.description);
   html = upsertMetaTag(html, 'name', 'twitter:image', context.defaultImageUrl);
-  html = upsertMetaTag(
-    html,
-    'name',
-    'twitter:image:alt',
-    brandSignature
-  );
+  html = upsertMetaTag(html, 'name', 'twitter:image:alt', brandSignature);
   html = upsertCanonical(html, canonicalUrl);
 
   const jsonLd = buildJsonLd(
