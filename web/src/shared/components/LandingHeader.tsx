@@ -2,6 +2,7 @@ import { useState, type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { Logo } from './Logo';
+import { BRAND_TAGLINE } from '@/shared/brand';
 
 type NavKey = 'home' | 'features' | 'contact';
 
@@ -20,10 +21,13 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
     <nav className="fixed left-0 right-0 top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-20 items-center justify-between">
-          <Link to="/" onClick={() => setIsMenuOpen(false)} className="shrink-0">
-            <Logo size="md" showText={true} className="md:hidden" />
-            <Logo size="lg" showText={true} className="hidden md:flex" />
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link to="/" onClick={() => setIsMenuOpen(false)} className="shrink-0">
+              <Logo size="md" showText={true} className="md:hidden" />
+              <Logo size="lg" showText={true} className="hidden md:flex" />
+            </Link>
+            <p className="hidden text-xs font-semibold text-slate-500 lg:block">{BRAND_TAGLINE}</p>
+          </div>
 
           <div className="hidden items-center gap-6 text-sm font-semibold sm:text-base md:flex">
             <Link to="/" className={navLinkClass(active === 'home')}>

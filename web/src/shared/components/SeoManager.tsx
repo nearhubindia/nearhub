@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import seoConfigData from '../../../seo/routes.json';
+import { BRAND_NAME, BRAND_SIGNATURE } from '@/shared/brand';
 
 type RouteMeta = {
   title: string;
@@ -32,7 +33,7 @@ type SeoRoutesConfig = {
 
 const SEO_CONFIG = seoConfigData as SeoRoutesConfig;
 const SITE_URL = (import.meta.env.VITE_SITE_URL || SEO_CONFIG.siteUrlFallback).replace(/\/+$/, '');
-const BRAND_NAME = SEO_CONFIG.brandName || 'NearHub';
+const SITE_BRAND_NAME = SEO_CONFIG.brandName || BRAND_NAME;
 const ALTERNATE_BRAND_NAMES = Array.isArray(SEO_CONFIG.alternateBrandNames)
   ? SEO_CONFIG.alternateBrandNames.filter(Boolean)
   : [];
@@ -93,16 +94,16 @@ function resolveMeta(pathname: string): RouteMeta {
   if (isNoindexPath) {
     return {
       title: 'NearHub Admin',
-      description: 'NearHub administration portal.',
+      description: `${BRAND_SIGNATURE}. Administration portal.`,
       robots: 'noindex,nofollow',
     };
   }
 
   if (normalizedPath.startsWith('/listing/')) {
     return {
-      title: 'Open Listing in NearHub App',
+      title: `Open Listing in NearHub App | ${BRAND_SIGNATURE}`,
       description:
-        'Open this NearHub listing in the app. If the app is not installed, download it to continue.',
+        'Open this NearHub listing in the app. If the app is not installed, download it to buy, sell, and discover local deals near you.',
       robots: 'noindex,nofollow',
     };
   }
@@ -113,8 +114,9 @@ function resolveMeta(pathname: string): RouteMeta {
   }
 
   return {
-    title: 'Page Not Found | NearHub',
-    description: 'The page you are looking for does not exist on NearHub.',
+    title: `Page Not Found | ${BRAND_SIGNATURE}`,
+    description:
+      'The page you are looking for does not exist on NearHub. Return to the homepage to buy, sell, and discover local deals near you.',
     robots: 'noindex,nofollow',
   };
 }
@@ -127,7 +129,7 @@ function buildJsonLd(
   const organizationNode: Record<string, unknown> = {
     '@type': 'Organization',
     '@id': `${SITE_URL}#organization`,
-    name: BRAND_NAME,
+    name: SITE_BRAND_NAME,
     alternateName: ALTERNATE_BRAND_NAMES,
     url: SITE_URL,
     logo: DEFAULT_IMAGE_URL,
@@ -151,7 +153,7 @@ function buildJsonLd(
     {
       '@type': 'WebSite',
       '@id': `${SITE_URL}#website`,
-      name: BRAND_NAME,
+      name: SITE_BRAND_NAME,
       alternateName: ALTERNATE_BRAND_NAMES,
       url: SITE_URL,
     },
@@ -170,7 +172,7 @@ function buildJsonLd(
       '@type': 'CollectionPage',
       '@id': `${canonicalUrl}#home`,
       url: canonicalUrl,
-      name: 'NearHub Home',
+      name: BRAND_SIGNATURE,
       isPartOf: { '@id': `${SITE_URL}#website` },
       about: { '@id': `${SITE_URL}#organization` },
     });
@@ -242,17 +244,17 @@ export function SeoManager() {
     upsertMeta('property', 'og:type', 'website');
     upsertMeta('property', 'og:url', canonicalUrl);
     upsertMeta('property', 'og:image', DEFAULT_IMAGE_URL);
-    upsertMeta('property', 'og:image:alt', `${BRAND_NAME} marketplace preview`);
+    upsertMeta('property', 'og:image:alt', BRAND_SIGNATURE);
     upsertMeta('property', 'og:locale', 'en_IN');
-    upsertMeta('property', 'og:site_name', BRAND_NAME);
-    upsertMeta('name', 'application-name', BRAND_NAME);
-    upsertMeta('name', 'apple-mobile-web-app-title', BRAND_NAME);
+    upsertMeta('property', 'og:site_name', SITE_BRAND_NAME);
+    upsertMeta('name', 'application-name', SITE_BRAND_NAME);
+    upsertMeta('name', 'apple-mobile-web-app-title', SITE_BRAND_NAME);
 
     upsertMeta('name', 'twitter:card', 'summary_large_image');
     upsertMeta('name', 'twitter:title', meta.title);
     upsertMeta('name', 'twitter:description', meta.description);
     upsertMeta('name', 'twitter:image', DEFAULT_IMAGE_URL);
-    upsertMeta('name', 'twitter:image:alt', `${BRAND_NAME} marketplace preview`);
+    upsertMeta('name', 'twitter:image:alt', BRAND_SIGNATURE);
 
     upsertCanonical(canonicalUrl);
     upsertJsonLd('nearhub-structured-data', buildJsonLd(normalizedPath, canonicalUrl, meta));

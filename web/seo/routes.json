@@ -4,32 +4,32 @@
   "alternateBrandNames": ["nearhub.in", "Near Hub"],
   "socialProfiles": [],
   "defaultImagePath": "/nearhub.png",
-  "keywords": "NearHub, nearhub.in, classifieds, buy and sell, local marketplace, hyperlocal listings, ads",
+  "keywords": "NearHub, nearhub.in, buy sell discover local deals near you, local marketplace, local listings, local services, hyperlocal deals",
   "defaultMeta": {
-    "title": "NearHub",
-    "description": "NearHub hyperlocal classifieds platform."
+    "title": "NearHub – Buy, Sell & Discover Local Deals Near You",
+    "description": "NearHub helps you buy, sell, and discover local deals near you with trusted listings and services."
   },
   "noindexPrefixes": ["/admin"],
   "disallowPaths": ["/admin", "/admin/"],
   "routes": [
     {
       "path": "/",
-      "title": "NearHub | Buy, Sell & Discover Near You",
-      "description": "NearHub is a hyperlocal classifieds platform to buy, sell, and discover trusted listings near you.",
+      "title": "NearHub – Buy, Sell & Discover Local Deals Near You",
+      "description": "NearHub helps you buy, sell, and discover local deals near you with trusted local listings and services.",
       "changefreq": "weekly",
       "priority": "1.0"
     },
     {
       "path": "/features",
       "title": "Features | NearHub",
-      "description": "Explore NearHub features including video-first listings, geo discovery, alerts, and trust controls.",
+      "description": "Explore NearHub features for buying, selling, and discovering local deals near you.",
       "changefreq": "weekly",
       "priority": "0.9"
     },
     {
       "path": "/contact",
       "title": "Contact | NearHub",
-      "description": "Get in touch with NearHub for support, partnerships, and platform enquiries.",
+      "description": "Get in touch with NearHub for support, partnerships, and local growth enquiries.",
       "changefreq": "monthly",
       "priority": "0.8"
     },
@@ -57,7 +57,7 @@
     {
       "path": "/about",
       "title": "About | NearHub",
-      "description": "Learn about NearHub, our mission, and company information.",
+      "description": "Learn about NearHub and our mission to help people buy, sell, and discover local deals near them.",
       "changefreq": "monthly",
       "priority": "0.7"
     },

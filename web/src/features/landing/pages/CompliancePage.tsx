@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
+import { BRAND_SIGNATURE } from '@/shared/brand';
 
 type CompliancePageKey =
   | 'privacy-policy'
@@ -301,6 +302,9 @@ export default function CompliancePage({ pageKey }: { pageKey: CompliancePageKey
             </h1>
             <p className="mt-4 max-w-4xl text-sm leading-relaxed text-blue-50/95 sm:text-base">
               {config.subtitle}
+            </p>
+            <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#ffe5c8]">
+              {BRAND_SIGNATURE}
             </p>
             <p className="mt-3 text-sm font-semibold text-[#ffe5c8]">{config.effectiveDate}</p>
           </section>

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { LandingFooter, LandingHeader } from '@/shared/components';
+import { BRAND_SIGNATURE } from '@/shared/brand';
 
 const capabilityCards = [
   {
@@ -130,15 +131,15 @@ export default function Landing(): ReactElement {
             <div className="rounded-[2rem] border border-[#1e5da8]/20 bg-[linear-gradient(125deg,#0f4684_0%,#1e5da8_42%,#ff9933_165%)] px-6 py-8 text-white shadow-[0_34px_72px_-40px_rgba(14,63,120,0.78)] sm:px-9 sm:py-10">
               <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em]">
                 <Sparkles size={12} />
-                Hyperlocal Commerce Engine
+                {BRAND_SIGNATURE}
               </p>
               <h1 className="mt-4 max-w-4xl text-3xl font-bold leading-tight sm:text-5xl">
-                The Trusted Marketplace For
-                <span className="block text-[#fff0db]"> Buyers, Sellers, and Local Services.</span>
+                Discover Everything Near You
+                <span className="block text-[#fff0db]">From Listings, Deals, and Services.</span>
               </h1>
               <p className="mt-4 max-w-3xl text-sm leading-relaxed text-blue-50/95 sm:text-base">
-                NearHub combines high-visibility listing design, trust-first moderation, and
-                location-smart distribution to generate faster deals in your local market.
+                NearHub combines trust-first moderation, location-smart distribution, and
+                high-visibility media to help local buyers and sellers connect faster.
               </p>
 
               <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

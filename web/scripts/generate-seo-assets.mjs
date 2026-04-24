@@ -7,6 +7,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const distDir = path.join(rootDir, 'dist');
 const seoConfigPath = path.join(rootDir, 'seo', 'routes.json');
+const BRAND_TAGLINE = 'Buy, Sell & Discover Local Deals Near You';
 
 function normalizeSiteUrl(url) {
   return url.replace(/\/+$/, '');
@@ -43,6 +44,10 @@ function escapeXml(value) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildBrandSignature(brandName) {
+  return `${brandName} – ${BRAND_TAGLINE}`;
 }
 
 function upsertMetaTag(html, attr, key, content) {
@@ -83,6 +88,7 @@ function upsertJsonLd(html, jsonLd) {
 function buildJsonLd(pathname, canonicalUrl, meta, siteUrl, defaultImageUrl) {
   const normalizedPath = normalizeLookupPath(pathname);
   const brandName = meta.brandName || 'NearHub';
+  const brandSignature = buildBrandSignature(brandName);
   const alternateBrandNames = Array.isArray(meta.alternateBrandNames)
     ? meta.alternateBrandNames.filter(Boolean)
     : [];
@@ -134,7 +140,7 @@ function buildJsonLd(pathname, canonicalUrl, meta, siteUrl, defaultImageUrl) {
       '@type': 'CollectionPage',
       '@id': `${canonicalUrl}#home`,
       url: canonicalUrl,
-      name: 'NearHub Home',
+      name: brandSignature,
       isPartOf: { '@id': `${siteUrl}#website` },
       about: { '@id': `${siteUrl}#organization` },
     });
@@ -185,11 +191,12 @@ function renderRouteHtml(templateHtml, route, context) {
   html = upsertMetaTag(html, 'property', 'og:type', 'website');
   html = upsertMetaTag(html, 'property', 'og:url', canonicalUrl);
   html = upsertMetaTag(html, 'property', 'og:image', context.defaultImageUrl);
+  const brandSignature = buildBrandSignature(context.brandName);
   html = upsertMetaTag(
     html,
     'property',
     'og:image:alt',
-    `${context.brandName} marketplace preview`
+    brandSignature
   );
   html = upsertMetaTag(html, 'property', 'og:locale', 'en_IN');
   html = upsertMetaTag(html, 'property', 'og:site_name', context.brandName);
@@ -203,7 +210,7 @@ function renderRouteHtml(templateHtml, route, context) {
     html,
     'name',
     'twitter:image:alt',
-    `${context.brandName} marketplace preview`
+    brandSignature
   );
   html = upsertCanonical(html, canonicalUrl);
 

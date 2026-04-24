@@ -26,8 +26,8 @@ export default function NotFound(): ReactElement {
               Page Not Found
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
-              This URL is not available on NearHub. Go back to the homepage to continue browsing
-              active sections.
+              This URL is not available right now. Go back to NearHub to buy, sell, and discover
+              local deals near you.
             </p>
 
             <div className="mt-7 flex justify-center">

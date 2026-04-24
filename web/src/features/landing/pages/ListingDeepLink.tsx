@@ -70,7 +70,7 @@ export default function ListingDeepLink(): ReactElement {
             </h1>
             <p className="mt-4 max-w-3xl text-sm leading-relaxed text-slate-600 sm:text-base">
               If you already have NearHub, open the app directly. If not, install the app and come
-              back to this listing.
+              back to this listing to buy, sell, and discover local deals near you.
             </p>
 
             <div className="mt-7 flex flex-wrap gap-3">

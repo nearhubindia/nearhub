@@ -12,6 +12,17 @@ export default function SettingsView() {
   const [starterCreditsEnabled, setStarterCreditsEnabled] = useState(true);
   const [starterListingsCount, setStarterListingsCount] = useState(2);
   const [starterBoostsCount, setStarterBoostsCount] = useState(2);
+  const [forceUpdateEnabled, setForceUpdateEnabled] = useState(false);
+  const [minSupportedVersion, setMinSupportedVersion] = useState('1.0.0');
+  const [minSupportedAndroidBuildNumber, setMinSupportedAndroidBuildNumber] = useState(1);
+  const [minSupportedIosBuildNumber, setMinSupportedIosBuildNumber] = useState(1);
+  const [forceUpdateMessage, setForceUpdateMessage] = useState(
+    'A new app version is required to continue. Please update now.'
+  );
+  const [playStoreUrl, setPlayStoreUrl] = useState(
+    'https://play.google.com/store/apps/details?id=com.synvide.nearhub'
+  );
+  const [appStoreUrl, setAppStoreUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -44,6 +55,33 @@ export default function SettingsView() {
           }
           if (typeof data.settings?.starterBoostsCount === 'number') {
             setStarterBoostsCount(Math.max(0, data.settings.starterBoostsCount));
+          }
+          if (typeof data.settings?.forceUpdateEnabled === 'boolean') {
+            setForceUpdateEnabled(data.settings.forceUpdateEnabled);
+          }
+          if (typeof data.settings?.minSupportedVersion === 'string') {
+            setMinSupportedVersion(data.settings.minSupportedVersion || '1.0.0');
+          }
+          if (typeof data.settings?.minSupportedAndroidBuildNumber === 'number') {
+            setMinSupportedAndroidBuildNumber(Math.max(1, data.settings.minSupportedAndroidBuildNumber));
+          }
+          if (typeof data.settings?.minSupportedIosBuildNumber === 'number') {
+            setMinSupportedIosBuildNumber(Math.max(1, data.settings.minSupportedIosBuildNumber));
+          }
+          if (typeof data.settings?.forceUpdateMessage === 'string') {
+            setForceUpdateMessage(
+              data.settings.forceUpdateMessage ||
+                'A new app version is required to continue. Please update now.'
+            );
+          }
+          if (typeof data.settings?.playStoreUrl === 'string') {
+            setPlayStoreUrl(
+              data.settings.playStoreUrl ||
+                'https://play.google.com/store/apps/details?id=com.synvide.nearhub'
+            );
+          }
+          if (typeof data.settings?.appStoreUrl === 'string') {
+            setAppStoreUrl(data.settings.appStoreUrl || '');
           }
         }
       } catch (error) {
@@ -80,6 +118,13 @@ export default function SettingsView() {
           starterCreditsEnabled,
           starterListingsCount,
           starterBoostsCount,
+          forceUpdateEnabled,
+          minSupportedVersion,
+          minSupportedAndroidBuildNumber,
+          minSupportedIosBuildNumber,
+          forceUpdateMessage,
+          playStoreUrl,
+          appStoreUrl,
         }),
         credentials: 'include',
       });
@@ -369,6 +414,115 @@ export default function SettingsView() {
                     <p className="text-sm text-slate-600 mt-1">
                       Free boost credits given once to each new user
                     </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Hard Update Settings */}
+            <div className="bg-white border border-slate-200 rounded-lg p-8">
+              <h3 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                <span className="text-2xl">🚨</span> App Hard Update
+              </h3>
+              <p className="text-slate-600 mb-6">
+                Force older app versions to update before they can continue.
+              </p>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
+                  <div>
+                    <h4 className="font-bold text-slate-900">Enable Force Update</h4>
+                    <p className="text-sm text-slate-600 mt-1">
+                      When enabled, apps below the configured minimum version/build are blocked.
+                    </p>
+                  </div>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={forceUpdateEnabled}
+                      onChange={(e) => setForceUpdateEnabled(e.target.checked)}
+                      className="w-6 h-6 accent-teal-500"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-900 mb-2">
+                      Min Supported Version
+                    </label>
+                    <input
+                      type="text"
+                      value={minSupportedVersion}
+                      onChange={(e) => setMinSupportedVersion(e.target.value)}
+                      placeholder="e.g. 1.0.0"
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-900 mb-2">
+                      Min Android Build Code
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={minSupportedAndroidBuildNumber}
+                      onChange={(e) =>
+                        setMinSupportedAndroidBuildNumber(Math.max(1, Number(e.target.value) || 1))
+                      }
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-900 mb-2">
+                      Min iOS Build Number
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={minSupportedIosBuildNumber}
+                      onChange={(e) =>
+                        setMinSupportedIosBuildNumber(Math.max(1, Number(e.target.value) || 1))
+                      }
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-900 mb-2">
+                    Force Update Message
+                  </label>
+                  <textarea
+                    value={forceUpdateMessage}
+                    onChange={(e) => setForceUpdateMessage(e.target.value)}
+                    rows={3}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-900 mb-2">
+                      Play Store URL
+                    </label>
+                    <input
+                      type="text"
+                      value={playStoreUrl}
+                      onChange={(e) => setPlayStoreUrl(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-900 mb-2">
+                      App Store URL
+                    </label>
+                    <input
+                      type="text"
+                      value={appStoreUrl}
+                      onChange={(e) => setAppStoreUrl(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-teal-500"
+                    />
                   </div>
                 </div>
               </div>

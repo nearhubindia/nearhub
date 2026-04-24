@@ -2,6 +2,7 @@ import { type ChangeEvent, type FormEvent, type ReactElement, useState } from 'r
 import { Clock3, Mail, MapPin, Phone, Send, Sparkles } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { BRAND_SIGNATURE } from '@/shared/brand';
 
 const contactChannels = [
   {
@@ -88,15 +89,15 @@ export default function Contact(): ReactElement {
           <div className="rounded-[2rem] border border-[#1e5da8]/20 bg-[linear-gradient(125deg,#0f4684_0%,#1e5da8_42%,#ff9933_165%)] px-6 py-8 text-white shadow-[0_34px_72px_-40px_rgba(14,63,120,0.78)] sm:px-9 sm:py-10">
             <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em]">
               <Sparkles size={12} />
-              Contact NearHub
+              {BRAND_SIGNATURE}
             </p>
             <h1 className="mt-4 max-w-5xl text-3xl font-bold leading-tight sm:text-5xl">
               Let&apos;s Build Your
               <span className="block text-[#fff0db]"> Next Local Growth Milestone.</span>
             </h1>
             <p className="mt-4 max-w-4xl text-sm leading-relaxed text-blue-50/95 sm:text-base">
-              Tell us your goals and we will help shape onboarding, acquisition, trust workflows,
-              and monetization strategy for your market.
+              Tell us your goals and we will help shape the right local growth plan for your
+              market, categories, and customers near you.
             </p>
           </div>
         </section>

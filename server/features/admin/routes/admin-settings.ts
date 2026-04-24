@@ -62,6 +62,13 @@ export function registerAdminSettingsRoutes(app: Express) {
           dynamicPricingAlgorithm: settings.dynamicPricingAlgorithm,
           geoRadiusKm: settings.geoRadiusKm,
           inactiveUserReviewDays: settings.inactiveUserReviewDays,
+          forceUpdateEnabled: settings.forceUpdateEnabled,
+          minSupportedVersion: settings.minSupportedVersion,
+          minSupportedAndroidBuildNumber: settings.minSupportedAndroidBuildNumber,
+          minSupportedIosBuildNumber: settings.minSupportedIosBuildNumber,
+          forceUpdateMessage: settings.forceUpdateMessage,
+          playStoreUrl: settings.playStoreUrl,
+          appStoreUrl: settings.appStoreUrl,
         },
       });
     } catch (error) {
@@ -136,6 +143,13 @@ export function registerAdminSettingsRoutes(app: Express) {
           dynamicPricingAlgorithm,
           geoRadiusKm,
           inactiveUserReviewDays,
+          forceUpdateEnabled,
+          minSupportedVersion,
+          minSupportedAndroidBuildNumber,
+          minSupportedIosBuildNumber,
+          forceUpdateMessage,
+          playStoreUrl,
+          appStoreUrl,
         } = req.body;
 
         // Validate inputs
@@ -190,6 +204,26 @@ export function registerAdminSettingsRoutes(app: Express) {
 
         if (starterBoostsCount !== undefined && starterBoostsCount < 0) {
           return res.status(400).json({ error: 'Starter boosts count cannot be negative' });
+        }
+
+        if (
+          minSupportedAndroidBuildNumber !== undefined &&
+          (!Number.isFinite(Number(minSupportedAndroidBuildNumber)) ||
+            Number(minSupportedAndroidBuildNumber) < 1)
+        ) {
+          return res
+            .status(400)
+            .json({ error: 'Minimum Android build number must be a positive number' });
+        }
+
+        if (
+          minSupportedIosBuildNumber !== undefined &&
+          (!Number.isFinite(Number(minSupportedIosBuildNumber)) ||
+            Number(minSupportedIosBuildNumber) < 1)
+        ) {
+          return res
+            .status(400)
+            .json({ error: 'Minimum iOS build number must be a positive number' });
         }
 
         // Build update object
@@ -249,6 +283,19 @@ export function registerAdminSettingsRoutes(app: Express) {
         if (geoRadiusKm !== undefined) updates.geoRadiusKm = geoRadiusKm;
         if (inactiveUserReviewDays !== undefined)
           updates.inactiveUserReviewDays = Number(inactiveUserReviewDays);
+        if (forceUpdateEnabled !== undefined) updates.forceUpdateEnabled = Boolean(forceUpdateEnabled);
+        if (minSupportedVersion !== undefined)
+          updates.minSupportedVersion = String(minSupportedVersion).trim() || '1.0.0';
+        if (minSupportedAndroidBuildNumber !== undefined)
+          updates.minSupportedAndroidBuildNumber = Number(minSupportedAndroidBuildNumber);
+        if (minSupportedIosBuildNumber !== undefined)
+          updates.minSupportedIosBuildNumber = Number(minSupportedIosBuildNumber);
+        if (forceUpdateMessage !== undefined)
+          updates.forceUpdateMessage =
+            String(forceUpdateMessage).trim() ||
+            'A new app version is required to continue. Please update now.';
+        if (playStoreUrl !== undefined) updates.playStoreUrl = String(playStoreUrl).trim();
+        if (appStoreUrl !== undefined) updates.appStoreUrl = String(appStoreUrl).trim();
 
         const updatedSettings = await updateAdminSettings(updates);
 

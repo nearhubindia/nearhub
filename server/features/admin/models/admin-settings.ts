@@ -118,6 +118,21 @@ export const adminSettings = pgTable('admin_settings', {
   geoRadiusKm: integer('geo_radius_km').default(50), // Radius in km for ad search filtering
   inactiveUserReviewDays: integer('inactive_user_review_days').notNull().default(90), // Users inactive for N days become eligible for deletion review
 
+  // Hard update settings (app version enforcement)
+  forceUpdateEnabled: boolean('force_update_enabled').notNull().default(false),
+  minSupportedVersion: varchar('min_supported_version', { length: 32 }).notNull().default('1.0.0'),
+  minSupportedAndroidBuildNumber: integer('min_supported_android_build_number')
+    .notNull()
+    .default(1),
+  minSupportedIosBuildNumber: integer('min_supported_ios_build_number').notNull().default(1),
+  forceUpdateMessage: text('force_update_message')
+    .notNull()
+    .default('A new app version is required to continue. Please update now.'),
+  playStoreUrl: text('play_store_url')
+    .notNull()
+    .default('https://play.google.com/store/apps/details?id=com.synvide.nearhub'),
+  appStoreUrl: text('app_store_url').notNull().default(''),
+
   // Timestamps
   createdAt: timestamp('created_at')
     .default(sql`CURRENT_TIMESTAMP`)

@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { BRAND_SIGNATURE } from '@/shared/brand';
 
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
@@ -22,7 +23,7 @@ export function Logo({ size = 'md', className = '' }: LogoProps): ReactElement {
       {/* NearHub Full Logo (includes text and tagline) */}
       <img
         src="/nearhub.png"
-        alt="NearHub - Hyperlocal Classifieds App"
+        alt={BRAND_SIGNATURE}
         className="object-contain"
         style={{ height: `${height}px`, width: 'auto' }}
       />

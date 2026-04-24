@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { ArrowRight, Download, Smartphone } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
+import { BRAND_SIGNATURE } from '@/shared/brand';
 
 interface FooterPageSection {
   heading: string;
@@ -432,6 +433,9 @@ export default function FooterPage(): ReactElement {
             </h1>
             <p className="mt-4 max-w-4xl text-sm leading-relaxed text-blue-50/95 sm:text-base">
               {config.subtitle}
+            </p>
+            <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#ffe5c8]">
+              {BRAND_SIGNATURE}
             </p>
           </section>
 

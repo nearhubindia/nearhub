@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 
 import { Logo } from '@/shared/components/Logo';
+import { BRAND_SIGNATURE } from '@/shared/brand';
 
 export function LandingFooter(): ReactElement {
   return (
@@ -13,8 +14,8 @@ export function LandingFooter(): ReactElement {
               <Logo size="md" />
             </div>
             <p className="text-slate-300 text-sm leading-relaxed">
-              The leading classifieds platform connecting buyers, sellers, and service providers
-              across India.
+              {BRAND_SIGNATURE}. Buy, sell, and connect with trusted local listings, deals, and
+              services across India.
             </p>
             <div className="flex gap-3 pt-2">
               <a

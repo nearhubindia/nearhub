@@ -48,6 +48,13 @@ const DEFAULT_SETTINGS: AdminSettings = {
   dynamicPricingAlgorithm: 'demand_supply',
   geoRadiusKm: 50,
   inactiveUserReviewDays: 90,
+  forceUpdateEnabled: false,
+  minSupportedVersion: '1.0.0',
+  minSupportedAndroidBuildNumber: 1,
+  minSupportedIosBuildNumber: 1,
+  forceUpdateMessage: 'A new app version is required to continue. Please update now.',
+  playStoreUrl: 'https://play.google.com/store/apps/details?id=com.synvide.nearhub',
+  appStoreUrl: '',
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -271,5 +278,11 @@ Reactivation:
 
 Inactive User Review:
   Inactivity threshold: ${settings.inactiveUserReviewDays} days
+
+App Hard Update:
+  Enabled: ${settings.forceUpdateEnabled ? 'Yes' : 'No'}
+  Min Version: ${settings.minSupportedVersion}
+  Min Android Build: ${settings.minSupportedAndroidBuildNumber}
+  Min iOS Build: ${settings.minSupportedIosBuildNumber}
   `.trim();
 }
