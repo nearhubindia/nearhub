@@ -283,7 +283,8 @@ export function registerAdminSettingsRoutes(app: Express) {
         if (geoRadiusKm !== undefined) updates.geoRadiusKm = geoRadiusKm;
         if (inactiveUserReviewDays !== undefined)
           updates.inactiveUserReviewDays = Number(inactiveUserReviewDays);
-        if (forceUpdateEnabled !== undefined) updates.forceUpdateEnabled = Boolean(forceUpdateEnabled);
+        if (forceUpdateEnabled !== undefined)
+          updates.forceUpdateEnabled = Boolean(forceUpdateEnabled);
         if (minSupportedVersion !== undefined)
           updates.minSupportedVersion = String(minSupportedVersion).trim() || '1.0.0';
         if (minSupportedAndroidBuildNumber !== undefined)
