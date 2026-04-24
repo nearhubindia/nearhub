@@ -12,6 +12,7 @@ type SeoRouteConfig = {
   path: string;
   title: string;
   description: string;
+  robots?: 'index,follow' | 'noindex,nofollow';
 };
 
 type SeoRoutesConfig = {
@@ -42,7 +43,7 @@ const DEFAULT_IMAGE_URL = `${SITE_URL}${SEO_CONFIG.defaultImagePath}`;
 const ROUTE_META = new Map<string, RouteMeta>(
   SEO_CONFIG.routes.map((route) => [
     route.path,
-    { title: route.title, description: route.description },
+    { title: route.title, description: route.description, robots: route.robots },
   ])
 );
 
@@ -85,7 +86,10 @@ function upsertJsonLd(id: string, data: Record<string, unknown>) {
 }
 
 function resolveMeta(pathname: string): RouteMeta {
-  const isNoindexPath = SEO_CONFIG.noindexPrefixes.some((prefix) => pathname.startsWith(prefix));
+  const normalizedPath = normalizeLookupPath(pathname);
+  const isNoindexPath = SEO_CONFIG.noindexPrefixes.some((prefix) =>
+    normalizedPath.startsWith(prefix)
+  );
   if (isNoindexPath) {
     return {
       title: 'NearHub Admin',
@@ -94,14 +98,24 @@ function resolveMeta(pathname: string): RouteMeta {
     };
   }
 
-  const routeMeta = ROUTE_META.get(pathname);
+  if (normalizedPath.startsWith('/listing/')) {
+    return {
+      title: 'Open Listing in NearHub App',
+      description:
+        'Open this NearHub listing in the app. If the app is not installed, download it to continue.',
+      robots: 'noindex,nofollow',
+    };
+  }
+
+  const routeMeta = ROUTE_META.get(normalizedPath);
   if (routeMeta) {
     return routeMeta;
   }
 
   return {
-    title: SEO_CONFIG.defaultMeta.title,
-    description: SEO_CONFIG.defaultMeta.description,
+    title: 'Page Not Found | NearHub',
+    description: 'The page you are looking for does not exist on NearHub.',
+    robots: 'noindex,nofollow',
   };
 }
 
@@ -140,11 +154,6 @@ function buildJsonLd(
       name: BRAND_NAME,
       alternateName: ALTERNATE_BRAND_NAMES,
       url: SITE_URL,
-      potentialAction: {
-        '@type': 'SearchAction',
-        target: `${SITE_URL}/?q={search_term_string}`,
-        'query-input': 'required name=search_term_string',
-      },
     },
     {
       '@type': 'WebPage',
@@ -202,12 +211,20 @@ function normalizeCanonicalPath(pathname: string) {
   return pathname.endsWith('/') ? pathname : `${pathname}/`;
 }
 
+function normalizeLookupPath(pathname: string) {
+  if (!pathname || pathname === '/') {
+    return '/';
+  }
+  return pathname.replace(/\/+$/, '');
+}
+
 export function SeoManager() {
   const location = useLocation();
 
   useEffect(() => {
     const { pathname } = location;
-    const meta = resolveMeta(pathname);
+    const normalizedPath = normalizeLookupPath(pathname);
+    const meta = resolveMeta(normalizedPath);
     const canonicalPath = normalizeCanonicalPath(pathname);
     const canonicalUrl = `${SITE_URL}${canonicalPath}`;
     const robots = meta.robots || 'index,follow';
@@ -217,6 +234,7 @@ export function SeoManager() {
 
     upsertMeta('name', 'description', meta.description);
     upsertMeta('name', 'robots', robots);
+    upsertMeta('name', 'googlebot', robots);
     upsertMeta('name', 'keywords', SEO_CONFIG.keywords);
 
     upsertMeta('property', 'og:title', meta.title);
@@ -224,6 +242,8 @@ export function SeoManager() {
     upsertMeta('property', 'og:type', 'website');
     upsertMeta('property', 'og:url', canonicalUrl);
     upsertMeta('property', 'og:image', DEFAULT_IMAGE_URL);
+    upsertMeta('property', 'og:image:alt', `${BRAND_NAME} marketplace preview`);
+    upsertMeta('property', 'og:locale', 'en_IN');
     upsertMeta('property', 'og:site_name', BRAND_NAME);
     upsertMeta('name', 'application-name', BRAND_NAME);
     upsertMeta('name', 'apple-mobile-web-app-title', BRAND_NAME);
@@ -232,9 +252,10 @@ export function SeoManager() {
     upsertMeta('name', 'twitter:title', meta.title);
     upsertMeta('name', 'twitter:description', meta.description);
     upsertMeta('name', 'twitter:image', DEFAULT_IMAGE_URL);
+    upsertMeta('name', 'twitter:image:alt', `${BRAND_NAME} marketplace preview`);
 
     upsertCanonical(canonicalUrl);
-    upsertJsonLd('nearhub-structured-data', buildJsonLd(pathname, canonicalUrl, meta));
+    upsertJsonLd('nearhub-structured-data', buildJsonLd(normalizedPath, canonicalUrl, meta));
   }, [location]);
 
   return null;

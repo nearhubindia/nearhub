@@ -30,6 +30,7 @@ import {
   updateListing,
   boostListingForHours,
 } from '../../listings/services/listings';
+import { requiresListingCondition } from '../../listings/services/listing-classification';
 import {
   applyCouponDiscount,
   recordCouponUsage,
@@ -648,9 +649,9 @@ export function registerSubscriptionRoutes(app: Express) {
    * - Payment integration
    *
    * Body: {
-   *   userId, title, description, category, price, condition, location,
+   *   userId, title, description, category, price, location,
    *   images?, videos?, userSubscriptionId?, subscriptionTierId?, couponCode?, priceUnit?,
-   *   listingType?, pincode?, latitude?, longitude?, featured?
+   *   listingType?, pincode?, latitude?, longitude?, featured?, condition?
    * }
    */
   app.post(
@@ -698,6 +699,14 @@ export function registerSubscriptionRoutes(app: Express) {
           typeof mainCategory === 'string' && mainCategory.trim()
             ? mainCategory.trim()
             : normalizedSubCategory;
+        const normalizedCondition =
+          typeof condition === 'string' && condition.trim() ? condition.trim() : '';
+        const shouldRequireCondition = requiresListingCondition({
+          mainCategory: normalizedMainCategory,
+          subCategory: normalizedSubCategory,
+          category: normalizedSubCategory,
+        });
+        const resolvedCondition = normalizedCondition || undefined;
 
         // if ownerId appears to be an admin account, ensure request includes a valid admin JWT
         if (ownerId.startsWith('admin')) {
@@ -710,9 +719,18 @@ export function registerSubscriptionRoutes(app: Express) {
         }
 
         // Validate required fields
-        if (!ownerId || !title || !price || !normalizedSubCategory || !condition || !location) {
+        if (
+          !ownerId ||
+          !title ||
+          !price ||
+          !normalizedSubCategory ||
+          !location ||
+          (shouldRequireCondition && !normalizedCondition)
+        ) {
           return res.status(400).json({
-            error: 'Missing required fields: userId, title, price, category, condition, location',
+            error: shouldRequireCondition
+              ? 'Missing required fields: userId, title, price, category, condition, location'
+              : 'Missing required fields: userId, title, price, category, location',
           });
         }
 
@@ -923,7 +941,7 @@ export function registerSubscriptionRoutes(app: Express) {
             offerPrice !== undefined && offerPrice !== null
               ? parseFloat(offerPrice as string)
               : undefined,
-          condition,
+          condition: resolvedCondition,
           location,
           priceUnit,
           listingType: listingType || 'image',

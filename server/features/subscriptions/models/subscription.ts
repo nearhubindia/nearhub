@@ -18,7 +18,7 @@ export const listings = pgTable('listings', {
   category: text('category').notNull(),
   price: decimal('price', { precision: 12, scale: 2 }).notNull(),
   offerPrice: decimal('offer_price', { precision: 12, scale: 2 }), // Discounted offer price (must be < price)
-  condition: text('condition').notNull(), // new, like-new, good, fair
+  condition: text('condition'), // new, like-new, good, fair
   images: text('images')
     .array()
     .default(sql`'{}'::text[]`), // JSON array of image URLs (max 5)

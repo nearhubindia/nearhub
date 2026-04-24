@@ -21,6 +21,13 @@ function normalizeRoutePath(routePath) {
   return `/${trimmed}/`;
 }
 
+function normalizeLookupPath(pathname) {
+  if (!pathname || pathname === '/') {
+    return '/';
+  }
+  return pathname.replace(/\/+$/, '');
+}
+
 function escapeHtml(value) {
   return value
     .replaceAll('&', '&amp;')
@@ -74,6 +81,7 @@ function upsertJsonLd(html, jsonLd) {
 }
 
 function buildJsonLd(pathname, canonicalUrl, meta, siteUrl, defaultImageUrl) {
+  const normalizedPath = normalizeLookupPath(pathname);
   const brandName = meta.brandName || 'NearHub';
   const alternateBrandNames = Array.isArray(meta.alternateBrandNames)
     ? meta.alternateBrandNames.filter(Boolean)
@@ -106,11 +114,6 @@ function buildJsonLd(pathname, canonicalUrl, meta, siteUrl, defaultImageUrl) {
       name: brandName,
       alternateName: alternateBrandNames,
       url: siteUrl,
-      potentialAction: {
-        '@type': 'SearchAction',
-        target: `${siteUrl}/?q={search_term_string}`,
-        'query-input': 'required name=search_term_string',
-      },
     },
     {
       '@type': 'WebPage',
@@ -126,7 +129,7 @@ function buildJsonLd(pathname, canonicalUrl, meta, siteUrl, defaultImageUrl) {
     graph[0].sameAs = socialProfiles;
   }
 
-  if (pathname === '/') {
+  if (normalizedPath === '/') {
     graph.push({
       '@type': 'CollectionPage',
       '@id': `${canonicalUrl}#home`,
@@ -137,7 +140,7 @@ function buildJsonLd(pathname, canonicalUrl, meta, siteUrl, defaultImageUrl) {
     });
   }
 
-  if (pathname === '/contact') {
+  if (normalizedPath === '/contact') {
     graph.push({
       '@type': 'ContactPage',
       '@id': `${canonicalUrl}#contact`,
@@ -148,7 +151,7 @@ function buildJsonLd(pathname, canonicalUrl, meta, siteUrl, defaultImageUrl) {
     });
   }
 
-  if (pathname === '/about') {
+  if (normalizedPath === '/about') {
     graph.push({
       '@type': 'AboutPage',
       '@id': `${canonicalUrl}#about`,
@@ -167,18 +170,28 @@ function buildJsonLd(pathname, canonicalUrl, meta, siteUrl, defaultImageUrl) {
 
 function renderRouteHtml(templateHtml, route, context) {
   const canonicalPath = normalizeRoutePath(route.path);
+  const routeLookupPath = normalizeLookupPath(route.path);
   const canonicalUrl = `${context.siteUrl}${canonicalPath}`;
+  const robots = route.robots || 'index,follow';
   let html = templateHtml;
 
   html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(route.title)}</title>`);
   html = upsertMetaTag(html, 'name', 'description', route.description);
   html = upsertMetaTag(html, 'name', 'keywords', context.keywords);
-  html = upsertMetaTag(html, 'name', 'robots', 'index,follow');
+  html = upsertMetaTag(html, 'name', 'robots', robots);
+  html = upsertMetaTag(html, 'name', 'googlebot', robots);
   html = upsertMetaTag(html, 'property', 'og:title', route.title);
   html = upsertMetaTag(html, 'property', 'og:description', route.description);
   html = upsertMetaTag(html, 'property', 'og:type', 'website');
   html = upsertMetaTag(html, 'property', 'og:url', canonicalUrl);
   html = upsertMetaTag(html, 'property', 'og:image', context.defaultImageUrl);
+  html = upsertMetaTag(
+    html,
+    'property',
+    'og:image:alt',
+    `${context.brandName} marketplace preview`
+  );
+  html = upsertMetaTag(html, 'property', 'og:locale', 'en_IN');
   html = upsertMetaTag(html, 'property', 'og:site_name', context.brandName);
   html = upsertMetaTag(html, 'name', 'application-name', context.brandName);
   html = upsertMetaTag(html, 'name', 'apple-mobile-web-app-title', context.brandName);
@@ -186,10 +199,16 @@ function renderRouteHtml(templateHtml, route, context) {
   html = upsertMetaTag(html, 'name', 'twitter:title', route.title);
   html = upsertMetaTag(html, 'name', 'twitter:description', route.description);
   html = upsertMetaTag(html, 'name', 'twitter:image', context.defaultImageUrl);
+  html = upsertMetaTag(
+    html,
+    'name',
+    'twitter:image:alt',
+    `${context.brandName} marketplace preview`
+  );
   html = upsertCanonical(html, canonicalUrl);
 
   const jsonLd = buildJsonLd(
-    route.path,
+    routeLookupPath,
     canonicalUrl,
     {
       title: route.title,
@@ -222,6 +241,7 @@ async function writePrerenderedRoutes(templateHtml, config, context) {
 function buildSitemapXml(config, siteUrl) {
   const today = new Date().toISOString().slice(0, 10);
   const urls = config.routes
+    .filter((route) => route.robots !== 'noindex,nofollow')
     .map((route) => {
       const loc = `${siteUrl}${normalizeRoutePath(route.path)}`;
       const changefreq = route.changefreq || 'monthly';

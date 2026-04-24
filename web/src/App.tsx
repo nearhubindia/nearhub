@@ -8,6 +8,8 @@ import Features from './features/landing/pages/Features';
 import Contact from './features/landing/pages/Contact';
 import FooterPage from './features/landing/pages/FooterPage';
 import CompliancePage from './features/landing/pages/CompliancePage';
+import ListingDeepLink from './features/landing/pages/ListingDeepLink';
+import NotFound from './features/landing/pages/NotFound';
 import { ProtectedRoute } from './shared/components/ProtectedRoute';
 import { SeoManager } from './shared/components/SeoManager';
 
@@ -56,6 +58,7 @@ function App() {
               element={<CompliancePage pageKey="payment-security" />}
             />
             <Route path="/delete-account" element={<CompliancePage pageKey="delete-account" />} />
+            <Route path="/listing/:id" element={<ListingDeepLink />} />
             <Route path="/footer/:pageKey" element={<FooterPage />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route
@@ -85,7 +88,7 @@ function App() {
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="/app" element={<Navigate to="/" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </BrowserRouter>

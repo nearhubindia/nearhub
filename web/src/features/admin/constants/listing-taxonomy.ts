@@ -42,6 +42,16 @@ export const ADMIN_CATEGORY_GROUPS: AdminCategoryGroup[] = [
   },
 ];
 
+const CONDITION_OPTIONAL_MAIN_CATEGORIES = new Set(['jobs & services']);
+const CONDITION_OPTIONAL_SUB_CATEGORIES = new Set([
+  'jobs',
+  'freelance',
+  'services',
+  'business',
+  'education',
+  'health',
+]);
+
 export function getDefaultAdminSubCategory(): string {
   return ADMIN_CATEGORY_GROUPS[0]?.subcategories[0] || 'Other';
 }
@@ -65,4 +75,25 @@ export function getSubCategoriesForMainCategory(mainCategory?: string | null): s
   if (!normalized) return ADMIN_CATEGORY_GROUPS[0]?.subcategories || ['Other'];
   const group = ADMIN_CATEGORY_GROUPS.find((entry) => entry.mainCategory === normalized);
   return group?.subcategories || ADMIN_CATEGORY_GROUPS[0]?.subcategories || ['Other'];
+}
+
+export function shouldRequireConditionForCategory(
+  mainCategory?: string | null,
+  subCategory?: string | null
+): boolean {
+  const normalizedMain = String(mainCategory || '')
+    .trim()
+    .toLowerCase();
+  if (CONDITION_OPTIONAL_MAIN_CATEGORIES.has(normalizedMain)) {
+    return false;
+  }
+
+  const normalizedSub = String(subCategory || '')
+    .trim()
+    .toLowerCase();
+  if (CONDITION_OPTIONAL_SUB_CATEGORIES.has(normalizedSub)) {
+    return false;
+  }
+
+  return true;
 }

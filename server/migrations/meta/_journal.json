@@ -99,6 +99,13 @@
       "when": 1776845400000,
       "tag": "0013_listing_category_hierarchy",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1777014438594,
+      "tag": "0014_listing_condition_nullable",
+      "breakpoints": true
     }
   ]
 }

@@ -16,6 +16,7 @@ import {
   getDefaultAdminSubCategory,
   getMainCategoryForSubCategory,
   getSubCategoriesForMainCategory,
+  shouldRequireConditionForCategory,
 } from '@/features/admin/constants/listing-taxonomy';
 import type { Listing, Enhancements } from '@/features/admin/types/admin-types';
 import { useUpdateListing } from '@/features/admin/hooks';
@@ -78,6 +79,10 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
   const subCategories = useMemo(
     () => getSubCategoriesForMainCategory(formData.mainCategory),
     [formData.mainCategory]
+  );
+  const showConditionField = useMemo(
+    () => shouldRequireConditionForCategory(formData.mainCategory, formData.subCategory),
+    [formData.mainCategory, formData.subCategory]
   );
   const conditions = ['new', 'like_new', 'good', 'fair', 'poor'];
 
@@ -351,7 +356,7 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
         mainCategory: formData.mainCategory,
         subCategory: formData.subCategory,
         category: formData.subCategory,
-        condition: formData.condition,
+        condition: showConditionField ? formData.condition : 'good',
         location: formData.location,
         status: formData.status as 'active' | 'sold' | 'pending',
         contactPhone: String(formData.contactPhone || '').trim(),
@@ -555,20 +560,22 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className={labelClass}>Condition</label>
-                    <select
-                      value={formData.condition}
-                      onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
-                      className={inputClass}
-                    >
-                      {conditions.map((cond) => (
-                        <option key={cond} value={cond}>
-                          {cond.replace('_', ' ')}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {showConditionField && (
+                    <div>
+                      <label className={labelClass}>Condition</label>
+                      <select
+                        value={formData.condition}
+                        onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
+                        className={inputClass}
+                      >
+                        {conditions.map((cond) => (
+                          <option key={cond} value={cond}>
+                            {cond.replace('_', ' ')}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

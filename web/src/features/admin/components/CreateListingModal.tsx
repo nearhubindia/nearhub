@@ -6,6 +6,7 @@ import {
   getDefaultAdminSubCategory,
   getMainCategoryForSubCategory,
   getSubCategoriesForMainCategory,
+  shouldRequireConditionForCategory,
 } from '@/features/admin/constants/listing-taxonomy';
 import { useCreateListing } from '@/features/admin/hooks';
 import { validators } from '@/features/admin/utils';
@@ -54,6 +55,10 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
   const subCategories = useMemo(
     () => getSubCategoriesForMainCategory(formData.mainCategory),
     [formData.mainCategory]
+  );
+  const showConditionField = useMemo(
+    () => shouldRequireConditionForCategory(formData.mainCategory, formData.subCategory),
+    [formData.mainCategory, formData.subCategory]
   );
   const conditions = ['new', 'like_new', 'good', 'fair', 'poor'];
 
@@ -336,7 +341,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
         mainCategory: formData.mainCategory,
         subCategory: formData.subCategory,
         category: formData.subCategory,
-        condition: formData.condition,
+        condition: showConditionField ? formData.condition : 'good',
         location: formData.location,
         contactPhone: String(formData.contactPhone || '').trim(),
         userId: sellerLookup,
@@ -538,21 +543,23 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                     </select>
                   </div>
 
-                  <div>
-                    <label className={labelClass}>Condition *</label>
-                    <select
-                      value={formData.condition}
-                      onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
-                      className={inputClass}
-                      required
-                    >
-                      {conditions.map((cond) => (
-                        <option key={cond} value={cond}>
-                          {cond.replace('_', ' ').toUpperCase()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {showConditionField && (
+                    <div>
+                      <label className={labelClass}>Condition *</label>
+                      <select
+                        value={formData.condition}
+                        onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
+                        className={inputClass}
+                        required
+                      >
+                        {conditions.map((cond) => (
+                          <option key={cond} value={cond}>
+                            {cond.replace('_', ' ').toUpperCase()}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   <div className="md:col-span-2">
                     <label className={`${labelClass} flex items-center gap-2`}>

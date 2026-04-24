@@ -584,7 +584,7 @@ export const listings = pgTable('listings', {
   contactPhone: varchar('contact_phone', { length: 20 }),
 
   // Condition & location
-  condition: varchar('condition', { length: 50 }).notNull(),
+  condition: varchar('condition', { length: 50 }),
   location: varchar('location', { length: 200 }).notNull(),
   pincode: varchar('pincode', { length: 10 }),
   latitude: decimal('latitude', { precision: 10, scale: 8 }),

@@ -28,7 +28,7 @@ export interface CreateListingRequest {
   price: number;
   offerPrice?: number;
   priceUnit?: string;
-  condition: string;
+  condition?: string;
   images?: string[];
   videoUrl?: string;
   listingType: 'image' | 'video'; // NEW: Required to determine pricing
@@ -108,12 +108,14 @@ export async function calculateCheckout(req: CheckoutRequest): Promise<{
  */
 export function getListingCheckoutSummary(req: CreateListingRequest) {
   const isFree = isListingFree(req.price);
+  const conditionLabel =
+    typeof req.condition === 'string' && req.condition.trim() ? req.condition.trim() : 'N/A';
 
   return {
     title: req.title,
     category: req.category,
     price: req.price,
-    condition: req.condition,
+    condition: conditionLabel,
     isFree,
     message: isFree
       ? '✓ Your listing is FREE (product price < ₹3000)'
@@ -195,6 +197,10 @@ export function generatePaymentSummary(
     expiresAt: Date;
   }
 ): string {
+  const conditionLabel =
+    typeof listing.condition === 'string' && listing.condition.trim()
+      ? listing.condition.trim()
+      : 'N/A';
   return `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       LISTING SUBSCRIPTION SUMMARY
@@ -204,7 +210,7 @@ export function generatePaymentSummary(
    Title: ${listing.title}
    Category: ${listing.category}
    Price: ₹${listing.price.toLocaleString('en-IN')}
-   Condition: ${listing.condition}
+   Condition: ${conditionLabel}
 
 💳 Subscription Details:
    Duration: ${pricingInfo.durationLabel}
