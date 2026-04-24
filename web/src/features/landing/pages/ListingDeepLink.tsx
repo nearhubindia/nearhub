@@ -31,10 +31,7 @@ export default function ListingDeepLink(): ReactElement {
     const referrerPayload = `nearhub_listing_id=${encodeURIComponent(listingId)}`;
     return `${playStoreBaseUrl}&referrer=${encodeURIComponent(referrerPayload)}`;
   }, [listingId]);
-  const appDeepLink = useMemo(
-    () => `nearhub://listing/${encodedListingId}`,
-    [encodedListingId]
-  );
+  const appDeepLink = useMemo(() => `nearhub://listing/${encodedListingId}`, [encodedListingId]);
   const androidIntentLink = useMemo(
     () =>
       `intent://listing/${encodedListingId}#Intent;scheme=nearhub;package=com.synvide.nearhub;S.browser_fallback_url=${encodeURIComponent(playStoreInstallUrl)};end`,
