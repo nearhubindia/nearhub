@@ -239,6 +239,14 @@ export const couponsApi = {
     });
     return handleResponse(response);
   },
+
+  async deactivateCoupon(id: string): Promise<unknown> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/coupons/${id}/deactivate`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
 };
 
 // ============================================================================

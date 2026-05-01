@@ -7,8 +7,10 @@ import {
   useCreateCoupon,
   useUpdateCoupon,
   useDeleteCoupon,
+  useDeactivateCoupon,
 } from '@/features/admin/hooks';
 import { formatters, validators } from '@/features/admin/utils';
+import { ApiError } from '@/features/admin/api';
 
 interface CouponRow {
   id: string;
@@ -25,6 +27,7 @@ export default function CouponsView() {
   const createCoupon = useCreateCoupon();
   const updateCoupon = useUpdateCoupon();
   const deleteCoupon = useDeleteCoupon();
+  const deactivateCoupon = useDeactivateCoupon();
 
   const [showCouponModal, setShowCouponModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -112,6 +115,15 @@ export default function CouponsView() {
           >
             Edit
           </button>
+          {row.original.isActive && (
+            <button
+              onClick={() => void handleDeactivate(row.original)}
+              className="cursor-pointer font-bold text-amber-600 transition hover:text-amber-800 hover:underline"
+              type="button"
+            >
+              Deactivate
+            </button>
+          )}
           <button
             onClick={() => handleDelete(row.original)}
             className="cursor-pointer font-bold text-red-600 transition hover:text-red-800 hover:underline"
@@ -186,6 +198,19 @@ export default function CouponsView() {
     setShowDeleteModal(true);
   };
 
+  const handleDeactivate = async (coupon: CouponRow): Promise<void> => {
+    try {
+      await deactivateCoupon.mutateAsync(coupon.id as string);
+    } catch (error) {
+      console.error('Failed to deactivate coupon:', error);
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : 'Failed to deactivate coupon. Please try again.';
+      alert(message);
+    }
+  };
+
   const confirmDelete = async (): Promise<void> => {
     if (!couponToDelete) return;
 
@@ -195,7 +220,9 @@ export default function CouponsView() {
       setCouponToDelete(null);
     } catch (error) {
       console.error('Failed to delete coupon:', error);
-      alert('Failed to delete coupon');
+      const message =
+        error instanceof ApiError ? error.message : 'Failed to delete coupon. Please try again.';
+      alert(message);
     }
   };
 

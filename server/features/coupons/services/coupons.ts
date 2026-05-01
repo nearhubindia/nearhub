@@ -472,6 +472,14 @@ export async function deleteCoupon(id: string): Promise<{
     return { success: true };
   } catch (error) {
     console.error('[Coupons] Error deleting coupon:', error);
+    const dbError = error as { code?: string } | undefined;
+    if (dbError?.code === '23503') {
+      return {
+        success: false,
+        error:
+          'Coupon is already used in listings or subscriptions and cannot be deleted. Deactivate it instead.',
+      };
+    }
     return {
       success: false,
       error: 'Failed to delete coupon',

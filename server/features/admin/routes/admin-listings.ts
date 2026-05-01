@@ -14,6 +14,7 @@ import {
   notifyListingRejected,
 } from '../../../shared/services/auto-notifications';
 import { createInAppNotification } from '../../../shared/services/in-app-notifications';
+import { SERVER_CONFIG } from '../../../lib/config';
 
 export function registerAdminListingsRoutes(app: Express) {
   type AdminAuthRequest = AuthRequest & { admin?: { id?: string } };
@@ -110,6 +111,71 @@ export function registerAdminListingsRoutes(app: Express) {
   };
 
   const looksLikePhone = (value: string): boolean => /^\d{10,15}$/.test(value.replace(/\D/g, ''));
+
+  const hasLocalDeviceUri = (value: unknown): boolean => {
+    if (typeof value !== 'string') return false;
+    const uri = value.trim().toLowerCase();
+    return (
+      uri.startsWith('file://') ||
+      uri.startsWith('content://') ||
+      uri.startsWith('ph://') ||
+      uri.startsWith('assets-library://')
+    );
+  };
+
+  const getAllowedRemoteMediaHosts = (): Set<string> => {
+    const hosts = new Set<string>();
+    const baseUrl = String(SERVER_CONFIG.CLOUDFLARE_R2_PUBLIC_BASE_URL || '').trim();
+    if (!baseUrl) return hosts;
+    try {
+      const parsed = new URL(baseUrl);
+      if (parsed.hostname) {
+        hosts.add(parsed.hostname.toLowerCase());
+      }
+    } catch {
+      // Ignore invalid URL and skip strict host checks.
+    }
+    return hosts;
+  };
+
+  const isHttpMediaUrl = (value: unknown): value is string => {
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim().toLowerCase();
+    return trimmed.startsWith('http://') || trimmed.startsWith('https://');
+  };
+
+  const findInvalidRemoteMediaUrls = (values: unknown[], allowedHosts: Set<string>): string[] => {
+    if (allowedHosts.size === 0 || !SERVER_CONFIG.CLOUDFLARE_R2_ENABLED) {
+      return [];
+    }
+
+    const invalid: string[] = [];
+    for (const item of values) {
+      if (!isHttpMediaUrl(item)) continue;
+      try {
+        const parsed = new URL(item);
+        if (!allowedHosts.has(parsed.hostname.toLowerCase())) {
+          invalid.push(item);
+        }
+      } catch {
+        invalid.push(String(item));
+      }
+    }
+    return invalid;
+  };
+
+  const hasNonMp4VideoUrl = (values: unknown[]): boolean =>
+    values.some((item) => {
+      if (typeof item !== 'string') return false;
+      const url = item.trim();
+      if (!url) return false;
+      try {
+        const parsed = new URL(url);
+        return !parsed.pathname.toLowerCase().endsWith('.mp4');
+      } catch {
+        return true;
+      }
+    });
 
   const resolveListingOwnerId = async (value: unknown): Promise<string | null> => {
     const raw = typeof value === 'string' ? value.trim() : '';
@@ -328,6 +394,46 @@ export function registerAdminListingsRoutes(app: Express) {
         return res.status(400).json({
           success: false,
           error: 'Both latitude and longitude are required together',
+        });
+      }
+
+      if (
+        (Array.isArray(images) && images.some((item: unknown) => hasLocalDeviceUri(item))) ||
+        (Array.isArray(videos) && videos.some((item: unknown) => hasLocalDeviceUri(item)))
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'Local device media URIs are not allowed. Upload media and use remote URLs only.',
+        });
+      }
+
+      const allowedRemoteMediaHosts = getAllowedRemoteMediaHosts();
+      const imageList = Array.isArray(images) ? images : [];
+      const videoList = Array.isArray(videos) ? videos : [];
+
+      const invalidImageUrls = findInvalidRemoteMediaUrls(imageList, allowedRemoteMediaHosts);
+      if (invalidImageUrls.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'One or more image URLs are not from the approved Cloudflare R2 media domain.',
+          code: 'INVALID_REMOTE_IMAGE_URL',
+        });
+      }
+
+      const invalidVideoUrls = findInvalidRemoteMediaUrls(videoList, allowedRemoteMediaHosts);
+      if (invalidVideoUrls.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'One or more video URLs are not from the approved Cloudflare R2 media domain.',
+          code: 'INVALID_REMOTE_VIDEO_URL',
+        });
+      }
+
+      if (hasNonMp4VideoUrl(videoList)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Only MP4 video URLs are supported.',
+          code: 'INVALID_VIDEO_FORMAT',
         });
       }
 
@@ -583,6 +689,8 @@ export function registerAdminListingsRoutes(app: Express) {
         featured,
         sponsored,
         contactPhone,
+        images,
+        videos,
       } = req.body;
 
       const updateData: Partial<typeof listings.$inferInsert> = {};
@@ -652,6 +760,75 @@ export function registerAdminListingsRoutes(app: Express) {
       if (featured !== undefined) updateData.featured = featured;
       if (sponsored !== undefined) updateData.sponsored = sponsored;
       if (contactPhone !== undefined) updateData.contactPhone = normalizeContactPhone(contactPhone);
+      if (images !== undefined) {
+        if (!Array.isArray(images)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Images must be an array of URLs',
+          });
+        }
+        updateData.images = images as any;
+      }
+      if (videos !== undefined) {
+        if (!Array.isArray(videos)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Videos must be an array of URLs',
+          });
+        }
+        updateData.videos = videos as any;
+      }
+
+      if (
+        Array.isArray(images) &&
+        images.some((item: unknown) => hasLocalDeviceUri(item))
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'One or more images are local device paths. Please upload images and try again.',
+          code: 'INVALID_IMAGE_URI',
+        });
+      }
+
+      if (
+        Array.isArray(videos) &&
+        videos.some((item: unknown) => hasLocalDeviceUri(item))
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'One or more videos are local device paths. Please upload videos and try again.',
+          code: 'INVALID_VIDEO_URI',
+        });
+      }
+
+      const allowedRemoteMediaHosts = getAllowedRemoteMediaHosts();
+      if (Array.isArray(images)) {
+        const invalidImageUrls = findInvalidRemoteMediaUrls(images, allowedRemoteMediaHosts);
+        if (invalidImageUrls.length > 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'One or more image URLs are not from the approved Cloudflare R2 media domain.',
+            code: 'INVALID_REMOTE_IMAGE_URL',
+          });
+        }
+      }
+      if (Array.isArray(videos)) {
+        const invalidVideoUrls = findInvalidRemoteMediaUrls(videos, allowedRemoteMediaHosts);
+        if (invalidVideoUrls.length > 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'One or more video URLs are not from the approved Cloudflare R2 media domain.',
+            code: 'INVALID_REMOTE_VIDEO_URL',
+          });
+        }
+        if (hasNonMp4VideoUrl(videos)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Only MP4 video URLs are supported.',
+            code: 'INVALID_VIDEO_FORMAT',
+          });
+        }
+      }
 
       const result = await db
         .update(listings)

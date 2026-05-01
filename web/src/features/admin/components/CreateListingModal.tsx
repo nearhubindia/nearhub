@@ -44,6 +44,8 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isResolvingLocation, setIsResolvingLocation] = useState(false);
   const [locationResolveError, setLocationResolveError] = useState<string>('');
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [mediaError, setMediaError] = useState('');
   const [lastAutoFilledLocation, setLastAutoFilledLocation] = useState('');
   const [lastAutoFilledPincode, setLastAutoFilledPincode] = useState('');
   const resolveRequestIdRef = useRef(0);
@@ -61,6 +63,109 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     [formData.mainCategory, formData.subCategory]
   );
   const conditions = ['new', 'like_new', 'good', 'fair', 'poor'];
+  const apiUrl = getApiUrl();
+
+  const getImageMimeType = (file: File): string => {
+    if (file.type === 'image/png') return 'image/png';
+    if (file.type === 'image/webp') return 'image/webp';
+    return 'image/jpeg';
+  };
+
+  const compressImageFile = async (file: File): Promise<File> => {
+    const imageUrl = URL.createObjectURL(file);
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Failed to load image for compression'));
+        img.src = imageUrl;
+      });
+
+      const MAX_DIMENSION = 1920;
+      const ratio = Math.min(1, MAX_DIMENSION / Math.max(image.width, image.height));
+      const targetWidth = Math.max(1, Math.round(image.width * ratio));
+      const targetHeight = Math.max(1, Math.round(image.height * ratio));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        throw new Error('Failed to initialize image compression context');
+      }
+
+      context.drawImage(image, 0, 0, targetWidth, targetHeight);
+      const mimeType = getImageMimeType(file);
+      const quality = mimeType === 'image/jpeg' || mimeType === 'image/webp' ? 0.82 : undefined;
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (value) => (value ? resolve(value) : reject(new Error('Image compression failed'))),
+          mimeType,
+          quality
+        );
+      });
+
+      return new File([blob], file.name, { type: mimeType });
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+    }
+  };
+
+  const requestPresignedUpload = async (params: {
+    mediaType: 'image' | 'video';
+    fileName: string;
+    contentType: string;
+    fileSizeBytes: number;
+  }): Promise<{ uploadUrl: string; publicUrl: string }> => {
+    const response = await fetch(`${apiUrl}/api/media/presign-upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | {
+          success?: boolean;
+          error?: string;
+          data?: { uploadUrl?: string; publicUrl?: string };
+        }
+      | null;
+
+    if (!response.ok || !payload?.success || !payload.data?.uploadUrl || !payload.data?.publicUrl) {
+      throw new Error(payload?.error || 'Failed to create media upload URL');
+    }
+
+    return {
+      uploadUrl: payload.data.uploadUrl,
+      publicUrl: payload.data.publicUrl,
+    };
+  };
+
+  const uploadFileToCloudflare = async (
+    file: File,
+    mediaType: 'image' | 'video'
+  ): Promise<string> => {
+    const signed = await requestPresignedUpload({
+      mediaType,
+      fileName: file.name,
+      contentType: file.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
+      fileSizeBytes: file.size,
+    });
+
+    const uploadResponse = await fetch(signed.uploadUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
+      },
+      body: file,
+    });
+
+    if (!uploadResponse.ok) {
+      throw new Error(`Media upload failed (${uploadResponse.status})`);
+    }
+
+    return signed.publicUrl;
+  };
 
   const parseCoordinate = (
     rawValue: string,
@@ -234,36 +339,64 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     }));
   }, [formData.subCategory, subCategories]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>): void => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
-    files.forEach((file: File) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setFormData((prev) => ({
-          ...prev,
-          images: [...(prev.images || []), base64String],
-        }));
-      };
-      reader.readAsDataURL(file);
-    });
+    setMediaError('');
+    setIsUploadingMedia(true);
+    try {
+      const uploadedUrls: string[] = [];
+      for (const file of files) {
+        const compressedFile = await compressImageFile(file);
+        const uploadedUrl = await uploadFileToCloudflare(compressedFile, 'image');
+        uploadedUrls.push(uploadedUrl);
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        images: [...(prev.images || []), ...uploadedUrls],
+      }));
+    } catch (error) {
+      console.error('Failed to upload image(s):', error);
+      setMediaError('Failed to upload image(s). Please try again.');
+    } finally {
+      setIsUploadingMedia(false);
+      e.target.value = '';
+    }
   };
 
-  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>): void => {
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
-    files.forEach((file: File) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setFormData((prev) => ({
-          ...prev,
-          videos: [...(prev.videos || []), base64String],
-        }));
-      };
-      reader.readAsDataURL(file);
-    });
+    setMediaError('');
+    setIsUploadingMedia(true);
+    try {
+      const uploadedUrls: string[] = [];
+      for (const file of files) {
+        if (file.type !== 'video/mp4') {
+          throw new Error('Only MP4 videos are supported');
+        }
+        const uploadedUrl = await uploadFileToCloudflare(file, 'video');
+        uploadedUrls.push(uploadedUrl);
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        videos: [...(prev.videos || []), ...uploadedUrls],
+      }));
+    } catch (error) {
+      console.error('Failed to upload video(s):', error);
+      setMediaError(
+        error instanceof Error && error.message.includes('MP4')
+          ? 'Only MP4 videos are supported. Please upload MP4 files.'
+          : 'Failed to upload video(s). Please try again.'
+      );
+    } finally {
+      setIsUploadingMedia(false);
+      e.target.value = '';
+    }
   };
 
   const removeImage = (index: number): void => {
@@ -334,6 +467,11 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     }
 
     try {
+      if (isUploadingMedia) {
+        setFormErrors({ submit: 'Please wait for media upload to finish before creating listing.' });
+        return;
+      }
+
       const payload: Record<string, unknown> = {
         title: formData.title,
         description: formData.description,
@@ -413,6 +551,11 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
             {formErrors.submit && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
                 {formErrors.submit}
+              </div>
+            )}
+            {mediaError && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+                {mediaError}
               </div>
             )}
 
@@ -686,11 +829,14 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                     <p className="text-center text-sm text-slate-600">
                       Click to upload images
                       <span className="mt-1 block text-xs text-slate-500">
-                        Supports: JPG, PNG, GIF
+                        Supports: JPG, PNG, WEBP (auto-optimized)
                       </span>
                     </p>
                   </label>
                 </div>
+                {isUploadingMedia && (
+                  <p className="mt-2 text-xs text-cyan-700">Uploading media...</p>
+                )}
 
                 {formData.images && formData.images.length > 0 && (
                   <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -733,7 +879,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                     <p className="text-center text-sm text-slate-600">
                       Click to upload videos
                       <span className="mt-1 block text-xs text-slate-500">
-                        Supports: MP4, MOV, WEBM
+                        Supports: MP4 only
                       </span>
                     </p>
                   </label>

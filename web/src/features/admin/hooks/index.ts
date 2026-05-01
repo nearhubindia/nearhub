@@ -287,6 +287,16 @@ export function useDeleteCoupon() {
   });
 }
 
+export function useDeactivateCoupon() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => couponsApi.deactivateCoupon(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.coupons() });
+    },
+  });
+}
+
 // ============================================================================
 // Subscription Tiers Hooks
 // ============================================================================
