@@ -123,13 +123,11 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
       body: JSON.stringify(params),
     });
 
-    const payload = (await response.json().catch(() => null)) as
-      | {
-          success?: boolean;
-          error?: string;
-          data?: { uploadUrl?: string; publicUrl?: string };
-        }
-      | null;
+    const payload = (await response.json().catch(() => null)) as {
+      success?: boolean;
+      error?: string;
+      data?: { uploadUrl?: string; publicUrl?: string };
+    } | null;
 
     if (!response.ok || !payload?.success || !payload.data?.uploadUrl || !payload.data?.publicUrl) {
       throw new Error(payload?.error || 'Failed to create media upload URL');
@@ -468,7 +466,9 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
 
     try {
       if (isUploadingMedia) {
-        setFormErrors({ submit: 'Please wait for media upload to finish before creating listing.' });
+        setFormErrors({
+          submit: 'Please wait for media upload to finish before creating listing.',
+        });
         return;
       }
 
@@ -878,9 +878,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                     <Plus className="mb-2 text-slate-400" size={30} />
                     <p className="text-center text-sm text-slate-600">
                       Click to upload videos
-                      <span className="mt-1 block text-xs text-slate-500">
-                        Supports: MP4 only
-                      </span>
+                      <span className="mt-1 block text-xs text-slate-500">Supports: MP4 only</span>
                     </p>
                   </label>
                 </div>
