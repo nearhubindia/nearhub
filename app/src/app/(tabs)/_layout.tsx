@@ -26,10 +26,13 @@ function ClassicTabLayout() {
   return (
     <>
       <Tabs
+        detachInactiveScreens
         screenOptions={{
           tabBarActiveTintColor: Colors.light.tint,
           tabBarInactiveTintColor: Colors.light.tabIconDefault,
           headerShown: false,
+          lazy: true,
+          freezeOnBlur: true,
           tabBarStyle: {
             position: 'absolute',
             left: 0,
@@ -91,6 +94,15 @@ function ClassicTabLayout() {
             title: 'Post',
             tabBarIcon: ({ color }) => (
               <Ionicons size={responsiveModerateScale(21)} name="add-circle" color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="ai-studio"
+          options={{
+            title: 'AI Studio',
+            tabBarIcon: ({ color }) => (
+              <Feather size={responsiveModerateScale(21)} name="mic" color={color} />
             ),
           }}
         />

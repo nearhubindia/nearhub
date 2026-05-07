@@ -8,6 +8,7 @@ const PRODUCT_CATEGORIES: Category[] = [
   'Computers',
   'Appliances',
   'Vehicles',
+  'EV Vehicles',
   'Commercial Vehicles',
   'Bikes',
   'Spare Parts',

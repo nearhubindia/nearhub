@@ -45,6 +45,42 @@ async function applyCoreSchemaPatches(): Promise<void> {
     CREATE UNIQUE INDEX IF NOT EXISTS listing_likes_listing_user_unique
       ON listing_likes (listing_id, user_id)
   `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS listing_moderation_queue (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      listing_id varchar NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+      status varchar(20) NOT NULL DEFAULT 'pending',
+      attempts integer NOT NULL DEFAULT 0,
+      max_attempts integer NOT NULL DEFAULT 5,
+      confidence numeric(5, 4),
+      reasons text,
+      last_error text,
+      created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      processed_at timestamp
+    )
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS listing_moderation_queue_listing_id_unique
+      ON listing_moderation_queue (listing_id)
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS ai_voiceover_jobs (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source_video_url text NOT NULL,
+      output_video_url text,
+      language varchar(20) NOT NULL,
+      status varchar(20) NOT NULL DEFAULT 'pending',
+      script_text text,
+      error_message text,
+      attempts integer NOT NULL DEFAULT 0,
+      max_attempts integer NOT NULL DEFAULT 3,
+      created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      processed_at timestamp
+    )
+  `);
 
   // Keep display_name useful when legacy rows only had username.
   await db.execute(sql`

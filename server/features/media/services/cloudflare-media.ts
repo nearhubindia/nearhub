@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import * as fs from 'node:fs/promises';
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { SERVER_CONFIG } from '../../../lib/config';
@@ -15,8 +16,12 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/gif',
 ]);
 
-// Keep video uploads Android-safe by accepting only MP4 container uploads.
-const ALLOWED_VIDEO_MIME_TYPES = new Set(['video/mp4']);
+const ALLOWED_VIDEO_MIME_TYPES = new Set([
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+  'video/3gpp',
+]);
 
 const MIME_EXTENSION_MAP: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -27,6 +32,9 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
   'image/heif': 'heif',
   'image/gif': 'gif',
   'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+  'video/3gpp': '3gp',
 };
 
 function getRequiredEnv(name: string, value: string): string {
@@ -127,7 +135,26 @@ function getPublicBaseUrl(): string {
     'CLOUDFLARE_R2_PUBLIC_BASE_URL',
     SERVER_CONFIG.CLOUDFLARE_R2_PUBLIC_BASE_URL
   );
-  return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const normalized = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new Error(
+      'Invalid CLOUDFLARE_R2_PUBLIC_BASE_URL. Set it to your Cloudflare R2 public or CDN URL.'
+    );
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const blockedHosts = new Set(['nearhub.in', 'www.nearhub.in', 'localhost', '127.0.0.1']);
+  if (blockedHosts.has(host)) {
+    throw new Error(
+      `Invalid CLOUDFLARE_R2_PUBLIC_BASE_URL host "${host}". Use your R2 public/CDN host (for example: https://pub-<id>.r2.dev).`
+    );
+  }
+
+  return normalized;
 }
 
 function buildObjectKey(params: {
@@ -275,4 +302,68 @@ export async function deleteMediaByKeys(values: string[]): Promise<{
   }
 
   return { deleted, failed };
+}
+
+export async function uploadBufferAsMedia(params: {
+  mediaType: MediaType;
+  contentType: string;
+  originalFileName: string;
+  buffer: Buffer;
+  userId?: string;
+}): Promise<{ objectKey: string; publicUrl: string }> {
+  ensureR2Enabled();
+
+  const contentType = normalizeContentType(params.contentType);
+  if (!isAllowedContentType(params.mediaType, contentType)) {
+    throw new Error(`Unsupported ${params.mediaType} content type: ${params.contentType}`);
+  }
+  if (!params.buffer?.length) {
+    throw new Error('Media buffer is empty');
+  }
+
+  const maxBytes = maxBytesForType(params.mediaType);
+  if (params.buffer.length > maxBytes) {
+    throw new Error(
+      `${params.mediaType} exceeds max size of ${(maxBytes / (1024 * 1024)).toFixed(0)}MB`
+    );
+  }
+
+  const bucket = getRequiredEnv('CLOUDFLARE_R2_BUCKET', SERVER_CONFIG.CLOUDFLARE_R2_BUCKET);
+  const objectKey = buildObjectKey({
+    mediaType: params.mediaType,
+    contentType,
+    originalFileName: params.originalFileName,
+    userId: params.userId,
+  });
+  const client = getR2Client();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+      Body: params.buffer,
+      ContentType: contentType,
+      ContentLength: params.buffer.length,
+    })
+  );
+  return {
+    objectKey,
+    publicUrl: `${getPublicBaseUrl()}/${objectKey}`,
+  };
+}
+
+export async function uploadLocalFileAsMedia(params: {
+  mediaType: MediaType;
+  contentType: string;
+  originalFileName: string;
+  filePath: string;
+  userId?: string;
+}): Promise<{ objectKey: string; publicUrl: string }> {
+  const buffer = await fs.readFile(params.filePath);
+  return uploadBufferAsMedia({
+    mediaType: params.mediaType,
+    contentType: params.contentType,
+    originalFileName: params.originalFileName,
+    buffer,
+    userId: params.userId,
+  });
 }

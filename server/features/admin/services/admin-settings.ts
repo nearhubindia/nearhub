@@ -3,11 +3,15 @@
  * Manages subscription pricing configuration
  */
 
+import { desc, eq } from 'drizzle-orm';
+import { db } from '../../../data/db';
+import { adminSettings as adminSettingsTable } from '../models/admin-settings';
 import type { AdminSettings, PricingConfiguration } from '../models/admin-settings';
 
 // In-memory cache for admin settings (refresh every 5 minutes)
 let cachedSettings: AdminSettings | null = null;
 let cacheExpiresAt: number = 0;
+const SETTINGS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const DEFAULT_SETTINGS: AdminSettings = {
   id: 'default',
@@ -69,10 +73,19 @@ export async function getAdminSettings(): Promise<AdminSettings> {
     return cachedSettings;
   }
 
-  // TODO: Fetch from database when integrated
-  // For now, return defaults
-  cachedSettings = DEFAULT_SETTINGS;
-  cacheExpiresAt = now + 5 * 60 * 1000; // 5 minute cache
+  try {
+    const [latestSettings] = await db
+      .select()
+      .from(adminSettingsTable)
+      .orderBy(desc(adminSettingsTable.updatedAt))
+      .limit(1);
+
+    cachedSettings = latestSettings ? { ...DEFAULT_SETTINGS, ...latestSettings } : DEFAULT_SETTINGS;
+  } catch (error) {
+    console.warn('[AdminSettings] Falling back to in-memory defaults:', error);
+    cachedSettings = cachedSettings ?? DEFAULT_SETTINGS;
+  }
+  cacheExpiresAt = now + SETTINGS_CACHE_TTL_MS;
 
   return cachedSettings;
 }
@@ -133,21 +146,52 @@ export async function getPricingConfig(): Promise<PricingConfiguration> {
  * @returns Updated settings
  */
 export async function updateAdminSettings(updates: Partial<AdminSettings>): Promise<AdminSettings> {
-  // TODO: Update in database
-  // For now, update in-memory cache
+  const now = new Date();
+  try {
+    const [existingSettings] = await db
+      .select()
+      .from(adminSettingsTable)
+      .orderBy(desc(adminSettingsTable.updatedAt))
+      .limit(1);
 
-  const newSettings = {
-    ...DEFAULT_SETTINGS,
-    ...updates,
-    updatedAt: new Date(),
-  };
+    let persistedSettings: AdminSettings;
+    if (existingSettings) {
+      const [updatedSettings] = await db
+        .update(adminSettingsTable)
+        .set({
+          ...updates,
+          updatedAt: now,
+        })
+        .where(eq(adminSettingsTable.id, existingSettings.id))
+        .returning();
+      persistedSettings = updatedSettings;
+    } else {
+      const [createdSettings] = await db
+        .insert(adminSettingsTable)
+        .values({
+          ...DEFAULT_SETTINGS,
+          ...updates,
+          updatedAt: now,
+        })
+        .returning();
+      persistedSettings = createdSettings;
+    }
 
-  cachedSettings = newSettings;
-  cacheExpiresAt = 0; // Clear cache so it reloads
+    cachedSettings = { ...DEFAULT_SETTINGS, ...persistedSettings };
+  } catch (error) {
+    console.warn('[AdminSettings] DB update failed, using in-memory fallback:', error);
+    const base = cachedSettings ?? DEFAULT_SETTINGS;
+    cachedSettings = {
+      ...base,
+      ...updates,
+      updatedAt: now,
+    };
+  }
+  cacheExpiresAt = Date.now() + SETTINGS_CACHE_TTL_MS;
 
   console.log('[AdminSettings] Updated:', Object.keys(updates).join(', '));
 
-  return newSettings;
+  return cachedSettings;
 }
 
 /**

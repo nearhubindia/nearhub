@@ -143,20 +143,33 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     file: File,
     mediaType: 'image' | 'video'
   ): Promise<string> => {
+    const contentType = file.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
     const signed = await requestPresignedUpload({
       mediaType,
       fileName: file.name,
-      contentType: file.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
+      contentType,
       fileSizeBytes: file.size,
     });
 
-    const uploadResponse = await fetch(signed.uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': file.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
-      },
-      body: file,
-    });
+    let uploadResponse: Response;
+    try {
+      uploadResponse = await fetch(signed.uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': contentType,
+        },
+        body: file,
+      });
+    } catch (error) {
+      // Some R2 bucket CORS rules do not allow Content-Type on presigned PUT preflight.
+      if (!(error instanceof TypeError)) {
+        throw error;
+      }
+      uploadResponse = await fetch(signed.uploadUrl, {
+        method: 'PUT',
+        body: file,
+      });
+    }
 
     if (!uploadResponse.ok) {
       throw new Error(`Media upload failed (${uploadResponse.status})`);
@@ -357,7 +370,11 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
       }));
     } catch (error) {
       console.error('Failed to upload image(s):', error);
-      setMediaError('Failed to upload image(s). Please try again.');
+      setMediaError(
+        error instanceof TypeError
+          ? 'Failed to upload image(s): network or CORS issue while uploading to media storage.'
+          : 'Failed to upload image(s). Please try again.'
+      );
     } finally {
       setIsUploadingMedia(false);
       e.target.value = '';

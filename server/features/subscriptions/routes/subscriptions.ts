@@ -52,7 +52,6 @@ import {
   notifyPaymentFailed,
   notifyInvoiceGenerated,
   notifyCouponApplied,
-  notifyAdminListingPendingReview,
 } from '../../../shared/services/auto-notifications';
 import {
   getActiveSubscriptionTiers,
@@ -78,6 +77,7 @@ import { getActiveListingCount, getSubscriptionById } from '../services/subscrip
 import { transactions } from '../models/subscription';
 import { listingCreationLimiter } from '../../../lib/rate-limiter';
 import { SERVER_CONFIG } from '../../../lib/config';
+import { enqueueListingModeration } from '../../listings/workers/listing-moderation';
 import {
   listings as listingsTable,
   subscriptionTiers as subscriptionTiersTable,
@@ -950,10 +950,6 @@ export function registerSubscriptionRoutes(app: Express) {
           longitude: longitude ? parseFloat(longitude as string) : undefined,
         };
 
-        // Manual moderation workflow:
-        // New listings are created as pending and require admin approval before going live.
-        console.log('[Listings] Manual review mode active - skipping AI auto-moderation checks.');
-
         // Create the listing
         let createdListing: any = null;
         try {
@@ -995,16 +991,7 @@ export function registerSubscriptionRoutes(app: Express) {
           throw createError;
         }
 
-        // Notify admins that a listing is waiting for manual review
-        notifyAdminListingPendingReview({
-          listingId: createdListing.id,
-          listingTitle: createdListing.title,
-          userId: ownerId,
-          location: listingData.location,
-          category: listingData.category,
-        }).catch((err) =>
-          console.error('[Subscriptions] Failed to notify admins for pending listing:', err)
-        );
+        await enqueueListingModeration(createdListing.id);
 
         // If coupon was used, record the free listing usage
         if (isFreeFromCoupon && couponCode) {
@@ -1023,10 +1010,10 @@ export function registerSubscriptionRoutes(app: Express) {
           isFree: isFreeFromCoupon || isFreeFromStarterCredits,
           requiresApproval: true,
           message: isFreeFromCoupon
-            ? `✓ Listing submitted for review with coupon! ${couponFreeRemaining} free listing${couponFreeRemaining !== 1 ? 's' : ''} remaining.`
+            ? `✓ Listing submitted and queued for AI review with coupon! ${couponFreeRemaining} free listing${couponFreeRemaining !== 1 ? 's' : ''} remaining.`
             : isFreeFromStarterCredits
-              ? `✓ Listing submitted for review using starter credits. ${starterListingsRemaining} starter listing credit${starterListingsRemaining !== 1 ? 's' : ''} remaining.`
-              : '✓ Listing submitted for admin review. It will go live after approval.',
+              ? `✓ Listing submitted and queued for AI review using starter credits. ${starterListingsRemaining} starter listing credit${starterListingsRemaining !== 1 ? 's' : ''} remaining.`
+              : '✓ Listing submitted and queued for AI review. It will auto-publish if safe, otherwise move to admin manual review.',
           listing: {
             id: createdListing.id,
             title: createdListing.title,
@@ -1036,6 +1023,10 @@ export function registerSubscriptionRoutes(app: Express) {
             status: createdListing.status,
             createdAt: createdListing.createdAt?.toISOString() || new Date().toISOString(),
             expiresAt: createdListing.expiresAt?.toISOString() || null,
+          },
+          moderation: {
+            provider: 'gemini',
+            queued: true,
           },
           coupon: isFreeFromCoupon
             ? {

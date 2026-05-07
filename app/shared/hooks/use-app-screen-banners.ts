@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getApiUrl } from '@/lib/query-client';
 import { getDebug } from '@/lib/config';
+import { clearPersistentCache, getPersistentCache, setPersistentCache } from '@/lib/use-cache';
 
 export type BannerScreen = 'home' | 'search' | 'profile' | 'shorts' | 'listings';
 
@@ -22,7 +23,10 @@ interface BannersResponse {
 }
 
 const bannerCache: Partial<Record<BannerScreen, AppScreenBanner[]>> = {};
+const bannerCacheFetchedAt: Partial<Record<BannerScreen, number>> = {};
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504, 520, 521, 522, 523, 524]);
+const CACHE_TTL_MS = 2 * 60 * 1000;
+const BANNER_CACHE_VERSION = '1';
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -48,6 +52,39 @@ function buildApiUrlCandidates(baseUrl: string): string[] {
   return [...new Set(candidates)];
 }
 
+function isRenderableBannerUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  // Support legacy admin data URLs while backend migration to hosted URLs is in progress.
+  if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(trimmed)) return true;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeBanners(input: unknown): AppScreenBanner[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const valid = input.filter((item): item is AppScreenBanner => {
+    if (!item || typeof item !== 'object') return false;
+    const id = String((item as AppScreenBanner).id || '').trim();
+    if (!id || seen.has(id)) return false;
+    const imageUrl = (item as AppScreenBanner).imageUrl;
+    if (!isRenderableBannerUrl(imageUrl)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  return valid.sort((a, b) => {
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+    return String(a.createdAt).localeCompare(String(b.createdAt));
+  });
+}
+
 export function useAppScreenBanners(screen: BannerScreen): {
   banners: AppScreenBanner[];
   isLoading: boolean;
@@ -55,6 +92,8 @@ export function useAppScreenBanners(screen: BannerScreen): {
 } {
   const [banners, setBanners] = useState<AppScreenBanner[]>(bannerCache[screen] ?? []);
   const [isLoading, setIsLoading] = useState<boolean>(bannerCache[screen] === undefined);
+
+  const cacheKey = `banners:${screen}`;
 
   const fetchBanners = useCallback(
     async (retryCount = 0): Promise<AppScreenBanner[]> => {
@@ -93,7 +132,7 @@ export function useAppScreenBanners(screen: BannerScreen): {
             }
 
             const data = (await response.json()) as BannersResponse;
-            return Array.isArray(data.banners) ? data.banners : [];
+            return sanitizeBanners(data.banners);
           } finally {
             clearTimeout(timeout);
           }
@@ -123,25 +162,48 @@ export function useAppScreenBanners(screen: BannerScreen): {
     try {
       const nextBanners = await fetchBanners();
       bannerCache[screen] = nextBanners;
+      bannerCacheFetchedAt[screen] = Date.now();
       setBanners(nextBanners);
+      await setPersistentCache(cacheKey, nextBanners, {
+        ttl: CACHE_TTL_MS,
+        version: BANNER_CACHE_VERSION,
+      });
     } catch {
       // Preserve existing UI state when request fails
       setBanners((prev) => (prev.length > 0 ? prev : (bannerCache[screen] ?? [])));
     } finally {
       setIsLoading(false);
     }
-  }, [fetchBanners, screen]);
+  }, [cacheKey, fetchBanners, screen]);
 
   useEffect(() => {
-    // Check cache first
-    if (bannerCache[screen] !== undefined) {
-      setBanners(bannerCache[screen] ?? []);
-      setIsLoading(false);
-      return;
-    }
+    const hydrateAndRefresh = async () => {
+      const cached = bannerCache[screen];
+      const fetchedAt = bannerCacheFetchedAt[screen] ?? 0;
+      const isFresh = Date.now() - fetchedAt < CACHE_TTL_MS;
+      if (cached !== undefined && isFresh && cached.length > 0) {
+        setBanners(cached);
+        setIsLoading(false);
+        return;
+      }
 
-    // Only fetch if not cached
-    void refreshBanners();
+      const persisted = await getPersistentCache<AppScreenBanner[]>(cacheKey, {
+        version: BANNER_CACHE_VERSION,
+      });
+      if (persisted && persisted.length > 0) {
+        const validPersisted = sanitizeBanners(persisted);
+        bannerCache[screen] = validPersisted;
+        bannerCacheFetchedAt[screen] = Date.now();
+        setBanners(validPersisted);
+        setIsLoading(false);
+      } else {
+        await clearPersistentCache(cacheKey).catch(() => {});
+      }
+
+      // Refresh on stale/empty cache to avoid sticky "no banner" state.
+      void refreshBanners();
+    };
+    void hydrateAndRefresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen]); // Only re-fetch when screen changes
 

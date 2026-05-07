@@ -21,7 +21,7 @@ import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
@@ -33,17 +33,13 @@ import {
 } from '@/shared/contexts/auth-context';
 import { Category, CATEGORIES, CONDITIONS, PriceUnit, PRICE_UNITS, Listing } from '@/lib/types';
 import { getApiUrl } from '@/lib/query-client';
-import { compressVideoWithProgress } from '@/lib/video-compressor';
-import {
-  analyzeVideoForS3,
-  recommendCompressionForS3,
-  compressVideoForS3,
-} from '@/lib/video-compressor-s3';
+import { compressVideoWithProgress, getVideoFileSize } from '@/lib/video-compressor';
 import {
   getCategoryGroupsForListingType,
   getDefaultCategoryForListingType,
   getDefaultMainCategoryForListingType,
   getMainCategoryForSubcategory,
+  shouldRequireConditionForListing,
   MainCategory,
 } from '@/lib/listing-taxonomy';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
@@ -78,7 +74,11 @@ interface UploadProgressState {
   isComplete: boolean;
 }
 
+const LISTING_IMAGE_CROP_ASPECT: [number, number] = [3, 4];
+const MAX_STREAMING_VIDEO_BYTES = 35 * 1024 * 1024; // 35MB hard cap for smoother playback
+
 export default function CreateScreen() {
+  const params = useLocalSearchParams<{ aiVideoUrl?: string }>();
   const insets = useSafeAreaInsets();
   const { addListing } = useListings();
   const { user, isAuthenticated } = useAuth();
@@ -105,6 +105,33 @@ export default function CreateScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgressState | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const aiVideoUrl = typeof params.aiVideoUrl === 'string' ? params.aiVideoUrl.trim() : '';
+    if (!aiVideoUrl) return;
+    if (videoUri === aiVideoUrl) return;
+    setVideoUri(aiVideoUrl);
+    setVideoThumbnail(null);
+    setMediaType('video');
+    setValidationMessage('AI Studio video attached. You can submit listing now.');
+  }, [params.aiVideoUrl, videoUri]);
+
+  const validateStreamingVideoSize = useCallback(async (uri: string): Promise<boolean> => {
+    const sizeBytes = await getVideoFileSize(uri);
+    if (!sizeBytes) return true;
+
+    if (sizeBytes > MAX_STREAMING_VIDEO_BYTES) {
+      const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1);
+      const maxMb = (MAX_STREAMING_VIDEO_BYTES / (1024 * 1024)).toFixed(0);
+      Alert.alert(
+        'Video Too Large',
+        `This video is ${sizeMb} MB. Please keep it under ${maxMb} MB for smooth streaming. Try a shorter clip.`
+      );
+      return false;
+    }
+
+    return true;
+  }, []);
   const [overallProgress, setOverallProgress] = useState(0); // 0-100 percentage
 
   const priceValue = Number(price) || 0;
@@ -243,7 +270,11 @@ export default function CreateScreen() {
     return current?.subcategories || categoryGroups[0]?.subcategories || [];
   }, [categoryGroups, mainCategory]);
 
-  const showConditionField = listingType !== 'job';
+  const showConditionField = shouldRequireConditionForListing({
+    listingType,
+    mainCategory,
+    subCategory: category,
+  });
   const totalSteps = showConditionField ? 9 : 8;
   const completedSteps = [
     Boolean(listingType),
@@ -1443,7 +1474,7 @@ export default function CreateScreen() {
         result = await ImagePicker.launchCameraAsync({
           mediaTypes: ['images'],
           allowsEditing: true,
-          aspect: [4, 3],
+          aspect: LISTING_IMAGE_CROP_ASPECT,
           quality: 0.7,
           base64: true,
         });
@@ -1456,7 +1487,7 @@ export default function CreateScreen() {
         result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ['images'],
           allowsEditing: true,
-          aspect: [4, 3],
+          aspect: LISTING_IMAGE_CROP_ASPECT,
           quality: 0.7,
           base64: true,
         });
@@ -1571,65 +1602,82 @@ export default function CreateScreen() {
     setImageDeduplicationInfo(null);
   };
 
-  const handleRecordedVideo = useCallback(async (recordedUri: string) => {
-    try {
-      console.log('[Create] Received recorded video URI:', recordedUri);
-
-      // Compress the recorded video
-      setIsCompressing(true);
-      setCompressionProgress(0);
-      setValidationMessage('Optimizing video for faster upload...');
-
-      const compressedResult = await compressVideoWithProgress(
-        recordedUri,
-        (progress) => {
-          setCompressionProgress(Math.min(Math.round(progress), 99));
-        },
-        { quality: 'low' }
-      );
-
-      console.log('[Create] Video compression complete:', {
-        originalSize: compressedResult.originalSize,
-        compressedSize: compressedResult.compressedSize,
-        uri: compressedResult.uri,
-      });
-
-      setCompressionProgress(100);
-      setVideoUri(compressedResult.uri);
-
-      // Generate thumbnail
+  const handleRecordedVideo = useCallback(
+    async (recordedUri: string) => {
       try {
-        const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(compressedResult.uri, {
-          time: 0,
-          quality: 0.7,
-        });
-        setVideoThumbnail(thumbUri);
-      } catch (thumbError) {
-        console.warn('[Create] Could not generate video thumbnail:', thumbError);
-      }
+        console.log('[Create] Received recorded video URI:', recordedUri);
 
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (compressionError) {
-      console.error('[Create] Video compression error:', compressionError);
-      setValidationMessage('Using original video quality.');
-      setVideoUri(recordedUri);
+        // Compress the recorded video
+        setIsCompressing(true);
+        setCompressionProgress(0);
+        setValidationMessage('Optimizing video for faster upload...');
 
-      // Generate thumbnail for fallback
-      try {
-        const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(recordedUri, {
-          time: 0,
-          quality: 0.7,
+        const compressedResult = await compressVideoWithProgress(
+          recordedUri,
+          (progress) => {
+            setCompressionProgress(Math.min(Math.round(progress), 99));
+          },
+          { quality: 'low' }
+        );
+
+        console.log('[Create] Video compression complete:', {
+          originalSize: compressedResult.originalSize,
+          compressedSize: compressedResult.compressedSize,
+          uri: compressedResult.uri,
         });
-        setVideoThumbnail(thumbUri);
-      } catch (thumbError) {
-        console.warn('[Create] Could not generate video thumbnail:', thumbError);
+
+        setCompressionProgress(100);
+        setVideoUri(compressedResult.uri);
+
+        const isWithinStreamingLimit = await validateStreamingVideoSize(compressedResult.uri);
+        if (!isWithinStreamingLimit) {
+          setVideoUri(null);
+          setVideoThumbnail(null);
+          return;
+        }
+
+        // Generate thumbnail
+        try {
+          const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(compressedResult.uri, {
+            time: 0,
+            quality: 0.7,
+          });
+          setVideoThumbnail(thumbUri);
+        } catch (thumbError) {
+          console.warn('[Create] Could not generate video thumbnail:', thumbError);
+        }
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (compressionError) {
+        console.error('[Create] Video compression error:', compressionError);
+        setValidationMessage('Using original video quality.');
+        setVideoUri(recordedUri);
+
+        const isWithinStreamingLimit = await validateStreamingVideoSize(recordedUri);
+        if (!isWithinStreamingLimit) {
+          setVideoUri(null);
+          setVideoThumbnail(null);
+          return;
+        }
+
+        // Generate thumbnail for fallback
+        try {
+          const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(recordedUri, {
+            time: 0,
+            quality: 0.7,
+          });
+          setVideoThumbnail(thumbUri);
+        } catch (thumbError) {
+          console.warn('[Create] Could not generate video thumbnail:', thumbError);
+        }
+      } finally {
+        setIsCompressing(false);
+        setCompressionProgress(0);
+        setValidationMessage('');
       }
-    } finally {
-      setIsCompressing(false);
-      setCompressionProgress(0);
-      setValidationMessage('');
-    }
-  }, []);
+    },
+    [validateStreamingVideoSize]
+  );
 
   const pickVideo = useCallback(async () => {
     try {
@@ -1665,6 +1713,13 @@ export default function CreateScreen() {
           setCompressionProgress(100);
           setVideoUri(compressedResult.uri);
 
+          const isWithinStreamingLimit = await validateStreamingVideoSize(compressedResult.uri);
+          if (!isWithinStreamingLimit) {
+            setVideoUri(null);
+            setVideoThumbnail(null);
+            return;
+          }
+
           // Generate thumbnail
           try {
             const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(
@@ -1686,6 +1741,13 @@ export default function CreateScreen() {
           setValidationMessage('Using original video quality.');
           setVideoUri(uri);
 
+          const isWithinStreamingLimit = await validateStreamingVideoSize(uri);
+          if (!isWithinStreamingLimit) {
+            setVideoUri(null);
+            setVideoThumbnail(null);
+            return;
+          }
+
           // Generate thumbnail for fallback
           try {
             const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(uri, {
@@ -1706,7 +1768,7 @@ export default function CreateScreen() {
       console.error('Video picker error:', e);
       setIsCompressing(false);
     }
-  }, []);
+  }, [validateStreamingVideoSize]);
 
   // Upload progress UI helper
   const renderUploadProgress = () => {
@@ -1812,40 +1874,47 @@ export default function CreateScreen() {
 
       // Upload video optionally if user provided one
       if (videoUri) {
-        setIsUploading(true);
-        setValidationMessage('📹 Uploading your video... This may take a moment.');
+        const isAlreadyRemote = /^https?:\/\//i.test(videoUri);
+        if (isAlreadyRemote) {
+          finalVideoUrl = videoUri;
+          setOverallProgress(70);
+          setValidationMessage('✅ AI Studio video attached! Creating your listing...');
+        } else {
+          setIsUploading(true);
+          setValidationMessage('📹 Uploading your video... This may take a moment.');
 
-        const fileName = `video_${Date.now()}.mp4`;
-        setUploadProgress({
-          uploadId: fileName,
-          chunksUploaded: 0,
-          totalChunks: 1,
-          progress: 10,
-          isComplete: false,
-        });
-        const uploadResult = await uploadMediaToCloudflare({
-          uri: videoUri,
-          mediaType: 'video',
-          fileName,
-          userId: user?.id || undefined,
-        });
+          const fileName = `video_${Date.now()}.mp4`;
+          setUploadProgress({
+            uploadId: fileName,
+            chunksUploaded: 0,
+            totalChunks: 1,
+            progress: 10,
+            isComplete: false,
+          });
+          const uploadResult = await uploadMediaToCloudflare({
+            uri: videoUri,
+            mediaType: 'video',
+            fileName,
+            userId: user?.id || undefined,
+          });
 
-        finalVideoUrl = uploadResult.url;
-        setUploadProgress({
-          uploadId: fileName,
-          chunksUploaded: 1,
-          totalChunks: 1,
-          progress: 100,
-          isComplete: true,
-        });
-        setOverallProgress(70);
-        console.log(
-          '[Create] Video upload result:',
-          JSON.stringify({ success: !!uploadResult, videoUrl: uploadResult.url }, null, 2)
-        );
-        console.log('[Create] finalVideoUrl set to:', finalVideoUrl);
-        setIsUploading(false);
-        setValidationMessage('✅ Video uploaded! Creating your listing...');
+          finalVideoUrl = uploadResult.url;
+          setUploadProgress({
+            uploadId: fileName,
+            chunksUploaded: 1,
+            totalChunks: 1,
+            progress: 100,
+            isComplete: true,
+          });
+          setOverallProgress(70);
+          console.log(
+            '[Create] Video upload result:',
+            JSON.stringify({ success: !!uploadResult, videoUrl: uploadResult.url }, null, 2)
+          );
+          console.log('[Create] finalVideoUrl set to:', finalVideoUrl);
+          setIsUploading(false);
+          setValidationMessage('✅ Video uploaded! Creating your listing...');
+        }
       } else {
         setOverallProgress(30); // No video, skip to next stage
       }
@@ -1900,6 +1969,7 @@ export default function CreateScreen() {
 
       setOverallProgress(75);
       setValidationMessage('📝 Finalizing your listing... Almost done!');
+      const resolvedCondition = showConditionField ? condition : 'good';
 
       await addListing(
         {
@@ -1923,7 +1993,7 @@ export default function CreateScreen() {
             city: finalCity || 'Unknown Location',
           },
           pincode: pincode || undefined,
-          condition,
+          condition: resolvedCondition,
           listingType,
           duration, // Pass duration for paid listings
         },
@@ -1952,7 +2022,7 @@ export default function CreateScreen() {
       setVideoUri(null);
       setVideoThumbnail(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace({ pathname: '/my-listings', params: { posted: '1' } });
+      router.push({ pathname: '/my-listings', params: { posted: '1' } });
     } catch (e) {
       const error = e as any;
       console.error('[Create] Listing creation error:', error);

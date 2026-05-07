@@ -286,6 +286,7 @@ export function registerAdminListingsRoutes(app: Express) {
             subCategory: listing.subCategory || listing.category,
             category: listing.category,
             price: listing.price,
+            offerPrice: listing.offerPrice,
             condition: listing.condition,
             location: listing.location,
             pincode: listing.pincode,
@@ -331,6 +332,7 @@ export function registerAdminListingsRoutes(app: Express) {
         subcategory,
         category,
         price,
+        offerPrice,
         condition,
         location,
         images,
@@ -366,6 +368,25 @@ export function registerAdminListingsRoutes(app: Express) {
         return res.status(400).json({
           success: false,
           error: 'Price must be a non-negative number',
+        });
+      }
+      const parsedOfferPrice =
+        offerPrice === undefined || offerPrice === null || String(offerPrice).trim() === ''
+          ? undefined
+          : parseFloat(String(offerPrice));
+      if (
+        parsedOfferPrice !== undefined &&
+        (!Number.isFinite(parsedOfferPrice) || parsedOfferPrice < 0)
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'Offer price must be a non-negative number',
+        });
+      }
+      if (parsedOfferPrice !== undefined && parsedOfferPrice >= parsedPrice) {
+        return res.status(400).json({
+          success: false,
+          error: 'Offer price must be less than listed price',
         });
       }
 
@@ -445,6 +466,7 @@ export function registerAdminListingsRoutes(app: Express) {
         subCategory: normalizedCategory.subCategory,
         category: normalizedCategory.category || String(category || ''),
         price: parsedPrice.toString(),
+        offerPrice: parsedOfferPrice !== undefined ? parsedOfferPrice.toString() : undefined,
         condition: condition || 'good',
         location: String(location),
         contactPhone: normalizeContactPhone(contactPhone),
@@ -507,6 +529,7 @@ export function registerAdminListingsRoutes(app: Express) {
           subCategory: listing.subCategory || listing.category,
           category: listing.category,
           price: listing.price,
+          offerPrice: listing.offerPrice,
           condition: listing.condition,
           location: listing.location,
           pincode: listing.pincode,
@@ -679,6 +702,7 @@ export function registerAdminListingsRoutes(app: Express) {
         subcategory,
         category,
         price,
+        offerPrice,
         condition,
         location,
         pincode,
@@ -723,6 +747,7 @@ export function registerAdminListingsRoutes(app: Express) {
         updateData.mainCategory = normalizedMainCategory ?? null;
       }
       if (price !== undefined) updateData.price = price;
+      if (offerPrice !== undefined) updateData.offerPrice = offerPrice;
       if (condition !== undefined) updateData.condition = condition;
       if (location !== undefined) updateData.location = location;
       if (pincode !== undefined) {
@@ -779,10 +804,7 @@ export function registerAdminListingsRoutes(app: Express) {
         updateData.videos = videos as any;
       }
 
-      if (
-        Array.isArray(images) &&
-        images.some((item: unknown) => hasLocalDeviceUri(item))
-      ) {
+      if (Array.isArray(images) && images.some((item: unknown) => hasLocalDeviceUri(item))) {
         return res.status(400).json({
           success: false,
           error: 'One or more images are local device paths. Please upload images and try again.',
@@ -790,10 +812,7 @@ export function registerAdminListingsRoutes(app: Express) {
         });
       }
 
-      if (
-        Array.isArray(videos) &&
-        videos.some((item: unknown) => hasLocalDeviceUri(item))
-      ) {
+      if (Array.isArray(videos) && videos.some((item: unknown) => hasLocalDeviceUri(item))) {
         return res.status(400).json({
           success: false,
           error: 'One or more videos are local device paths. Please upload videos and try again.',
@@ -851,6 +870,7 @@ export function registerAdminListingsRoutes(app: Express) {
           subCategory: listing.subCategory || listing.category,
           category: listing.category,
           price: listing.price,
+          offerPrice: listing.offerPrice,
           condition: listing.condition,
           location: listing.location,
           pincode: listing.pincode,

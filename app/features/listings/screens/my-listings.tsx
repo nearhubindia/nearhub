@@ -82,6 +82,15 @@ export default function MyListingsScreen() {
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
+  const handleBackPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/(tabs)/home');
+  }, []);
+
   // Filter user's listings using canonical user id.
   const normalizeId = (value: string | undefined | null) => String(value || '').trim();
   const userIdNormalized = normalizeId(user?.id);
@@ -512,6 +521,12 @@ export default function MyListingsScreen() {
       // @ts-ignore - dynamic import to avoid New Architecture crash
       const RazorpayCheckout = require('react-native-razorpay').default;
 
+      const sanitizedContact = String(user?.phone || '')
+        .replace(/\D/g, '')
+        .slice(-10);
+      const sanitizedName = String(user?.name || '').trim();
+      const sanitizedEmail = String(user?.email || '').trim();
+
       const paymentResult = await RazorpayCheckout.open({
         description: `Listing upgrade - ${duration} days`,
         image: 'https://nearhub.app/nearhub-logo.png',
@@ -521,9 +536,9 @@ export default function MyListingsScreen() {
         order_id: razorpayOrderId,
         name: 'NearHub',
         prefill: {
-          email: user?.email || '',
-          contact: user?.phone || '',
-          name: user?.name || '',
+          email: sanitizedEmail,
+          contact: sanitizedContact,
+          name: sanitizedName,
         },
         theme: { color: '#0A66C2' },
       });
@@ -678,14 +693,7 @@ export default function MyListingsScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: (insets.top || webTopInset) + 12 }]}>
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.back();
-          }}
-          style={styles.backButton}
-          hitSlop={8}
-        >
+        <Pressable onPress={handleBackPress} style={styles.backButton} hitSlop={8}>
           <Feather name="arrow-left" size={24} color={Colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>My Listings</Text>

@@ -23,6 +23,8 @@ interface VideoRecorderModalProps {
   maxDuration?: number;
 }
 
+const MAX_RECORDING_FILE_SIZE_BYTES = 35 * 1024 * 1024;
+
 /**
  * Video Recorder Modal Component
  * Provides in-app video recording with live preview and controls
@@ -223,6 +225,7 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
       // Start recording - this promise resolves when recording stops
       const video = await cameraRef.current.recordAsync({
         maxDuration: maxDuration,
+        maxFileSize: MAX_RECORDING_FILE_SIZE_BYTES,
       });
 
       console.log('[VideoRecorderModal] Recording completed, video:', video);

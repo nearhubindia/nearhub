@@ -84,6 +84,7 @@ export type Category =
   | 'Computers'
   | 'Appliances'
   | 'Vehicles'
+  | 'EV Vehicles'
   | 'Commercial Vehicles'
   | 'Bikes'
   | 'Spare Parts'
@@ -118,6 +119,7 @@ export const CATEGORIES: Category[] = [
   'Computers',
   'Appliances',
   'Vehicles',
+  'EV Vehicles',
   'Commercial Vehicles',
   'Bikes',
   'Spare Parts',
@@ -153,6 +155,7 @@ export const CATEGORY_ICONS: Record<Category, { name: string; family: string }> 
   Computers: { name: 'monitor', family: 'Feather' },
   Appliances: { name: 'cpu', family: 'Feather' },
   Vehicles: { name: 'truck', family: 'Feather' },
+  'EV Vehicles': { name: 'zap', family: 'Feather' },
   'Commercial Vehicles': { name: 'truck', family: 'Feather' },
   Bikes: { name: 'disc', family: 'Feather' },
   'Spare Parts': { name: 'settings', family: 'Feather' },
@@ -188,6 +191,7 @@ export const CATEGORY_COLORS: Record<Category, string> = {
   Computers: Colors.primaryDark,
   Appliances: Colors.primaryLight,
   Vehicles: Colors.categoryVehicles,
+  'EV Vehicles': Colors.categoryVehicles,
   'Commercial Vehicles': Colors.categoryVehicles,
   Bikes: Colors.accent,
   'Spare Parts': Colors.textSecondary,
@@ -223,6 +227,7 @@ export const CATEGORY_PICTURES: Record<Category, string> = {
   Computers: '💻',
   Appliances: '🧊',
   Vehicles: '🚗',
+  'EV Vehicles': '🔋',
   'Commercial Vehicles': '🚚',
   Bikes: '🏍️',
   'Spare Parts': '⚙️',
@@ -258,6 +263,7 @@ export const CATEGORY_PICTURE_IMAGES: Record<Category, string> = {
   Computers: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4bb.png',
   Appliances: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f9ca.png',
   Vehicles: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f697.png',
+  'EV Vehicles': 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f50b.png',
   'Commercial Vehicles':
     'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f69a.png',
   Bikes: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f3cd-fe0f.png',

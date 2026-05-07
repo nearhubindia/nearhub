@@ -18,6 +18,7 @@ import { SERVER_CONFIG } from './lib/config';
 import { taskScheduler } from './lib/task-scheduler';
 import { checkAndExpireSubscriptions } from './features/subscriptions/workers/subscription-expiration';
 import { checkAndDeactivateListings } from './features/listings/workers/listing-expiration';
+import { processListingModerationQueue } from './features/listings/workers/listing-moderation';
 import { generalLimiter } from './lib/rate-limiter';
 import {
   resolveUserIdFromRequest,
@@ -26,6 +27,7 @@ import {
 import { runInactiveUserCleanupJob } from './features/users/workers/inactive-user-cleanup';
 import { runDataRetentionCleanupJob } from './features/users/workers/data-retention-cleanup';
 import { ensureCoreSchema } from './data/ensure-core-schema';
+import { processAIVoiceoverQueue } from './features/media/workers/ai-voiceover';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -502,6 +504,25 @@ function initializeBackgroundWorkers(): void {
     { enabled: true, maxRetries: 3 }
   );
 
+  // Listing moderation worker - runs every 15 seconds
+  taskScheduler.register(
+    'listing-moderation',
+    async () => {
+      await processListingModerationQueue(10);
+    },
+    15 * 1000,
+    { enabled: true, maxRetries: 5 }
+  );
+
+  taskScheduler.register(
+    'ai-voiceover',
+    async () => {
+      await processAIVoiceoverQueue(2);
+    },
+    20 * 1000,
+    { enabled: true, maxRetries: 5 }
+  );
+
   // Inactive user cleanup worker - disabled by default, run manually by admin after review.
   taskScheduler.register(
     'inactive-user-cleanup',
@@ -528,6 +549,8 @@ function initializeBackgroundWorkers(): void {
   debugWorkers('Background workers initialized');
   debugWorkers('subscription-expiration: Every 1 hour');
   debugWorkers('listing-expiration: Every 30 minutes');
+  debugWorkers('listing-moderation: Every 15 seconds');
+  debugWorkers('ai-voiceover: Every 20 seconds');
   debugWorkers('inactive-user-cleanup: Every 24 hours (disabled by default)');
   debugWorkers('data-retention-cleanup: Every 24 hours (disabled by default)');
 }

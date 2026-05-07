@@ -8,8 +8,18 @@ export const getApiUrl = (): string => {
 
   if (typeof window !== 'undefined') {
     const currentHost = window.location.hostname.toLowerCase();
+    const isNearhubProductionHost =
+      currentHost === 'nearhub.in' ||
+      currentHost === 'www.nearhub.in' ||
+      currentHost === '56.228.28.36';
     const isCurrentLocal =
       currentHost === 'localhost' || currentHost === '127.0.0.1' || currentHost.endsWith('.local');
+
+    // Production should use the same origin front door, where nginx splits
+    // frontend traffic to Pages and /api traffic to the backend.
+    if (isNearhubProductionHost) {
+      return window.location.origin;
+    }
 
     if (configuredUrl) {
       try {

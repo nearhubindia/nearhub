@@ -119,6 +119,27 @@ export function getAppDownloadUrl(): string {
   return 'https://play.google.com/store/apps/details?id=com.synvide.nearhub&pcampaignid=web_share';
 }
 
+export function getWebBaseUrl(): string {
+  const envWebUrl = String(process.env.EXPO_PUBLIC_WEB_URL || '').trim();
+
+  if (envWebUrl) {
+    const normalized = normalizeBaseUrl(envWebUrl);
+    if (isValidBackendUrl(normalized)) {
+      if (!shouldIgnoreForProduction(normalized)) {
+        return normalized;
+      }
+      console.warn(
+        '[Config] Ignoring localhost EXPO_PUBLIC_WEB_URL in production build:',
+        normalized
+      );
+    } else if (getDebug()) {
+      console.warn('[Config] Ignoring invalid EXPO_PUBLIC_WEB_URL:', envWebUrl);
+    }
+  }
+
+  return 'https://nearhub.in';
+}
+
 export function getDebug(): boolean {
   return process.env.EXPO_PUBLIC_DEBUG === 'true';
 }

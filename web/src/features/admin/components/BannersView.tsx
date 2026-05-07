@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
+import { getApiUrl } from '@/lib/config';
 import {
   useBanners,
   useCreateBanner,
@@ -30,20 +31,57 @@ const DEFAULT_FORM_STATE: BannerFormState = {
   isActive: true,
 };
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (): void => {
-      const result = reader.result;
-      if (typeof result === 'string') {
-        resolve(result);
-        return;
-      }
-      reject(new Error('Failed to read image file'));
-    };
-    reader.onerror = (): void => reject(new Error('Failed to read image file'));
-    reader.readAsDataURL(file);
+async function requestPresignedUpload(params: {
+  fileName: string;
+  contentType: string;
+  fileSizeBytes: number;
+}): Promise<{ uploadUrl: string; publicUrl: string }> {
+  const response = await fetch(`${getApiUrl()}/api/media/presign-upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      mediaType: 'image',
+      fileName: params.fileName,
+      contentType: params.contentType,
+      fileSizeBytes: params.fileSizeBytes,
+    }),
   });
+
+  const payload = (await response.json().catch(() => null)) as {
+    success?: boolean;
+    error?: string;
+    data?: { uploadUrl?: string; publicUrl?: string };
+  } | null;
+
+  if (!response.ok || !payload?.success || !payload.data?.uploadUrl || !payload.data?.publicUrl) {
+    throw new Error(payload?.error || 'Failed to create banner upload URL');
+  }
+
+  return {
+    uploadUrl: payload.data.uploadUrl,
+    publicUrl: payload.data.publicUrl,
+  };
+}
+
+async function uploadImageFile(file: File): Promise<string> {
+  const contentType = file.type || 'image/jpeg';
+  const signed = await requestPresignedUpload({
+    fileName: file.name,
+    contentType,
+    fileSizeBytes: file.size,
+  });
+
+  const uploadResponse = await fetch(signed.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: file,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(`Banner upload failed (${uploadResponse.status})`);
+  }
+
+  return signed.publicUrl;
 }
 
 export default function BannersView() {
@@ -96,10 +134,10 @@ export default function BannersView() {
 
     try {
       setIsUploading(true);
-      const dataUrl = await fileToDataUrl(selectedFile);
-      setFormState((prev) => ({ ...prev, imageUrl: dataUrl }));
+      const publicUrl = await uploadImageFile(selectedFile);
+      setFormState((prev) => ({ ...prev, imageUrl: publicUrl }));
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Unable to read selected image');
+      setSubmitError(error instanceof Error ? error.message : 'Unable to upload selected image');
     } finally {
       setIsUploading(false);
     }

@@ -1,4 +1,7 @@
 import express, { type Express } from 'express';
+import * as fsPromises from 'node:fs/promises';
+import * as path from 'node:path';
+import { SERVER_CONFIG } from '../../../lib/config';
 import {
   initializeUpload,
   uploadChunk,
@@ -13,6 +16,12 @@ import {
   getStreamingStats,
   invalidateVideoCache,
 } from '../services/video-streaming';
+import {
+  buildMasterManifest,
+  buildVariantManifest,
+  ensureHlsTranscoded,
+  getStreamDir,
+} from '../services/hls-transcoding';
 
 function readStringParam(value: unknown): string | undefined {
   if (typeof value === 'string') {
@@ -25,6 +34,45 @@ function readStringParam(value: unknown): string | undefined {
 }
 
 export function registerVideoUploadRoutes(app: Express) {
+  function getAllowedRemoteMediaHosts(): Set<string> {
+    const hosts = new Set<string>();
+    const baseUrl = String(SERVER_CONFIG.CLOUDFLARE_R2_PUBLIC_BASE_URL || '').trim();
+    if (!baseUrl) return hosts;
+    try {
+      const parsed = new URL(baseUrl);
+      if (parsed.hostname) hosts.add(parsed.hostname.toLowerCase());
+    } catch {
+      // Ignore invalid base URL config.
+    }
+    return hosts;
+  }
+
+  function isAllowedSourceUrl(sourceUrl: string, reqHost: string): boolean {
+    try {
+      const parsed = new URL(sourceUrl);
+      const protocol = parsed.protocol.toLowerCase();
+      if (protocol !== 'http:' && protocol !== 'https:') return false;
+
+      const host = parsed.hostname.toLowerCase();
+      if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') return true;
+      if (reqHost && host === reqHost) return true;
+
+      const allowed = getAllowedRemoteMediaHosts();
+      if (allowed.size === 0) return true;
+      return allowed.has(host);
+    } catch {
+      return false;
+    }
+  }
+
+  function getPublicBaseUrl(req: any): string {
+    const forwardedProto = String(req.get('x-forwarded-proto') || '').trim();
+    const proto = forwardedProto || req.protocol || 'https';
+    const forwardedHost = String(req.get('x-forwarded-host') || '').trim();
+    const host = forwardedHost || req.get('host') || '';
+    return `${proto}://${host}`;
+  }
+
   /**
    * POST /api/videos/initiate
    * Initialize a video upload session
@@ -309,6 +357,81 @@ export function registerVideoUploadRoutes(app: Express) {
   });
 
   /**
+   * GET /api/videos/hls/master.m3u8?source=<encoded-video-url>
+   * Build/return adaptive HLS master playlist for a source MP4 URL.
+   */
+  app.get('/api/videos/hls/master.m3u8', async (req, res) => {
+    try {
+      const source = String(req.query.source || '').trim();
+      if (!source) {
+        return res.status(400).json({ success: false, message: 'source is required' });
+      }
+
+      const reqHost = String(req.get('host') || '')
+        .split(':')[0]
+        .toLowerCase();
+      if (!isAllowedSourceUrl(source, reqHost)) {
+        return res.status(400).json({ success: false, message: 'Unapproved source host' });
+      }
+
+      const { streamId } = await ensureHlsTranscoded(source);
+      const master = buildMasterManifest(getPublicBaseUrl(req), streamId);
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+      return res.status(200).send(master);
+    } catch (error) {
+      console.error('Error creating HLS master manifest:', error);
+      return res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to build HLS stream',
+      });
+    }
+  });
+
+  /**
+   * GET /api/videos/hls/:streamId/:fileName
+   * Serve cached HLS variant playlists and transport-stream segments.
+   */
+  app.get('/api/videos/hls/:streamId/:fileName', async (req, res) => {
+    try {
+      const streamId = String(req.params.streamId || '').trim();
+      const fileName = String(req.params.fileName || '').trim();
+      if (!/^[a-f0-9]{20}$/i.test(streamId)) {
+        return res.status(400).json({ success: false, message: 'Invalid stream id' });
+      }
+      if (!/^[a-z0-9_.-]+$/i.test(fileName)) {
+        return res.status(400).json({ success: false, message: 'Invalid file name' });
+      }
+
+      if (fileName.endsWith('.m3u8')) {
+        const manifest = await buildVariantManifest(getPublicBaseUrl(req), streamId, fileName);
+        res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+        res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+        return res.status(200).send(manifest);
+      }
+
+      const filePath = path.join(getStreamDir(streamId), fileName);
+      const stat = await fsPromises.stat(filePath).catch(() => null);
+      if (!stat || !stat.isFile()) {
+        return res.status(404).json({ success: false, message: 'Segment not found' });
+      }
+
+      res.setHeader('Content-Type', 'video/mp2t');
+      res.setHeader('Content-Length', stat.size);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('ETag', `"${streamId}-${fileName}-${stat.size}-${stat.mtimeMs}"`);
+      return res.sendFile(filePath);
+    } catch (error) {
+      console.error('Error serving HLS file:', error);
+      return res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to serve HLS file',
+      });
+    }
+  });
+
+  /**
    * GET /api/videos/proxy
    * Proxy external video URLs with CORS headers to bypass browser blocking
    * Usage: /api/videos/proxy?url=https://external-video.com/video.mp4
@@ -367,6 +490,12 @@ export function registerVideoUploadRoutes(app: Express) {
         res.status(206); // Partial Content
       }
       if (acceptRanges) res.setHeader('Accept-Ranges', acceptRanges);
+      const upstreamCacheControl = response.headers.get('cache-control');
+      if (upstreamCacheControl) {
+        res.setHeader('Cache-Control', upstreamCacheControl);
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=600');
+      }
 
       // Stream the video to client
       if (response.body) {

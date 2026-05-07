@@ -19,6 +19,21 @@ function normalizeScreen(screen: string): string {
   return screen.trim().toLowerCase();
 }
 
+function isDataUrl(value: string): boolean {
+  return value.trim().toLowerCase().startsWith('data:');
+}
+
+function isValidBannerImageUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || isDataUrl(trimmed)) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 function mapBanner(banner: typeof appScreenBanners.$inferSelect): {
   id: string;
   title: string;
@@ -85,9 +100,11 @@ export function registerAdminBannersRoutes(app: Express): void {
         .where(and(...filters))
         .orderBy(asc(appScreenBanners.sortOrder), desc(appScreenBanners.createdAt));
 
+      const sanitizedRows = rows.filter((row) => isValidBannerImageUrl(row.imageUrl));
+
       return res.json({
         success: true,
-        banners: rows.map(mapBanner),
+        banners: sanitizedRows.map(mapBanner),
       });
     } catch (error: unknown) {
       return handleError(res, error, '[App Banners]', 'Failed to fetch app banners');
@@ -105,6 +122,13 @@ export function registerAdminBannersRoutes(app: Express): void {
 
       if (!imageUrl?.trim()) {
         return validationError(res, 'Banner image URL is required');
+      }
+
+      if (!isValidBannerImageUrl(imageUrl)) {
+        return validationError(
+          res,
+          'Banner image URL must be a valid http/https URL (data URLs are not allowed)'
+        );
       }
 
       if (
@@ -167,6 +191,12 @@ export function registerAdminBannersRoutes(app: Express): void {
       if (imageUrl !== undefined) {
         if (!imageUrl.trim()) {
           return validationError(res, 'Banner image URL cannot be empty');
+        }
+        if (!isValidBannerImageUrl(imageUrl)) {
+          return validationError(
+            res,
+            'Banner image URL must be a valid http/https URL (data URLs are not allowed)'
+          );
         }
         updates.imageUrl = imageUrl.trim();
       }

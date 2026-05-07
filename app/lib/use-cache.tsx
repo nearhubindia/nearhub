@@ -1,10 +1,65 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getDebug } from '@/lib/config';
 
 export interface CacheEntry<T> {
   data: T;
   timestamp: number;
   ttl: number;
+  version?: string;
+}
+
+const CACHE_PREFIX = 'cache:';
+const CACHE_DEBUG = getDebug();
+
+function cacheLog(...args: unknown[]) {
+  if (CACHE_DEBUG) {
+    console.log('[Cache]', ...args);
+  }
+}
+
+export async function setPersistentCache<T>(
+  key: string,
+  data: T,
+  options?: { ttl?: number; version?: string }
+): Promise<void> {
+  const entry: CacheEntry<T> = {
+    data,
+    timestamp: Date.now(),
+    ttl: options?.ttl ?? 3600000,
+    version: options?.version,
+  };
+  await AsyncStorage.setItem(`${CACHE_PREFIX}${key}`, JSON.stringify(entry));
+  cacheLog('set', key);
+}
+
+export async function getPersistentCache<T>(
+  key: string,
+  options?: { version?: string }
+): Promise<T | null> {
+  const raw = await AsyncStorage.getItem(`${CACHE_PREFIX}${key}`);
+  if (!raw) {
+    cacheLog('miss', key);
+    return null;
+  }
+  const parsed = JSON.parse(raw) as CacheEntry<T>;
+  const isExpired = Date.now() - parsed.timestamp > parsed.ttl;
+  const isVersionMismatch =
+    options?.version !== undefined &&
+    parsed.version !== undefined &&
+    parsed.version !== options.version;
+  if (isExpired || isVersionMismatch) {
+    await AsyncStorage.removeItem(`${CACHE_PREFIX}${key}`);
+    cacheLog('stale', key, { isExpired, isVersionMismatch });
+    return null;
+  }
+  cacheLog('hit', key);
+  return parsed.data;
+}
+
+export async function clearPersistentCache(key: string): Promise<void> {
+  await AsyncStorage.removeItem(`${CACHE_PREFIX}${key}`);
+  cacheLog('clear', key);
 }
 
 /**

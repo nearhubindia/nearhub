@@ -11,6 +11,12 @@ import type { Request, Response } from 'express';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || '/tmp/video-uploads';
 const VIDEO_CACHE_TTL = 3600; // 1 hour cache for video metadata
+const STREAM_MAX_AGE_SECONDS = 86400;
+const STREAM_IMMUTABLE_SECONDS = 31536000;
+
+function buildStrongEtag(videoId: string, fileSize: number, uploadedAt: Date): string {
+  return `"${videoId}-${fileSize}-${uploadedAt.getTime()}"`;
+}
 
 export interface VideoMetadata {
   filePath: string;
@@ -83,7 +89,22 @@ export async function streamVideo(req: Request, res: Response, videoId: string):
       return;
     }
 
-    const { filePath, fileSize, mimeType } = metadata;
+    const { filePath, fileSize, mimeType, uploadedAt } = metadata;
+    const etag = buildStrongEtag(videoId, fileSize, uploadedAt);
+    const ifNoneMatch = req.headers['if-none-match'];
+
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('ETag', etag);
+    res.setHeader('Last-Modified', new Date(uploadedAt).toUTCString());
+    res.setHeader(
+      'Cache-Control',
+      `public, max-age=${STREAM_MAX_AGE_SECONDS}, stale-while-revalidate=600`
+    );
+
+    if (ifNoneMatch && ifNoneMatch === etag && !req.headers.range) {
+      res.status(304).end();
+      return;
+    }
 
     // Parse range header
     const range = req.headers.range;
@@ -92,9 +113,6 @@ export async function streamVideo(req: Request, res: Response, videoId: string):
       // No range requested, send entire file
       res.setHeader('Content-Type', mimeType);
       res.setHeader('Content-Length', fileSize);
-      res.setHeader('Accept-Ranges', 'bytes');
-      res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
-
       const fileStream = fs.createReadStream(filePath);
       fileStream.pipe(res);
 
@@ -119,8 +137,7 @@ export async function streamVideo(req: Request, res: Response, videoId: string):
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Length', chunkSize);
     res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
-    res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Cache-Control', `public, max-age=${STREAM_IMMUTABLE_SECONDS}, immutable`);
 
     const fileStream = fs.createReadStream(filePath, { start, end });
     fileStream.pipe(res);

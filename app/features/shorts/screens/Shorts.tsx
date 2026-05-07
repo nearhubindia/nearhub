@@ -1,11 +1,13 @@
-import React, { useCallback, useState, useMemo, useEffect } from 'react';
+import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
   FlatList,
   Text,
   Platform,
+  AppState,
   Alert,
+  StatusBar,
   useWindowDimensions,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -14,7 +16,7 @@ import {
 import { useIsFocused } from '@react-navigation/native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
@@ -27,21 +29,48 @@ import { calculateDistance } from '@/lib/location-data';
 import { formatCondition } from '@/lib/utils';
 import { useAdminSettings } from '@/lib/use-admin-settings';
 import { getShortsSwipeHapticsEnabled } from '@/lib/config';
+import { getApiUrl } from '@/lib/query-client';
+import {
+  configureShortsAudioSession,
+  getShortsPreloadAheadCount,
+  getShortsPrefetchConcurrency,
+} from '@/lib/shorts-performance';
+import { ShortsPrefetchQueue } from '@/lib/shorts-prefetch-queue';
+import { trackShortsTelemetry } from '@/lib/shorts-telemetry';
 import ShortsCard from '@/shared/components/ShortsCard';
 
+function getStreamingUrl(videoUrl: string, apiBaseUrl: string): string {
+  if (videoUrl.startsWith('https://') || videoUrl.startsWith('http://')) {
+    return videoUrl;
+  }
+  if (videoUrl.startsWith('/videos/')) {
+    const filename = videoUrl.replace(/^\/videos\//, '');
+    return `${apiBaseUrl}/api/videos/stream/${filename}`;
+  }
+  return `${apiBaseUrl}/api/videos/stream/${videoUrl}`;
+}
+
 export default function ShortsScreen() {
+  const { listingId: listingIdParam } = useLocalSearchParams<{ listingId?: string | string[] }>();
+  const targetListingId = Array.isArray(listingIdParam)
+    ? String(listingIdParam[0] || '').trim()
+    : String(listingIdParam || '').trim();
   const insets = useSafeAreaInsets();
   const { width, height: windowHeight } = useWindowDimensions();
   const { listings, savedIds, toggleSaved } = useListings();
+  type ShortsItem = (typeof listings)[number];
   const { isAuthenticated, user } = useAuth();
   const { interests, trackView, trackSave, trackContact } = useUserInterests();
   const isTabFocused = useIsFocused();
   const tabBarHeight = useBottomTabBarHeight();
   const { geoRadiusKm } = useAdminSettings();
   const effectiveGeoRadiusKm = user?.preferences?.searchRadiusKm ?? geoRadiusKm;
+  const feedListRef = useRef<FlatList<ShortsItem>>(null);
+  const wasTabFocusedRef = useRef(isTabFocused);
   const [listHeight, setListHeight] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [viewStartTime, setViewStartTime] = useState<number>(Date.now());
+  const [feedInterestsSnapshot, setFeedInterestsSnapshot] = useState(interests);
   const shortsSwipeHapticsEnabled = getShortsSwipeHapticsEnabled();
 
   const bottomInset = Platform.OS === 'web' ? 0 : insets.bottom;
@@ -55,61 +84,185 @@ export default function ShortsScreen() {
   const stableTabBarHeight = measuredTabBarHeight > 0 ? measuredTabBarHeight : fallbackTabBarHeight;
   const cardUiBottomInset = stableTabBarHeight + overlayBottomPadding;
   const listLayoutKey = `shorts-${cardHeight}-${cardUiBottomInset}`;
+  const preloadAbortRef = useRef<AbortController | null>(null);
+  const isAppActiveRef = useRef(AppState.currentState === 'active');
+  const preloadAheadCount = getShortsPreloadAheadCount();
+  const prefetchQueueRef = useRef(
+    new ShortsPrefetchQueue({
+      concurrency: getShortsPrefetchConcurrency(),
+      rangeHeader: 'bytes=0-262143',
+    })
+  );
+
+  // Keep feed ordering stable while actively browsing; refresh snapshot when tab regains focus.
+  useEffect(() => {
+    const becameFocused = isTabFocused && !wasTabFocusedRef.current;
+    if (becameFocused) {
+      setFeedInterestsSnapshot(interests);
+    }
+    wasTabFocusedRef.current = isTabFocused;
+  }, [isTabFocused, interests]);
+
+  useEffect(() => {
+    if (!isTabFocused) {
+      return;
+    }
+
+    const snapshotIsEmpty =
+      Object.keys(feedInterestsSnapshot.categories).length === 0 &&
+      feedInterestsSnapshot.interactions.length === 0;
+    const liveHasData =
+      Object.keys(interests.categories).length > 0 || interests.interactions.length > 0;
+
+    if (snapshotIsEmpty && liveHasData) {
+      setFeedInterestsSnapshot(interests);
+    }
+  }, [isTabFocused, interests, feedInterestsSnapshot]);
+
+  useEffect(() => {
+    // Ensure shorts audio playback is not suppressed by stale audio-session defaults.
+    void configureShortsAudioSession().catch((error) => {
+      console.warn('[Shorts] Failed to set audio mode:', error);
+    });
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      isAppActiveRef.current = nextState === 'active';
+      if (nextState !== 'active') {
+        preloadAbortRef.current?.abort();
+        prefetchQueueRef.current.clear();
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   // Get personalized shorts feed using AI
   const personalizedShorts = useMemo(() => {
-    const hasEnoughData = hasEnoughDataForPersonalization(interests);
+    const hasEnoughData = hasEnoughDataForPersonalization(feedInterestsSnapshot);
 
     let filtered = listings;
 
-    const userLat = user?.location?.latitude;
-    const userLon = user?.location?.longitude;
+    const userLat = Number(user?.location?.latitude);
+    const userLon = Number(user?.location?.longitude);
+    const hasUserCoordinates = Number.isFinite(userLat) && Number.isFinite(userLon);
 
     // Filter by location (within geo radius)
-    if (userLat && userLon) {
+    if (hasUserCoordinates) {
       filtered = filtered.filter((l) => {
-        const distance = calculateDistance(
-          userLat,
-          userLon,
-          l.location.latitude,
-          l.location.longitude
-        );
-        return distance <= effectiveGeoRadiusKm;
+        const listingLat = Number(l.location.latitude);
+        const listingLon = Number(l.location.longitude);
+        if (!Number.isFinite(listingLat) || !Number.isFinite(listingLon)) {
+          return false;
+        }
+
+        const distance = calculateDistance(userLat, userLon, listingLat, listingLon);
+        return Number.isFinite(distance) && distance <= effectiveGeoRadiusKm;
       });
     }
 
     // Shorts feed is video-only
     filtered = filtered.filter((l) => l.videos && l.videos.length > 0);
 
+    let feed: typeof filtered;
+
     if (hasEnoughData) {
       // Use AI-powered personalization
-      const personalized = getPersonalizedShortsFeed(filtered, interests, userLat, userLon);
-      return personalized.map((item) => item.listing);
+      const personalized = getPersonalizedShortsFeed(
+        filtered,
+        feedInterestsSnapshot,
+        userLat,
+        userLon
+      );
+      feed = personalized.map((item) => item.listing);
     } else {
       // New user - show filtered shorts
-      return filtered;
+      feed = filtered;
     }
-  }, [listings, interests, user?.location, effectiveGeoRadiusKm]);
 
-  // Track view time when user changes shorts
-  useEffect(() => {
-    if (
-      personalizedShorts.length > 0 &&
-      currentIndex >= 0 &&
-      currentIndex < personalizedShorts.length
-    ) {
-      const currentShort = personalizedShorts[currentIndex];
-      const viewDuration = Math.round((Date.now() - viewStartTime) / 1000); // seconds
-
-      if (viewDuration > 1) {
-        // Only track if viewed for more than 1 second
-        trackView(currentShort.id, currentShort.category, viewDuration).catch(console.error);
+    if (targetListingId) {
+      const targetFromAllListings = listings.find(
+        (item) =>
+          item.id === targetListingId && Array.isArray(item.videos) && item.videos.length > 0
+      );
+      if (targetFromAllListings) {
+        const withoutTarget = feed.filter((item) => item.id !== targetListingId);
+        return [targetFromAllListings, ...withoutTarget];
       }
-
-      // Reset timer for new video
-      setViewStartTime(Date.now());
     }
-  }, [currentIndex]);
+
+    return feed;
+  }, [listings, feedInterestsSnapshot, user?.location, effectiveGeoRadiusKm, targetListingId]);
+
+  useEffect(() => {
+    if (personalizedShorts.length === 0) {
+      return;
+    }
+    if (currentIndex >= personalizedShorts.length) {
+      setCurrentIndex(personalizedShorts.length - 1);
+    }
+  }, [currentIndex, personalizedShorts.length]);
+
+  useEffect(() => {
+    if (!targetListingId || personalizedShorts.length === 0) return;
+    const targetIndex = personalizedShorts.findIndex((item) => item.id === targetListingId);
+    if (targetIndex < 0) return;
+    setCurrentIndex(targetIndex);
+    feedListRef.current?.scrollToIndex({ index: targetIndex, animated: false });
+  }, [personalizedShorts, targetListingId]);
+
+  useEffect(() => {
+    if (personalizedShorts.length === 0 || !isTabFocused || !isAppActiveRef.current) return;
+
+    preloadAbortRef.current?.abort();
+    prefetchQueueRef.current.clear();
+    const controller = new AbortController();
+    preloadAbortRef.current = controller;
+
+    const warmup = async () => {
+      try {
+        const apiBaseUrl = getApiUrl();
+        const targets = personalizedShorts
+          .slice(currentIndex + 1, currentIndex + 1 + preloadAheadCount)
+          .map((item) => item.videos?.[0])
+          .filter((url): url is string => typeof url === 'string' && url.length > 0)
+          .map((url) => getStreamingUrl(url, apiBaseUrl));
+        if (controller.signal.aborted) return;
+        prefetchQueueRef.current.enqueue(targets);
+      } catch {
+        // Best effort preloading only.
+      }
+    };
+
+    void warmup();
+
+    return () => {
+      controller.abort();
+      prefetchQueueRef.current.clear();
+    };
+  }, [currentIndex, personalizedShorts, isTabFocused, preloadAheadCount]);
+
+  const handlePlaybackMetric = useCallback(
+    (
+      listingId: string,
+      event: 'first_frame' | 'source_fallback' | 'playback_error',
+      details?: {
+        sourceMode?: 'direct' | 'hls';
+        error?: string;
+      }
+    ) => {
+      if (event === 'first_frame') {
+        trackShortsTelemetry('shorts_first_frame', { listingId, ...details });
+        return;
+      }
+      if (event === 'source_fallback') {
+        trackShortsTelemetry('shorts_source_fallback', { listingId, ...details });
+        return;
+      }
+      trackShortsTelemetry('shorts_playback_error', { listingId, ...details });
+    },
+    []
+  );
 
   const handleSave = useCallback(
     (id: string, category: string) => {
@@ -161,20 +314,43 @@ export default function ShortsScreen() {
 
   const handleMomentumScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (personalizedShorts.length === 0) {
+        return;
+      }
+
       const rawOffsetY = event.nativeEvent.contentOffset.y;
       const clampedIndex = Math.min(
         personalizedShorts.length - 1,
         Math.max(0, Math.round(rawOffsetY / cardHeight))
       );
+      const delta = clampedIndex - currentIndex;
 
-      if (clampedIndex !== currentIndex) {
-        setCurrentIndex(clampedIndex);
-        if (shortsSwipeHapticsEnabled) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
+      if (delta === 0) {
+        return;
+      }
+
+      const nextIndex = clampedIndex;
+
+      const previousShort = personalizedShorts[currentIndex];
+      const viewDuration = Math.round((Date.now() - viewStartTime) / 1000); // seconds
+      if (previousShort && viewDuration > 1) {
+        trackView(previousShort.id, previousShort.category, viewDuration).catch(console.error);
+      }
+
+      setCurrentIndex(nextIndex);
+      setViewStartTime(Date.now());
+      if (shortsSwipeHapticsEnabled) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     },
-    [cardHeight, currentIndex, personalizedShorts.length, shortsSwipeHapticsEnabled]
+    [
+      cardHeight,
+      currentIndex,
+      personalizedShorts,
+      shortsSwipeHapticsEnabled,
+      trackView,
+      viewStartTime,
+    ]
   );
 
   const handleContainerLayout = useCallback((event: LayoutChangeEvent) => {
@@ -198,7 +374,10 @@ export default function ShortsScreen() {
 
   return (
     <View style={styles.container} onLayout={handleContainerLayout}>
-      <FlatList
+      <View pointerEvents="none" style={[styles.topEdgeCover, { height: topInset + 2 }]} />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" translucent={false} />
+      <FlatList<ShortsItem>
+        ref={feedListRef}
         key={listLayoutKey}
         data={personalizedShorts}
         extraData={cardUiBottomInset}
@@ -217,6 +396,9 @@ export default function ShortsScreen() {
             condition={formatCondition(item.condition)}
             isSaved={savedIds.has(item.id)}
             isActive={index === currentIndex && isTabFocused}
+            // Keep adjacent videos mounted for smoother handoff while scrolling.
+            shouldRenderVideo={Math.abs(index - currentIndex) <= 1 && isTabFocused}
+            onPlaybackMetric={(event, details) => handlePlaybackMetric(item.id, event, details)}
             onSave={() => handleSave(item.id, item.category)}
             onContact={() => handleContact(item)}
             onDetails={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
@@ -229,12 +411,15 @@ export default function ShortsScreen() {
         keyExtractor={(item) => item.id}
         pagingEnabled
         removeClippedSubviews={Platform.OS === 'android'}
-        initialNumToRender={2}
-        maxToRenderPerBatch={2}
+        initialNumToRender={3}
+        maxToRenderPerBatch={3}
         updateCellsBatchingPeriod={16}
-        windowSize={3}
+        windowSize={5}
         showsVerticalScrollIndicator={false}
         decelerationRate="fast"
+        snapToInterval={cardHeight}
+        snapToAlignment="start"
+        disableIntervalMomentum
         getItemLayout={(_, index) => ({
           length: cardHeight,
           offset: cardHeight * index,
@@ -250,6 +435,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
+  },
+  topEdgeCover: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#000000',
+    zIndex: 100,
+    elevation: 100,
   },
   emptyContainer: {
     flex: 1,

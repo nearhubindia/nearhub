@@ -78,11 +78,16 @@ function buildFileName(uri: string, mediaType: MediaType): string {
 }
 
 function assertSupportedVideoMime(contentType: string): void {
-  if (contentType === 'video/mp4') return;
+  if (
+    contentType === 'video/mp4' ||
+    contentType === 'video/quicktime' ||
+    contentType === 'video/webm' ||
+    contentType === 'video/3gpp'
+  ) {
+    return;
+  }
 
-  throw new Error(
-    'Only MP4 videos are supported for reliable Android playback. Please upload/export MP4 (H.264 + AAC).'
-  );
+  throw new Error('Unsupported video format. Please upload MP4, MOV, WEBM, or 3GP.');
 }
 
 async function requestPresignedUpload(params: PresignRequest): Promise<PresignResponse> {

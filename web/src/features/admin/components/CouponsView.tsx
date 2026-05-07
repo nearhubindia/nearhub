@@ -115,13 +115,21 @@ export default function CouponsView() {
           >
             Edit
           </button>
-          {row.original.isActive && (
+          {row.original.isActive ? (
             <button
               onClick={() => void handleDeactivate(row.original)}
               className="cursor-pointer font-bold text-amber-600 transition hover:text-amber-800 hover:underline"
               type="button"
             >
               Deactivate
+            </button>
+          ) : (
+            <button
+              onClick={() => void handleActivate(row.original)}
+              className="cursor-pointer font-bold text-emerald-600 transition hover:text-emerald-800 hover:underline"
+              type="button"
+            >
+              Activate
             </button>
           )}
           <button
@@ -207,6 +215,20 @@ export default function CouponsView() {
         error instanceof ApiError
           ? error.message
           : 'Failed to deactivate coupon. Please try again.';
+      alert(message);
+    }
+  };
+
+  const handleActivate = async (coupon: CouponRow): Promise<void> => {
+    try {
+      await updateCoupon.mutateAsync({
+        id: coupon.id as string,
+        data: { isActive: true },
+      });
+    } catch (error) {
+      console.error('Failed to activate coupon:', error);
+      const message =
+        error instanceof ApiError ? error.message : 'Failed to activate coupon. Please try again.';
       alert(message);
     }
   };

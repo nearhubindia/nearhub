@@ -1,4 +1,4 @@
-name: Deploy Server (Hostinger VPS, Artifact Only)
+name: Deploy Server (AWS EC2, Artifact Only)
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - "server/**"
-      - ".github/workflows/deploy-server-hostinger.yml"
+      - ".github/workflows/deploy-server-ec2.yml"
   workflow_dispatch:
 
 concurrency:
@@ -67,7 +67,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    name: Deploy artifact to Hostinger VPS
+    name: Deploy artifact to AWS EC2
     runs-on: ubuntu-latest
     needs: build-artifact
     environment: production
@@ -78,25 +78,22 @@ jobs:
           name: server-release
           path: .
 
-      - name: Copy artifact to VPS
+      - name: Copy artifact to EC2
         shell: bash
         run: |
           set -euo pipefail
-          PORT="${{ secrets.HOSTINGER_VPS_PORT || '22' }}"
-          HOST="${{ secrets.HOSTINGER_VPS_HOST }}"
-          USER="${{ secrets.HOSTINGER_VPS_USER }}"
+          PORT="${{ secrets.AWS_EC2_PORT || '22' }}"
+          HOST="${{ secrets.AWS_EC2_HOST }}"
+          USER="${{ secrets.AWS_EC2_USER }}"
 
           mkdir -p ~/.ssh
-          install -m 600 /dev/null ~/.ssh/id_hostinger
-          printf '%s\n' "${{ secrets.HOSTINGER_VPS_SSH_KEY }}" > ~/.ssh/id_hostinger
+          install -m 600 /dev/null ~/.ssh/id_nearhub_ec2
+          printf '%s\n' "${{ secrets.AWS_EC2_SSH_KEY }}" > ~/.ssh/id_nearhub_ec2
 
-          echo "[INFO] Scanning SSH host key for $HOST:$PORT"
-          ssh-keyscan -v -p "$PORT" -H "$HOST" | tee ~/.ssh/known_hosts
+          ssh-keyscan -p "$PORT" -H "$HOST" >> ~/.ssh/known_hosts
 
-          echo "[INFO] Verifying SSH connectivity before artifact copy"
           ssh \
-            -vvv \
-            -i ~/.ssh/id_hostinger \
+            -i ~/.ssh/id_nearhub_ec2 \
             -p "$PORT" \
             -o BatchMode=yes \
             -o ConnectTimeout=60 \
@@ -105,10 +102,8 @@ jobs:
             -o StrictHostKeyChecking=yes \
             "$USER@$HOST" 'echo "[INFO] SSH preflight OK"'
 
-          echo "[INFO] Uploading server-release.tgz via scp"
           scp \
-            -vvv \
-            -i ~/.ssh/id_hostinger \
+            -i ~/.ssh/id_nearhub_ec2 \
             -P "$PORT" \
             -o ConnectTimeout=60 \
             -o ServerAliveInterval=15 \
@@ -117,19 +112,20 @@ jobs:
             ./server-release.tgz \
             "$USER@$HOST:/tmp/server-release.tgz"
 
-      - name: Deploy release on VPS
+      - name: Deploy release on EC2
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.HOSTINGER_VPS_HOST }}
-          username: ${{ secrets.HOSTINGER_VPS_USER }}
-          key: ${{ secrets.HOSTINGER_VPS_SSH_KEY }}
-          port: ${{ secrets.HOSTINGER_VPS_PORT || '22' }}
+          host: ${{ secrets.AWS_EC2_HOST }}
+          username: ${{ secrets.AWS_EC2_USER }}
+          key: ${{ secrets.AWS_EC2_SSH_KEY }}
+          port: ${{ secrets.AWS_EC2_PORT || '22' }}
           script: |
             set -euo pipefail
 
-            APP_DIR="${{ secrets.HOSTINGER_APP_DIR }}"
-            SERVICE_NAME="${{ secrets.HOSTINGER_SERVICE_NAME }}"
-            PM2_APP_NAME="${{ secrets.HOSTINGER_PM2_APP_NAME || 'nearhub-server' }}"
+            APP_DIR="${{ secrets.AWS_APP_DIR }}"
+            ENV_FILE="${{ secrets.AWS_ENV_FILE || '/etc/nearhub/server.env' }}"
+            SERVICE_NAME="${{ secrets.AWS_SERVICE_NAME }}"
+            PM2_APP_NAME="${{ secrets.AWS_PM2_APP_NAME || 'nearhub-server' }}"
 
             mkdir -p "$APP_DIR/releases" "$APP_DIR/shared"
             RELEASE_DIR="$APP_DIR/releases/$(date +%Y%m%d%H%M%S)"
@@ -138,7 +134,6 @@ jobs:
             tar -xzf /tmp/server-release.tgz -C "$RELEASE_DIR"
             rm -f /tmp/server-release.tgz
 
-            # Artifact-only guard: deployment bundle must not contain a git checkout.
             if [ -d "$RELEASE_DIR/.git" ] || [ -f "$RELEASE_DIR/.git" ]; then
               echo "[ERROR] Artifact contains .git metadata. Refusing deploy."
               exit 1
@@ -152,24 +147,20 @@ jobs:
             echo "[INFO] Deploy manifest:"
             cat "$RELEASE_DIR/DEPLOYMENT_MANIFEST"
 
-            if [ -f "$APP_DIR/shared/.env" ]; then
-              mkdir -p "$RELEASE_DIR/server"
-              ln -sfn "$APP_DIR/shared/.env" "$RELEASE_DIR/.env"
-              ln -sfn "$APP_DIR/shared/.env" "$RELEASE_DIR/server/.env"
+            if [ -f "$ENV_FILE" ]; then
+              ln -sfn "$ENV_FILE" "$RELEASE_DIR/.env"
             else
-              echo "[WARN] Missing $APP_DIR/shared/.env. Runtime may fail without DATABASE_URL."
+              echo "[WARN] Missing $ENV_FILE. Runtime may fail without DATABASE_URL."
             fi
 
             cd "$RELEASE_DIR"
-            # Always run DB migrations before switching current release.
-            # We install dev deps temporarily because drizzle-kit is a dev dependency.
             npm ci
             npm run db:migrate
             npm prune --omit=dev
 
+            rm -rf "$APP_DIR/current"
             ln -sfn "$RELEASE_DIR" "$APP_DIR/current"
 
-            # Restart runtime process.
             if [ -n "$SERVICE_NAME" ]; then
               UNIT_NAME="$SERVICE_NAME"
               case "$UNIT_NAME" in
@@ -182,14 +173,10 @@ jobs:
                 sudo systemctl status "$UNIT_NAME" --no-pager -l | head -n 40 || true
               else
                 echo "[WARN] Systemd unit '$UNIT_NAME' not found. Skipping restart."
-                echo "[WARN] Set HOSTINGER_SERVICE_NAME to an existing service unit name."
                 SERVICE_NAME=""
               fi
-            else
-              echo "[WARN] HOSTINGER_SERVICE_NAME is empty. Skipping service restart."
             fi
 
-            # PM2 fallback for hosts not using systemd service.
             if [ -z "$SERVICE_NAME" ] && command -v pm2 >/dev/null 2>&1; then
               if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
                 pm2 restart "$PM2_APP_NAME" --update-env

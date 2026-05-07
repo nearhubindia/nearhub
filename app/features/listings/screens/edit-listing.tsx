@@ -31,6 +31,7 @@ import {
   getDefaultCategoryForListingType,
   getDefaultMainCategoryForListingType,
   getMainCategoryForSubcategory,
+  shouldRequireConditionForListing,
 } from '@/lib/listing-taxonomy';
 import UploadProgressBar from '@/shared/components/UploadProgressBar';
 import { deleteCloudflareMedia, uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
@@ -61,6 +62,8 @@ interface UploadProgressState {
   progress: number;
   isComplete: boolean;
 }
+
+const LISTING_IMAGE_CROP_ASPECT: [number, number] = [3, 4];
 
 export default function EditListingScreen() {
   const insets = useSafeAreaInsets();
@@ -137,6 +140,11 @@ export default function EditListingScreen() {
       [],
     [categoryGroups, mainCategory]
   );
+  const showConditionField = shouldRequireConditionForListing({
+    listingType,
+    mainCategory,
+    subCategory: category,
+  });
 
   if (!listing) {
     return (
@@ -940,6 +948,7 @@ export default function EditListingScreen() {
         result = await ImagePicker.launchCameraAsync({
           mediaTypes: ['images'],
           allowsEditing: true,
+          aspect: LISTING_IMAGE_CROP_ASPECT,
           quality: 0.8,
         });
       } else {
@@ -1138,7 +1147,7 @@ export default function EditListingScreen() {
         mainCategory,
         subCategory: category,
         category,
-        condition,
+        ...(showConditionField ? { condition } : {}),
         location: {
           city: locationCity.trim(),
           latitude,
@@ -1163,7 +1172,7 @@ export default function EditListingScreen() {
       setSubmitProgress(100);
       setSubmitStatusMessage('Listing updated successfully');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace({ pathname: '/my-listings', params: { edited: '1' } });
+      router.push({ pathname: '/my-listings', params: { edited: '1' } });
     } catch (error) {
       console.error('Error updating listing:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -1449,50 +1458,53 @@ export default function EditListingScreen() {
             )}
           </View>
 
-          {/* Condition */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Condition *</Text>
-            <Pressable
-              style={styles.picker}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowConditionPicker(!showConditionPicker);
-              }}
-            >
-              <Text style={styles.pickerText}>
-                {CONDITIONS.find((c) => c.value === condition)?.label || condition}
-              </Text>
-              <Feather name="chevron-down" size={20} color={Colors.textSecondary} />
-            </Pressable>
-            {showConditionPicker && (
-              <View style={styles.pickerOptions}>
-                {CONDITIONS.map((cond) => (
-                  <Pressable
-                    key={cond.value}
-                    style={[
-                      styles.pickerOption,
-                      cond.value === condition && styles.pickerOptionActive,
-                    ]}
-                    onPress={() => {
-                      setCondition(cond.value);
-                      setShowConditionPicker(false);
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }}
-                  >
-                    <Text
+          {showConditionField && (
+            <View style={styles.section}>
+              <Text style={styles.label}>Condition *</Text>
+              <Pressable
+                style={styles.picker}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowConditionPicker(!showConditionPicker);
+                }}
+              >
+                <Text style={styles.pickerText}>
+                  {CONDITIONS.find((c) => c.value === condition)?.label || condition}
+                </Text>
+                <Feather name="chevron-down" size={20} color={Colors.textSecondary} />
+              </Pressable>
+              {showConditionPicker && (
+                <View style={styles.pickerOptions}>
+                  {CONDITIONS.map((cond) => (
+                    <Pressable
+                      key={cond.value}
                       style={[
-                        styles.pickerOptionText,
-                        cond.value === condition && styles.pickerOptionTextActive,
+                        styles.pickerOption,
+                        cond.value === condition && styles.pickerOptionActive,
                       ]}
+                      onPress={() => {
+                        setCondition(cond.value);
+                        setShowConditionPicker(false);
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }}
                     >
-                      {cond.label}
-                    </Text>
-                    {cond.value === condition && <Feather name="check" size={20} color="#FFFFFF" />}
-                  </Pressable>
-                ))}
-              </View>
-            )}
-          </View>
+                      <Text
+                        style={[
+                          styles.pickerOptionText,
+                          cond.value === condition && styles.pickerOptionTextActive,
+                        ]}
+                      >
+                        {cond.label}
+                      </Text>
+                      {cond.value === condition && (
+                        <Feather name="check" size={20} color="#FFFFFF" />
+                      )}
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Price */}
           <View style={styles.section}>

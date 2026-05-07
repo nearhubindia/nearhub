@@ -11,6 +11,7 @@ export default function PendingListingsView() {
   const { data: listingsData, isLoading } = useListings({ status: 'pending', limit: 500 });
   const reviewListing = useReviewListing();
   const [searchTerm, setSearchTerm] = useState('');
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'ai-flagged'>('all');
   const [detailsListingId, setDetailsListingId] = useState<string | null>(null);
   const { data: listingDetailsData, isLoading: isDetailsLoading } = useListingById(
     detailsListingId || ''
@@ -71,8 +72,8 @@ export default function PendingListingsView() {
 
   const filteredListings = listings.filter((listing) => {
     const query = searchTerm.trim().toLowerCase();
-    if (!query) return true;
-    return (
+    const matchesSearch =
+      !query ||
       listing.title.toLowerCase().includes(query) ||
       String(listing.category || '')
         .toLowerCase()
@@ -85,9 +86,13 @@ export default function PendingListingsView() {
         .includes(query) ||
       String(listing.contactPhone || '')
         .toLowerCase()
-        .includes(query)
-    );
+        .includes(query);
+    if (!matchesSearch) return false;
+    if (reviewFilter === 'all') return true;
+    return isLikelyAiFlagged(listing);
   });
+
+  const aiFlaggedCount = listings.filter((listing) => isLikelyAiFlagged(listing)).length;
 
   const handleReview = async (id: string, action: 'approve' | 'reject') => {
     try {
@@ -154,6 +159,23 @@ export default function PendingListingsView() {
       cell: ({ row }) => row.original.contactPhone || '-',
     },
     {
+      id: 'risk',
+      header: 'Risk',
+      enableSorting: false,
+      enableColumnFilter: false,
+      accessorFn: (listing) => (isLikelyAiFlagged(listing) ? 'AI-flagged' : 'Normal'),
+      cell: ({ row }) =>
+        isLikelyAiFlagged(row.original) ? (
+          <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-bold text-red-700">
+            AI-flagged
+          </span>
+        ) : (
+          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+            Normal
+          </span>
+        ),
+    },
+    {
       id: 'actions',
       header: 'Actions',
       enableSorting: false,
@@ -212,8 +234,35 @@ export default function PendingListingsView() {
               className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 focus:border-amber-500 focus:outline-none"
             />
           </div>
+          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
+            <button
+              type="button"
+              onClick={() => setReviewFilter('all')}
+              className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
+                reviewFilter === 'all'
+                  ? 'bg-amber-600 text-white'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              All Pending
+            </button>
+            <button
+              type="button"
+              onClick={() => setReviewFilter('ai-flagged')}
+              className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
+                reviewFilter === 'ai-flagged'
+                  ? 'bg-red-600 text-white'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              AI-Flagged
+            </button>
+          </div>
           <div className="shrink-0 rounded-lg bg-amber-100 px-4 py-2 font-bold text-amber-800">
             {filteredListings.length} pending
+          </div>
+          <div className="shrink-0 rounded-lg bg-red-100 px-4 py-2 font-bold text-red-700">
+            {aiFlaggedCount} AI-flagged
           </div>
         </div>
 
@@ -354,4 +403,36 @@ export default function PendingListingsView() {
       )}
     </div>
   );
+}
+
+function isLikelyAiFlagged(listing: Listing): boolean {
+  const title = String(listing.title || '').toLowerCase();
+  const description = String(listing.description || '').toLowerCase();
+  const category = String(listing.category || '').toLowerCase();
+  const text = `${title} ${description} ${category}`;
+
+  const riskyPatterns = [
+    /\bnude\b/,
+    /\bnudity\b/,
+    /\bsex\b/,
+    /\bxxx\b/,
+    /\bcannabis\b/,
+    /\bganja\b/,
+    /\bweed\b/,
+    /\bdrug\b/,
+    /\bcocaine\b/,
+    /\bheroin\b/,
+    /\bgun\b/,
+    /\bpistol\b/,
+    /\brifle\b/,
+    /\bfirearm\b/,
+    /\bknife\b/,
+    /\bdagger\b/,
+    /\bsword\b/,
+    /\bweapon\b/,
+  ];
+
+  const hasRiskyText = riskyPatterns.some((pattern) => pattern.test(text));
+  const hasVideo = Array.isArray(listing.videos) && listing.videos.length > 0;
+  return hasRiskyText || hasVideo;
 }

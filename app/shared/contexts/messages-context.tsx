@@ -1,4 +1,13 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { AppState, InteractionManager } from 'react-native';
 
 import { getApiUrl } from '@/lib/query-client';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
@@ -77,6 +86,7 @@ interface ApiMessage {
 const THREADS_PAGE_SIZE = 50;
 const MESSAGE_PAGE_SIZE = 120;
 const THREADS_REFRESH_INTERVAL_MS = 30000;
+const THREADS_MIN_REFRESH_INTERVAL_MS = 5000;
 
 function normalizeTimestamp(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) return new Date().toISOString();
@@ -86,7 +96,11 @@ function normalizeTimestamp(value: unknown): string {
 export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const [threads, setThreads] = useState<ChatThread[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const lastRefreshAtRef = useRef(0);
+  const appStateRef = useRef(AppState.currentState);
+  const threadsCountRef = useRef(0);
   const unreadChatsCount = useMemo(
     () =>
       threads.reduce(
@@ -96,6 +110,10 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       ),
     [threads]
   );
+
+  useEffect(() => {
+    threadsCountRef.current = threads.length;
+  }, [threads.length]);
 
   const getThread = useCallback(
     (id: string) => threads.find((t) => t.conversationId === id || t.listingId === id),
@@ -139,74 +157,110 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
     },
-    [user?.id, user?.phone]
+    [user?.id, user?.name, user?.phone]
   );
 
-  const refreshThreads = useCallback(async () => {
-    if (!isAuthenticated || !user?.id) {
-      setThreads([]);
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `${getApiUrl()}/api/messages/threads?limit=${THREADS_PAGE_SIZE}&offset=0`,
-        {
-          method: 'GET',
-          headers: buildUserAuthHeaders(
-            { id: user.id, phone: user.phone, name: user.name },
-            { includeName: true }
-          ),
-        }
-      );
-
-      if (response.status === 401 || response.status === 403) {
-        // Treat auth failures as a signed-out/expired state for messaging only.
-        // This should not surface as a runtime red-box in development.
+  const refreshThreadsInternal = useCallback(
+    async (options?: { force?: boolean; showLoading?: boolean }) => {
+      if (!isAuthenticated || !user?.id) {
         setThreads([]);
+        setIsLoading(false);
         return;
       }
 
-      if (!response.ok) {
-        const errorBody = await response.text().catch(() => '');
-        throw new Error(
-          `Failed to fetch message threads: ${response.status}${errorBody ? ` - ${errorBody}` : ''}`
-        );
+      const force = options?.force === true;
+      const showLoading = options?.showLoading === true;
+      const now = Date.now();
+      if (
+        !force &&
+        now - lastRefreshAtRef.current < THREADS_MIN_REFRESH_INTERVAL_MS &&
+        threadsCountRef.current > 0
+      ) {
+        return;
       }
 
-      const payload = await response.json();
-      const apiThreads: ApiThread[] = Array.isArray(payload?.data) ? payload.data : [];
+      if (refreshInFlightRef.current) {
+        return refreshInFlightRef.current;
+      }
 
-      setThreads((prev) => {
-        const byConversation = new Map(prev.map((thread) => [thread.conversationId, thread]));
+      if (showLoading) {
+        setIsLoading(true);
+      }
 
-        return apiThreads.map((item) => {
-          const existing = byConversation.get(item.conversationId);
-          return {
-            conversationId: item.conversationId,
-            listingId: item.listingId,
-            otherUserId: item.otherUserId || existing?.otherUserId || '',
-            otherUserAvatar: item.otherUserAvatar || existing?.otherUserAvatar || '',
-            sellerName:
-              item.otherUserName || item.otherUserLabel || existing?.sellerName || 'Seller',
-            listingTitle: item.listingTitle || existing?.listingTitle || 'Listing',
-            listingImage: item.listingImage || existing?.listingImage || '',
-            messages: existing?.messages || [],
-            lastMessage: item.lastMessage || existing?.lastMessage || '',
-            lastTimestamp: normalizeTimestamp(item.lastTimestamp || existing?.lastTimestamp),
-            unreadCount:
-              typeof item.unreadCount === 'number' ? item.unreadCount : existing?.unreadCount || 0,
-          };
-        });
+      const run = (async () => {
+        try {
+          const response = await fetch(
+            `${getApiUrl()}/api/messages/threads?limit=${THREADS_PAGE_SIZE}&offset=0`,
+            {
+              method: 'GET',
+              headers: buildUserAuthHeaders(
+                { id: user.id, phone: user.phone, name: user.name },
+                { includeName: true }
+              ),
+            }
+          );
+
+          if (response.status === 401 || response.status === 403) {
+            setThreads([]);
+            return;
+          }
+
+          if (!response.ok) {
+            const errorBody = await response.text().catch(() => '');
+            throw new Error(
+              `Failed to fetch message threads: ${response.status}${errorBody ? ` - ${errorBody}` : ''}`
+            );
+          }
+
+          const payload = await response.json();
+          const apiThreads: ApiThread[] = Array.isArray(payload?.data) ? payload.data : [];
+
+          setThreads((prev) => {
+            const byConversation = new Map(prev.map((thread) => [thread.conversationId, thread]));
+
+            return apiThreads.map((item) => {
+              const existing = byConversation.get(item.conversationId);
+              return {
+                conversationId: item.conversationId,
+                listingId: item.listingId,
+                otherUserId: item.otherUserId || existing?.otherUserId || '',
+                otherUserAvatar: item.otherUserAvatar || existing?.otherUserAvatar || '',
+                sellerName:
+                  item.otherUserName || item.otherUserLabel || existing?.sellerName || 'Seller',
+                listingTitle: item.listingTitle || existing?.listingTitle || 'Listing',
+                listingImage: item.listingImage || existing?.listingImage || '',
+                messages: existing?.messages || [],
+                lastMessage: item.lastMessage || existing?.lastMessage || '',
+                lastTimestamp: normalizeTimestamp(item.lastTimestamp || existing?.lastTimestamp),
+                unreadCount:
+                  typeof item.unreadCount === 'number'
+                    ? item.unreadCount
+                    : existing?.unreadCount || 0,
+              };
+            });
+          });
+          lastRefreshAtRef.current = Date.now();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.warn(`Failed to load message threads: ${message}`);
+        } finally {
+          if (showLoading) {
+            setIsLoading(false);
+          }
+        }
+      })();
+
+      refreshInFlightRef.current = run.finally(() => {
+        refreshInFlightRef.current = null;
       });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`Failed to load message threads: ${message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isAuthenticated, user?.id, user?.phone]);
+      return refreshInFlightRef.current;
+    },
+    [isAuthenticated, user?.id, user?.name, user?.phone]
+  );
+
+  const refreshThreads = useCallback(async () => {
+    await refreshThreadsInternal({ force: true, showLoading: true });
+  }, [refreshThreadsInternal]);
 
   const loadThreadMessages = useCallback(
     async (id: string): Promise<ChatMessage[]> => {
@@ -297,7 +351,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         return thread.messages;
       }
     },
-    [fetchConversationMeta, getThread, isAuthenticated, user?.id, user?.phone]
+    [fetchConversationMeta, getThread, isAuthenticated, user?.id, user?.name, user?.phone]
   );
 
   const sendMessage = useCallback(
@@ -346,7 +400,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
             : '';
 
       if (!resolvedConversationId || !message) {
-        await refreshThreads();
+        await refreshThreadsInternal({ force: true, showLoading: false });
         return resolvedConversationId;
       }
 
@@ -411,28 +465,65 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       });
 
       // Sync metadata (names/images/timestamps) from server source-of-truth.
-      await refreshThreads();
+      await refreshThreadsInternal({ force: true, showLoading: false });
       return resolvedConversationId;
     },
-    [isAuthenticated, refreshThreads, user?.id, user?.phone]
+    [isAuthenticated, refreshThreadsInternal, user?.id, user?.name, user?.phone]
   );
 
   useEffect(() => {
-    setIsLoading(true);
-    refreshThreads();
-  }, [refreshThreads]);
+    if (!isAuthenticated || !user?.id) {
+      setThreads([]);
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    let initialFetchTimer: ReturnType<typeof setTimeout> | null = null;
+    const interactionTask = InteractionManager.runAfterInteractions(() => {
+      initialFetchTimer = setTimeout(() => {
+        if (cancelled) return;
+        void refreshThreadsInternal({ force: true, showLoading: false });
+      }, 800);
+    });
+
+    return () => {
+      cancelled = true;
+      interactionTask.cancel();
+      if (initialFetchTimer) {
+        clearTimeout(initialFetchTimer);
+      }
+    };
+  }, [isAuthenticated, refreshThreadsInternal, user?.id]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      appStateRef.current = nextState;
+      if (nextState === 'active' && isAuthenticated && user?.id) {
+        void refreshThreadsInternal({ force: false, showLoading: false });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isAuthenticated, refreshThreadsInternal, user?.id]);
 
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
 
     const interval = setInterval(() => {
-      refreshThreads().catch((error) => {
+      if (appStateRef.current !== 'active') {
+        return;
+      }
+
+      refreshThreadsInternal({ force: false, showLoading: false }).catch((error) => {
         console.error('Failed to refresh threads in background:', error);
       });
     }, THREADS_REFRESH_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [isAuthenticated, refreshThreads, user?.id]);
+  }, [isAuthenticated, refreshThreadsInternal, user?.id]);
 
   const value = useMemo(
     () => ({

@@ -29,6 +29,11 @@ import CategoryPill from '@/shared/components/CategoryPill';
 import { useAdminSettings } from '@/lib/use-admin-settings';
 import { createResponsiveStyles } from '@/lib/responsive';
 
+const LISTING_IMAGE_ASPECT_RATIO = 3 / 4;
+const SEARCH_LIST_INITIAL_RENDER = 8;
+const SEARCH_LIST_MAX_BATCH = 8;
+const SEARCH_LIST_WINDOW_SIZE = 7;
+
 export default function SearchResultsScreen() {
   const insets = useSafeAreaInsets();
   const {
@@ -75,6 +80,21 @@ export default function SearchResultsScreen() {
   const isProductCategorySelected = isProductCategory(selectedCategory);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const distanceByListingId = useMemo(() => {
+    if (userLat === null || userLon === null) return new Map<string, number>();
+
+    const distanceMap = new Map<string, number>();
+    for (const item of listings) {
+      const distance = calculateDistance(
+        userLat,
+        userLon,
+        item.location.latitude,
+        item.location.longitude
+      );
+      distanceMap.set(item.id, distance);
+    }
+    return distanceMap;
+  }, [listings, userLat, userLon]);
 
   const filteredListings = useMemo(() => {
     let results = listings.filter((item) => {
@@ -107,13 +127,8 @@ export default function SearchResultsScreen() {
 
     if (userLat !== null && userLon !== null) {
       results = results.filter((item) => {
-        const distance = calculateDistance(
-          userLat,
-          userLon,
-          item.location.latitude,
-          item.location.longitude
-        );
-        return distance <= effectiveRadiusKm;
+        const distance = distanceByListingId.get(item.id);
+        return distance !== undefined && distance <= effectiveRadiusKm;
       });
     }
 
@@ -126,18 +141,8 @@ export default function SearchResultsScreen() {
     // Sort by distance if location is available
     if (userLat !== null && userLon !== null) {
       results = results.sort((a, b) => {
-        const distA = calculateDistance(
-          userLat,
-          userLon,
-          a.location.latitude,
-          a.location.longitude
-        );
-        const distB = calculateDistance(
-          userLat,
-          userLon,
-          b.location.latitude,
-          b.location.longitude
-        );
+        const distA = distanceByListingId.get(a.id) ?? Number.POSITIVE_INFINITY;
+        const distB = distanceByListingId.get(b.id) ?? Number.POSITIVE_INFINITY;
         return distA - distB;
       });
     }
@@ -152,6 +157,7 @@ export default function SearchResultsScreen() {
     userLat,
     userLon,
     effectiveRadiusKm,
+    distanceByListingId,
     isProductCategorySelected,
     productStateFilter,
   ]);
@@ -212,6 +218,7 @@ export default function SearchResultsScreen() {
             offerPrice={item.offerPrice}
             priceUnit={item.priceUnit}
             image={item.images[0]}
+            imageAspectRatio={LISTING_IMAGE_ASPECT_RATIO}
             location={item.location.city}
             condition={formatCondition(item.condition)}
             sellerVerified={Boolean(item.sellerVerified)}
@@ -240,11 +247,16 @@ export default function SearchResultsScreen() {
       <FlatList
         data={gridData}
         renderItem={renderItem}
-        keyExtractor={(item, index) => `${item.id}-${index}`}
+        keyExtractor={(item) => item.id}
         numColumns={2}
         columnWrapperStyle={styles.row}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
+        initialNumToRender={SEARCH_LIST_INITIAL_RENDER}
+        maxToRenderPerBatch={SEARCH_LIST_MAX_BATCH}
+        windowSize={SEARCH_LIST_WINDOW_SIZE}
+        updateCellsBatchingPeriod={48}
+        removeClippedSubviews={Platform.OS === 'android'}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}

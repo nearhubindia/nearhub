@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
 import PhotoSlideshow from './PhotoSlideshow';
@@ -43,6 +44,7 @@ interface ShortsCardProps {
   condition: string;
   isSaved: boolean;
   isActive?: boolean;
+  shouldRenderVideo?: boolean;
   onSave: () => void;
   onContact: () => void;
   onDetails: () => void;
@@ -50,6 +52,13 @@ interface ShortsCardProps {
   cardWidth: number;
   uiBottomInset?: number;
   uiTopInset?: number;
+  onPlaybackMetric?: (
+    event: 'first_frame' | 'source_fallback' | 'playback_error',
+    details?: {
+      sourceMode?: 'direct' | 'hls';
+      error?: string;
+    }
+  ) => void;
 }
 
 function getStreamingUrl(videoUrl: string): string {
@@ -69,6 +78,13 @@ function getStreamingUrl(videoUrl: string): string {
   return `${apiBaseUrl}/api/videos/stream/${videoUrl}`;
 }
 
+function getAdaptiveStreamingUrl(videoUrl: string): string {
+  const streamingUrl = getStreamingUrl(videoUrl);
+  if (!/^https?:\/\//i.test(streamingUrl)) return streamingUrl;
+  const apiBaseUrl = getApiUrl();
+  return `${apiBaseUrl}/api/videos/hls/master.m3u8?source=${encodeURIComponent(streamingUrl)}`;
+}
+
 function getProxyStreamingUrl(videoUrl: string): string {
   const apiBaseUrl = getApiUrl();
   return `${apiBaseUrl}/api/videos/proxy?url=${encodeURIComponent(videoUrl)}`;
@@ -81,6 +97,7 @@ function VideoPlayer({
   isMuted,
   onPlaybackError,
   uiBottomInset,
+  onPlaybackMetric,
 }: {
   videoUrl: string;
   isActive: boolean;
@@ -88,19 +105,61 @@ function VideoPlayer({
   isMuted: boolean;
   onPlaybackError: () => void;
   uiBottomInset: number;
+  onPlaybackMetric?: (
+    event: 'first_frame' | 'source_fallback' | 'playback_error',
+    details?: { sourceMode?: 'direct' | 'hls'; error?: string }
+  ) => void;
 }) {
-  const streamingUrl = getStreamingUrl(videoUrl);
+  const hlsUrl = getAdaptiveStreamingUrl(videoUrl);
+  const directUrl = getStreamingUrl(videoUrl);
+  // Start with direct stream for faster first frame; fallback to HLS only if needed.
+  const [sourceMode, setSourceMode] = React.useState<'hls' | 'direct'>('direct');
   const isLegacyAndroid = Platform.OS === 'android' && Number(Platform.Version) <= 30;
-  const shouldUseProxy = isLegacyAndroid && /^https?:\/\//i.test(streamingUrl);
-  const playbackUrl = shouldUseProxy ? getProxyStreamingUrl(streamingUrl) : streamingUrl;
+  const selectedUrl = sourceMode === 'hls' ? hlsUrl : directUrl;
+  const shouldUseProxy = isLegacyAndroid && /^https?:\/\//i.test(selectedUrl);
+  const playbackUrl = shouldUseProxy ? getProxyStreamingUrl(selectedUrl) : selectedUrl;
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [showControls, setShowControls] = React.useState(false);
+  const [thumbnailUri, setThumbnailUri] = React.useState<string | null>(null);
+  const [hasFirstFrameRendered, setHasFirstFrameRendered] = React.useState(false);
+  const hasReportedFirstFrameRef = React.useRef(false);
   const hideControlsTimeout = React.useRef<NodeJS.Timeout | null>(null);
 
   const player = useVideoPlayer(playbackUrl, (p) => {
     p.loop = true;
     p.muted = false;
+    p.volume = 1.0;
+    p.audioMixingMode = 'doNotMix';
   });
+
+  React.useEffect(() => {
+    setSourceMode('direct');
+    hasReportedFirstFrameRef.current = false;
+    setHasFirstFrameRendered(false);
+    setThumbnailUri(null);
+  }, [videoUrl]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const loadThumbnail = async () => {
+      try {
+        const result = await VideoThumbnails.getThumbnailAsync(getStreamingUrl(videoUrl), {
+          time: 350,
+        });
+        if (!cancelled) {
+          setThumbnailUri(result.uri);
+        }
+      } catch {
+        if (!cancelled) {
+          setThumbnailUri(null);
+        }
+      }
+    };
+    void loadThumbnail();
+    return () => {
+      cancelled = true;
+    };
+  }, [videoUrl]);
 
   React.useEffect(() => {
     // Force mute when card is not active to avoid lingering audio on tab/screen switches.
@@ -109,13 +168,30 @@ function VideoPlayer({
 
   React.useEffect(() => {
     const sub = player.addListener('statusChange', (status: any) => {
+      if (!hasReportedFirstFrameRef.current && status?.status === 'readyToPlay') {
+        hasReportedFirstFrameRef.current = true;
+        onPlaybackMetric?.('first_frame', { sourceMode });
+      }
       if (status?.error) {
         console.warn('[Video] Playback status error:', status.error);
+        if (sourceMode === 'direct') {
+          // Retry with adaptive HLS when direct playback fails on specific devices/networks.
+          onPlaybackMetric?.('source_fallback', {
+            sourceMode: 'direct',
+            error: String(status.error),
+          });
+          setSourceMode('hls');
+          return;
+        }
+        onPlaybackMetric?.('playback_error', {
+          sourceMode: 'hls',
+          error: String(status.error),
+        });
         onPlaybackError();
       }
     });
     return () => sub.remove();
-  }, [player, onPlaybackError]);
+  }, [player, onPlaybackError, onPlaybackMetric, sourceMode]);
 
   React.useEffect(() => {
     if (isActive) {
@@ -190,12 +266,22 @@ function VideoPlayer({
   return (
     <View style={StyleSheet.absoluteFill}>
       <Pressable style={StyleSheet.absoluteFill} onPress={handleVideoPress}>
+        {!hasFirstFrameRendered && thumbnailUri ? (
+          <Image
+            source={{ uri: thumbnailUri }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={120}
+          />
+        ) : null}
         <VideoView
           player={player}
           style={StyleSheet.absoluteFill}
           nativeControls={false}
           contentFit="cover"
           surfaceType="textureView"
+          useExoShutter={false}
+          onFirstFrameRender={() => setHasFirstFrameRendered(true)}
         />
       </Pressable>
       <Pressable
@@ -231,6 +317,7 @@ export default function ShortsCard({
   condition,
   isSaved,
   isActive = false,
+  shouldRenderVideo = true,
   onSave,
   onContact,
   onDetails,
@@ -238,6 +325,7 @@ export default function ShortsCard({
   cardWidth,
   uiBottomInset = 0,
   uiTopInset = 0,
+  onPlaybackMetric,
 }: ShortsCardProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [hasPlaybackError, setHasPlaybackError] = useState(false);
@@ -252,6 +340,8 @@ export default function ShortsCard({
 
   // Get first video if available
   const videoUrl = videos && videos.length > 0 ? videos[0] : undefined;
+  const firstImage = images && images.length > 0 ? images[0] : image;
+  const shouldShowPosterOnly = Boolean(videoUrl) && !shouldRenderVideo;
 
   React.useEffect(() => {
     setHasPlaybackError(false);
@@ -271,7 +361,7 @@ export default function ShortsCard({
     <View style={[styles.container, { width: cardWidth, height: cardHeight }]}>
       {/* Media fills entire card - full bleed like TikTok */}
       <View style={StyleSheet.absoluteFill}>
-        {videoUrl && !hasPlaybackError ? (
+        {videoUrl && shouldRenderVideo && !hasPlaybackError ? (
           <VideoPlayer
             videoUrl={videoUrl}
             isActive={isActive}
@@ -279,6 +369,18 @@ export default function ShortsCard({
             isMuted={isMuted}
             onPlaybackError={handlePlaybackError}
             uiBottomInset={uiBottomInset}
+            onPlaybackMetric={onPlaybackMetric}
+          />
+        ) : shouldShowPosterOnly ? (
+          <Image
+            source={
+              firstImage.includes('via.placeholder.com')
+                ? require('../../assets/images/icon.png')
+                : { uri: firstImage }
+            }
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={120}
           />
         ) : images && images.length > 0 ? (
           <PhotoSlideshow

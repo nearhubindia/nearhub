@@ -520,6 +520,12 @@ export default function SubscriptionsScreen(): React.JSX.Element {
 
     try {
       const apiUrl = await getApiUrl();
+      const paymentAttemptId = `${Date.now()}-${user.id}`;
+      console.log('[Subscriptions] Payment attempt started', {
+        paymentAttemptId,
+        selectedTierId,
+        userId: user.id,
+      });
 
       // Step 1: Create subscription
       const subRes = await fetch(`${apiUrl}/api/subscriptions`, {
@@ -552,6 +558,14 @@ export default function SubscriptionsScreen(): React.JSX.Element {
         }),
       });
       const checkoutData = await checkoutRes.json();
+      console.log('[Subscriptions] Checkout response', {
+        paymentAttemptId,
+        success: checkoutData?.success,
+        isFree: checkoutData?.isFree,
+        hasPayment: !!checkoutData?.payment,
+        razorpayOrderId: checkoutData?.payment?.razorpayOrderId,
+        amount: checkoutData?.payment?.amount,
+      });
 
       if (!checkoutData.success) {
         Alert.alert('Error', checkoutData.error || 'Failed to initiate payment');
@@ -575,26 +589,52 @@ export default function SubscriptionsScreen(): React.JSX.Element {
       // Step 3: Open Razorpay
       const { razorpayOrderId, amount, key } = checkoutData.payment;
 
+      const sanitizedContact = String(user.phone || '')
+        .replace(/\D/g, '')
+        .slice(-10);
       const razorpayOptions = {
         description: `${selectedTier.name} Plan - ${duration} Days`,
         image: 'https://nearhub.app/nearhub-logo.png',
         currency: 'INR',
-        key,
-        amount: String(amount),
+        key: String(key || '').trim(),
+        amount: Number(amount),
         order_id: razorpayOrderId,
         name: 'NearHub',
         prefill: {
-          email: user.email || '',
-          contact: user.phone || '',
-          name: user.name || '',
+          contact: sanitizedContact,
         },
         theme: { color: '#0A66C2' },
+        retry: { enabled: true, max_count: 1 },
+        modal: {
+          ondismiss: () => {
+            console.log('[Razorpay] Checkout dismissed by user');
+          },
+        },
+        send_sms_hash: true,
+        notes: {
+          paymentAttemptId,
+          subscriptionId,
+          tierId: selectedTierId,
+        },
       };
+      console.log('[Subscriptions] Opening Razorpay checkout', {
+        paymentAttemptId,
+        orderId: razorpayOrderId,
+        amount,
+        keyPrefix: String(key || '').slice(0, 8),
+        hasContact: Boolean(sanitizedContact),
+      });
 
       // @ts-ignore - dynamic import to avoid New Architecture crash
       const RazorpayCheckout = require('react-native-razorpay').default;
 
       const paymentResult = await RazorpayCheckout.open(razorpayOptions);
+      console.log('[Subscriptions] Razorpay checkout success callback', {
+        paymentAttemptId,
+        razorpay_order_id: paymentResult?.razorpay_order_id,
+        razorpay_payment_id: paymentResult?.razorpay_payment_id,
+        razorpay_signature: paymentResult?.razorpay_signature ? 'present' : 'missing',
+      });
 
       // Step 4: Verify payment
       const verifyRes = await fetch(`${apiUrl}/api/subscriptions/verify-payment`, {
@@ -623,6 +663,14 @@ export default function SubscriptionsScreen(): React.JSX.Element {
         }),
       });
       const verifyData = await verifyRes.json();
+      console.log('[Subscriptions] Verify response', {
+        paymentAttemptId,
+        ok: verifyRes.ok,
+        success: verifyData?.success,
+        error: verifyData?.error,
+        paymentId: verifyData?.paymentId,
+        orderId: verifyData?.orderId,
+      });
 
       if (verifyData.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -664,7 +712,21 @@ export default function SubscriptionsScreen(): React.JSX.Element {
       }
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : 'Payment failed';
-      console.error('[Subscriptions] Payment error:', error);
+      const errorObj = error as Record<string, unknown> | undefined;
+      const nestedError = (errorObj?.error as Record<string, unknown> | undefined) || {};
+      const metadata = (nestedError?.metadata as Record<string, unknown> | undefined) || {};
+      console.error('[Subscriptions] Payment error:', {
+        message: errMsg,
+        raw: error,
+        code: errorObj?.code,
+        description: errorObj?.description,
+        reason: nestedError?.reason,
+        step: nestedError?.step,
+        source: nestedError?.source,
+        metadata,
+        payment_id: metadata?.payment_id,
+        order_id: metadata?.order_id,
+      });
       if (errMsg.includes('cancelled') || errMsg.includes('dismissed')) {
         // User cancelled — no alert needed
       } else {

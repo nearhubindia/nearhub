@@ -12,7 +12,7 @@ export type MainCategory =
 type ListingFormType = Listing['listingType'];
 
 const CATEGORY_TAXONOMY: Record<MainCategory, Category[]> = {
-  Vehicles: ['Vehicles', 'Commercial Vehicles', 'Bikes', 'Spare Parts'],
+  Vehicles: ['Vehicles', 'EV Vehicles', 'Commercial Vehicles', 'Bikes', 'Spare Parts'],
   'Electronics & Appliances': ['Electronics', 'Mobiles', 'Computers', 'Appliances'],
   'Home, Property & Living': ['Furniture', 'Home & Garden', 'Real Estate', 'Rentals'],
   'Fashion & Lifestyle': ['Fashion', 'Clothing', 'Beauty', 'Kids'],
@@ -58,6 +58,16 @@ const LISTING_TYPE_ALLOWED_SUBCATEGORIES: Record<ListingFormType, Category[]> = 
   job: JOB_ALLOWED_SUBCATEGORIES,
 };
 
+const CONDITION_OPTIONAL_MAIN_CATEGORIES = new Set(['jobs & services']);
+const CONDITION_OPTIONAL_SUBCATEGORIES = new Set([
+  'jobs',
+  'freelance',
+  'services',
+  'business',
+  'education',
+  'health',
+]);
+
 export type CategoryGroup = {
   mainCategory: MainCategory;
   subcategories: Category[];
@@ -92,4 +102,33 @@ export function getDefaultCategoryForListingType(listingType: ListingFormType): 
 export function getDefaultMainCategoryForListingType(listingType: ListingFormType): MainCategory {
   const groups = getCategoryGroupsForListingType(listingType);
   return groups[0]?.mainCategory || 'Community, Pets & Others';
+}
+
+export function shouldRequireConditionForListing(params: {
+  listingType?: string | null;
+  mainCategory?: string | null;
+  subCategory?: Category | string | null;
+}): boolean {
+  const normalizedListingType = String(params.listingType || '')
+    .trim()
+    .toLowerCase();
+  if (normalizedListingType === 'service' || normalizedListingType === 'job') {
+    return false;
+  }
+
+  const normalizedMainCategory = String(params.mainCategory || '')
+    .trim()
+    .toLowerCase();
+  if (CONDITION_OPTIONAL_MAIN_CATEGORIES.has(normalizedMainCategory)) {
+    return false;
+  }
+
+  const normalizedSubCategory = String(params.subCategory || '')
+    .trim()
+    .toLowerCase();
+  if (CONDITION_OPTIONAL_SUBCATEGORIES.has(normalizedSubCategory)) {
+    return false;
+  }
+
+  return true;
 }

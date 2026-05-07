@@ -1,7 +1,16 @@
-import React, { useState, useRef } from 'react';
-import { View, FlatList, StyleSheet, Text, Pressable, useWindowDimensions } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  View,
+  FlatList,
+  StyleSheet,
+  Text,
+  Pressable,
+  useWindowDimensions,
+  Platform,
+} from 'react-native';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Feather } from '@expo/vector-icons';
 import { getApiUrl } from '@/lib/query-client';
 
@@ -43,6 +52,13 @@ function getStreamingUrl(videoUrl: string): string {
   return `${apiBaseUrl}/api/videos/stream/${videoUrl}`;
 }
 
+function getAdaptiveStreamingUrl(videoUrl: string): string {
+  const streamingUrl = getStreamingUrl(videoUrl);
+  if (!/^https?:\/\//i.test(streamingUrl)) return streamingUrl;
+  const apiBaseUrl = getApiUrl();
+  return `${apiBaseUrl}/api/videos/hls/master.m3u8?source=${encodeURIComponent(streamingUrl)}`;
+}
+
 interface MediaItem {
   type: 'image' | 'video';
   uri: string;
@@ -54,6 +70,8 @@ interface MediaCarouselProps {
   videos?: string[];
   height: number;
   isFocused?: boolean;
+  onCurrentMediaTypeChange?: (type: 'image' | 'video') => void;
+  onVideoEnlargePress?: () => void;
 }
 
 /**
@@ -66,41 +84,57 @@ export default function MediaCarousel({
   videos = [],
   height,
   isFocused = true,
+  onCurrentMediaTypeChange,
+  onVideoEnlargePress,
 }: MediaCarouselProps) {
   const { width: windowWidth } = useWindowDimensions();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [activePlayers, setActivePlayers] = useState<Set<string>>(new Set());
+  const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
   // Combine images and videos into single media array
-  const mediaItems: MediaItem[] = [
-    ...images.map((uri, i) => ({ type: 'image' as const, uri, id: `img-${i}` })),
-    ...videos.map((uri, i) => ({ type: 'video' as const, uri, id: `vid-${i}` })),
-  ];
+  const mediaItems: MediaItem[] = useMemo(
+    () => [
+      ...images.map((uri, i) => ({ type: 'image' as const, uri, id: `img-${i}` })),
+      ...videos.map((uri, i) => ({ type: 'video' as const, uri, id: `vid-${i}` })),
+    ],
+    [images, videos]
+  );
 
   const totalMedia = mediaItems.length;
 
   // Auto-play first video on load if available
   React.useEffect(() => {
-    console.log(
-      '[MediaCarousel] mounted, mediaItems:',
-      mediaItems.length,
-      'first item:',
-      mediaItems[0]?.type
-    );
     if (isFocused && mediaItems.length > 0 && mediaItems[0].type === 'video') {
-      console.log('[MediaCarousel] Auto-playing first video:', mediaItems[0].id);
-      setActivePlayers(new Set([mediaItems[0].id]));
+      setActiveVideoId(mediaItems[0].id);
     } else {
-      setActivePlayers(new Set());
+      setActiveVideoId(null);
     }
-  }, [mediaItems.length, mediaItems[0]?.type, isFocused]);
+    if (mediaItems.length > 0) {
+      onCurrentMediaTypeChange?.(mediaItems[0].type);
+    }
+  }, [isFocused, mediaItems]);
+
+  // Warm up first 2 video streams to reduce startup latency when user swipes.
+  React.useEffect(() => {
+    const warmupTargets = mediaItems.filter((item) => item.type === 'video').slice(0, 2);
+    if (warmupTargets.length === 0) return;
+
+    const controller = new AbortController();
+    warmupTargets.forEach((item) => {
+      const url = getStreamingUrl(item.uri);
+      fetch(url, { method: 'HEAD', signal: controller.signal }).catch(() => {
+        // Best-effort warmup only.
+      });
+    });
+
+    return () => controller.abort();
+  }, [mediaItems]);
 
   // Pause all videos when screen loses focus
   React.useEffect(() => {
     if (!isFocused) {
-      console.log('[MediaCarousel] Screen not focused, pausing all videos');
-      setActivePlayers(new Set());
+      setActiveVideoId(null);
     }
   }, [isFocused]);
 
@@ -114,49 +148,56 @@ export default function MediaCarousel({
     );
   }
 
-  const handleMomentumScrollEnd = (e: any) => {
-    const contentOffsetX = e.nativeEvent.contentOffset.x;
-    const index = Math.round(contentOffsetX / windowWidth);
-    setCurrentIndex(index);
+  const handleMomentumScrollEnd = useCallback(
+    (e: any) => {
+      const contentOffsetX = e.nativeEvent.contentOffset.x;
+      const index = Math.round(contentOffsetX / windowWidth);
+      setCurrentIndex(index);
 
-    // Auto-play video when scrolled into view (only if screen is focused)
-    const item = mediaItems[index];
-    console.log('[MediaCarousel] Scrolled to index:', { index, type: item?.type, id: item?.id });
-    if (isFocused && item?.type === 'video') {
-      const newActivePlayers = new Set([item.id]);
-      console.log('[MediaCarousel] Setting active video:', item.id);
-      setActivePlayers(newActivePlayers);
-    } else {
-      setActivePlayers(new Set());
-    }
-  };
+      // Auto-play video when scrolled into view (only if screen is focused)
+      const item = mediaItems[index];
+      if (item) {
+        onCurrentMediaTypeChange?.(item.type);
+      }
+      if (isFocused && item?.type === 'video') {
+        setActiveVideoId(item.id);
+      } else {
+        setActiveVideoId(null);
+      }
+    },
+    [isFocused, mediaItems, onCurrentMediaTypeChange, windowWidth]
+  );
 
-  const renderMediaItem = ({ item }: { item: MediaItem }) => {
-    if (item.type === 'image') {
+  const renderMediaItem = useCallback(
+    ({ item }: { item: MediaItem }) => {
+      if (item.type === 'image') {
+        return (
+          <View style={[styles.mediaContainer, { height, width: windowWidth }]}>
+            <Image
+              source={{ uri: item.uri }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              transition={220}
+              cachePolicy="memory-disk"
+            />
+          </View>
+        );
+      }
+
+      // Video type
       return (
-        <View style={[styles.mediaContainer, { height, width: windowWidth }]}>
-          <Image
-            source={{ uri: item.uri }}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-            transition={300}
-          />
-        </View>
+        <VideoPlayer
+          videoUri={item.uri}
+          itemId={item.id}
+          isActive={activeVideoId === item.id}
+          height={height}
+          width={windowWidth}
+          onVideoEnlargePress={onVideoEnlargePress}
+        />
       );
-    }
-
-    // Video type
-    return (
-      <VideoPlayer
-        videoUri={item.uri}
-        itemId={item.id}
-        height={height}
-        width={windowWidth}
-        activePlayers={activePlayers}
-        setActivePlayers={setActivePlayers}
-      />
-    );
-  };
+    },
+    [activeVideoId, height, onVideoEnlargePress, windowWidth]
+  );
 
   return (
     <View style={[styles.container, { height }]}>
@@ -165,7 +206,7 @@ export default function MediaCarousel({
         data={mediaItems}
         renderItem={renderMediaItem}
         keyExtractor={(item) => item.id}
-        extraData={windowWidth}
+        extraData={`${windowWidth}-${activeVideoId ?? ''}`}
         horizontal
         pagingEnabled
         snapToInterval={windowWidth}
@@ -175,6 +216,11 @@ export default function MediaCarousel({
         onMomentumScrollEnd={handleMomentumScrollEnd}
         showsHorizontalScrollIndicator={false}
         scrollEnabled={totalMedia > 1}
+        initialNumToRender={1}
+        maxToRenderPerBatch={2}
+        windowSize={3}
+        updateCellsBatchingPeriod={32}
+        removeClippedSubviews={Platform.OS === 'android'}
         getItemLayout={(_, index) => ({
           length: windowWidth,
           offset: windowWidth * index,
@@ -202,28 +248,27 @@ export default function MediaCarousel({
 function VideoPlayer({
   videoUri,
   itemId,
+  isActive,
   height,
   width,
-  activePlayers,
-  setActivePlayers,
+  onVideoEnlargePress,
 }: {
   videoUri: string;
   itemId: string;
+  isActive: boolean;
   height: number;
   width: number;
-  activePlayers: Set<string>;
-  setActivePlayers: (players: Set<string>) => void;
+  onVideoEnlargePress?: () => void;
 }) {
-  const streamingUrl = getStreamingUrl(videoUri);
+  const streamingUrl = getAdaptiveStreamingUrl(videoUri);
   const [isPlaying, setIsPlaying] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [showControls, setShowControls] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
+  const [showThumbnail, setShowThumbnail] = useState(true);
+  const [hasFirstFrameRendered, setHasFirstFrameRendered] = useState(false);
   const hideControlsTimeout = useRef<NodeJS.Timeout | null>(null);
-
-  console.log(
-    `[VideoPlayer] Creating player - ID: ${itemId}, URI: ${videoUri}, Streaming: ${streamingUrl}`
-  );
 
   const player = useVideoPlayer(streamingUrl, (p) => {
     p.loop = true;
@@ -235,47 +280,56 @@ function VideoPlayer({
   }, [isMuted, player]);
 
   React.useEffect(() => {
-    const isActive = activePlayers.has(itemId);
-    console.log(
-      `[VideoPlayer] Mounted - ID: ${itemId}, Active: ${isActive}, URI Valid: ${!!videoUri}`
-    );
-
-    // Add status observation
-    const subscription = player.addListener('statusChange', (status: any) => {
-      const statusStr = `isPlaying=${status?.isPlaying}, duration=${status?.durationMillis}, position=${status?.positionMillis}, state=${status?.state}`;
-      console.log(`[VideoPlayer] Status - ID: ${itemId}, ${statusStr}`);
-    });
-
-    return () => {
-      subscription.remove();
+    let cancelled = false;
+    const loadThumbnail = async () => {
+      try {
+        const result = await VideoThumbnails.getThumbnailAsync(getStreamingUrl(videoUri), {
+          time: 350,
+        });
+        if (!cancelled) {
+          setThumbnailUri(result.uri);
+          setShowThumbnail(true);
+          setHasFirstFrameRendered(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setThumbnailUri(null);
+          setHasFirstFrameRendered(false);
+        }
+      }
     };
-  }, [videoUri, itemId, player, activePlayers]);
+    loadThumbnail();
+    return () => {
+      cancelled = true;
+    };
+  }, [videoUri]);
 
   React.useEffect(() => {
-    const isActive = activePlayers.has(itemId);
-    console.log(`[VideoPlayer] Play state change - ID: ${itemId}, Active: ${isActive}`);
-
     if (isActive) {
       try {
-        console.log(`[VideoPlayer] Attempting to play: ${itemId}`);
         setVideoError(null);
         player.play();
         setIsPlaying(true);
-        console.log(`[VideoPlayer] Play command sent: ${itemId}`);
       } catch (err) {
-        console.error(`[VideoPlayer] Play error for ${itemId}:`, String(err));
         setVideoError(`Error: ${String(err)}`);
       }
     } else {
       try {
         player.pause();
         setIsPlaying(false);
-        console.log(`[VideoPlayer] Paused: ${itemId}`);
-      } catch (err) {
-        console.warn(`[VideoPlayer] Pause error for ${itemId}:`, String(err));
+        setShowThumbnail(true);
+        setHasFirstFrameRendered(false);
+      } catch {
+        // best-effort
       }
     }
-  }, [activePlayers, itemId, player]);
+  }, [isActive, player]);
+
+  React.useEffect(() => {
+    if (isActive && hasFirstFrameRendered) {
+      setShowThumbnail(false);
+    }
+  }, [hasFirstFrameRendered, isActive]);
 
   const showControlsTemporarily = () => {
     setShowControls(true);
@@ -293,19 +347,15 @@ function VideoPlayer({
 
   const togglePlayPause = () => {
     try {
-      console.log(`[VideoPlayer] Toggle - ID: ${itemId}, Currently Playing: ${isPlaying}`);
       if (isPlaying) {
         player.pause();
         setIsPlaying(false);
-        console.log(`[VideoPlayer] User paused: ${itemId}`);
       } else {
         player.play();
         setIsPlaying(true);
-        console.log(`[VideoPlayer] User play sent: ${itemId}`);
       }
       showControlsTemporarily();
     } catch (err) {
-      console.error(`[VideoPlayer] Toggle error for ${itemId}:`, String(err));
       setVideoError(`Toggle failed: ${String(err)}`);
     }
   };
@@ -334,13 +384,30 @@ function VideoPlayer({
       ) : (
         <>
           <Pressable style={StyleSheet.absoluteFill} onPress={handleVideoPress}>
+            {showThumbnail && thumbnailUri ? (
+              <Image
+                source={{ uri: thumbnailUri }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                transition={200}
+              />
+            ) : null}
             <VideoView
               player={player}
               style={StyleSheet.absoluteFill}
               nativeControls={false}
               contentFit="cover"
+              useExoShutter={false}
+              onFirstFrameRender={() => setHasFirstFrameRendered(true)}
             />
           </Pressable>
+          {onVideoEnlargePress ? (
+            <Pressable style={styles.enlargeButton} onPress={onVideoEnlargePress}>
+              <View style={styles.enlargeButtonInner}>
+                <Feather name="maximize-2" size={22} color="#fff" />
+              </View>
+            </Pressable>
+          ) : null}
           {/* Mute/Unmute button */}
           <Pressable style={styles.muteButton} onPress={toggleMute}>
             <View style={styles.muteButtonInner}>
@@ -422,6 +489,24 @@ const styles = StyleSheet.create({
     left: '50%',
     marginLeft: -28,
     marginTop: -28,
+  },
+  enlargeButton: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginLeft: -31,
+    marginTop: -31,
+    zIndex: 12,
+  },
+  enlargeButtonInner: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: 'rgba(0,0,0,0.62)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.45)',
   },
   videoBadge: {
     position: 'absolute',

@@ -1,6 +1,25 @@
-#5h0q.65p7KVkiPU
+EB5j&GJkgf2?Pty
 ssh root@187.127.128.17
 
 Email: admin@nearhub.local
 Password: admin123
 
+
+Synvide Business Solutions Private Limited
+A/C - 0846895051
+IFSC Code : KKBK0008054
+
+
+EAAoXyyXzJ6sBRVIqSoOFhdcnWz1eTWEAaf58DJg641hUDEWpUwKhrAOMaqXx3neLZCF9hBcbKhebZAmYWKcqU6ZCFcZBZAMDbtcjbuFLVm1ZCcb4bZCI3ztauTRFxZBAVDwTZBH4jDEjdJftkzlKbZA13Wh3ZCkEGZBSoySxyjrDXQATC0TOpdbohqrEzZCzGZAPvlZCITZAfbXOBpeiJkCkkGETn5gyjdRI5XkSGHZA9J5ON7gzsIy7HXoEwO5lNWkP4SuXKZBTLBCmeKq7ZAateybuZAz9Ml0A1jcZD
+
+curl -G \
+  -d "access_token=EAAoXyyXzJ6sBRVIqSoOFhdcnWz1eTWEAaf58DJg641hUDEWpUwKhrAOMaqXx3neLZCF9hBcbKhebZAmYWKcqU6ZCFcZBZAMDbtcjbuFLVm1ZCcb4bZCI3ztauTRFxZBAVDwTZBH4jDEjdJftkzlKbZA13Wh3ZCkEGZBSoySxyjrDXQATC0TOpdbohqrEzZCzGZAPvlZCITZAfbXOBpeiJkCkkGETn5gyjdRI5XkSGHZA9J5ON7gzsIy7HXoEwO5lNWkP4SuXKZBTLBCmeKq7ZAateybuZAz9Ml0A1jcZD" \
+  "https://graph.facebook.com/v19.0/me/adaccounts"
+
+curl -G \
+  -d "access_token=EAAoXyyXzJ6sBRVIqSoOFhdcnWz1eTWEAaf58DJg641hUDEWpUwKhrAOMaqXx3neLZCF9hBcbKhebZAmYWKcqU6ZCFcZBZAMDbtcjbuFLVm1ZCcb4bZCI3ztauTRFxZBAVDwTZBH4jDEjdJftkzlKbZA13Wh3ZCkEGZBSoySxyjrDXQATC0TOpdbohqrEzZCzGZAPvlZCITZAfbXOBpeiJkCkkGETn5gyjdRI5XkSGHZA9J5ON7gzsIy7HXoEwO5lNWkP4SuXKZBTLBCmeKq7ZAateybuZAz9Ml0A1jcZD" \
+  "https://graph.facebook.com/v19.0/act_2553266081733872/campaigns?fields=id,name,status,objective"
+
+curl -G \
+  -d "access_token=EAAoXyyXzJ6sBRVIqSoOFhdcnWz1eTWEAaf58DJg641hUDEWpUwKhrAOMaqXx3neLZCF9hBcbKhebZAmYWKcqU6ZCFcZBZAMDbtcjbuFLVm1ZCcb4bZCI3ztauTRFxZBAVDwTZBH4jDEjdJftkzlKbZA13Wh3ZCkEGZBSoySxyjrDXQATC0TOpdbohqrEzZCzGZAPvlZCITZAfbXOBpeiJkCkkGETn5gyjdRI5XkSGHZA9J5ON7gzsIy7HXoEwO5lNWkP4SuXKZBTLBCmeKq7ZAateybuZAz9Ml0A1jcZD" \
+"https://graph.facebook.com/v19.0/act_2128420144571293/campaigns?fields=id,name,status,objective"                             

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,6 +9,7 @@ import {
   Linking,
   Platform,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,23 +19,186 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
+import { Listing } from '@/lib/types';
 import { getTimeAgo, formatCondition } from '@/lib/utils';
 import { getBackendURL } from '@/lib/config';
+import { calculateDistance } from '@/lib/location-data';
+import { useAdminSettings } from '@/lib/use-admin-settings';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
-import { shareAppDownloadLink } from '@/lib/share-app-link';
+import { shareListingLink } from '@/lib/share-app-link';
 import MediaCarousel from '@/shared/components/MediaCarousel';
 import RichTextPreview from '@/shared/components/RichTextPreview';
 import { createResponsiveStyles } from '@/lib/responsive';
 
 const { width } = Dimensions.get('window');
 
+function parseMediaArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean);
+  }
+  if (typeof value !== 'string') return [];
+
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) return [trimmed];
+    return parsed.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean);
+  } catch {
+    return [trimmed];
+  }
+}
+
+function toNumber(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeAppListingType(listing: any): Listing['listingType'] {
+  const rawType =
+    typeof listing?.listingType === 'string' ? listing.listingType.trim().toLowerCase() : '';
+  if (rawType === 'sell' || rawType === 'buy' || rawType === 'service' || rawType === 'job') {
+    return rawType;
+  }
+
+  const normalizedSubCategory = String(
+    listing?.subCategory || listing?.subcategory || listing?.category || ''
+  )
+    .trim()
+    .toLowerCase();
+  if (normalizedSubCategory === 'jobs') return 'job';
+  if (
+    normalizedSubCategory === 'services' ||
+    normalizedSubCategory === 'freelance' ||
+    normalizedSubCategory === 'business' ||
+    normalizedSubCategory === 'education' ||
+    normalizedSubCategory === 'health'
+  ) {
+    return 'service';
+  }
+
+  const normalizedMainCategory = String(listing?.mainCategory || '')
+    .trim()
+    .toLowerCase();
+  if (normalizedMainCategory === 'jobs & services') return 'service';
+
+  return 'sell';
+}
+
+function mapApiListing(listing: any): Listing {
+  const categoryValue = String(
+    listing?.subCategory || listing?.subcategory || listing?.category || ''
+  ).trim();
+  const normalizedCategory = (categoryValue || 'Other') as Listing['category'];
+  const latitude = toNumber(listing?.latitude, 0);
+  const longitude = toNumber(listing?.longitude, 0);
+
+  return {
+    id: String(listing?.id || ''),
+    userId: String(listing?.userId || listing?.sellerId || ''),
+    title: String(listing?.title || ''),
+    description: String(listing?.description || ''),
+    price: toNumber(listing?.price, 0),
+    offerPrice:
+      listing?.offerPrice !== undefined && listing?.offerPrice !== null
+        ? toNumber(listing.offerPrice, 0)
+        : undefined,
+    priceUnit:
+      typeof listing?.priceUnit === 'string' && listing.priceUnit.trim()
+        ? listing.priceUnit.trim()
+        : undefined,
+    mainCategory:
+      typeof listing?.mainCategory === 'string' && listing.mainCategory.trim()
+        ? listing.mainCategory.trim()
+        : undefined,
+    subCategory: normalizedCategory,
+    subcategory: normalizedCategory,
+    category: normalizedCategory,
+    images: parseMediaArray(listing?.images),
+    videos: parseMediaArray(listing?.videos),
+    sellerName: String(listing?.sellerName || listing?.seller?.name || 'Seller').trim() || 'Seller',
+    sellerVerified: Boolean(listing?.sellerVerified),
+    sellerPhone: String(listing?.contactPhone || listing?.sellerPhone || '').trim(),
+    contactPhone: String(listing?.contactPhone || listing?.sellerPhone || '').trim(),
+    location: {
+      latitude,
+      longitude,
+      city: String(listing?.location || listing?.city || 'Unknown').trim() || 'Unknown',
+    },
+    condition: (String(listing?.condition || 'good').trim() || 'good') as Listing['condition'],
+    listingType: normalizeAppListingType(listing),
+    status:
+      typeof listing?.status === 'string' && listing.status.trim()
+        ? (listing.status.trim() as Listing['status'])
+        : undefined,
+    rejectionReason:
+      typeof listing?.rejectionReason === 'string' && listing.rejectionReason.trim()
+        ? listing.rejectionReason.trim()
+        : undefined,
+    expiresAt:
+      typeof listing?.expiresAt === 'string' && listing.expiresAt.trim()
+        ? listing.expiresAt.trim()
+        : undefined,
+    createdAt: String(listing?.createdAt || new Date().toISOString()),
+    aiValidated: Boolean(listing?.aiValidated),
+    isPaid: Boolean(listing?.isPaid),
+    featured: Boolean(listing?.featured),
+    sponsored: Boolean(listing?.sponsored),
+    boostedUntil:
+      typeof listing?.boostedUntil === 'string' && listing.boostedUntil.trim()
+        ? listing.boostedUntil.trim()
+        : undefined,
+    boostCount:
+      listing?.boostCount !== undefined && listing?.boostCount !== null
+        ? toNumber(listing.boostCount, 0)
+        : undefined,
+    pincode: typeof listing?.pincode === 'string' ? listing.pincode.trim() : undefined,
+    duration:
+      listing?.duration !== undefined && listing?.duration !== null
+        ? toNumber(listing.duration, 0)
+        : undefined,
+    durationDays:
+      listing?.durationDays !== undefined && listing?.durationDays !== null
+        ? toNumber(listing.durationDays, 0)
+        : undefined,
+    sellerAvatar:
+      typeof listing?.sellerAvatar === 'string' && listing.sellerAvatar.trim()
+        ? listing.sellerAvatar.trim()
+        : '',
+    viewCount:
+      listing?.viewCount !== undefined && listing?.viewCount !== null
+        ? toNumber(listing.viewCount, 0)
+        : undefined,
+    chatCount:
+      listing?.chatCount !== undefined && listing?.chatCount !== null
+        ? toNumber(listing.chatCount, 0)
+        : undefined,
+    likeCount:
+      listing?.likeCount !== undefined && listing?.likeCount !== null
+        ? toNumber(listing.likeCount, 0)
+        : undefined,
+    saveCount:
+      listing?.saveCount !== undefined && listing?.saveCount !== null
+        ? toNumber(listing.saveCount, 0)
+        : undefined,
+  };
+}
+
 export default function ListingDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id: idParam } = useLocalSearchParams<{ id?: string | string[] }>();
+  const listingId = Array.isArray(idParam)
+    ? String(idParam[0] || '').trim()
+    : String(idParam || '').trim();
   const insets = useSafeAreaInsets();
-  const { getListingById, savedIds, toggleSaved } = useListings();
+  const { listings, getListingById, savedIds, toggleSaved } = useListings();
   const { isAuthenticated, user } = useAuth();
+  const { geoRadiusKm } = useAdminSettings();
   const [isFocused, setIsFocused] = useState(true);
   const [resolvedContactPhone, setResolvedContactPhone] = useState('');
+  const [deepLinkedListing, setDeepLinkedListing] = useState<Listing | null>(null);
+  const [isFetchingListing, setIsFetchingListing] = useState(false);
+  const [hasAttemptedListingFetch, setHasAttemptedListingFetch] = useState(false);
 
   // Pause videos when screen loses focus
   useFocusEffect(
@@ -46,8 +210,9 @@ export default function ListingDetailScreen() {
     }, [])
   );
 
-  const listing = getListingById(id);
-  const isSaved = savedIds.has(id);
+  const listingFromContext = getListingById(listingId);
+  const listing = listingFromContext || deepLinkedListing;
+  const isSaved = savedIds.has(listingId);
   const normalizedUserId = (user?.id || '').replace(/[\s+-]/g, '');
   const listingPhoneRaw = (
     resolvedContactPhone ||
@@ -56,7 +221,6 @@ export default function ListingDetailScreen() {
     ''
   ).trim();
   const normalizedSellerPhone = listingPhoneRaw.replace(/\D/g, '').slice(-10);
-  const listingPhone = normalizedSellerPhone;
   const normalizedListingUserId = (listing?.userId || '').replace(/[\s+-]/g, '');
   const listingUserIdLower = String(listing?.userId || '')
     .trim()
@@ -82,10 +246,11 @@ export default function ListingDetailScreen() {
     (listingLatitude !== 0 || listingLongitude !== 0);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const effectiveRadiusKm = user?.preferences?.searchRadiusKm ?? geoRadiusKm;
 
   // Debug: Log listing data
   useEffect(() => {
-    if (listing) {
+    if (__DEV__ && listing) {
       console.log('[ListingDetail] Listing loaded:', {
         id: listing.id,
         title: listing.title,
@@ -98,16 +263,57 @@ export default function ListingDetailScreen() {
 
   useEffect(() => {
     setResolvedContactPhone('');
-  }, [id]);
+    setDeepLinkedListing(null);
+    setHasAttemptedListingFetch(false);
+  }, [listingId]);
+
+  useEffect(() => {
+    if (!listingId || listingFromContext || hasAttemptedListingFetch) return;
+
+    let cancelled = false;
+    setIsFetchingListing(true);
+
+    const fetchListingById = async () => {
+      try {
+        const apiUrl = getBackendURL();
+        const response = await fetch(`${apiUrl}/api/listings/${encodeURIComponent(listingId)}`, {
+          method: 'GET',
+          headers: buildUserAuthHeaders({
+            id: user?.id || '',
+            phone: user?.phone || '',
+          }),
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !data?.success) return;
+
+        const rawListing = data.listing || data.data;
+        if (!rawListing || cancelled) return;
+        setDeepLinkedListing(mapApiListing(rawListing));
+      } catch (error) {
+        console.warn('[ListingDetail] Failed to fetch deep-linked listing:', error);
+      } finally {
+        if (!cancelled) {
+          setIsFetchingListing(false);
+          setHasAttemptedListingFetch(true);
+        }
+      }
+    };
+
+    void fetchListingById();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasAttemptedListingFetch, listingFromContext, listingId, user?.id, user?.phone]);
 
   // Track view when screen loads
   useEffect(() => {
-    if (!id) return;
+    if (!listingId) return;
 
     const trackView = async () => {
       try {
         const apiUrl = getBackendURL();
-        await fetch(`${apiUrl}/api/listings/${id}/view`, {
+        await fetch(`${apiUrl}/api/listings/${encodeURIComponent(listingId)}/view`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -120,9 +326,110 @@ export default function ListingDetailScreen() {
     };
 
     trackView();
-  }, [id]);
+  }, [listingId]);
+
+  const recommendationDistanceByListingId = useMemo(() => {
+    if (!listing) return new Map<string, number>();
+
+    const sourceLat = Number(listing.location?.latitude);
+    const sourceLon = Number(listing.location?.longitude);
+    const hasSourceCoords =
+      Number.isFinite(sourceLat) &&
+      Number.isFinite(sourceLon) &&
+      (sourceLat !== 0 || sourceLon !== 0);
+    if (!hasSourceCoords) return new Map<string, number>();
+
+    const distanceMap = new Map<string, number>();
+    for (const item of listings) {
+      const itemLat = Number(item.location?.latitude);
+      const itemLon = Number(item.location?.longitude);
+      if (!Number.isFinite(itemLat) || !Number.isFinite(itemLon)) continue;
+      distanceMap.set(item.id, calculateDistance(sourceLat, sourceLon, itemLat, itemLon));
+    }
+    return distanceMap;
+  }, [listing, listings]);
+
+  const recommendedProducts = useMemo(() => {
+    if (!listing) return [];
+
+    const selectedCity = String(listing.location.city || '')
+      .trim()
+      .toLowerCase();
+    const selectedCategory = String(listing.category || '')
+      .trim()
+      .toLowerCase();
+    const hasSourceCoords = recommendationDistanceByListingId.size > 0;
+    const currentTime = Date.now();
+
+    const candidates = listings.filter((item) => {
+      if (item.id === listing.id) return false;
+      if (item.listingType !== 'sell') return false;
+      if (
+        String(item.category || '')
+          .trim()
+          .toLowerCase() !== selectedCategory
+      ) {
+        return false;
+      }
+      if (
+        String(item.condition || '')
+          .trim()
+          .toLowerCase() !== 'new'
+      ) {
+        return false;
+      }
+      if (hasSourceCoords) {
+        const distanceKm = recommendationDistanceByListingId.get(item.id);
+        if (distanceKm === undefined) return false;
+        if (distanceKm > effectiveRadiusKm) return false;
+      }
+
+      const status = String(item.status || 'active').toLowerCase();
+      if (status !== 'active') return false;
+      if (item.expiresAt && new Date(item.expiresAt).getTime() < currentTime) return false;
+      return true;
+    });
+
+    return candidates
+      .map((item) => {
+        let score = 0;
+
+        const itemCity = String(item.location.city || '')
+          .trim()
+          .toLowerCase();
+        if (selectedCity && itemCity && selectedCity === itemCity) score += 3;
+        if (item.featured) score += 2;
+
+        const hasOffer =
+          typeof item.offerPrice === 'number' &&
+          item.offerPrice > 0 &&
+          item.offerPrice < item.price;
+        if (hasOffer) score += 1;
+
+        const createdAt = new Date(item.createdAt).getTime();
+        const distanceKm = recommendationDistanceByListingId.get(item.id);
+        return {
+          item,
+          score,
+          createdAt: Number.isFinite(createdAt) ? createdAt : 0,
+          distanceKm: typeof distanceKm === 'number' ? distanceKm : Number.POSITIVE_INFINITY,
+        };
+      })
+      .sort((a, b) => b.score - a.score || a.distanceKm - b.distanceKm || b.createdAt - a.createdAt)
+      .slice(0, 8)
+      .map((entry) => entry.item);
+  }, [effectiveRadiusKm, listing, listings, recommendationDistanceByListingId]);
 
   if (!listing) {
+    if (isFetchingListing || !hasAttemptedListingFetch) {
+      return (
+        <View style={[styles.notFound, { paddingTop: insets.top || webTopInset }]}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={[styles.notFoundText, { marginTop: 14 }]}>Loading listing...</Text>
+        </View>
+      );
+    }
+
     return (
       <View style={[styles.notFound, { paddingTop: insets.top || webTopInset }]}>
         <Feather name="alert-circle" size={48} color={Colors.textTertiary} />
@@ -233,12 +540,12 @@ export default function ListingDetailScreen() {
 
   const handleSave = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    toggleSaved(id);
+    toggleSaved(listingId);
   };
 
-  const handleShareApp = async () => {
+  const handleShareListing = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await shareAppDownloadLink();
+    await shareListingLink({ listingId: listing.id, listingTitle: listing.title });
   };
 
   const hasValidOfferPrice =
@@ -261,6 +568,12 @@ export default function ListingDetailScreen() {
             videos={listing.videos}
             height={width * 1.3}
             isFocused={isFocused}
+            onVideoEnlargePress={() =>
+              router.replace({
+                pathname: '/(tabs)/shorts',
+                params: { listingId: listing.id },
+              })
+            }
           />
 
           <Pressable
@@ -287,7 +600,7 @@ export default function ListingDetailScreen() {
               styles.shareIcon,
               { top: (insets.top || webTopInset) + 8 },
             ]}
-            onPress={handleShareApp}
+            onPress={handleShareListing}
           >
             <Feather name="share-2" size={20} color="#fff" />
           </Pressable>
@@ -408,6 +721,68 @@ export default function ListingDetailScreen() {
           <View style={styles.categoryTag}>
             <Text style={styles.categoryText}>{listing.category}</Text>
           </View>
+
+          {recommendedProducts.length > 0 && (
+            <>
+              <View style={styles.divider} />
+              <Text style={styles.sectionTitle}>Recommended Products</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.recommendedScrollContent}
+              >
+                {recommendedProducts.map((item) => {
+                  const itemHasOffer =
+                    typeof item.offerPrice === 'number' &&
+                    item.offerPrice > 0 &&
+                    item.offerPrice < item.price;
+                  const itemDisplayPrice = itemHasOffer ? (item.offerPrice as number) : item.price;
+
+                  return (
+                    <Pressable
+                      key={item.id}
+                      style={styles.recommendedCard}
+                      onPress={() =>
+                        router.push({ pathname: '/listing/[id]', params: { id: item.id } })
+                      }
+                    >
+                      {item.images?.[0] ? (
+                        <Image
+                          source={{ uri: item.images[0] }}
+                          style={styles.recommendedImage}
+                          contentFit="cover"
+                          transition={120}
+                        />
+                      ) : (
+                        <View style={[styles.recommendedImage, styles.recommendedImageFallback]}>
+                          <Feather name="image" size={18} color={Colors.textTertiary} />
+                        </View>
+                      )}
+
+                      <View style={styles.recommendedContent}>
+                        <Text style={styles.recommendedTitle} numberOfLines={2}>
+                          {item.title?.trim() || 'Untitled listing'}
+                        </Text>
+                        <View style={styles.recommendedPriceRow}>
+                          <Text style={styles.recommendedPrice}>
+                            ₹{(Number(itemDisplayPrice) || 0).toLocaleString('en-IN')}
+                          </Text>
+                          {itemHasOffer && (
+                            <Text style={styles.recommendedOriginalPrice}>
+                              ₹{(Number(item.price) || 0).toLocaleString('en-IN')}
+                            </Text>
+                          )}
+                        </View>
+                        <Text style={styles.recommendedMeta} numberOfLines={1}>
+                          {item.location.city}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </>
+          )}
         </View>
       </ScrollView>
 
@@ -742,6 +1117,60 @@ const styles = createResponsiveStyles({
     color: '#fff',
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
+  },
+  recommendedScrollContent: {
+    gap: 10,
+    paddingRight: 12,
+  },
+  recommendedCard: {
+    width: 168,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  recommendedImage: {
+    width: '100%',
+    height: 104,
+  },
+  recommendedImageFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.background,
+  },
+  recommendedContent: {
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    gap: 4,
+  },
+  recommendedTitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.text,
+    lineHeight: 17,
+    minHeight: 34,
+  },
+  recommendedPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  recommendedPrice: {
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
+    color: Colors.primary,
+  },
+  recommendedOriginalPrice: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textTertiary,
+    textDecorationLine: 'line-through',
+  },
+  recommendedMeta: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textSecondary,
   },
   bottomBar: {
     position: 'absolute',

@@ -33,11 +33,23 @@ test-output*.txt
 
 # Mobile/Expo
 app/.expo/
+app/android/.gradle/
+app/android/build/
+app/android/app/build/
+app/android/.cxx/
+app/android/app/.cxx/
+app/ios/build/
 app/build-*.apk
 app/build-*.aab
 app/build-*.sha256
 app/build-*-mapping.txt
 app/build-*-mapping.txt.sha256
+*.apk
+*.aab
+*.apks
+*.ipa
+*.jks
+*.keystore
 
 # Local release archives
 server-release.tgz

@@ -24,6 +24,7 @@ import { registerListingExpirationRoutes } from './features/listings/routes/list
 // Media feature routes
 import { registerMediaCleanupRoutes } from './features/media/routes/media-cleanup';
 import { registerCloudflareMediaRoutes } from './features/media/routes/cloudflare-media';
+import { registerAIVoiceoverRoutes } from './features/media/routes/ai-voiceover';
 import { registerVideoUploadRoutes } from './features/media/routes/video-upload';
 // Payments feature routes
 import { registerDynamicPricingRoutes } from './features/payments/routes/dynamic-pricing';
@@ -89,6 +90,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerVideoUploadRoutes(app);
   registerMediaCleanupRoutes(app);
   registerCloudflareMediaRoutes(app);
+  registerAIVoiceoverRoutes(app);
   registerDynamicPricingRoutes(app);
   registerUserRoutes(app);
   registerGeoSearchRoutes(app);

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { Platform } from 'react-native';
+import { InteractionManager, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { getApiUrl } from '@/lib/query-client';
 import { useAuth } from '@/shared/contexts/auth-context';
@@ -55,26 +55,35 @@ export function usePushNotifications() {
 
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
+  const registerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!user || !pushEnabled) {
+    const userId = user?.id;
+    if (!userId || !pushEnabled) {
       setExpoPushToken('');
       setNotification(null);
       return;
     }
 
-    registerForPushNotificationsAsync()
-      .then((token) => {
-        if (token && user) {
-          setExpoPushToken(token);
-          // Send token to server
-          sendTokenToServer(token, user.id);
-        }
-      })
-      .catch((error) => {
-        // Silently handle push notification errors (Firebase not configured)
-        console.log('[Push] Push notifications not available:', error.message);
-      });
+    let isCancelled = false;
+    const interactionTask = InteractionManager.runAfterInteractions(() => {
+      registerTimeoutRef.current = setTimeout(() => {
+        if (isCancelled) return;
+
+        registerForPushNotificationsAsync()
+          .then((token) => {
+            if (token && !isCancelled) {
+              setExpoPushToken(token);
+              // Send token to server
+              void sendTokenToServer(token, userId);
+            }
+          })
+          .catch((error) => {
+            // Silently handle push notification errors (Firebase not configured)
+            console.log('[Push] Push notifications not available:', error.message);
+          });
+      }, 900);
+    });
 
     // Listen for incoming notifications
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
@@ -101,6 +110,12 @@ export function usePushNotifications() {
     });
 
     return () => {
+      isCancelled = true;
+      interactionTask.cancel();
+      if (registerTimeoutRef.current) {
+        clearTimeout(registerTimeoutRef.current);
+        registerTimeoutRef.current = null;
+      }
       if (notificationListener.current) {
         notificationListener.current.remove();
         notificationListener.current = null;
@@ -110,7 +125,7 @@ export function usePushNotifications() {
         responseListener.current = null;
       }
     };
-  }, [user, pushEnabled]);
+  }, [pushEnabled, user?.id]);
 
   return {
     expoPushToken,

@@ -10,15 +10,22 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Listing, Category } from '@/lib/types';
-import { getBackendURL } from '@/lib/config';
+import { getBackendURL, getDebug } from '@/lib/config';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 
 const LISTINGS_KEY = '@marketlocal_listings';
 const SAVED_KEY = '@marketlocal_saved';
 const INITIALIZED_KEY = '@marketlocal_initialized';
 const DATA_VERSION_KEY = '@marketlocal_data_version';
-const CURRENT_DATA_VERSION = '10'; // Refresh cache to clear any stale/incorrect cached contact numbers
+const CURRENT_DATA_VERSION = '11'; // Refresh cache to clear stale listings and enforce latest geo-filtering
 const NETWORK_TIMEOUT_MS = 12000;
+const isDebugLoggingEnabled = getDebug();
+
+function debugLog(...args: unknown[]): void {
+  if (isDebugLoggingEnabled) {
+    console.log(...args);
+  }
+}
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
@@ -91,6 +98,37 @@ function resolveSellerName(listing: any): string {
   }
 
   return 'Seller';
+}
+
+function normalizeAppListingType(listing: any): Listing['listingType'] {
+  const rawType =
+    typeof listing?.listingType === 'string' ? listing.listingType.trim().toLowerCase() : '';
+  if (rawType === 'sell' || rawType === 'buy' || rawType === 'service' || rawType === 'job') {
+    return rawType;
+  }
+
+  const normalizedSubCategory = String(
+    listing?.subCategory || listing?.subcategory || listing?.category || ''
+  )
+    .trim()
+    .toLowerCase();
+  if (normalizedSubCategory === 'jobs') return 'job';
+  if (
+    normalizedSubCategory === 'services' ||
+    normalizedSubCategory === 'freelance' ||
+    normalizedSubCategory === 'business' ||
+    normalizedSubCategory === 'education' ||
+    normalizedSubCategory === 'health'
+  ) {
+    return 'service';
+  }
+
+  const normalizedMainCategory = String(listing?.mainCategory || '')
+    .trim()
+    .toLowerCase();
+  if (normalizedMainCategory === 'jobs & services') return 'service';
+
+  return 'sell';
 }
 
 async function fetchWithTimeout(
@@ -168,20 +206,70 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     }
 
     const run = (async () => {
+      let hydratedFromCache = false;
+
       try {
-        console.log('[Listings] loadData: Fetching listings from backend...');
+        debugLog('[Listings] loadData: Fetching listings from backend...');
         if (!options?.asRefresh) {
           setIsLoading(true);
         }
 
         const backendURL = getBackendURL();
-        const dataVersion = await AsyncStorage.getItem(DATA_VERSION_KEY);
+        const [dataVersion, cachedListingsStr, savedStr, userDataStr] = await Promise.all([
+          AsyncStorage.getItem(DATA_VERSION_KEY),
+          AsyncStorage.getItem(LISTINGS_KEY),
+          AsyncStorage.getItem(SAVED_KEY),
+          AsyncStorage.getItem('@nearhub_auth_user'),
+        ]);
+
+        if (savedStr) {
+          try {
+            const parsed = JSON.parse(savedStr);
+            if (Array.isArray(parsed)) {
+              setSavedIds(
+                new Set(parsed.filter((value): value is string => typeof value === 'string'))
+              );
+            }
+          } catch (savedError) {
+            console.warn('[Listings] Failed to parse saved ids cache:', savedError);
+          }
+        }
+
         const needsCacheReset = dataVersion !== CURRENT_DATA_VERSION;
+        if (needsCacheReset) {
+          void AsyncStorage.removeItem(LISTINGS_KEY);
+        } else if (cachedListingsStr) {
+          try {
+            const cachedListings = JSON.parse(cachedListingsStr);
+            if (Array.isArray(cachedListings) && cachedListings.length > 0) {
+              hydratedFromCache = true;
+              setListings(cachedListings as Listing[]);
+              if (!options?.asRefresh) {
+                setIsLoading(false);
+              }
+            }
+          } catch (cacheError) {
+            console.warn('[Listings] Failed to parse listings cache:', cacheError);
+          }
+        }
+
         let currentUserId = '';
         let currentUserPhone = '';
+        let userLatitude: number | undefined;
+        let userLongitude: number | undefined;
+        let userRadiusKm = 50;
 
-        if (needsCacheReset) {
-          await AsyncStorage.removeItem(LISTINGS_KEY);
+        if (userDataStr) {
+          try {
+            const userData = JSON.parse(userDataStr);
+            currentUserId = String(userData?.id || '');
+            currentUserPhone = String(userData?.phone || '');
+            userLatitude = userData?.location?.latitude;
+            userLongitude = userData?.location?.longitude;
+            userRadiusKm = Number(userData?.preferences?.searchRadiusKm || 50) || 50;
+          } catch (userError) {
+            console.warn('[Listings] Could not parse user data for geo-filtering:', userError);
+          }
         }
 
         const normalizeMediaUrl = (url: unknown): string => {
@@ -214,31 +302,103 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           return value;
         };
 
-        // Get user location and radius from AsyncStorage (set by auth context)
-        let url = `${backendURL}/api/listings?limit=${LIMIT}&offset=0`;
-        try {
-          const userDataStr = await AsyncStorage.getItem('@nearhub_auth_user');
-          if (userDataStr) {
-            const userData = JSON.parse(userDataStr);
-            currentUserId = String(userData?.id || '');
-            currentUserPhone = String(userData?.phone || '');
-            const latitude = userData?.location?.latitude;
-            const longitude = userData?.location?.longitude;
-            const radiusKm = userData?.preferences?.searchRadiusKm || 50; // Default 50km
+        const mapApiListing = (listing: any): Listing => {
+          const images =
+            typeof listing.images === 'string'
+              ? JSON.parse(listing.images || '[]')
+              : listing.images || [];
+          const videos =
+            typeof listing.videos === 'string'
+              ? JSON.parse(listing.videos || '[]')
+              : listing.videos || [];
 
-            if (latitude !== undefined && longitude !== undefined) {
-              url += `&latitude=${latitude}&longitude=${longitude}&radius=${radiusKm}`;
-              console.log(
-                `[Listings] Geo-filtering: lat=${latitude}, lon=${longitude}, radius=${radiusKm}km`
-              );
-            }
-          }
-        } catch (userError) {
-          console.warn('[Listings] Could not load user location for geo-filtering:', userError);
+          return {
+            id: listing.id,
+            userId: listing.userId || '',
+            title: listing.title,
+            description: listing.description || '',
+            price: typeof listing.price === 'string' ? parseFloat(listing.price) : listing.price,
+            offerPrice:
+              listing.offerPrice !== undefined && listing.offerPrice !== null
+                ? typeof listing.offerPrice === 'string'
+                  ? parseFloat(listing.offerPrice)
+                  : listing.offerPrice
+                : undefined,
+            mainCategory:
+              typeof listing.mainCategory === 'string' && listing.mainCategory.trim()
+                ? listing.mainCategory.trim()
+                : undefined,
+            subCategory: (listing.subCategory || listing.subcategory || listing.category) as
+              | Category
+              | undefined,
+            subcategory: (listing.subCategory || listing.subcategory || listing.category) as
+              | Category
+              | undefined,
+            category: (listing.subCategory || listing.subcategory || listing.category) as Category,
+            condition: listing.condition || 'good',
+            images: (images || []).map(normalizeMediaUrl).filter(Boolean),
+            videos: (videos || []).map(normalizeMediaUrl).filter(Boolean),
+            location: {
+              city: listing.location || 'Unknown',
+              latitude: listing.latitude ? parseFloat(listing.latitude) : 0,
+              longitude: listing.longitude ? parseFloat(listing.longitude) : 0,
+            },
+            sellerName: resolveSellerName(listing),
+            sellerVerified: Boolean((listing as any).sellerVerified),
+            sellerPhone: listing.contactPhone || listing.sellerPhone || '',
+            contactPhone: listing.contactPhone || listing.sellerPhone || '',
+            sellerAvatar:
+              typeof (listing as any).sellerAvatar === 'string'
+                ? normalizeMediaUrl((listing as any).sellerAvatar)
+                : '',
+            createdAt: listing.createdAt || new Date().toISOString(),
+            expiresAt: listing.expiresAt || undefined,
+            isPaid: listing.isPaid || false,
+            featured: Boolean(listing.featured),
+            sponsored: Boolean((listing as any).sponsored),
+            boostedUntil: listing.boostedUntil || undefined,
+            boostCount:
+              listing.boostCount !== undefined && listing.boostCount !== null
+                ? Number(listing.boostCount)
+                : undefined,
+            viewCount: parseOptionalCount(
+              listing.viewCount,
+              listing.views,
+              listing.totalViews,
+              listing['view_count']
+            ),
+            chatCount:
+              listing.chatCount !== undefined && listing.chatCount !== null
+                ? Number(listing.chatCount)
+                : undefined,
+            likeCount:
+              listing.likeCount !== undefined && listing.likeCount !== null
+                ? Number(listing.likeCount)
+                : undefined,
+            saveCount:
+              listing.saveCount !== undefined && listing.saveCount !== null
+                ? Number(listing.saveCount)
+                : undefined,
+            duration: Number(listing.durationDays || listing.duration || 0) || undefined,
+            durationDays: Number(listing.durationDays || listing.duration || 0) || undefined,
+            status: listing.status || 'active',
+            rejectionReason:
+              typeof listing.rejectionReason === 'string' && listing.rejectionReason.trim()
+                ? listing.rejectionReason.trim()
+                : undefined,
+            listingType: normalizeAppListingType(listing),
+          };
+        };
+
+        let url = `${backendURL}/api/listings?limit=${LIMIT}&offset=0`;
+        if (userLatitude !== undefined && userLongitude !== undefined) {
+          url += `&latitude=${userLatitude}&longitude=${userLongitude}&radius=${userRadiusKm}`;
+          debugLog(
+            `[Listings] Geo-filtering: lat=${userLatitude}, lon=${userLongitude}, radius=${userRadiusKm}km`
+          );
         }
 
         try {
-          // Try to fetch from backend API first
           const response = await fetchWithTimeout(url, {
             method: 'GET',
             headers: buildUserAuthHeaders({ id: currentUserId, phone: currentUserPhone }),
@@ -246,104 +406,9 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
           if (response.ok) {
             const data = await response.json();
-            console.log(
-              '[Listings] API response received, listings count:',
-              data.data?.length || 0
-            );
+            debugLog('[Listings] API response received, listings count:', data.data?.length || 0);
 
             if (data.success && data.data) {
-              const mapApiListing = (listing: any): Listing => {
-                // Parse JSON fields if they're strings
-                const images =
-                  typeof listing.images === 'string'
-                    ? JSON.parse(listing.images || '[]')
-                    : listing.images || [];
-                const videos =
-                  typeof listing.videos === 'string'
-                    ? JSON.parse(listing.videos || '[]')
-                    : listing.videos || [];
-
-                return {
-                  id: listing.id,
-                  userId: listing.userId || '',
-                  title: listing.title,
-                  description: listing.description || '',
-                  price:
-                    typeof listing.price === 'string' ? parseFloat(listing.price) : listing.price,
-                  offerPrice:
-                    listing.offerPrice !== undefined && listing.offerPrice !== null
-                      ? typeof listing.offerPrice === 'string'
-                        ? parseFloat(listing.offerPrice)
-                        : listing.offerPrice
-                      : undefined,
-                  mainCategory:
-                    typeof listing.mainCategory === 'string' && listing.mainCategory.trim()
-                      ? listing.mainCategory.trim()
-                      : undefined,
-                  subCategory: (listing.subCategory || listing.subcategory || listing.category) as
-                    | Category
-                    | undefined,
-                  subcategory: (listing.subCategory || listing.subcategory || listing.category) as
-                    | Category
-                    | undefined,
-                  category: (listing.subCategory ||
-                    listing.subcategory ||
-                    listing.category) as Category,
-                  condition: listing.condition || 'good',
-                  images: (images || []).map(normalizeMediaUrl).filter(Boolean),
-                  videos: (videos || []).map(normalizeMediaUrl).filter(Boolean),
-                  location: {
-                    city: listing.location || 'Unknown',
-                    latitude: listing.latitude ? parseFloat(listing.latitude) : 0,
-                    longitude: listing.longitude ? parseFloat(listing.longitude) : 0,
-                  },
-                  sellerName: resolveSellerName(listing),
-                  sellerVerified: Boolean((listing as any).sellerVerified),
-                  sellerPhone: listing.contactPhone || listing.sellerPhone || '',
-                  contactPhone: listing.contactPhone || listing.sellerPhone || '',
-                  sellerAvatar:
-                    typeof (listing as any).sellerAvatar === 'string'
-                      ? normalizeMediaUrl((listing as any).sellerAvatar)
-                      : '',
-                  createdAt: listing.createdAt || new Date().toISOString(),
-                  expiresAt: listing.expiresAt || undefined,
-                  isPaid: listing.isPaid || false,
-                  featured: Boolean(listing.featured),
-                  sponsored: Boolean((listing as any).sponsored),
-                  boostedUntil: listing.boostedUntil || undefined,
-                  boostCount:
-                    listing.boostCount !== undefined && listing.boostCount !== null
-                      ? Number(listing.boostCount)
-                      : undefined,
-                  viewCount: parseOptionalCount(
-                    listing.viewCount,
-                    listing.views,
-                    listing.totalViews,
-                    listing['view_count']
-                  ),
-                  chatCount:
-                    listing.chatCount !== undefined && listing.chatCount !== null
-                      ? Number(listing.chatCount)
-                      : undefined,
-                  likeCount:
-                    listing.likeCount !== undefined && listing.likeCount !== null
-                      ? Number(listing.likeCount)
-                      : undefined,
-                  saveCount:
-                    listing.saveCount !== undefined && listing.saveCount !== null
-                      ? Number(listing.saveCount)
-                      : undefined,
-                  duration: Number(listing.durationDays || listing.duration || 0) || undefined,
-                  durationDays: Number(listing.durationDays || listing.duration || 0) || undefined,
-                  status: listing.status || 'active',
-                  rejectionReason:
-                    typeof listing.rejectionReason === 'string' && listing.rejectionReason.trim()
-                      ? listing.rejectionReason.trim()
-                      : undefined,
-                  listingType: (listing.listingType as Listing['listingType']) || 'sell',
-                };
-              };
-
               const apiListings: Listing[] = (data.data || []).map((listing: any) =>
                 mapApiListing(listing)
               );
@@ -383,7 +448,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
               });
               const mergedServerListings = [...mergedServerListingsMap.values()];
 
-              console.log(
+              debugLog(
                 '[Listings] Merged listings: API=',
                 apiListings.length,
                 'user=',
@@ -393,32 +458,44 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
               );
 
               setListings(mergedServerListings);
-              await AsyncStorage.setItem(LISTINGS_KEY, JSON.stringify(mergedServerListings));
-              await AsyncStorage.setItem(INITIALIZED_KEY, 'true');
-              await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
               const baseCount = Array.isArray(data.data) ? data.data.length : 0;
               setHasMore(baseCount >= LIMIT);
               setOffset(baseCount);
+
+              void Promise.all([
+                AsyncStorage.setItem(LISTINGS_KEY, JSON.stringify(mergedServerListings)),
+                AsyncStorage.setItem(INITIALIZED_KEY, 'true'),
+                AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION),
+              ]).catch((storageError) => {
+                console.warn('[Listings] Failed to persist listings cache:', storageError);
+              });
               return;
             }
           }
         } catch (apiError) {
-          console.warn('[Listings] API fetch failed, falling back to local storage:', apiError);
+          console.warn('[Listings] API fetch failed, keeping cache if available:', apiError);
         }
 
-        // No local listings fallback: enforce DB/API as the single source of truth
-        setListings([]);
-        await AsyncStorage.removeItem(LISTINGS_KEY);
-        await AsyncStorage.setItem(INITIALIZED_KEY, 'true');
-        await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
-
-        const savedStr = await AsyncStorage.getItem(SAVED_KEY);
-        if (savedStr) {
-          setSavedIds(new Set(JSON.parse(savedStr)));
+        if (!hydratedFromCache) {
+          setListings([]);
+          setHasMore(false);
+          setOffset(0);
+          void AsyncStorage.removeItem(LISTINGS_KEY);
         }
+
+        void Promise.all([
+          AsyncStorage.setItem(INITIALIZED_KEY, 'true'),
+          AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION),
+        ]).catch((storageError) => {
+          console.warn('[Listings] Failed to persist listings metadata:', storageError);
+        });
       } catch (e) {
         console.error('[Listings] Failed to load data:', e);
-        setListings([]);
+        if (!hydratedFromCache) {
+          setListings([]);
+          setHasMore(false);
+          setOffset(0);
+        }
       } finally {
         if (!options?.asRefresh) {
           setIsLoading(false);
@@ -446,7 +523,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     subscriptionTierId?: string,
     userSubscriptionId?: string
   ) => {
-    console.log(
+    debugLog(
       '[Listings] addListing called with duration:',
       duration,
       'couponCode:',
@@ -459,7 +536,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     // Try to POST to backend API first
     try {
       const backendURL = getBackendURL();
-      console.log(
+      debugLog(
         '[Listings] Creating listing via API:',
         `${backendURL}/api/subscriptions/create-listing`
       );
@@ -492,7 +569,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         ...(userSubscriptionId && { userSubscriptionId }), // Include user subscription ID for quota tracking
       };
 
-      console.log('[Listings] REQUEST BODY DEBUG:', {
+      debugLog('[Listings] REQUEST BODY DEBUG:', {
         hasVideos: !!listing.videos,
         videosLength: listing.videos?.length || 0,
         videosValue: listing.videos,
@@ -514,7 +591,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('[Listings] API creation response:', data);
+        debugLog('[Listings] API creation response:', data);
 
         // Refresh listings from API to get the latest data
         await loadData({ force: true });
@@ -564,7 +641,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
   const updateListing = async (id: string, updates: Partial<Listing>) => {
     try {
-      console.log('[Listings] Updating listing:', id, updates);
+      debugLog('[Listings] Updating listing:', id, updates);
       const existingListing = listings.find((listing) => listing.id === id);
       const ownerUserId = existingListing?.userId?.trim() || '';
       if (!ownerUserId) {
@@ -599,7 +676,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('[Listings] API update response:', data);
+        debugLog('[Listings] API update response:', data);
 
         // Update local state
         const updatedListings = listings.map((listing) =>
@@ -624,7 +701,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
   const deleteListing = async (id: string) => {
     try {
-      console.log('[Listings] Deleting listing:', id);
+      debugLog('[Listings] Deleting listing:', id);
       const existingListing = listings.find((listing) => listing.id === id);
       const ownerUserId = existingListing?.userId?.trim() || '';
       if (!ownerUserId) {
@@ -640,7 +717,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('[Listings] API delete response:', data);
+        debugLog('[Listings] API delete response:', data);
 
         // Update local state
         const updatedListings = listings.filter((listing) => listing.id !== id);
@@ -755,18 +832,28 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
     setIsFetchingMore(true);
     try {
       const backendURL = getBackendURL();
-      const url = `${backendURL}/api/listings?limit=${LIMIT}&offset=${offset}`;
       let authUserId = '';
       let authUserPhone = '';
+      let userLatitude: number | undefined;
+      let userLongitude: number | undefined;
+      let userRadiusKm = 50;
       try {
         const userDataStr = await AsyncStorage.getItem('@nearhub_auth_user');
         if (userDataStr) {
           const userData = JSON.parse(userDataStr);
           authUserId = String(userData?.id || '');
           authUserPhone = String(userData?.phone || '');
+          userLatitude = Number(userData?.location?.latitude);
+          userLongitude = Number(userData?.location?.longitude);
+          userRadiusKm = Number(userData?.preferences?.searchRadiusKm || 50) || 50;
         }
       } catch {
         // Best-effort auth header attachment; continue without auth headers.
+      }
+
+      let url = `${backendURL}/api/listings?limit=${LIMIT}&offset=${offset}`;
+      if (Number.isFinite(userLatitude) && Number.isFinite(userLongitude)) {
+        url += `&latitude=${userLatitude}&longitude=${userLongitude}&radius=${userRadiusKm}`;
       }
 
       const response = await fetchWithTimeout(url, {
@@ -864,7 +951,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
               typeof listing.rejectionReason === 'string' && listing.rejectionReason.trim()
                 ? listing.rejectionReason.trim()
                 : undefined,
-            listingType: (listing.listingType as Listing['listingType']) || 'sell',
+            listingType: normalizeAppListingType(listing),
           }));
 
           setListings((prev) => {

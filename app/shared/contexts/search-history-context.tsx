@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useCallback,
+  useMemo,
+} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SEARCH_HISTORY_KEY = '@nearhub_search_history';
@@ -29,11 +37,7 @@ export function SearchHistoryProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
 
-  useEffect(() => {
-    loadSearchHistory();
-  }, []);
-
-  const loadSearchHistory = async () => {
+  const loadSearchHistory = useCallback(async () => {
     try {
       const stored = await AsyncStorage.getItem(SEARCH_HISTORY_KEY);
       if (stored) {
@@ -45,9 +49,13 @@ export function SearchHistoryProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoaded(true);
     }
-  };
+  }, []);
 
-  const addSearch = async (query: string, category?: string, city?: string) => {
+  useEffect(() => {
+    void loadSearchHistory();
+  }, [loadSearchHistory]);
+
+  const addSearch = useCallback(async (query: string, category?: string, city?: string) => {
     if (!query.trim()) return;
 
     const normalizedQuery = query.toLowerCase().trim();
@@ -83,37 +91,56 @@ export function SearchHistoryProvider({ children }: { children: ReactNode }) {
 
       return updated;
     });
-  };
+  }, []);
 
-  const clearHistory = async () => {
+  const clearHistory = useCallback(async () => {
     setSearchHistory([]);
     await AsyncStorage.removeItem(SEARCH_HISTORY_KEY);
-  };
+  }, []);
 
-  const removeSearch = async (query: string) => {
+  const removeSearch = useCallback(async (query: string) => {
     const normalizedQuery = query.toLowerCase().trim();
-    const updated = searchHistory.filter((item) => item.query !== normalizedQuery);
-    setSearchHistory(updated);
-    await AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated));
-  };
+    setSearchHistory((prev) => {
+      const updated = prev.filter((item) => item.query !== normalizedQuery);
+      AsyncStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated)).catch((e) =>
+        console.error('Failed to save search history after remove:', e)
+      );
+      return updated;
+    });
+  }, []);
 
-  const getTrendingSearches = (limit: number = 5): SearchHistoryItem[] => {
-    return searchHistory.sort((a, b) => b.searchCount - a.searchCount).slice(0, limit);
-  };
+  const getTrendingSearches = useCallback(
+    (limit: number = 5): SearchHistoryItem[] => {
+      return [...searchHistory].sort((a, b) => b.searchCount - a.searchCount).slice(0, limit);
+    },
+    [searchHistory]
+  );
 
-  const recentSearches = searchHistory.slice(0, 5); // Last 5 searches
-  const trendingSearches = getTrendingSearches(5);
+  const recentSearches = useMemo(() => searchHistory.slice(0, 5), [searchHistory]); // Last 5 searches
+  const trendingSearches = useMemo(() => getTrendingSearches(5), [getTrendingSearches]);
 
-  const value = {
-    isLoaded,
-    searchHistory,
-    trendingSearches,
-    recentSearches,
-    addSearch,
-    clearHistory,
-    removeSearch,
-    getTrendingSearches,
-  };
+  const value = useMemo(
+    () => ({
+      isLoaded,
+      searchHistory,
+      trendingSearches,
+      recentSearches,
+      addSearch,
+      clearHistory,
+      removeSearch,
+      getTrendingSearches,
+    }),
+    [
+      addSearch,
+      clearHistory,
+      getTrendingSearches,
+      isLoaded,
+      recentSearches,
+      removeSearch,
+      searchHistory,
+      trendingSearches,
+    ]
+  );
 
   return <SearchHistoryContext.Provider value={value}>{children}</SearchHistoryContext.Provider>;
 }
