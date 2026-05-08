@@ -165,7 +165,11 @@ function parseContextFromLegacyScript(scriptText: string): {
   };
 }
 
-function buildContextBlock(context: { title: string; highlights: string; description: string }): string {
+function buildContextBlock(context: {
+  title: string;
+  highlights: string;
+  description: string;
+}): string {
   const lines: string[] = [];
   if (context.title) lines.push(`Title: ${context.title}`);
   if (context.highlights) lines.push(`Highlights: ${context.highlights}`);
