@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import { createServer, type Server } from 'node:http';
 import { GoogleGenAI } from '@google/genai';
+import { PollyClient, SynthesizeSpeechCommand } from '@aws-sdk/client-polly';
 // Location routes from search feature
 import { registerLocationRoutes } from './features/search/routes/location';
 // Admin feature routes
@@ -66,6 +67,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/health/ai', async (req, res) => {
     const moderationModel = process.env.GEMINI_MODERATION_MODEL || 'gemini-2.5-flash';
     const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
+    const ttsProvider = (process.env.AI_TTS_PROVIDER || 'google').toLowerCase();
     const hasApiKey = Boolean(SERVER_CONFIG.GOOGLE_GENAI_API_KEY);
     const aiFeaturesEnabled = Boolean(SERVER_CONFIG.AI_FEATURES_ENABLED);
 
@@ -83,7 +85,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
-    if (!hasApiKey) {
+    if (!hasApiKey && ttsProvider !== 'aws') {
       return res.status(503).json({
         success: false,
         status: 'degraded',
@@ -92,7 +94,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         checks: {
           apiKeyConfigured: false,
           moderation: { ok: false, model: moderationModel, reason: 'MISSING_API_KEY' },
-          tts: { ok: false, model: ttsModel, reason: 'MISSING_API_KEY' },
+          tts: { ok: false, provider: ttsProvider, model: ttsModel, reason: 'MISSING_API_KEY' },
         },
       });
     }
@@ -102,8 +104,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ok: false,
       model: moderationModel,
     };
-    let ttsCheck: { ok: boolean; model: string; error?: string } = {
+    let ttsCheck: { ok: boolean; provider: string; model: string; error?: string } = {
       ok: false,
+      provider: ttsProvider,
       model: ttsModel,
     };
 
@@ -121,29 +124,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
     }
 
-    try {
-      const response = await ai.models.generateContent({
-        model: ttsModel,
-        contents: 'NearHub AI health check',
-        config: {
-          responseModalities: ['AUDIO'],
-        } as any,
-      });
-      const parts = Array.isArray(response?.candidates?.[0]?.content?.parts)
-        ? (response.candidates?.[0]?.content?.parts as any[])
-        : [];
-      const hasAudio = parts.some(
-        (part) => typeof part?.inlineData?.data === 'string' && part.inlineData.data.length > 0
-      );
-      ttsCheck = hasAudio
-        ? { ok: true, model: ttsModel }
-        : { ok: false, model: ttsModel, error: 'TTS response had no audio payload' };
-    } catch (error) {
-      ttsCheck = {
-        ok: false,
-        model: ttsModel,
-        error: error instanceof Error ? error.message : 'TTS check failed',
-      };
+    if (ttsProvider === 'aws') {
+      try {
+        const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+        const polly = new PollyClient({ region });
+        const response = await polly.send(
+          new SynthesizeSpeechCommand({
+            Engine: 'neural',
+            OutputFormat: 'mp3',
+            Text: 'NearHub AI health check',
+            VoiceId: 'Kajal',
+            LanguageCode: 'hi-IN',
+          })
+        );
+        const hasAudio = Boolean(response.AudioStream);
+        ttsCheck = hasAudio
+          ? { ok: true, provider: 'aws', model: 'polly:Kajal' }
+          : {
+              ok: false,
+              provider: 'aws',
+              model: 'polly:Kajal',
+              error: 'Polly response had no audio payload',
+            };
+      } catch (error) {
+        ttsCheck = {
+          ok: false,
+          provider: 'aws',
+          model: 'polly:Kajal',
+          error: error instanceof Error ? error.message : 'Polly health check failed',
+        };
+      }
+    } else {
+      try {
+        const response = await ai.models.generateContent({
+          model: ttsModel,
+          contents: 'NearHub AI health check',
+          config: {
+            responseModalities: ['AUDIO'],
+          } as any,
+        });
+        const parts = Array.isArray(response?.candidates?.[0]?.content?.parts)
+          ? (response.candidates?.[0]?.content?.parts as any[])
+          : [];
+        const hasAudio = parts.some(
+          (part) => typeof part?.inlineData?.data === 'string' && part.inlineData.data.length > 0
+        );
+        ttsCheck = hasAudio
+          ? { ok: true, provider: 'google', model: ttsModel }
+          : {
+              ok: false,
+              provider: 'google',
+              model: ttsModel,
+              error: 'TTS response had no audio payload',
+            };
+      } catch (error) {
+        ttsCheck = {
+          ok: false,
+          provider: 'google',
+          model: ttsModel,
+          error: error instanceof Error ? error.message : 'TTS check failed',
+        };
+      }
     }
 
     const allHealthy = moderationCheck.ok && ttsCheck.ok;

@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { sql } from 'drizzle-orm';
 import axios from 'axios';
 import { GoogleGenAI } from '@google/genai';
+import { PollyClient, SynthesizeSpeechCommand } from '@aws-sdk/client-polly';
 import { db } from '../../../data/db';
 import { SERVER_CONFIG } from '../../../lib/config';
 import { uploadLocalFileAsMedia } from '../services/cloudflare-media';
@@ -21,8 +22,13 @@ type VoiceoverJob = {
 
 const SCRIPT_MODEL = process.env.GEMINI_SCRIPT_MODEL || 'gemini-2.5-flash';
 const TTS_MODEL = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
+const AI_TTS_PROVIDER = (process.env.AI_TTS_PROVIDER || 'google').toLowerCase();
 const AI_VOICEOVER_BGM_SOURCE = process.env.AI_VOICEOVER_BGM_SOURCE || 'builtin-cinematic';
 const AI_VOICEOVER_BGM_VOLUME = Number.parseFloat(process.env.AI_VOICEOVER_BGM_VOLUME || '0.18');
+const AI_VOICEOVER_ENHANCE_VIDEO = process.env.AI_VOICEOVER_ENHANCE_VIDEO !== 'false';
+const AI_VOICEOVER_OUTPUT_WIDTH = Number.parseInt(process.env.AI_VOICEOVER_OUTPUT_WIDTH || '1080', 10);
+const AI_VOICEOVER_OUTPUT_CRF = Number.parseInt(process.env.AI_VOICEOVER_OUTPUT_CRF || '21', 10);
+const AI_VOICEOVER_OUTPUT_PRESET = process.env.AI_VOICEOVER_OUTPUT_PRESET || 'medium';
 
 function runCommand(command: string, args: string[]): Promise<void> {
   return new Promise<void>((resolve, reject) => {
@@ -114,6 +120,16 @@ function getVoiceName(language: VoiceoverJob['language']): string {
   if (language === 'telugu') return 'Kore';
   if (language === 'kannada') return 'Aoede';
   return 'Puck';
+}
+
+function getPollyVoice(language: VoiceoverJob['language']): {
+  voiceId: string;
+  languageCode: string;
+} {
+  if (language === 'hindi') {
+    return { voiceId: 'Kajal', languageCode: 'hi-IN' };
+  }
+  return { voiceId: 'Aditi', languageCode: 'en-IN' };
 }
 
 async function claimNextJob(): Promise<VoiceoverJob | null> {
@@ -285,6 +301,55 @@ async function generateSpeechWav(
   ]);
 }
 
+async function streamToBuffer(stream: unknown): Promise<Buffer> {
+  if (!stream) return Buffer.alloc(0);
+  if (stream instanceof Uint8Array) return Buffer.from(stream);
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream as AsyncIterable<Uint8Array>) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+async function generateSpeechWavPolly(
+  script: string,
+  language: VoiceoverJob['language'],
+  outPath: string
+): Promise<void> {
+  const { voiceId, languageCode } = getPollyVoice(language);
+  const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+  const polly = new PollyClient({ region });
+  const result = await polly.send(
+    new SynthesizeSpeechCommand({
+      Engine: 'neural',
+      OutputFormat: 'mp3',
+      TextType: 'text',
+      Text: script,
+      VoiceId: voiceId as any,
+      LanguageCode: languageCode as any,
+    })
+  );
+  const audioBuffer = await streamToBuffer(result.AudioStream);
+  if (!audioBuffer.length) {
+    throw new Error('AWS Polly did not return audio payload');
+  }
+  const tempMp3 = `${outPath}.polly.mp3`;
+  await fs.writeFile(tempMp3, audioBuffer);
+  await runCommand('ffmpeg', [
+    '-hide_banner',
+    '-loglevel',
+    'error',
+    '-y',
+    '-i',
+    tempMp3,
+    '-ac',
+    '1',
+    '-ar',
+    '24000',
+    outPath,
+  ]);
+}
+
 async function downloadToFile(url: string, targetPath: string): Promise<void> {
   const response = await axios.get<ArrayBuffer>(url, {
     responseType: 'arraybuffer',
@@ -348,12 +413,26 @@ async function prepareBackgroundMusic(durationSeconds: number, outPath: string):
   return true;
 }
 
+function buildVideoEnhancementFilter(): string {
+  if (!AI_VOICEOVER_ENHANCE_VIDEO) return 'null';
+  const targetWidth = Number.isFinite(AI_VOICEOVER_OUTPUT_WIDTH)
+    ? Math.max(720, Math.min(1440, AI_VOICEOVER_OUTPUT_WIDTH))
+    : 1080;
+  return [
+    `scale='min(${targetWidth},iw)':'-2':flags=lanczos`,
+    'unsharp=5:5:0.6:5:5:0.2',
+    'eq=contrast=1.06:brightness=0.01:saturation=1.08:gamma=1.02',
+    'format=yuv420p',
+  ].join(',');
+}
+
 export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
   processed: number;
   completed: number;
   failed: number;
 }> {
-  if (!SERVER_CONFIG.GOOGLE_GENAI_API_KEY) {
+  const usingGoogle = AI_TTS_PROVIDER !== 'aws';
+  if (usingGoogle && !SERVER_CONFIG.GOOGLE_GENAI_API_KEY) {
     return { processed: 0, completed: 0, failed: 0 };
   }
 
@@ -373,19 +452,33 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
     const outputVideoPath = path.join(tempDir, 'output.mp4');
 
     try {
-      const ai = new GoogleGenAI({ apiKey: SERVER_CONFIG.GOOGLE_GENAI_API_KEY });
+      const ai = SERVER_CONFIG.GOOGLE_GENAI_API_KEY
+        ? new GoogleGenAI({ apiKey: SERVER_CONFIG.GOOGLE_GENAI_API_KEY })
+        : null;
       await downloadToFile(job.source_video_url, sourceVideoPath);
       const videoDurationSeconds = await getMediaDurationSeconds(sourceVideoPath);
 
       const baseScript =
         typeof job.script_text === 'string' && job.script_text.trim().length > 0
           ? job.script_text.trim()
-          : await generateScript(ai, job.language, videoDurationSeconds);
-      const script = await localizeScript(ai, baseScript, job.language, videoDurationSeconds);
-      await generateSpeechWav(ai, script, job.language, voiceWavPath);
+          : ai
+            ? await generateScript(ai, job.language, videoDurationSeconds)
+            : 'Limited time offer. Check this listing now.';
+      const script = ai
+        ? await localizeScript(ai, baseScript, job.language, videoDurationSeconds)
+        : baseScript;
+      if (AI_TTS_PROVIDER === 'aws') {
+        await generateSpeechWavPolly(script, job.language, voiceWavPath);
+      } else {
+        if (!ai) throw new Error('Google API key missing for Google TTS provider');
+        await generateSpeechWav(ai, script, job.language, voiceWavPath);
+      }
 
       const audioFilter = `apad,atrim=0:${videoDurationSeconds.toFixed(3)}`;
       const hasBackgroundMusic = await prepareBackgroundMusic(videoDurationSeconds, bgmPath);
+
+      const videoFilter = buildVideoEnhancementFilter();
+      const voiceFilter = `apad,atrim=0:${videoDurationSeconds.toFixed(3)},loudnorm=I=-16:TP=-1.5:LRA=7`;
 
       if (hasBackgroundMusic) {
         const bgmVolume = Number.isFinite(AI_VOICEOVER_BGM_VOLUME) ? AI_VOICEOVER_BGM_VOLUME : 0.18;
@@ -403,19 +496,26 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
           '-i',
           bgmPath,
           '-filter_complex',
-          `[1:a]${audioFilter}[vo];` +
+          `[0:v]${videoFilter}[vout];` +
+            `[1:a]${voiceFilter}[vo];` +
             `[2:a]atrim=0:${videoDurationSeconds.toFixed(3)},apad,atrim=0:${videoDurationSeconds.toFixed(3)},volume=${bgmVolume.toFixed(3)}[bgm];` +
-            // Prefer a simple, broadly compatible final mix to avoid
-            // filter-graph label resolution failures on some ffmpeg builds.
             '[vo][bgm]amix=inputs=2:normalize=0:duration=first[outa]',
           '-map',
-          '0:v:0',
+          '[vout]',
           '-map',
           '[outa]',
           '-c:v',
-          'copy',
+          'libx264',
+          '-preset',
+          AI_VOICEOVER_OUTPUT_PRESET,
+          '-crf',
+          String(AI_VOICEOVER_OUTPUT_CRF),
           '-c:a',
           'aac',
+          '-b:a',
+          '160k',
+          '-movflags',
+          '+faststart',
           '-t',
           videoDurationSeconds.toFixed(3),
           outputVideoPath,
@@ -431,15 +531,23 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
           '-i',
           voiceWavPath,
           '-filter_complex',
-          `[1:a]${audioFilter}[vo]`,
+          `[0:v]${videoFilter}[vout];[1:a]${voiceFilter}[vo]`,
           '-map',
-          '0:v:0',
+          '[vout]',
           '-map',
           '[vo]',
           '-c:v',
-          'copy',
+          'libx264',
+          '-preset',
+          AI_VOICEOVER_OUTPUT_PRESET,
+          '-crf',
+          String(AI_VOICEOVER_OUTPUT_CRF),
           '-c:a',
           'aac',
+          '-b:a',
+          '160k',
+          '-movflags',
+          '+faststart',
           '-t',
           videoDurationSeconds.toFixed(3),
           outputVideoPath,
