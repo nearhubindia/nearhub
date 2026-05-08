@@ -139,13 +139,16 @@ async function claimNextJob(): Promise<VoiceoverJob | null> {
 
 async function generateScript(
   ai: GoogleGenAI,
-  language: VoiceoverJob['language']
+  language: VoiceoverJob['language'],
+  videoDurationSeconds: number
 ): Promise<string> {
   const instruction = getLanguageInstruction(language);
+  const targetWords = Math.max(8, Math.min(45, Math.floor(videoDurationSeconds * 2.2)));
   const response = await ai.models.generateContent({
     model: SCRIPT_MODEL,
     contents: `Generate a concise product promo voice-over script for a marketplace video.
-Limit to 2-3 short sentences, around 45 words.
+Limit to 2-3 short sentences.
+Keep it around ${targetWords} words so it comfortably fits a ${videoDurationSeconds.toFixed(1)} second video.
 Tone: clear, friendly, and sales-focused.
 ${instruction}
 Return only the final script.`,
@@ -156,15 +159,18 @@ Return only the final script.`,
 async function localizeScript(
   ai: GoogleGenAI,
   script: string,
-  language: VoiceoverJob['language']
+  language: VoiceoverJob['language'],
+  videoDurationSeconds: number
 ): Promise<string> {
   const targetLanguage = getTargetLanguageName(language);
   const targetScript = getLanguageInstruction(language);
+  const targetWords = Math.max(8, Math.min(45, Math.floor(videoDurationSeconds * 2.2)));
   const response = await ai.models.generateContent({
     model: SCRIPT_MODEL,
     contents: `Rewrite the following product voice-over script in ${targetLanguage}.
 ${targetScript}
-Keep meaning intact, keep it natural for spoken narration, and keep length similar.
+Keep meaning intact, keep it natural and realistic for spoken narration, and keep it concise.
+Target around ${targetWords} words so it fits a ${videoDurationSeconds.toFixed(1)} second video.
 Return only the rewritten script.
 
 Input script:
@@ -368,18 +374,17 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
 
     try {
       const ai = new GoogleGenAI({ apiKey: SERVER_CONFIG.GOOGLE_GENAI_API_KEY });
+      await downloadToFile(job.source_video_url, sourceVideoPath);
+      const videoDurationSeconds = await getMediaDurationSeconds(sourceVideoPath);
+
       const baseScript =
         typeof job.script_text === 'string' && job.script_text.trim().length > 0
           ? job.script_text.trim()
-          : await generateScript(ai, job.language);
-      const script = await localizeScript(ai, baseScript, job.language);
-      await downloadToFile(job.source_video_url, sourceVideoPath);
+          : await generateScript(ai, job.language, videoDurationSeconds);
+      const script = await localizeScript(ai, baseScript, job.language, videoDurationSeconds);
       await generateSpeechWav(ai, script, job.language, voiceWavPath);
 
-      const videoDurationSeconds = await getMediaDurationSeconds(sourceVideoPath);
-      const voiceDurationSeconds = await getMediaDurationSeconds(voiceWavPath);
-      const speedFactor = Math.max(0.5, Math.min(100, voiceDurationSeconds / videoDurationSeconds));
-      const audioFilter = `${buildAtempoFilter(speedFactor)},apad,atrim=0:${videoDurationSeconds.toFixed(3)}`;
+      const audioFilter = `apad,atrim=0:${videoDurationSeconds.toFixed(3)}`;
       const hasBackgroundMusic = await prepareBackgroundMusic(videoDurationSeconds, bgmPath);
 
       if (hasBackgroundMusic) {
@@ -400,8 +405,9 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
           '-filter_complex',
           `[1:a]${audioFilter}[vo];` +
             `[2:a]atrim=0:${videoDurationSeconds.toFixed(3)},apad,atrim=0:${videoDurationSeconds.toFixed(3)},volume=${bgmVolume.toFixed(3)}[bgm];` +
-            '[bgm][vo]sidechaincompress=threshold=0.03:ratio=10:attack=20:release=350[bgmducked];' +
-            '[vo][bgmducked]amix=inputs=2:normalize=0:duration=first[outa]',
+            // Prefer a simple, broadly compatible final mix to avoid
+            // filter-graph label resolution failures on some ffmpeg builds.
+            '[vo][bgm]amix=inputs=2:normalize=0:duration=first[outa]',
           '-map',
           '0:v:0',
           '-map',
