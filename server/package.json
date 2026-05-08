@@ -47,6 +47,7 @@
     "@aws-sdk/client-polly": "^3.1045.0",
     "@aws-sdk/client-rekognition": "^3.1045.0",
     "@aws-sdk/client-s3": "^3.1005.0",
+    "@aws-sdk/client-translate": "^3.1045.0",
     "@aws-sdk/s3-request-presigner": "^3.1005.0",
     "@elastic/elasticsearch": "^9.3.1",
     "@google/genai": "^1.42.0",

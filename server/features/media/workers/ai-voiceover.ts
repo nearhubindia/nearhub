@@ -6,6 +6,7 @@ import { sql } from 'drizzle-orm';
 import axios from 'axios';
 import { GoogleGenAI } from '@google/genai';
 import { PollyClient, SynthesizeSpeechCommand } from '@aws-sdk/client-polly';
+import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
 import { db } from '../../../data/db';
 import { SERVER_CONFIG } from '../../../lib/config';
 import { uploadLocalFileAsMedia } from '../services/cloudflare-media';
@@ -23,6 +24,7 @@ type VoiceoverJob = {
 const SCRIPT_MODEL = process.env.GEMINI_SCRIPT_MODEL || 'gemini-2.5-flash';
 const TTS_MODEL = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
 const AI_TTS_PROVIDER = (process.env.AI_TTS_PROVIDER || 'google').toLowerCase();
+const AI_TRANSLATION_PROVIDER = (process.env.AI_TRANSLATION_PROVIDER || 'google').toLowerCase();
 const AI_VOICEOVER_BGM_SOURCE = process.env.AI_VOICEOVER_BGM_SOURCE || 'builtin-cinematic';
 const AI_VOICEOVER_BGM_VOLUME = Number.parseFloat(process.env.AI_VOICEOVER_BGM_VOLUME || '0.18');
 const AI_VOICEOVER_ENHANCE_VIDEO = process.env.AI_VOICEOVER_ENHANCE_VIDEO !== 'false';
@@ -119,6 +121,12 @@ function getTargetLanguageName(language: VoiceoverJob['language']): string {
   return 'Hindi';
 }
 
+function getAwsTranslateLanguageCode(language: VoiceoverJob['language']): string {
+  if (language === 'telugu') return 'te';
+  if (language === 'kannada') return 'kn';
+  return 'hi';
+}
+
 function getVoiceName(language: VoiceoverJob['language']): string {
   if (language === 'telugu') return 'Kore';
   if (language === 'kannada') return 'Aoede';
@@ -198,6 +206,23 @@ ${script}`,
 
   const localized = String(response.text || '').trim();
   return localized || script;
+}
+
+async function localizeScriptAws(
+  script: string,
+  language: VoiceoverJob['language']
+): Promise<string> {
+  const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+  const client = new TranslateClient({ region });
+  const response = await client.send(
+    new TranslateTextCommand({
+      SourceLanguageCode: 'auto',
+      TargetLanguageCode: getAwsTranslateLanguageCode(language),
+      Text: script,
+    })
+  );
+  const translated = String(response.TranslatedText || '').trim();
+  return translated || script;
 }
 
 async function generateSpeechWav(
@@ -467,9 +492,12 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
           : ai
             ? await generateScript(ai, job.language, videoDurationSeconds)
             : 'Limited time offer. Check this listing now.';
-      const script = ai
-        ? await localizeScript(ai, baseScript, job.language, videoDurationSeconds)
-        : baseScript;
+      let script = baseScript;
+      if (AI_TRANSLATION_PROVIDER === 'aws') {
+        script = await localizeScriptAws(baseScript, job.language);
+      } else if (ai) {
+        script = await localizeScript(ai, baseScript, job.language, videoDurationSeconds);
+      }
       if (AI_TTS_PROVIDER === 'aws') {
         await generateSpeechWavPolly(script, job.language, voiceWavPath);
       } else {

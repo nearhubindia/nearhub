@@ -2,6 +2,7 @@ import type { Express } from 'express';
 import { createServer, type Server } from 'node:http';
 import { GoogleGenAI } from '@google/genai';
 import { PollyClient, SynthesizeSpeechCommand } from '@aws-sdk/client-polly';
+import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
 // Location routes from search feature
 import { registerLocationRoutes } from './features/search/routes/location';
 // Admin feature routes
@@ -68,6 +69,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const moderationModel = process.env.GEMINI_MODERATION_MODEL || 'gemini-2.5-flash';
     const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
     const ttsProvider = (process.env.AI_TTS_PROVIDER || 'google').toLowerCase();
+    const translationProvider = (process.env.AI_TRANSLATION_PROVIDER || 'google').toLowerCase();
     const hasApiKey = Boolean(SERVER_CONFIG.GOOGLE_GENAI_API_KEY);
     const aiFeaturesEnabled = Boolean(SERVER_CONFIG.AI_FEATURES_ENABLED);
 
@@ -108,6 +110,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ok: false,
       provider: ttsProvider,
       model: ttsModel,
+    };
+    let translationCheck: { ok: boolean; provider: string; model: string; error?: string } = {
+      ok: false,
+      provider: translationProvider,
+      model: translationProvider === 'aws' ? 'translate:TranslateText' : moderationModel,
     };
 
     try {
@@ -187,7 +194,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
 
-    const allHealthy = moderationCheck.ok && ttsCheck.ok;
+    if (translationProvider === 'aws') {
+      try {
+        const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+        const translate = new TranslateClient({ region });
+        const response = await translate.send(
+          new TranslateTextCommand({
+            SourceLanguageCode: 'en',
+            TargetLanguageCode: 'hi',
+            Text: 'NearHub AI health check',
+          })
+        );
+        const output = String(response.TranslatedText || '').trim();
+        translationCheck = output
+          ? { ok: true, provider: 'aws', model: 'translate:TranslateText' }
+          : {
+              ok: false,
+              provider: 'aws',
+              model: 'translate:TranslateText',
+              error: 'Translate response had no translated text',
+            };
+      } catch (error) {
+        translationCheck = {
+          ok: false,
+          provider: 'aws',
+          model: 'translate:TranslateText',
+          error: error instanceof Error ? error.message : 'AWS Translate health check failed',
+        };
+      }
+    } else {
+      translationCheck = moderationCheck.ok
+        ? { ok: true, provider: 'google', model: moderationModel }
+        : {
+            ok: false,
+            provider: 'google',
+            model: moderationModel,
+            error: moderationCheck.error || 'Google model check failed',
+          };
+    }
+
+    const allHealthy = moderationCheck.ok && ttsCheck.ok && translationCheck.ok;
     return res.status(allHealthy ? 200 : 503).json({
       success: allHealthy,
       status: allHealthy ? 'healthy' : 'degraded',
@@ -197,6 +243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         apiKeyConfigured: true,
         moderation: moderationCheck,
         tts: ttsCheck,
+        translation: translationCheck,
       },
       origin: req.header('origin') || '(no origin header)',
     });
