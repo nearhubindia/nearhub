@@ -26,7 +26,10 @@ const AI_TTS_PROVIDER = (process.env.AI_TTS_PROVIDER || 'google').toLowerCase();
 const AI_VOICEOVER_BGM_SOURCE = process.env.AI_VOICEOVER_BGM_SOURCE || 'builtin-cinematic';
 const AI_VOICEOVER_BGM_VOLUME = Number.parseFloat(process.env.AI_VOICEOVER_BGM_VOLUME || '0.18');
 const AI_VOICEOVER_ENHANCE_VIDEO = process.env.AI_VOICEOVER_ENHANCE_VIDEO !== 'false';
-const AI_VOICEOVER_OUTPUT_WIDTH = Number.parseInt(process.env.AI_VOICEOVER_OUTPUT_WIDTH || '1080', 10);
+const AI_VOICEOVER_OUTPUT_WIDTH = Number.parseInt(
+  process.env.AI_VOICEOVER_OUTPUT_WIDTH || '1080',
+  10
+);
 const AI_VOICEOVER_OUTPUT_CRF = Number.parseInt(process.env.AI_VOICEOVER_OUTPUT_CRF || '21', 10);
 const AI_VOICEOVER_OUTPUT_PRESET = process.env.AI_VOICEOVER_OUTPUT_PRESET || 'medium';
 
