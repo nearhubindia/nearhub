@@ -360,7 +360,10 @@ export default function ShortsCard({
   }, []);
 
   const hasValidOfferPrice =
-    typeof offerPrice === 'number' && Number.isFinite(offerPrice) && offerPrice > 0 && offerPrice < price;
+    typeof offerPrice === 'number' &&
+    Number.isFinite(offerPrice) &&
+    offerPrice > 0 &&
+    offerPrice < price;
   const displayPrice = hasValidOfferPrice ? offerPrice : price;
 
   return (
