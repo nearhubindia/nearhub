@@ -17,6 +17,9 @@ type VoiceoverJob = {
   source_video_url: string;
   language: 'telugu' | 'kannada' | 'hindi';
   script_text?: string | null;
+  title_text?: string | null;
+  highlights_text?: string | null;
+  description_text?: string | null;
   attempts: number;
   max_attempts: number;
 };
@@ -143,6 +146,33 @@ function getPollyVoice(language: VoiceoverJob['language']): {
   return { voiceId: 'Aditi', languageCode: 'en-IN' };
 }
 
+function normalizeContextValue(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function parseContextFromLegacyScript(scriptText: string): {
+  title: string;
+  highlights: string;
+  description: string;
+} {
+  const titleMatch = scriptText.match(/(?:^|\n)\s*Product:\s*(.+?)(?:\n|$)/i);
+  const highlightsMatch = scriptText.match(/(?:^|\n)\s*Highlights:\s*(.+?)(?:\n|$)/i);
+  const descriptionMatch = scriptText.match(/(?:^|\n)\s*Description:\s*([\s\S]+)$/i);
+  return {
+    title: normalizeContextValue(titleMatch?.[1] || ''),
+    highlights: normalizeContextValue(highlightsMatch?.[1] || ''),
+    description: normalizeContextValue(descriptionMatch?.[1] || ''),
+  };
+}
+
+function buildContextBlock(context: { title: string; highlights: string; description: string }): string {
+  const lines: string[] = [];
+  if (context.title) lines.push(`Title: ${context.title}`);
+  if (context.highlights) lines.push(`Highlights: ${context.highlights}`);
+  if (context.description) lines.push(`Description: ${context.description}`);
+  return lines.join('\n');
+}
+
 async function claimNextJob(): Promise<VoiceoverJob | null> {
   const result = await db.execute(sql`
     UPDATE ai_voiceover_jobs j
@@ -158,7 +188,7 @@ async function claimNextJob(): Promise<VoiceoverJob | null> {
       LIMIT 1
       FOR UPDATE SKIP LOCKED
     )
-    RETURNING j.id, j.user_id, j.source_video_url, j.language, j.script_text, j.attempts, j.max_attempts
+    RETURNING j.id, j.user_id, j.source_video_url, j.language, j.script_text, j.title_text, j.highlights_text, j.description_text, j.attempts, j.max_attempts
   `);
   const rows = Array.isArray((result as any).rows) ? ((result as any).rows as VoiceoverJob[]) : [];
   return rows[0] || null;
@@ -167,17 +197,23 @@ async function claimNextJob(): Promise<VoiceoverJob | null> {
 async function generateScript(
   ai: GoogleGenAI,
   language: VoiceoverJob['language'],
-  videoDurationSeconds: number
+  videoDurationSeconds: number,
+  context: { title: string; highlights: string; description: string }
 ): Promise<string> {
   const instruction = getLanguageInstruction(language);
   const targetWords = Math.max(8, Math.min(45, Math.floor(videoDurationSeconds * 2.2)));
+  const contextBlock = buildContextBlock(context);
   const response = await ai.models.generateContent({
     model: SCRIPT_MODEL,
-    contents: `Generate a concise product promo voice-over script for a marketplace video.
+    contents: `Generate a concise, natural product promo voice-over script for a marketplace video.
+Use Title and Highlights first, and Description as supporting context.
+Do not invent specs/claims not present in the input.
 Limit to 2-3 short sentences.
 Keep it around ${targetWords} words so it comfortably fits a ${videoDurationSeconds.toFixed(1)} second video.
 Tone: clear, friendly, and sales-focused.
 ${instruction}
+Input:
+${contextBlock || 'No listing context provided.'}
 Return only the final script.`,
   });
   return String(response.text || '').trim();
@@ -489,14 +525,30 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
       const baseScript =
         typeof job.script_text === 'string' && job.script_text.trim().length > 0
           ? job.script_text.trim()
-          : ai
-            ? await generateScript(ai, job.language, videoDurationSeconds)
-            : 'Limited time offer. Check this listing now.';
+          : '';
+      const context = {
+        title: normalizeContextValue(job.title_text),
+        highlights: normalizeContextValue(job.highlights_text),
+        description: normalizeContextValue(job.description_text),
+      };
+      if (!context.title && !context.highlights && !context.description && baseScript) {
+        const parsed = parseContextFromLegacyScript(baseScript);
+        context.title = parsed.title;
+        context.highlights = parsed.highlights;
+        context.description = parsed.description;
+      }
+      const hasContext = Boolean(context.title || context.highlights || context.description);
+      const scriptSeed =
+        hasContext && ai
+          ? await generateScript(ai, job.language, videoDurationSeconds, context)
+          : baseScript || 'Limited time offer. Check this listing now.';
       let script = baseScript;
       if (AI_TRANSLATION_PROVIDER === 'aws') {
-        script = await localizeScriptAws(baseScript, job.language);
+        script = await localizeScriptAws(scriptSeed, job.language);
       } else if (ai) {
-        script = await localizeScript(ai, baseScript, job.language, videoDurationSeconds);
+        script = await localizeScript(ai, scriptSeed, job.language, videoDurationSeconds);
+      } else {
+        script = scriptSeed;
       }
       if (AI_TTS_PROVIDER === 'aws') {
         await generateSpeechWavPolly(script, job.language, voiceWavPath);

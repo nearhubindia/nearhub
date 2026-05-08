@@ -285,6 +285,9 @@ export default function AiStudio() {
           sourceVideoUrl: finalSourceVideoUrl,
           language,
           scriptText,
+          title: productTitle.trim(),
+          highlights: highlights.trim(),
+          description: description.trim(),
         }),
       });
       const payload = await response.json();

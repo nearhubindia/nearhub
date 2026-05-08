@@ -33,6 +33,7 @@ export function registerAIVoiceoverRoutes(app: Express) {
 
       const result = await db.execute(sql`
         SELECT id, user_id, source_video_url, output_video_url, language, status, script_text, error_message,
+               title_text, highlights_text, description_text,
                attempts, max_attempts, created_at, updated_at, processed_at
         FROM ai_voiceover_jobs
         WHERE user_id = ${userId}
@@ -95,6 +96,14 @@ Return only script text.`,
       const sourceVideoUrl = asString(req.body?.sourceVideoUrl);
       const language = parseLanguage(req.body?.language);
       const scriptText = asString(req.body?.scriptText);
+      const titleText = asString(req.body?.title);
+      const highlightsText = asString(req.body?.highlights);
+      const descriptionText = asString(req.body?.description);
+      const normalizedScriptText =
+        scriptText ||
+        (titleText || highlightsText || descriptionText
+          ? `Product: ${titleText}\nHighlights: ${highlightsText}\nDescription: ${descriptionText}`
+          : '');
 
       if (!userId || !sourceVideoUrl || !language) {
         return res.status(400).json({
@@ -125,9 +134,14 @@ Return only script text.`,
       }
 
       const created = await db.execute(sql`
-        INSERT INTO ai_voiceover_jobs (user_id, source_video_url, language, status, script_text)
-        VALUES (${userId}, ${sourceVideoUrl}, ${language}, 'pending', ${scriptText || null})
-        RETURNING id, user_id, source_video_url, language, status, script_text, created_at
+        INSERT INTO ai_voiceover_jobs (
+          user_id, source_video_url, language, status, script_text, title_text, highlights_text, description_text
+        )
+        VALUES (
+          ${userId}, ${sourceVideoUrl}, ${language}, 'pending',
+          ${normalizedScriptText || null}, ${titleText || null}, ${highlightsText || null}, ${descriptionText || null}
+        )
+        RETURNING id, user_id, source_video_url, language, status, script_text, title_text, highlights_text, description_text, created_at
       `);
       const job = Array.isArray((created as any).rows) ? (created as any).rows[0] : null;
 
@@ -153,6 +167,7 @@ Return only script text.`,
 
       const result = await db.execute(sql`
         SELECT id, user_id, source_video_url, output_video_url, language, status, script_text, error_message,
+               title_text, highlights_text, description_text,
                attempts, max_attempts, created_at, updated_at, processed_at
         FROM ai_voiceover_jobs
         WHERE id = ${id} AND user_id = ${userId}

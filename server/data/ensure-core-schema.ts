@@ -81,6 +81,9 @@ async function applyCoreSchemaPatches(): Promise<void> {
       processed_at timestamp
     )
   `);
+  await db.execute(sql`ALTER TABLE ai_voiceover_jobs ADD COLUMN IF NOT EXISTS title_text text`);
+  await db.execute(sql`ALTER TABLE ai_voiceover_jobs ADD COLUMN IF NOT EXISTS highlights_text text`);
+  await db.execute(sql`ALTER TABLE ai_voiceover_jobs ADD COLUMN IF NOT EXISTS description_text text`);
 
   // Keep display_name useful when legacy rows only had username.
   await db.execute(sql`
