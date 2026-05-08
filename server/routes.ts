@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import { createServer, type Server } from 'node:http';
 import { GoogleGenAI } from '@google/genai';
+import { DetectModerationLabelsCommand, RekognitionClient } from '@aws-sdk/client-rekognition';
 import { PollyClient, SynthesizeSpeechCommand } from '@aws-sdk/client-polly';
 import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
 // Location routes from search feature
@@ -66,12 +67,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get('/api/health/ai', async (req, res) => {
+    const moderationProvider = (process.env.AI_MODERATION_PROVIDER || 'gemini').toLowerCase();
     const moderationModel = process.env.GEMINI_MODERATION_MODEL || 'gemini-2.5-flash';
     const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
     const ttsProvider = (process.env.AI_TTS_PROVIDER || 'google').toLowerCase();
     const translationProvider = (process.env.AI_TRANSLATION_PROVIDER || 'google').toLowerCase();
     const hasApiKey = Boolean(SERVER_CONFIG.GOOGLE_GENAI_API_KEY);
     const aiFeaturesEnabled = Boolean(SERVER_CONFIG.AI_FEATURES_ENABLED);
+    const requiresGoogle =
+      moderationProvider !== 'aws' || ttsProvider !== 'aws' || translationProvider !== 'aws';
 
     if (!aiFeaturesEnabled) {
       return res.status(503).json({
@@ -87,7 +91,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
-    if (!hasApiKey && ttsProvider !== 'aws') {
+    if (!hasApiKey && requiresGoogle) {
       return res.status(503).json({
         success: false,
         status: 'degraded',
@@ -101,7 +105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
-    const ai = new GoogleGenAI({ apiKey: SERVER_CONFIG.GOOGLE_GENAI_API_KEY });
+    const ai = hasApiKey ? new GoogleGenAI({ apiKey: SERVER_CONFIG.GOOGLE_GENAI_API_KEY }) : null;
     let moderationCheck: { ok: boolean; model: string; error?: string } = {
       ok: false,
       model: moderationModel,
@@ -117,18 +121,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       model: translationProvider === 'aws' ? 'translate:TranslateText' : moderationModel,
     };
 
-    try {
-      await ai.models.generateContent({
-        model: moderationModel,
-        contents: 'Return exactly: ok',
-      });
-      moderationCheck = { ok: true, model: moderationModel };
-    } catch (error) {
-      moderationCheck = {
-        ok: false,
-        model: moderationModel,
-        error: error instanceof Error ? error.message : 'Moderation check failed',
-      };
+    if (moderationProvider === 'aws') {
+      try {
+        const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+        const rekognition = new RekognitionClient({ region });
+        const oneByOnePng = Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5oN5kAAAAASUVORK5CYII=',
+          'base64'
+        );
+        await rekognition.send(
+          new DetectModerationLabelsCommand({
+            Image: { Bytes: oneByOnePng },
+            MinConfidence: 50,
+          })
+        );
+        moderationCheck = { ok: true, model: 'aws-rekognition:DetectModerationLabels' };
+      } catch (error) {
+        moderationCheck = {
+          ok: false,
+          model: 'aws-rekognition:DetectModerationLabels',
+          error: error instanceof Error ? error.message : 'AWS moderation check failed',
+        };
+      }
+    } else {
+      try {
+        if (!ai) throw new Error('Google API key is missing');
+        await ai.models.generateContent({
+          model: moderationModel,
+          contents: 'Return exactly: ok',
+        });
+        moderationCheck = { ok: true, model: moderationModel };
+      } catch (error) {
+        moderationCheck = {
+          ok: false,
+          model: moderationModel,
+          error: error instanceof Error ? error.message : 'Moderation check failed',
+        };
+      }
     }
 
     if (ttsProvider === 'aws') {
@@ -163,6 +192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } else {
       try {
+        if (!ai) throw new Error('Google API key is missing');
         const response = await ai.models.generateContent({
           model: ttsModel,
           contents: 'NearHub AI health check',
@@ -223,14 +253,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }
     } else {
-      translationCheck = moderationCheck.ok
-        ? { ok: true, provider: 'google', model: moderationModel }
-        : {
-            ok: false,
-            provider: 'google',
-            model: moderationModel,
-            error: moderationCheck.error || 'Google model check failed',
-          };
+      try {
+        if (!ai) throw new Error('Google API key is missing');
+        await ai.models.generateContent({
+          model: moderationModel,
+          contents: 'Translate this to Hindi: hello',
+        });
+        translationCheck = { ok: true, provider: 'google', model: moderationModel };
+      } catch (error) {
+        translationCheck = {
+          ok: false,
+          provider: 'google',
+          model: moderationModel,
+          error: error instanceof Error ? error.message : 'Google translation check failed',
+        };
+      }
     }
 
     const allHealthy = moderationCheck.ok && ttsCheck.ok && translationCheck.ok;
