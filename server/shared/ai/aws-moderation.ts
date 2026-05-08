@@ -17,7 +17,9 @@ export type AwsModerationResult = {
 };
 
 const AWS_REGION = process.env.AWS_REGION || process.env.AWS_S3_REGION || 'us-east-1';
-const DEFAULT_MIN_CONFIDENCE = Number.parseFloat(process.env.AWS_REKOGNITION_MIN_CONFIDENCE || '75');
+const DEFAULT_MIN_CONFIDENCE = Number.parseFloat(
+  process.env.AWS_REKOGNITION_MIN_CONFIDENCE || '75'
+);
 const VIDEO_FRAME_INTERVAL_SECONDS = Math.max(
   1,
   Number.parseInt(process.env.AWS_VIDEO_MODERATION_FRAME_INTERVAL_SECONDS || '2', 10) || 2
@@ -123,7 +125,9 @@ async function detectLabelsForBytes(bytes: Uint8Array): Promise<ModerationLabel[
   return Array.isArray(response.ModerationLabels) ? response.ModerationLabels : [];
 }
 
-export async function moderateImagesWithRekognition(imageUrls: string[]): Promise<AwsModerationResult> {
+export async function moderateImagesWithRekognition(
+  imageUrls: string[]
+): Promise<AwsModerationResult> {
   if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
     return {
       safe: true,
@@ -209,7 +213,9 @@ export async function moderateMediaWithRekognition(input: {
           const risk = classifyRisk(label);
           if (risk) {
             detectedRisks.add(risk);
-            reasons.push(`Video frame: ${label.Name || 'Unsafe content'} (${confidence.toFixed(1)}%)`);
+            reasons.push(
+              `Video frame: ${label.Name || 'Unsafe content'} (${confidence.toFixed(1)}%)`
+            );
           }
         }
       }
@@ -226,7 +232,8 @@ export async function moderateMediaWithRekognition(input: {
   }
 
   if (detectedRisks.size === 0) {
-    const safeReasons = reasons.length > 0 ? reasons : ['No unsafe content detected by Rekognition'];
+    const safeReasons =
+      reasons.length > 0 ? reasons : ['No unsafe content detected by Rekognition'];
     return {
       safe: true,
       confidence: Math.max(highestConfidence, 0.95),
