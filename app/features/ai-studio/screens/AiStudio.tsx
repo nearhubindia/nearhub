@@ -36,6 +36,8 @@ type VoiceoverJob = {
   source_video_url: string;
   output_video_url?: string | null;
   language: VoiceLanguage;
+  title_text?: string | null;
+  script_text?: string | null;
   error_message?: string | null;
   created_at?: string;
 };
@@ -44,12 +46,27 @@ function formatJobDate(value?: string): string {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return (
+    date.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    }) + ' IST'
+  );
+}
+
+function getJobTitle(job: VoiceoverJob): string {
+  const explicitTitle = String(job.title_text || '').trim();
+  if (explicitTitle) return explicitTitle;
+  const script = String(job.script_text || '').trim();
+  const legacyMatch = script.match(/(?:^|\n)\s*Product:\s*(.+?)(?:\n|$)/i);
+  const legacyTitle = String(legacyMatch?.[1] || '').trim();
+  if (legacyTitle) return legacyTitle;
+  return 'Untitled Listing';
 }
 
 function PreviewVideo({
@@ -866,7 +883,9 @@ export default function AiStudio() {
                   <View key={item.id} style={styles.videoJobCard}>
                     <View style={styles.videoCardHeader}>
                       <View style={styles.metaRow}>
-                        <Text style={styles.languageText}>{item.language.toUpperCase()}</Text>
+                        <Text style={styles.languageText}>
+                          {getJobTitle(item)} • {item.language.toUpperCase()}
+                        </Text>
                         <Text style={styles.dateText}>{formatJobDate(item.created_at)}</Text>
                       </View>
                       <View
