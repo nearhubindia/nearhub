@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../../../data/db';
 import { listings } from '../../admin/models/admin-settings';
-import { moderateListingWithGemini } from '../../../shared/ai/gemini-moderation';
+import { moderateListing } from '../../../shared/ai/moderation';
 import { notifyAdminListingPendingReview } from '../../../shared/services/auto-notifications';
 
 type ModerationQueueRow = {
@@ -13,15 +13,40 @@ type ModerationQueueRow = {
 };
 
 function parseMediaField(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map((item) => String(item)).filter(Boolean);
-  if (typeof value !== 'string') return [];
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (value == null) return [];
+  if (typeof value !== 'string') {
+    return String(value).trim() ? [String(value).trim()] : [];
+  }
+
   const raw = value.trim();
   if (!raw) return [];
+  if (raw === '{}' || raw === '[]') return [];
+
   try {
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed.map((item) => String(item)).filter(Boolean);
-    return [String(parsed)];
+    if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean);
+    if (parsed == null) return [];
+    const single = String(parsed).trim();
+    return single ? [single] : [];
   } catch {
+    // Support Postgres array-literal format: {"a","b"} or {a,b}
+    if (raw.startsWith('{') && raw.endsWith('}')) {
+      const inner = raw.slice(1, -1).trim();
+      if (!inner) return [];
+      return inner
+        .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
+        .map((item) =>
+          item
+            .trim()
+            .replace(/^"(.*)"$/, '$1')
+            .replace(/\\"/g, '"')
+            .trim()
+        )
+        .filter(Boolean);
+    }
     return [raw];
   }
 }
@@ -120,7 +145,7 @@ export async function processListingModerationQueue(batchSize = 10): Promise<{
 
       const imageUrls = parseMediaField(listing.images);
       const videoUrls = parseMediaField(listing.videos);
-      const decision = await moderateListingWithGemini({
+      const decision = await moderateListing({
         title: String(listing.title || ''),
         description: String(listing.description || ''),
         category: String(listing.category || ''),
@@ -160,14 +185,44 @@ export async function processListingModerationQueue(batchSize = 10): Promise<{
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown moderation error';
       const reachedMax = job.attempts >= job.max_attempts;
-      await db.execute(sql`
-        UPDATE listing_moderation_queue
-        SET status = ${reachedMax ? 'failed' : 'pending'},
-            last_error = ${message},
-            updated_at = CURRENT_TIMESTAMP,
-            processed_at = ${reachedMax ? sql`CURRENT_TIMESTAMP` : null}
-        WHERE id = ${job.id}
-      `);
+      if (reachedMax) {
+        // Fail closed into manual review after retries so seller stays in
+        // pending approval flow without seeing provider-specific failures.
+        const listing = await db.query.listings.findFirst({
+          where: eq(listings.id, job.listing_id),
+        });
+        if (listing) {
+          notifyAdminListingPendingReview({
+            listingId: listing.id,
+            listingTitle: listing.title,
+            userId: String(listing.sellerId || ''),
+            location: String(listing.location || ''),
+            category: String(listing.category || ''),
+          }).catch((notifyError) => {
+            console.error('[ListingModerationWorker] Failed admin notification:', notifyError);
+          });
+        }
+
+        await db.execute(sql`
+          UPDATE listing_moderation_queue
+          SET status = 'completed',
+              reasons = 'Auto-routed to manual review after processing retries',
+              last_error = ${message},
+              updated_at = CURRENT_TIMESTAMP,
+              processed_at = CURRENT_TIMESTAMP
+          WHERE id = ${job.id}
+        `);
+        manualReview++;
+      } else {
+        await db.execute(sql`
+          UPDATE listing_moderation_queue
+          SET status = 'pending',
+              last_error = ${message},
+              updated_at = CURRENT_TIMESTAMP,
+              processed_at = NULL
+          WHERE id = ${job.id}
+        `);
+      }
       failed++;
     }
   }

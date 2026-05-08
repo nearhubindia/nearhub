@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -140,6 +141,7 @@ const LANGUAGE_OPTIONS: Array<{ key: VoiceLanguage; label: string }> = [
 ];
 const LAST_JOB_KEY_PREFIX = 'ai_studio_last_job_id:';
 const LOCAL_VIDEO_MAP_KEY_PREFIX = 'ai_studio_local_video_map:';
+const GENERIC_PROCESSING_ERROR = 'Error in processing. Please retry.';
 
 export default function AiStudio() {
   const insets = useSafeAreaInsets();
@@ -490,6 +492,31 @@ export default function AiStudio() {
     }
   };
 
+  const retryVideoJobById = async (jobId: string) => {
+    if (!user?.id) return;
+    setIsRegenerating(true);
+    try {
+      const response = await fetch(
+        `${getApiUrl()}/api/media/ai-voiceover/jobs/${encodeURIComponent(jobId)}/regenerate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+          body: JSON.stringify({ userId: user.id }),
+        }
+      );
+      const payload = await response.json();
+      if (!response.ok || !payload?.success || !payload?.job) {
+        throw new Error(payload?.error || 'Failed to retry');
+      }
+      await loadJobs();
+      Alert.alert('Retry started', 'Voice-over generation has been queued again.');
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to retry');
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
   const deleteJob = async () => {
     if (!job?.id || !user?.id) return;
     setIsDeleting(true);
@@ -540,7 +567,11 @@ export default function AiStudio() {
     try {
       const existingLocal = localVideoMap[jobId];
       if (existingLocal) {
-        await Linking.openURL(existingLocal);
+        const safeUri =
+          Platform.OS === 'android'
+            ? await FileSystem.getContentUriAsync(existingLocal)
+            : existingLocal;
+        await Linking.openURL(safeUri);
         return;
       }
 
@@ -883,7 +914,31 @@ export default function AiStudio() {
                       </View>
                     ) : null}
                     {!item.output_video_url && item.error_message ? (
-                      <Text style={styles.errorText}>{item.error_message}</Text>
+                      <Text style={styles.errorText}>{GENERIC_PROCESSING_ERROR}</Text>
+                    ) : null}
+                    {!item.output_video_url ? (
+                      <View style={styles.videoActionRow}>
+                        {item.status === 'failed' ? (
+                          <Pressable
+                            style={[styles.iconButton, isRegenerating && styles.disabledButton]}
+                            onPress={() => retryVideoJobById(item.id)}
+                            disabled={isRegenerating}
+                          >
+                            <Feather name="refresh-cw" size={18} color="#0F172A" />
+                          </Pressable>
+                        ) : null}
+                        <Pressable
+                          style={[
+                            styles.iconButton,
+                            styles.iconDangerButton,
+                            isDeleting && styles.disabledButton,
+                          ]}
+                          onPress={() => deleteVideoJobById(item.id)}
+                          disabled={isDeleting}
+                        >
+                          <Feather name="trash-2" size={18} color="#DC2626" />
+                        </Pressable>
+                      </View>
                     ) : null}
                   </View>
                 ))
@@ -1161,6 +1216,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     gap: 8,
+  },
+  videoActionRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
   },
   sourceVideoActionRail: {
     position: 'absolute',

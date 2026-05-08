@@ -74,5 +74,5 @@ else
   pm2 start "$APP_DIR/current/dist/index.js" --name "$PM2_APP_NAME" --cwd "$APP_DIR/current" --time
 fi
 pm2 save
-curl -sS http://127.0.0.1/api/health
+curl -fsS http://127.0.0.1:5000/api/health
 EOF

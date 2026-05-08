@@ -33,6 +33,7 @@ function remapLoopbackUrl(url: string): string {
 interface ShortsCardProps {
   title: string;
   price: number;
+  offerPrice?: number;
   image: string;
   images?: string[];
   videos?: string[];
@@ -306,6 +307,7 @@ function VideoPlayer({
 export default function ShortsCard({
   title,
   price,
+  offerPrice,
   image,
   images,
   videos,
@@ -356,6 +358,10 @@ export default function ShortsCard({
   const handlePlaybackError = useCallback(() => {
     setHasPlaybackError(true);
   }, []);
+
+  const hasValidOfferPrice =
+    typeof offerPrice === 'number' && Number.isFinite(offerPrice) && offerPrice > 0 && offerPrice < price;
+  const displayPrice = hasValidOfferPrice ? offerPrice : price;
 
   return (
     <View style={[styles.container, { width: cardWidth, height: cardHeight }]}>
@@ -429,8 +435,14 @@ export default function ShortsCard({
           <View style={styles.priceRow}>
             <Text style={styles.price}>
               {'\u20B9'}
-              {price.toLocaleString('en-IN')}
+              {displayPrice.toLocaleString('en-IN')}
             </Text>
+            {hasValidOfferPrice && (
+              <Text style={styles.originalPrice}>
+                {'\u20B9'}
+                {price.toLocaleString('en-IN')}
+              </Text>
+            )}
             <View style={styles.viewLink}>
               <Text style={styles.viewLinkText}>View</Text>
             </View>
@@ -519,7 +531,7 @@ const styles = createResponsiveStyles({
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
     marginBottom: 6,
   },
   price: {
@@ -527,7 +539,16 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_700Bold',
     color: '#fff',
   },
+  originalPrice: {
+    fontSize: 15,
+    fontFamily: 'Inter_500Medium',
+    color: 'rgba(255,255,255,0.75)',
+    textDecorationLine: 'line-through',
+    textDecorationColor: 'rgba(255,255,255,0.75)',
+    marginTop: 2,
+  },
   viewLink: {
+    marginLeft: 'auto',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

@@ -385,6 +385,7 @@ export default function ShortsScreen() {
           <ShortsCard
             title={item.title?.trim() || 'Untitled listing'}
             price={Number(item.price) || 0}
+            offerPrice={Number(item.offerPrice) || undefined}
             image={item.images?.[0] || ''}
             images={item.images}
             videos={item.videos}

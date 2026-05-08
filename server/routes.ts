@@ -1,5 +1,6 @@
 import type { Express } from 'express';
 import { createServer, type Server } from 'node:http';
+import { GoogleGenAI } from '@google/genai';
 // Location routes from search feature
 import { registerLocationRoutes } from './features/search/routes/location';
 // Admin feature routes
@@ -49,6 +50,7 @@ import { registerMessageRoutes } from './features/messages/routes/messages';
 // Worker management routes
 import { registerWorkerRoutes } from './features/workers/routes/workers';
 import { registerApiDocsRoutes } from './shared/routes/api-docs';
+import { SERVER_CONFIG } from './lib/config';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check
@@ -57,6 +59,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
       success: true,
       message: 'Server is running',
       timestamp: new Date().toISOString(),
+      origin: req.header('origin') || '(no origin header)',
+    });
+  });
+
+  app.get('/api/health/ai', async (req, res) => {
+    const moderationModel = process.env.GEMINI_MODERATION_MODEL || 'gemini-2.5-flash';
+    const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
+    const hasApiKey = Boolean(SERVER_CONFIG.GOOGLE_GENAI_API_KEY);
+    const aiFeaturesEnabled = Boolean(SERVER_CONFIG.AI_FEATURES_ENABLED);
+
+    if (!aiFeaturesEnabled) {
+      return res.status(503).json({
+        success: false,
+        status: 'degraded',
+        message: 'AI features are disabled',
+        timestamp: new Date().toISOString(),
+        checks: {
+          apiKeyConfigured: hasApiKey,
+          moderation: { ok: false, model: moderationModel, reason: 'AI_FEATURES_DISABLED' },
+          tts: { ok: false, model: ttsModel, reason: 'AI_FEATURES_DISABLED' },
+        },
+      });
+    }
+
+    if (!hasApiKey) {
+      return res.status(503).json({
+        success: false,
+        status: 'degraded',
+        message: 'Google GenAI API key is not configured',
+        timestamp: new Date().toISOString(),
+        checks: {
+          apiKeyConfigured: false,
+          moderation: { ok: false, model: moderationModel, reason: 'MISSING_API_KEY' },
+          tts: { ok: false, model: ttsModel, reason: 'MISSING_API_KEY' },
+        },
+      });
+    }
+
+    const ai = new GoogleGenAI({ apiKey: SERVER_CONFIG.GOOGLE_GENAI_API_KEY });
+    let moderationCheck: { ok: boolean; model: string; error?: string } = {
+      ok: false,
+      model: moderationModel,
+    };
+    let ttsCheck: { ok: boolean; model: string; error?: string } = {
+      ok: false,
+      model: ttsModel,
+    };
+
+    try {
+      await ai.models.generateContent({
+        model: moderationModel,
+        contents: 'Return exactly: ok',
+      });
+      moderationCheck = { ok: true, model: moderationModel };
+    } catch (error) {
+      moderationCheck = {
+        ok: false,
+        model: moderationModel,
+        error: error instanceof Error ? error.message : 'Moderation check failed',
+      };
+    }
+
+    try {
+      const response = await ai.models.generateContent({
+        model: ttsModel,
+        contents: 'NearHub AI health check',
+        config: {
+          responseModalities: ['AUDIO'],
+        } as any,
+      });
+      const parts = Array.isArray(response?.candidates?.[0]?.content?.parts)
+        ? (response.candidates?.[0]?.content?.parts as any[])
+        : [];
+      const hasAudio = parts.some(
+        (part) => typeof part?.inlineData?.data === 'string' && part.inlineData.data.length > 0
+      );
+      ttsCheck = hasAudio
+        ? { ok: true, model: ttsModel }
+        : { ok: false, model: ttsModel, error: 'TTS response had no audio payload' };
+    } catch (error) {
+      ttsCheck = {
+        ok: false,
+        model: ttsModel,
+        error: error instanceof Error ? error.message : 'TTS check failed',
+      };
+    }
+
+    const allHealthy = moderationCheck.ok && ttsCheck.ok;
+    return res.status(allHealthy ? 200 : 503).json({
+      success: allHealthy,
+      status: allHealthy ? 'healthy' : 'degraded',
+      message: allHealthy ? 'AI providers reachable' : 'One or more AI checks failed',
+      timestamp: new Date().toISOString(),
+      checks: {
+        apiKeyConfigured: true,
+        moderation: moderationCheck,
+        tts: ttsCheck,
+      },
       origin: req.header('origin') || '(no origin header)',
     });
   });
