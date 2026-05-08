@@ -111,6 +111,12 @@ Return only script text.`,
           error: 'userId, sourceVideoUrl, and language (telugu|kannada|hindi) are required',
         });
       }
+      if (!titleText) {
+        return res.status(400).json({
+          success: false,
+          error: 'title is required',
+        });
+      }
 
       const existingActive = await db.execute(sql`
         SELECT id, status
