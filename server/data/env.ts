@@ -12,19 +12,29 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
-const cwd = process.cwd();
-const envPath =
-  path.basename(cwd) === 'server' ? path.resolve(cwd, '.env') : path.resolve(cwd, 'server/.env');
-let loaded = false;
 
-if (fs.existsSync(envPath)) {
+const cwd = process.cwd();
+const envCandidates = [
+  process.env.NEARHUB_ENV_FILE || '',
+  // Local dev when running from server/
+  path.resolve(cwd, '.env'),
+  // Monorepo root style run
+  path.resolve(cwd, 'server/.env'),
+  // Release runtime where cwd is /releases/<timestamp>
+  path.resolve(cwd, '../shared/.env'),
+  // Production fallback used by deployment symlink target
+  '/etc/nearhub/server.env',
+].filter(Boolean);
+
+let loaded = false;
+for (const envPath of envCandidates) {
+  if (!fs.existsSync(envPath)) continue;
   const result = dotenv.config({ path: envPath });
   if (!result.error) {
     console.log(`[Env] Loaded: ${envPath}`);
     loaded = true;
+    break;
   }
 }
 
-if (!loaded) {
-  console.warn('[Env] ⚠️  No server .env file found');
-}
+if (!loaded) console.warn('[Env] ⚠️  No server .env file found');
