@@ -5,7 +5,7 @@ function normalizeRawPath(rawPath: string): string {
   try {
     const url = new URL(trimmed);
 
-    // nearhub://listing/<id> (custom scheme)
+    // nearhub://listing/<id> or nearhub://shorts/<id> (custom scheme)
     if ((url.protocol === 'nearhub:' || url.protocol === 'com.synvide.nearhub:') && url.hostname) {
       if (url.hostname.toLowerCase() === 'listing') {
         const customListingIdFromPath = decodeURIComponent(url.pathname.replace(/^\/+/, '')).trim();
@@ -18,6 +18,19 @@ function normalizeRawPath(rawPath: string): string {
         ).trim();
         if (customListingIdFromQuery) {
           return `/listing/${encodeURIComponent(customListingIdFromQuery)}`;
+        }
+      }
+      if (url.hostname.toLowerCase() === 'shorts') {
+        const customShortIdFromPath = decodeURIComponent(url.pathname.replace(/^\/+/, '')).trim();
+        if (customShortIdFromPath) {
+          return `/shorts/${encodeURIComponent(customShortIdFromPath)}`;
+        }
+
+        const customShortIdFromQuery = decodeURIComponent(
+          String(url.searchParams.get('id') || '')
+        ).trim();
+        if (customShortIdFromQuery) {
+          return `/shorts/${encodeURIComponent(customShortIdFromQuery)}`;
         }
       }
     }
@@ -50,11 +63,32 @@ function extractListingPath(pathname: string): string | null {
   return `/listing/${encodeURIComponent(listingId)}`;
 }
 
+function extractShortsPath(pathname: string): string | null {
+  const cleanPath = String(pathname || '')
+    .split('?')[0]
+    .split('#')[0]
+    .trim();
+  if (!cleanPath) return null;
+
+  const parts = cleanPath.split('/').filter(Boolean);
+  if (parts.length < 2) return null;
+  if (parts[0].toLowerCase() !== 'shorts') return null;
+
+  const listingId = decodeURIComponent(parts[1] || '').trim();
+  if (!listingId) return null;
+
+  return `/(tabs)/shorts?listingId=${encodeURIComponent(listingId)}`;
+}
+
 export function redirectSystemPath({ path }: { path: string; initial: boolean }) {
   const normalizedPath = normalizeRawPath(path);
   const listingPath = extractListingPath(normalizedPath);
   if (listingPath) {
     return listingPath;
+  }
+  const shortsPath = extractShortsPath(normalizedPath);
+  if (shortsPath) {
+    return shortsPath;
   }
 
   return '/';

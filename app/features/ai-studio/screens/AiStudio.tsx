@@ -680,188 +680,188 @@ export default function AiStudio() {
         {!user ? null : (
           <>
             <View style={styles.tabRow}>
-            <Pressable
-              style={[styles.tabButton, activeTab === 'generate' && styles.tabButtonActive]}
-              onPress={() => setActiveTab('generate')}
-            >
-              <Text style={[styles.tabText, activeTab === 'generate' && styles.tabTextActive]}>
-                Generate
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.tabButton, activeTab === 'videos' && styles.tabButtonActive]}
-              onPress={() => setActiveTab('videos')}
-            >
-              <Text style={[styles.tabText, activeTab === 'videos' && styles.tabTextActive]}>
-                Videos
-              </Text>
-            </Pressable>
-          </View>
+              <Pressable
+                style={[styles.tabButton, activeTab === 'generate' && styles.tabButtonActive]}
+                onPress={() => setActiveTab('generate')}
+              >
+                <Text style={[styles.tabText, activeTab === 'generate' && styles.tabTextActive]}>
+                  Generate
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.tabButton, activeTab === 'videos' && styles.tabButtonActive]}
+                onPress={() => setActiveTab('videos')}
+              >
+                <Text style={[styles.tabText, activeTab === 'videos' && styles.tabTextActive]}>
+                  Videos
+                </Text>
+              </Pressable>
+            </View>
             {activeTab === 'generate' ? (
               <>
-              <View style={styles.card}>
-                <Text style={styles.sectionTitle}>1. Source Video</Text>
-                <Text style={styles.sectionHint}>
-                  Record a fresh clip or pick one from gallery to start voice-over generation.
-                </Text>
-                <View style={styles.sourceActionGrid}>
-                  <Pressable style={styles.sourceActionCard} onPress={recordVideo}>
-                    <View style={styles.sourceActionIconWrap}>
-                      <Feather name="camera" size={18} color="#1D4ED8" />
-                    </View>
-                    <Text style={styles.sourceActionTitle}>Record Video</Text>
-                    <Text style={styles.sourceActionSubtext}>Capture now</Text>
-                  </Pressable>
-                  <Pressable style={styles.sourceActionCard} onPress={pickVideo}>
-                    <View style={styles.sourceActionIconWrap}>
-                      <Feather name="video" size={18} color="#1D4ED8" />
-                    </View>
-                    <Text style={styles.sourceActionTitle}>Select Video</Text>
-                    <Text style={styles.sourceActionSubtext}>From gallery</Text>
-                  </Pressable>
-                </View>
-                {sourceLocalUri ? (
-                  <View style={styles.sourceVideoWithActionsWrap}>
-                    <PreviewVideo uri={sourceLocalUri} style={styles.video} />
-                    <View style={styles.sourceVideoActionRail}>
-                      <Pressable
-                        style={[styles.iconButton, styles.iconDangerButton]}
-                        onPress={() => {
-                          setSourceLocalUri(null);
-                          setSourceMimeType(null);
-                          setSourceRemoteUrl(null);
-                        }}
-                      >
-                        <Feather name="trash-2" size={18} color="#DC2626" />
-                      </Pressable>
-                    </View>
+                <View style={styles.card}>
+                  <Text style={styles.sectionTitle}>1. Source Video</Text>
+                  <Text style={styles.sectionHint}>
+                    Record a fresh clip or pick one from gallery to start voice-over generation.
+                  </Text>
+                  <View style={styles.sourceActionGrid}>
+                    <Pressable style={styles.sourceActionCard} onPress={recordVideo}>
+                      <View style={styles.sourceActionIconWrap}>
+                        <Feather name="camera" size={18} color="#1D4ED8" />
+                      </View>
+                      <Text style={styles.sourceActionTitle}>Record Video</Text>
+                      <Text style={styles.sourceActionSubtext}>Capture now</Text>
+                    </Pressable>
+                    <Pressable style={styles.sourceActionCard} onPress={pickVideo}>
+                      <View style={styles.sourceActionIconWrap}>
+                        <Feather name="video" size={18} color="#1D4ED8" />
+                      </View>
+                      <Text style={styles.sourceActionTitle}>Select Video</Text>
+                      <Text style={styles.sourceActionSubtext}>From gallery</Text>
+                    </Pressable>
                   </View>
-                ) : null}
-                {sourceLocalUri ? (
+                  {sourceLocalUri ? (
+                    <View style={styles.sourceVideoWithActionsWrap}>
+                      <PreviewVideo uri={sourceLocalUri} style={styles.video} />
+                      <View style={styles.sourceVideoActionRail}>
+                        <Pressable
+                          style={[styles.iconButton, styles.iconDangerButton]}
+                          onPress={() => {
+                            setSourceLocalUri(null);
+                            setSourceMimeType(null);
+                            setSourceRemoteUrl(null);
+                          }}
+                        >
+                          <Feather name="trash-2" size={18} color="#DC2626" />
+                        </Pressable>
+                      </View>
+                    </View>
+                  ) : null}
+                  {sourceLocalUri ? (
+                    <Pressable
+                      style={[
+                        styles.primaryButton,
+                        styles.uploadButton,
+                        isUploadingSource && styles.disabledButton,
+                      ]}
+                      onPress={uploadSourceVideo}
+                      disabled={isUploadingSource}
+                    >
+                      {isUploadingSource ? <ActivityIndicator color={Colors.primary} /> : null}
+                      <Text style={styles.primaryButtonText}>
+                        {isUploadingSource ? 'Uploading...' : 'Upload Source Video'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                  {isUploadingSource ? (
+                    <View style={styles.uploadingRow}>
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                      <Text style={styles.uploadingText}>
+                        Uploading source video... {uploadProgress}%
+                      </Text>
+                    </View>
+                  ) : null}
+                  {isUploadingSource && uploadProgress > 0 ? (
+                    <View style={styles.uploadProgressWrap}>
+                      <UploadProgressBar progress={uploadProgress} />
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={styles.card}>
+                  <Text style={styles.sectionTitle}>2. Product Content</Text>
+                  <Text style={styles.sectionHint}>
+                    Add product title, highlights, and description for voice-over generation.
+                  </Text>
+                  <TextInput
+                    style={styles.contextInput}
+                    placeholder="Product Title"
+                    placeholderTextColor="#94A3B8"
+                    value={productTitle}
+                    onChangeText={setProductTitle}
+                    maxLength={100}
+                  />
+                  <TextInput
+                    style={[styles.contextInput, styles.contextInputMultiline]}
+                    multiline
+                    placeholder="Key highlights (RAM, storage, condition, battery, accessories, price)"
+                    placeholderTextColor="#94A3B8"
+                    value={highlights}
+                    onChangeText={setHighlights}
+                    maxLength={300}
+                  />
+                  <TextInput
+                    style={styles.scriptInput}
+                    multiline
+                    placeholder="Description for voice-over..."
+                    placeholderTextColor="#94A3B8"
+                    value={description}
+                    onChangeText={setDescription}
+                    maxLength={500}
+                  />
+                </View>
+
+                <View style={styles.card}>
+                  <Text style={styles.sectionTitle}>3. Select Language</Text>
+                  <View style={styles.languageRow}>
+                    {LANGUAGE_OPTIONS.map((item) => (
+                      <Pressable
+                        key={item.key}
+                        onPress={() => setLanguage(item.key)}
+                        style={[styles.langChip, language === item.key && styles.langChipActive]}
+                      >
+                        <Text
+                          style={[
+                            styles.langChipText,
+                            language === item.key && styles.langChipTextActive,
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.card}>
+                  <Text style={styles.sectionTitle}>4. Generate Voice-over</Text>
                   <Pressable
                     style={[
                       styles.primaryButton,
-                      styles.uploadButton,
-                      isUploadingSource && styles.disabledButton,
+                      (!canStart ||
+                        !productTitle.trim() ||
+                        !highlights.trim() ||
+                        !description.trim()) &&
+                        styles.disabledButton,
                     ]}
-                    onPress={uploadSourceVideo}
-                    disabled={isUploadingSource}
+                    disabled={
+                      !canStart || !productTitle.trim() || !highlights.trim() || !description.trim()
+                    }
+                    onPress={createJob}
                   >
-                    {isUploadingSource ? <ActivityIndicator color={Colors.primary} /> : null}
+                    {isCreatingJob ? <ActivityIndicator color="#fff" /> : null}
                     <Text style={styles.primaryButtonText}>
-                      {isUploadingSource ? 'Uploading...' : 'Upload Source Video'}
+                      {isUploadingSource
+                        ? 'Uploading Source Video...'
+                        : isCreatingJob
+                          ? 'Queueing...'
+                          : 'Generate Voice-over'}
                     </Text>
                   </Pressable>
-                ) : null}
-                {isUploadingSource ? (
-                  <View style={styles.uploadingRow}>
-                    <ActivityIndicator size="small" color={Colors.primary} />
-                    <Text style={styles.uploadingText}>
-                      Uploading source video... {uploadProgress}%
-                    </Text>
-                  </View>
-                ) : null}
-                {isUploadingSource && uploadProgress > 0 ? (
-                  <View style={styles.uploadProgressWrap}>
-                    <UploadProgressBar progress={uploadProgress} />
-                  </View>
-                ) : null}
-              </View>
-
-              <View style={styles.card}>
-                <Text style={styles.sectionTitle}>2. Product Content</Text>
-                <Text style={styles.sectionHint}>
-                  Add product title, highlights, and description for voice-over generation.
-                </Text>
-                <TextInput
-                  style={styles.contextInput}
-                  placeholder="Product Title"
-                  placeholderTextColor="#94A3B8"
-                  value={productTitle}
-                  onChangeText={setProductTitle}
-                  maxLength={100}
-                />
-                <TextInput
-                  style={[styles.contextInput, styles.contextInputMultiline]}
-                  multiline
-                  placeholder="Key highlights (RAM, storage, condition, battery, accessories, price)"
-                  placeholderTextColor="#94A3B8"
-                  value={highlights}
-                  onChangeText={setHighlights}
-                  maxLength={300}
-                />
-                <TextInput
-                  style={styles.scriptInput}
-                  multiline
-                  placeholder="Description for voice-over..."
-                  placeholderTextColor="#94A3B8"
-                  value={description}
-                  onChangeText={setDescription}
-                  maxLength={500}
-                />
-              </View>
-
-              <View style={styles.card}>
-                <Text style={styles.sectionTitle}>3. Select Language</Text>
-                <View style={styles.languageRow}>
-                  {LANGUAGE_OPTIONS.map((item) => (
-                    <Pressable
-                      key={item.key}
-                      onPress={() => setLanguage(item.key)}
-                      style={[styles.langChip, language === item.key && styles.langChipActive]}
-                    >
-                      <Text
-                        style={[
-                          styles.langChipText,
-                          language === item.key && styles.langChipTextActive,
-                        ]}
-                      >
-                        {item.label}
-                      </Text>
-                    </Pressable>
-                  ))}
                 </View>
-              </View>
 
-              <View style={styles.card}>
-                <Text style={styles.sectionTitle}>4. Generate Voice-over</Text>
-                <Pressable
-                  style={[
-                    styles.primaryButton,
-                    (!canStart ||
-                      !productTitle.trim() ||
-                      !highlights.trim() ||
-                      !description.trim()) &&
-                      styles.disabledButton,
-                  ]}
-                  disabled={
-                    !canStart || !productTitle.trim() || !highlights.trim() || !description.trim()
-                  }
-                  onPress={createJob}
-                >
-                  {isCreatingJob ? <ActivityIndicator color="#fff" /> : null}
-                  <Text style={styles.primaryButtonText}>
-                    {isUploadingSource
-                      ? 'Uploading Source Video...'
-                      : isCreatingJob
-                        ? 'Queueing...'
-                        : 'Generate Voice-over'}
-                  </Text>
-                </Pressable>
-              </View>
-
-              <VideoRecorderModal
-                visible={showRecorder}
-                onClose={() => setShowRecorder(false)}
-                onVideoRecorded={(recordedUri) => {
-                  setShowRecorder(false);
-                  setSourceLocalUri(recordedUri);
-                  setSourceMimeType('video/mp4');
-                  setSourceRemoteUrl(null);
-                  setJob(null);
-                  setReadyPromptShownForJob(null);
-                }}
-              />
+                <VideoRecorderModal
+                  visible={showRecorder}
+                  onClose={() => setShowRecorder(false)}
+                  onVideoRecorded={(recordedUri) => {
+                    setShowRecorder(false);
+                    setSourceLocalUri(recordedUri);
+                    setSourceMimeType('video/mp4');
+                    setSourceRemoteUrl(null);
+                    setJob(null);
+                    setReadyPromptShownForJob(null);
+                  }}
+                />
               </>
             ) : (
               <View style={styles.card}>
@@ -952,7 +952,10 @@ export default function AiStudio() {
                         ) : null}
                         {item.status === 'failed' ? (
                           <Pressable
-                            style={[styles.metaActionButton, isRegenerating && styles.disabledButton]}
+                            style={[
+                              styles.metaActionButton,
+                              isRegenerating && styles.disabledButton,
+                            ]}
                             onPress={() => retryVideoJobById(item.id)}
                             disabled={isRegenerating}
                             accessibilityRole="button"
@@ -962,7 +965,10 @@ export default function AiStudio() {
                           </Pressable>
                         ) : (
                           <Pressable
-                            style={[styles.metaActionButton, isLoadingJobs && styles.disabledButton]}
+                            style={[
+                              styles.metaActionButton,
+                              isLoadingJobs && styles.disabledButton,
+                            ]}
                             onPress={loadJobs}
                             disabled={isLoadingJobs}
                             accessibilityRole="button"
