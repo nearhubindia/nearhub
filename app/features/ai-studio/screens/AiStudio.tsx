@@ -2,17 +2,16 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
-  Platform,
+  Modal,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -27,7 +26,7 @@ import { getApiUrl } from '@/lib/query-client';
 import { VideoRecorderModal } from '@/shared/components/VideoRecorderModal';
 import UploadProgressBar from '@/shared/components/UploadProgressBar';
 
-type VoiceLanguage = 'telugu' | 'kannada' | 'hindi';
+type VoiceLanguage = 'telugu' | 'hindi' | 'english' | 'kannada';
 type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 type VoiceoverJob = {
@@ -44,7 +43,10 @@ type VoiceoverJob = {
 
 function formatJobDate(value?: string): string {
   if (!value) return '';
-  const date = new Date(value);
+  const raw = String(value).trim();
+  // Postgres `timestamp` values may arrive without timezone; treat those as UTC.
+  const normalized = /(?:Z|[+-]\d{2}:\d{2})$/i.test(raw) ? raw : `${raw}Z`;
+  const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return '';
   return (
     date.toLocaleString('en-IN', {
@@ -73,10 +75,12 @@ function PreviewVideo({
   uri,
   style,
   nativeControls = true,
+  showOverlayControl = true,
 }: {
   uri: string;
   style: any;
   nativeControls?: boolean;
+  showOverlayControl?: boolean;
 }) {
   const player = useVideoPlayer(uri, (instance) => {
     instance.loop = false;
@@ -122,7 +126,7 @@ function PreviewVideo({
         nativeControls={nativeControls}
         contentFit="contain"
       />
-      {!nativeControls ? (
+      {!nativeControls && showOverlayControl ? (
         <Pressable
           style={isPlaying ? styles.previewPlayButton : styles.previewReplayButton}
           onPress={() => {
@@ -153,8 +157,8 @@ function PreviewVideo({
 
 const LANGUAGE_OPTIONS: Array<{ key: VoiceLanguage; label: string }> = [
   { key: 'telugu', label: 'Telugu' },
-  { key: 'kannada', label: 'Kannada' },
   { key: 'hindi', label: 'Hindi' },
+  { key: 'english', label: 'English' },
 ];
 const LAST_JOB_KEY_PREFIX = 'ai_studio_last_job_id:';
 const LOCAL_VIDEO_MAP_KEY_PREFIX = 'ai_studio_local_video_map:';
@@ -183,6 +187,7 @@ export default function AiStudio() {
   const [jobs, setJobs] = useState<VoiceoverJob[]>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState(false);
   const [localVideoMap, setLocalVideoMap] = useState<Record<string, string>>({});
+  const [previewJob, setPreviewJob] = useState<VoiceoverJob | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const uploadProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -566,42 +571,35 @@ export default function AiStudio() {
     }
   };
 
-  const shareOutput = async () => {
-    if (!job?.output_video_url) return;
-    await Share.share({
-      message: `Check out my AI voice-over video: ${job.output_video_url}`,
-      url: job.output_video_url,
-    });
-  };
-
-  const shareVideo = async (url?: string | null) => {
-    if (!url) return;
-    await Share.share({
-      message: `Check out my AI voice-over video: ${url}`,
-      url,
-    });
-  };
-
   const downloadVideo = async (jobId: string, url?: string | null) => {
     if (!url || !user?.id) return;
     try {
-      const existingLocal = localVideoMap[jobId];
-      if (existingLocal) {
-        const safeUri =
-          Platform.OS === 'android'
-            ? await FileSystem.getContentUriAsync(existingLocal)
-            : existingLocal;
-        await Linking.openURL(safeUri);
-        return;
+      const mediaPermission = await MediaLibrary.requestPermissionsAsync();
+      if (!mediaPermission.granted) {
+        throw new Error('Media library permission is required to save videos.');
       }
 
-      const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+      const existingLocal = localVideoMap[jobId];
+      const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
       if (!baseDir) throw new Error('No writable local directory available');
-      const targetUri = `${baseDir}ai_studio_${jobId}.mp4`;
-      await FileSystem.downloadAsync(url, targetUri);
+      const targetUri = existingLocal || `${baseDir}ai_studio_${jobId}.mp4`;
+
+      if (!existingLocal) {
+        await FileSystem.downloadAsync(url, targetUri);
+      }
+
+      const asset = await MediaLibrary.createAssetAsync(targetUri);
+      const album = await MediaLibrary.getAlbumAsync('NearHub');
+      if (album) {
+        await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+      } else {
+        await MediaLibrary.createAlbumAsync('NearHub', asset, false);
+      }
+
       const next = { ...localVideoMap, [jobId]: targetUri };
       await persistLocalVideoMap(user.id, next);
-      Alert.alert('Downloaded', 'Video downloaded and available for local playback.');
+
+      Alert.alert('Downloaded', 'Video saved to your device gallery in the NearHub album.');
     } catch (error) {
       Alert.alert(
         'Download failed',
@@ -634,48 +632,54 @@ export default function AiStudio() {
     }
   };
 
+  const openPreview = (item: VoiceoverJob) => {
+    if (!item.output_video_url) return;
+    setPreviewJob(item);
+  };
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[
-        styles.content,
-        {
-          paddingTop: Math.max(insets.top, 10),
-          paddingBottom: Math.max(insets.bottom + 28, 120),
-        },
-      ]}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>AI Studio</Text>
-        <Text style={styles.subtitle}>Create, dub, preview, and share AI voice-over videos.</Text>
-      </View>
-      {!user ? (
-        <View style={styles.authCard}>
-          <View style={styles.authIconWrap}>
-            <Feather name="user-plus" size={18} color="#1D4ED8" />
-          </View>
-          <Text style={styles.authTitle}>Sign in to use AI Studio</Text>
-          <Text style={styles.authSubtitle}>
-            Register with your mobile number to create AI voice-over videos and manage your
-            generated clips.
-          </Text>
-          <Pressable style={styles.authButton} onPress={() => router.push('/auth/register')}>
-            <LinearGradient
-              colors={[Colors.primaryLight, Colors.primary, Colors.primaryDark]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.authButtonGradient}
-            >
-              <Feather name="smartphone" size={18} color="#fff" />
-              <Text style={styles.authButtonText}>Register with Mobile</Text>
-            </LinearGradient>
-          </Pressable>
+    <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingTop: Math.max(insets.top, 10),
+            paddingBottom: Math.max(insets.bottom + 28, 120),
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>AI Studio</Text>
+          <Text style={styles.subtitle}>Create, dub, preview, and share AI voice-over videos.</Text>
         </View>
-      ) : null}
-      {!user ? null : (
-        <>
-          <View style={styles.tabRow}>
+        {!user ? (
+          <View style={styles.authCard}>
+            <View style={styles.authIconWrap}>
+              <Feather name="user-plus" size={18} color="#1D4ED8" />
+            </View>
+            <Text style={styles.authTitle}>Sign in to use AI Studio</Text>
+            <Text style={styles.authSubtitle}>
+              Register with your mobile number to create AI voice-over videos and manage your
+              generated clips.
+            </Text>
+            <Pressable style={styles.authButton} onPress={() => router.push('/auth/register')}>
+              <LinearGradient
+                colors={[Colors.primaryLight, Colors.primary, Colors.primaryDark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.authButtonGradient}
+              >
+                <Feather name="smartphone" size={18} color="#fff" />
+                <Text style={styles.authButtonText}>Register with Mobile</Text>
+              </LinearGradient>
+            </Pressable>
+          </View>
+        ) : null}
+        {!user ? null : (
+          <>
+            <View style={styles.tabRow}>
             <Pressable
               style={[styles.tabButton, activeTab === 'generate' && styles.tabButtonActive]}
               onPress={() => setActiveTab('generate')}
@@ -693,8 +697,8 @@ export default function AiStudio() {
               </Text>
             </Pressable>
           </View>
-          {activeTab === 'generate' ? (
-            <>
+            {activeTab === 'generate' ? (
+              <>
               <View style={styles.card}>
                 <Text style={styles.sectionTitle}>1. Source Video</Text>
                 <Text style={styles.sectionHint}>
@@ -858,118 +862,160 @@ export default function AiStudio() {
                   setReadyPromptShownForJob(null);
                 }}
               />
-            </>
-          ) : (
-            <View style={styles.card}>
-              <View style={styles.videosHeader}>
-                <Pressable
-                  style={styles.refreshIconButton}
-                  onPress={loadJobs}
-                  disabled={isLoadingJobs}
-                >
-                  {isLoadingJobs ? (
-                    <ActivityIndicator size="small" color="#0F172A" />
-                  ) : (
-                    <Feather name="refresh-cw" size={16} color="#0F172A" />
-                  )}
-                </Pressable>
-              </View>
-              {jobs.length === 0 ? (
-                <Text style={styles.sectionHint}>
-                  No AI videos yet. Generate one from the Generate tab.
-                </Text>
-              ) : (
-                jobs.map((item) => (
-                  <View key={item.id} style={styles.videoJobCard}>
-                    <View style={styles.videoCardHeader}>
-                      <View style={styles.metaRow}>
-                        <Text style={styles.languageText}>
-                          {getJobTitle(item)} • {item.language.toUpperCase()}
-                        </Text>
-                        <Text style={styles.dateText}>{formatJobDate(item.created_at)}</Text>
-                      </View>
-                      <View
-                        style={[
-                          styles.statusChip,
-                          item.status === 'completed'
-                            ? styles.statusChipCompleted
-                            : item.status === 'failed'
-                              ? styles.statusChipFailed
-                              : styles.statusChipPending,
-                        ]}
-                      >
-                        <Text style={styles.statusChipText}>{item.status.toUpperCase()}</Text>
-                      </View>
-                    </View>
-                    {item.output_video_url ? (
-                      <View style={styles.videoWithActionsWrap}>
-                        <PreviewVideo
-                          uri={localVideoMap[item.id] || item.output_video_url}
-                          style={styles.video}
-                          nativeControls={false}
-                        />
-                        <View style={styles.videoActionRail}>
-                          <Pressable
-                            style={styles.iconButton}
-                            onPress={() => shareVideo(item.output_video_url)}
-                          >
-                            <Feather name="share-2" size={18} color="#0F172A" />
-                          </Pressable>
-                          <Pressable
-                            style={styles.iconButton}
-                            onPress={() => downloadVideo(item.id, item.output_video_url)}
-                          >
-                            <Feather name="download" size={18} color="#0F172A" />
-                          </Pressable>
-                          <Pressable
+              </>
+            ) : (
+              <View style={styles.card}>
+                <View style={styles.videosHeader}>
+                  <View>
+                    <Text style={styles.sectionTitle}>Generated Videos</Text>
+                    <Text style={styles.sectionHintTight}>
+                      Tap expand on any thumbnail for enlarged view.
+                    </Text>
+                  </View>
+                  <Pressable
+                    style={styles.refreshIconButton}
+                    onPress={loadJobs}
+                    disabled={isLoadingJobs}
+                  >
+                    {isLoadingJobs ? (
+                      <ActivityIndicator size="small" color="#0F172A" />
+                    ) : (
+                      <Feather name="refresh-cw" size={16} color="#0F172A" />
+                    )}
+                  </Pressable>
+                </View>
+                {jobs.length === 0 ? (
+                  <Text style={styles.sectionHint}>
+                    No AI videos yet. Generate one from the Generate tab.
+                  </Text>
+                ) : (
+                  jobs.map((item) => (
+                    <View key={item.id} style={styles.videoGridCard}>
+                      <View style={styles.videoGridTopRow}>
+                        <View style={styles.videoThumbWrap}>
+                          {item.output_video_url ? (
+                            <PreviewVideo
+                              uri={localVideoMap[item.id] || item.output_video_url}
+                              style={styles.videoThumb}
+                              nativeControls={false}
+                              showOverlayControl={false}
+                            />
+                          ) : (
+                            <View style={styles.videoThumbPlaceholder}>
+                              <Feather name="video-off" size={18} color="#94A3B8" />
+                              <Text style={styles.videoThumbPlaceholderText}>Processing video</Text>
+                            </View>
+                          )}
+                          {item.output_video_url ? (
+                            <Pressable
+                              style={styles.expandButtonCenter}
+                              onPress={() => openPreview(item)}
+                            >
+                              <Feather name="maximize-2" size={18} color="#FFFFFF" />
+                            </Pressable>
+                          ) : null}
+                        </View>
+                        <View style={styles.videoMetaSection}>
+                          <Text style={styles.videoTitleText} numberOfLines={2}>
+                            {getJobTitle(item)}
+                          </Text>
+                          <Text style={styles.videoMetaText}>
+                            {formatJobDate(item.created_at)} • {item.language.toUpperCase()}
+                          </Text>
+                          <View
                             style={[
-                              styles.iconButton,
-                              styles.iconDangerButton,
-                              isDeleting && styles.disabledButton,
+                              styles.statusChip,
+                              item.status === 'completed'
+                                ? styles.statusChipCompleted
+                                : item.status === 'failed'
+                                  ? styles.statusChipFailed
+                                  : styles.statusChipPending,
                             ]}
-                            onPress={() => deleteVideoJobById(item.id)}
-                            disabled={isDeleting}
                           >
-                            <Feather name="trash-2" size={18} color="#DC2626" />
-                          </Pressable>
+                            <Text style={styles.statusChipText}>{item.status.toUpperCase()}</Text>
+                          </View>
+                          {!item.output_video_url && item.error_message ? (
+                            <Text style={styles.errorText}>{GENERIC_PROCESSING_ERROR}</Text>
+                          ) : null}
                         </View>
                       </View>
-                    ) : null}
-                    {!item.output_video_url && item.error_message ? (
-                      <Text style={styles.errorText}>{GENERIC_PROCESSING_ERROR}</Text>
-                    ) : null}
-                    {!item.output_video_url ? (
-                      <View style={styles.videoActionRow}>
-                        {item.status === 'failed' ? (
+                      <View style={styles.videoMetaActionsRow}>
+                        {item.output_video_url ? (
                           <Pressable
-                            style={[styles.iconButton, isRegenerating && styles.disabledButton]}
-                            onPress={() => retryVideoJobById(item.id)}
-                            disabled={isRegenerating}
+                            style={styles.metaActionButton}
+                            onPress={() => downloadVideo(item.id, item.output_video_url)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Download video"
                           >
-                            <Feather name="refresh-cw" size={18} color="#0F172A" />
+                            <Feather name="download" size={14} color="#0F172A" />
                           </Pressable>
                         ) : null}
+                        {item.status === 'failed' ? (
+                          <Pressable
+                            style={[styles.metaActionButton, isRegenerating && styles.disabledButton]}
+                            onPress={() => retryVideoJobById(item.id)}
+                            disabled={isRegenerating}
+                            accessibilityRole="button"
+                            accessibilityLabel="Retry generation"
+                          >
+                            <Feather name="refresh-cw" size={14} color="#0F172A" />
+                          </Pressable>
+                        ) : (
+                          <Pressable
+                            style={[styles.metaActionButton, isLoadingJobs && styles.disabledButton]}
+                            onPress={loadJobs}
+                            disabled={isLoadingJobs}
+                            accessibilityRole="button"
+                            accessibilityLabel="Refresh videos"
+                          >
+                            <Feather name="refresh-cw" size={14} color="#0F172A" />
+                          </Pressable>
+                        )}
                         <Pressable
                           style={[
-                            styles.iconButton,
-                            styles.iconDangerButton,
+                            styles.metaActionButton,
+                            styles.metaActionDangerButton,
                             isDeleting && styles.disabledButton,
                           ]}
                           onPress={() => deleteVideoJobById(item.id)}
                           disabled={isDeleting}
+                          accessibilityRole="button"
+                          accessibilityLabel="Delete video"
                         >
-                          <Feather name="trash-2" size={18} color="#DC2626" />
+                          <Feather name="trash-2" size={14} color="#B91C1C" />
                         </Pressable>
                       </View>
-                    ) : null}
-                  </View>
-                ))
-              )}
-            </View>
-          )}
-        </>
-      )}
-    </ScrollView>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+          </>
+        )}
+      </ScrollView>
+      <Modal visible={Boolean(previewJob)} animationType="fade" transparent>
+        <View style={styles.previewModalBackdrop}>
+          <Pressable style={styles.previewModalClose} onPress={() => setPreviewJob(null)}>
+            <Feather name="x" size={18} color="#FFFFFF" />
+          </Pressable>
+          {previewJob?.output_video_url ? (
+            <PreviewVideo
+              uri={localVideoMap[previewJob.id] || previewJob.output_video_url}
+              style={styles.previewModalVideo}
+              nativeControls
+            />
+          ) : null}
+          <View style={styles.previewMetaBar}>
+            <Text style={styles.previewModalTitle} numberOfLines={2}>
+              {previewJob ? getJobTitle(previewJob) : ''}
+            </Text>
+            <Text style={styles.previewModalMeta}>
+              {previewJob ? formatJobDate(previewJob.created_at) : ''}
+            </Text>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -1081,8 +1127,12 @@ const styles = StyleSheet.create({
   videosHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  sectionHintTight: {
+    color: '#64748B',
+    fontSize: 12,
   },
   refreshIconButton: {
     width: 36,
@@ -1101,6 +1151,145 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     padding: 12,
     backgroundColor: '#FCFDFF',
+  },
+  videoGridCard: {
+    marginTop: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 8,
+    backgroundColor: '#FCFDFF',
+    gap: 4,
+  },
+  videoGridTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  videoThumbWrap: {
+    width: 154,
+    position: 'relative',
+  },
+  videoThumb: {
+    width: 154,
+    height: 88,
+    borderRadius: 10,
+    backgroundColor: '#0F172A',
+  },
+  videoThumbPlaceholder: {
+    width: 154,
+    height: 88,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  videoThumbPlaceholderText: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  expandButtonCenter: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
+    marginLeft: -20,
+    marginTop: -20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(15,23,42,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  videoMetaSection: {
+    flex: 1,
+    minWidth: 0,
+  },
+  videoTitleText: {
+    color: '#0F172A',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  videoMetaText: {
+    color: '#64748B',
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  videoMetaActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: -2,
+  },
+  metaActionButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metaActionDangerButton: {
+    borderColor: '#FECACA',
+    backgroundColor: '#FEF2F2',
+  },
+  previewModalBackdrop: {
+    flex: 1,
+    backgroundColor: '#020617',
+    justifyContent: 'center',
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+  },
+  previewModalTitle: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  previewModalClose: {
+    position: 'absolute',
+    right: 14,
+    top: 54,
+    zIndex: 5,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15,23,42,0.7)',
+  },
+  previewModalVideo: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#0F172A',
+  },
+  previewMetaBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(2,6,23,0.55)',
+  },
+  previewModalMeta: {
+    marginTop: 4,
+    color: '#E2E8F0',
+    fontSize: 12,
+    fontWeight: '600',
   },
   videoCardHeader: {
     marginBottom: 8,

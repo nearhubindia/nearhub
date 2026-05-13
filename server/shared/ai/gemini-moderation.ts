@@ -159,11 +159,11 @@ Video count: ${videoUrls.length}`;
     const suspiciousByConfidence = parsed.confidence < 0.65;
     const hasRisk = detectedRisks.length > 0 || !parsed.safe;
     const hasVideo = videoUrls.length > 0;
-    const requiresManualReview = hasRisk || suspiciousByConfidence || hasVideo;
+    const requiresManualReview = hasRisk || suspiciousByConfidence;
 
     const reasons = [...parsed.reasons];
     if (suspiciousByConfidence) reasons.push('Low moderation confidence');
-    if (hasVideo) reasons.push('Video listing routed to manual review');
+    if (hasVideo && !requiresManualReview) reasons.push('Video listing passed moderation checks');
 
     return {
       shouldAutoApprove: !requiresManualReview,

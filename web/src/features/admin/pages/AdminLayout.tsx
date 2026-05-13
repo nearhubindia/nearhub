@@ -210,7 +210,7 @@ export default function AdminLayout() {
           </div>
         )}
 
-        <div className="min-w-0 flex-1">
+        <div className="admin-typography min-w-0 flex-1">
           <Outlet />
         </div>
       </div>

@@ -145,12 +145,39 @@ export async function processListingModerationQueue(batchSize = 10): Promise<{
 
       const imageUrls = parseMediaField(listing.images);
       const videoUrls = parseMediaField(listing.videos);
-      const decision = await moderateListing({
+      let decision = await moderateListing({
         title: String(listing.title || ''),
         description: String(listing.description || ''),
         category: String(listing.category || ''),
         imageUrls,
         videoUrls,
+      });
+
+      const combinedText = `${String(listing.title || '')}\n${String(listing.description || '')}`.toLowerCase();
+      const hasCriticalTextRisk =
+        /\b(drug|drugs|cocaine|heroin|ganja|weed|marijuana|mdma|ecstasy|lsd)\b/i.test(combinedText) ||
+        /\b(gun|guns|handgun|pistol|revolver|rifle|shotgun|firearm|ammo|ammunition)\b/i.test(
+          combinedText
+        ) ||
+        /\b(knife|knives|dagger|machete|switchblade|sword)\b/i.test(combinedText) ||
+        /\b(nude|nudity|explicit|porn|sexual|escort)\b/i.test(combinedText);
+
+      if (hasCriticalTextRisk) {
+        decision = {
+          ...decision,
+          shouldAutoApprove: false,
+          requiresManualReview: true,
+          reasons: [...decision.reasons, 'Text indicates policy-sensitive content'],
+        };
+      }
+
+      console.log('[ListingModerationWorker][Debug]', {
+        listingId: listing.id,
+        title: String(listing.title || ''),
+        hasCriticalTextRisk,
+        decisionShouldAutoApprove: decision.shouldAutoApprove,
+        decisionRequiresManualReview: decision.requiresManualReview,
+        decisionReasons: decision.reasons,
       });
 
       if (decision.shouldAutoApprove) {

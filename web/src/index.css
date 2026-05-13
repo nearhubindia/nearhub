@@ -124,6 +124,14 @@ svg {
   border-radius: 999px;
 }
 
+/* Keep admin page headers visually consistent and normal-weight. */
+.admin-typography h1,
+.admin-typography h2,
+.admin-typography h3 {
+  font-weight: 400 !important;
+  letter-spacing: 0;
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

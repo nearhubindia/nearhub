@@ -24,6 +24,7 @@ interface VideoRecorderModalProps {
 }
 
 const MAX_RECORDING_FILE_SIZE_BYTES = 35 * 1024 * 1024;
+const MIN_RECORDING_HOLD_MS = 700;
 
 /**
  * Video Recorder Modal Component
@@ -48,6 +49,8 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
   const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordingPromiseRef = useRef<Promise<any> | null>(null);
   const recordingStartTimeRef = useRef<number>(0);
+  const stopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isStopScheduledRef = useRef(false);
 
   // Check both camera and audio permissions
   const hasCameraPermission = cameraPermission?.granted ?? false;
@@ -94,6 +97,11 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
       if (recordingIntervalRef.current) {
         clearInterval(recordingIntervalRef.current);
       }
+      if (stopTimeoutRef.current) {
+        clearTimeout(stopTimeoutRef.current);
+        stopTimeoutRef.current = null;
+      }
+      isStopScheduledRef.current = false;
     }
   }, [visible, getCameraPermission]);
 
@@ -179,6 +187,9 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
       if (recordingIntervalRef.current) {
         clearInterval(recordingIntervalRef.current);
       }
+      if (stopTimeoutRef.current) {
+        clearTimeout(stopTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -220,6 +231,7 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
       setIsRecording(true);
       setRecordingTime(0);
       setRecordedVideoUri('');
+      isStopScheduledRef.current = false;
       recordingStartTimeRef.current = Date.now();
 
       // Start recording - this promise resolves when recording stops
@@ -249,16 +261,19 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
 
       // "stopped before any data" means it was cancelled - not a real error
       const errorMsg = (error?.message || '').toLowerCase();
+      const elapsedMs = Date.now() - recordingStartTimeRef.current;
       const isCancellation =
         errorMsg.includes('stopped') ||
         errorMsg.includes('cancelled') ||
         errorMsg.includes('cancel') ||
         errorMsg.includes('abort');
+      const isLikelyEarlyReleaseUnknownError =
+        errorMsg.includes('unknown error') && elapsedMs < MIN_RECORDING_HOLD_MS + 300;
 
-      if (!isCancellation) {
+      if (!isCancellation && !isLikelyEarlyReleaseUnknownError) {
         Alert.alert(
           'Recording Error',
-          `Failed to record video: ${error?.message || 'Unknown error'}`
+          'Could not record this clip. Please hold the record button a bit longer and try again.'
         );
       }
     }
@@ -270,13 +285,29 @@ export const VideoRecorderModal: React.FC<VideoRecorderModalProps> = ({
       return;
     }
 
-    const actualDuration = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000);
-    console.log('[VideoRecorderModal] Stopping recording at', actualDuration, 'seconds...');
+    if (isStopScheduledRef.current) {
+      return;
+    }
 
-    // stopRecording() is synchronous (returns void)
-    // It triggers recordAsync() promise to resolve with the video URI
-    cameraRef.current.stopRecording();
-    console.log('[VideoRecorderModal] Stop command sent');
+    const elapsedMs = Date.now() - recordingStartTimeRef.current;
+    const remainingMs = Math.max(0, MIN_RECORDING_HOLD_MS - elapsedMs);
+    const performStop = () => {
+      if (!cameraRef.current || !isRecording) return;
+      const actualDuration = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000);
+      console.log('[VideoRecorderModal] Stopping recording at', actualDuration, 'seconds...');
+      cameraRef.current.stopRecording();
+      console.log('[VideoRecorderModal] Stop command sent');
+      isStopScheduledRef.current = false;
+      stopTimeoutRef.current = null;
+    };
+
+    if (remainingMs > 0) {
+      isStopScheduledRef.current = true;
+      stopTimeoutRef.current = setTimeout(performStop, remainingMs);
+      return;
+    }
+
+    performStop();
   };
 
   const handleRecordingComplete = async (uri: string) => {
