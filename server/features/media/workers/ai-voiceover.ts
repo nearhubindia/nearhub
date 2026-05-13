@@ -101,7 +101,8 @@ async function callGeminiWithRetry<T>(operationLabel: string, fn: () => Promise<
       await delay(backoff + jitter);
     }
   }
-  const message = lastError instanceof Error ? lastError.message : String(lastError || 'Unknown error');
+  const message =
+    lastError instanceof Error ? lastError.message : String(lastError || 'Unknown error');
   throw new Error(`${operationLabel} failed after retries: ${message}`);
 }
 
@@ -313,7 +314,6 @@ function getTtsStyleInstruction(language: VoiceoverJob['language']): string {
   ].join(' ');
 }
 
-
 function postProcessNarrationScript(
   language: VoiceoverJob['language'],
   inputScript: string
@@ -386,7 +386,6 @@ function postProcessNarrationScript(
 
   return script;
 }
-
 
 function normalizeContextValue(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -649,7 +648,9 @@ function enforceSalesRubric(
   script: string,
   context: { title: string; highlights: string; description: string }
 ): string {
-  const normalized = String(script || '').replace(/\s+/g, ' ').trim();
+  const normalized = String(script || '')
+    .replace(/\s+/g, ' ')
+    .trim();
   const title = (context.title || '').trim();
   const highlights = (context.highlights || '').trim();
   const description = (context.description || '').trim();
@@ -672,11 +673,13 @@ function enforceSalesRubric(
   if (!titleMentioned) {
     if (language === 'hindi') result = `${title} बिक्री के लिए उपलब्ध है. ${result}`.trim();
     else if (language === 'kannada') result = `${title} ಈಗ ಮಾರಾಟಕ್ಕೆ ಲಭ್ಯವಿದೆ. ${result}`.trim();
-    else if (language === 'telugu') result = `${title} ఇప్పుడు అమ్మకానికి అందుబాటులో ఉంది. ${result}`.trim();
+    else if (language === 'telugu')
+      result = `${title} ఇప్పుడు అమ్మకానికి అందుబాటులో ఉంది. ${result}`.trim();
     else result = `${title} is now available for sale. ${result}`.trim();
   }
 
-  const benefitSignals = /(highlight|feature|benefit|performance|condition|quality|usage|విశేష|పనితీరు|మంచి|ವೈಶಿಷ್ಟ|ಕಾರ್ಯಕ್ಷಮ|उपयोग|फीचर|परफॉर्मेंस)/i;
+  const benefitSignals =
+    /(highlight|feature|benefit|performance|condition|quality|usage|విశేష|పనితీరు|మంచి|ವೈಶಿಷ್ಟ|ಕಾರ್ಯಕ್ಷಮ|उपयोग|फीचर|परफॉर्मेंस)/i;
   const hasBenefitLine = benefitSignals.test(result) || Boolean(highlights || description);
   if (!hasBenefitLine && highlights) {
     if (language === 'hindi') result = `${result} मुख्य विशेषताएँ: ${highlights}.`;
@@ -685,10 +688,12 @@ function enforceSalesRubric(
     else result = `${result} Key highlights: ${highlights}.`;
   }
 
-  const ctaSignals = /(contact|call|message|check this listing|seller|book now|సంప్రదించ|ಮಾರಾಟಗಾರ|ವಿಕ್ರೇತ|ಸಂಪರ್ಕಿಸಿ|संपर्क|विक्रेता)/i;
+  const ctaSignals =
+    /(contact|call|message|check this listing|seller|book now|సంప్రదించ|ಮಾರಾಟಗಾರ|ವಿಕ್ರೇತ|ಸಂಪರ್ಕಿಸಿ|संपर्क|विक्रेता)/i;
   if (!ctaSignals.test(result)) {
     if (language === 'hindi') result = `${result} इच्छुक खरीदार अभी विक्रेता से संपर्क करें।`;
-    else if (language === 'kannada') result = `${result} ಆಸಕ್ತ ಖರೀದಿದಾರರು ತಕ್ಷಣ ಮಾರಾಟಗಾರರನ್ನು ಸಂಪರ್ಕಿಸಿ.`;
+    else if (language === 'kannada')
+      result = `${result} ಆಸಕ್ತ ಖರೀದಿದಾರರು ತಕ್ಷಣ ಮಾರಾಟಗಾರರನ್ನು ಸಂಪರ್ಕಿಸಿ.`;
     else if (language === 'telugu')
       result = `${result} ఆసక్తి ఉన్న కొనుగోలుదారులు వెంటనే విక్రేతను సంప్రదించండి.`;
     else result = `${result} Interested buyers can contact the seller now.`;
@@ -1119,7 +1124,11 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
     const job = await claimNextJob();
     if (!job) break;
     processed++;
-    console.info('[AI Voiceover] Job claimed', { jobId: job.id, attempt: job.attempts, language: job.language });
+    console.info('[AI Voiceover] Job claimed', {
+      jobId: job.id,
+      attempt: job.attempts,
+      language: job.language,
+    });
 
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'nearhub-ai-voiceover-'));
     const sourceVideoPath = path.join(tempDir, 'source.mp4');
@@ -1333,7 +1342,10 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
         AI_VOICEOVER_COMMAND_TIMEOUT_MS,
         'Voice-over upload'
       );
-      console.info('[AI Voiceover] Uploaded output', { jobId: job.id, outputUrl: uploaded.publicUrl });
+      console.info('[AI Voiceover] Uploaded output', {
+        jobId: job.id,
+        outputUrl: uploaded.publicUrl,
+      });
 
       await db.execute(sql`
         UPDATE ai_voiceover_jobs

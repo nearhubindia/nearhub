@@ -153,9 +153,12 @@ export async function processListingModerationQueue(batchSize = 10): Promise<{
         videoUrls,
       });
 
-      const combinedText = `${String(listing.title || '')}\n${String(listing.description || '')}`.toLowerCase();
+      const combinedText =
+        `${String(listing.title || '')}\n${String(listing.description || '')}`.toLowerCase();
       const hasCriticalTextRisk =
-        /\b(drug|drugs|cocaine|heroin|ganja|weed|marijuana|mdma|ecstasy|lsd)\b/i.test(combinedText) ||
+        /\b(drug|drugs|cocaine|heroin|ganja|weed|marijuana|mdma|ecstasy|lsd)\b/i.test(
+          combinedText
+        ) ||
         /\b(gun|guns|handgun|pistol|revolver|rifle|shotgun|firearm|ammo|ammunition)\b/i.test(
           combinedText
         ) ||

@@ -20,13 +20,32 @@ function getModerationProvider(): 'gemini' | 'aws' {
 type TextRisk = 'nudity' | 'drugs' | 'guns' | 'knives';
 
 const TEXT_RISK_RULES: Array<{ risk: TextRisk; pattern: RegExp; reason: string }> = [
-  { risk: 'drugs', pattern: /\b(drug|cocaine|heroin|ganja|weed|marijuana|mdma|ecstasy|lsd)\b/i, reason: 'Text indicates drugs-related content' },
-  { risk: 'guns', pattern: /\b(gun|pistol|revolver|rifle|shotgun|firearm|ammo|ammunition)\b/i, reason: 'Text indicates firearms-related content' },
-  { risk: 'knives', pattern: /\b(knife|dagger|machete|switchblade|sword)\b/i, reason: 'Text indicates edged-weapon content' },
-  { risk: 'nudity', pattern: /\b(nude|nudity|explicit|porn|sexual|escort)\b/i, reason: 'Text indicates sexual/adult content' },
+  {
+    risk: 'drugs',
+    pattern: /\b(drug|cocaine|heroin|ganja|weed|marijuana|mdma|ecstasy|lsd)\b/i,
+    reason: 'Text indicates drugs-related content',
+  },
+  {
+    risk: 'guns',
+    pattern: /\b(gun|pistol|revolver|rifle|shotgun|firearm|ammo|ammunition)\b/i,
+    reason: 'Text indicates firearms-related content',
+  },
+  {
+    risk: 'knives',
+    pattern: /\b(knife|dagger|machete|switchblade|sword)\b/i,
+    reason: 'Text indicates edged-weapon content',
+  },
+  {
+    risk: 'nudity',
+    pattern: /\b(nude|nudity|explicit|porn|sexual|escort)\b/i,
+    reason: 'Text indicates sexual/adult content',
+  },
 ];
 
-function analyzeTextRisk(title: string, description: string): {
+function analyzeTextRisk(
+  title: string,
+  description: string
+): {
   hasRisk: boolean;
   detectedRisks: TextRisk[];
   reasons: string[];
@@ -48,9 +67,18 @@ function analyzeTextRisk(title: string, description: string): {
   // Fallback keyword scan to avoid edge-cases in regex matching across runtimes.
   const lowered = content.toLowerCase();
   if (
-    ['drug', 'drugs', 'cocaine', 'heroin', 'ganja', 'weed', 'marijuana', 'mdma', 'ecstasy', 'lsd'].some((term) =>
-      lowered.includes(term)
-    )
+    [
+      'drug',
+      'drugs',
+      'cocaine',
+      'heroin',
+      'ganja',
+      'weed',
+      'marijuana',
+      'mdma',
+      'ecstasy',
+      'lsd',
+    ].some((term) => lowered.includes(term))
   ) {
     detected.add('drugs');
     if (!reasons.includes('Text indicates drugs-related content')) {
@@ -58,9 +86,18 @@ function analyzeTextRisk(title: string, description: string): {
     }
   }
   if (
-    ['gun', 'guns', 'handgun', 'pistol', 'revolver', 'rifle', 'shotgun', 'firearm', 'ammo', 'ammunition'].some((term) =>
-      lowered.includes(term)
-    )
+    [
+      'gun',
+      'guns',
+      'handgun',
+      'pistol',
+      'revolver',
+      'rifle',
+      'shotgun',
+      'firearm',
+      'ammo',
+      'ammunition',
+    ].some((term) => lowered.includes(term))
   ) {
     detected.add('guns');
     if (!reasons.includes('Text indicates firearms-related content')) {
@@ -92,7 +129,9 @@ export async function moderateListing(input: {
       imageUrls,
       videoUrls,
     });
-    const combinedDetectedRisks = Array.from(new Set([...awsResult.detectedRisks, ...textRisk.detectedRisks]));
+    const combinedDetectedRisks = Array.from(
+      new Set([...awsResult.detectedRisks, ...textRisk.detectedRisks])
+    );
     const combinedReasons = [...awsResult.reasons, ...textRisk.reasons];
     const requiresManualReview = !awsResult.safe || textRisk.hasRisk;
     return {
