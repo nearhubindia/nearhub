@@ -5,8 +5,8 @@ import { spawn } from 'node:child_process';
 import { sql } from 'drizzle-orm';
 import axios from 'axios';
 import { GoogleGenAI } from '@google/genai';
-import { PollyClient, SynthesizeSpeechCommand } from '@aws-sdk/client-polly';
 import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import { db } from '../../../data/db';
 import { SERVER_CONFIG } from '../../../lib/config';
 import { uploadLocalFileAsMedia } from '../services/cloudflare-media';
@@ -15,7 +15,7 @@ type VoiceoverJob = {
   id: string;
   user_id: string;
   source_video_url: string;
-  language: 'telugu' | 'kannada' | 'hindi';
+  language: 'telugu' | 'kannada' | 'hindi' | 'english';
   script_text?: string | null;
   title_text?: string | null;
   highlights_text?: string | null;
@@ -26,10 +26,11 @@ type VoiceoverJob = {
 
 const SCRIPT_MODEL = process.env.GEMINI_SCRIPT_MODEL || 'gemini-2.5-flash';
 const TTS_MODEL = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
-const AI_TTS_PROVIDER = (process.env.AI_TTS_PROVIDER || 'google').toLowerCase();
-const AI_TRANSLATION_PROVIDER = (process.env.AI_TRANSLATION_PROVIDER || 'google').toLowerCase();
+const AI_SCRIPT_PROVIDER = (process.env.AI_SCRIPT_PROVIDER || 'aws').toLowerCase();
+const AI_TRANSLATION_PROVIDER = (process.env.AI_TRANSLATION_PROVIDER || 'aws').toLowerCase();
+const BEDROCK_SCRIPT_MODEL = process.env.BEDROCK_SCRIPT_MODEL || 'amazon.nova-lite-v1:0';
 const AI_VOICEOVER_BGM_SOURCE = process.env.AI_VOICEOVER_BGM_SOURCE || 'builtin-cinematic';
-const AI_VOICEOVER_BGM_VOLUME = Number.parseFloat(process.env.AI_VOICEOVER_BGM_VOLUME || '0.18');
+const AI_VOICEOVER_BGM_VOLUME = Number.parseFloat(process.env.AI_VOICEOVER_BGM_VOLUME || '0.3');
 const AI_VOICEOVER_ENHANCE_VIDEO = process.env.AI_VOICEOVER_ENHANCE_VIDEO !== 'false';
 const AI_VOICEOVER_OUTPUT_WIDTH = Number.parseInt(
   process.env.AI_VOICEOVER_OUTPUT_WIDTH || '1080',
@@ -37,16 +38,90 @@ const AI_VOICEOVER_OUTPUT_WIDTH = Number.parseInt(
 );
 const AI_VOICEOVER_OUTPUT_CRF = Number.parseInt(process.env.AI_VOICEOVER_OUTPUT_CRF || '21', 10);
 const AI_VOICEOVER_OUTPUT_PRESET = process.env.AI_VOICEOVER_OUTPUT_PRESET || 'medium';
+const AI_VOICEOVER_COMMAND_TIMEOUT_MS = Math.max(
+  15_000,
+  Number.parseInt(process.env.AI_VOICEOVER_COMMAND_TIMEOUT_MS || '180000', 10) || 180000
+);
+const AI_VOICEOVER_TTS_TIMEOUT_MS = Math.max(
+  15_000,
+  Number.parseInt(process.env.AI_VOICEOVER_TTS_TIMEOUT_MS || '120000', 10) || 120000
+);
+const AI_GEMINI_RETRY_ATTEMPTS = Math.max(
+  1,
+  Number.parseInt(process.env.AI_GEMINI_RETRY_ATTEMPTS || '4', 10) || 4
+);
+const AI_GEMINI_RETRY_BASE_MS = Math.max(
+  500,
+  Number.parseInt(process.env.AI_GEMINI_RETRY_BASE_MS || '2000', 10) || 2000
+);
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function isRetriableGeminiError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return (
+    /UNAVAILABLE/i.test(message) ||
+    /high demand/i.test(message) ||
+    /\b503\b/.test(message) ||
+    /deadline/i.test(message) ||
+    /timed out/i.test(message) ||
+    /ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/i.test(message)
+  );
+}
+
+async function delay(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function callGeminiWithRetry<T>(operationLabel: string, fn: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= AI_GEMINI_RETRY_ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      const shouldRetry = attempt < AI_GEMINI_RETRY_ATTEMPTS && isRetriableGeminiError(error);
+      if (!shouldRetry) break;
+      const backoff = AI_GEMINI_RETRY_BASE_MS * 2 ** (attempt - 1);
+      const jitter = Math.floor(Math.random() * 400);
+      await delay(backoff + jitter);
+    }
+  }
+  const message = lastError instanceof Error ? lastError.message : String(lastError || 'Unknown error');
+  throw new Error(`${operationLabel} failed after retries: ${message}`);
+}
 
 function runCommand(command: string, args: string[]): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, { stdio: ['ignore', 'ignore', 'pipe'] });
     let stderr = '';
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`${command} timed out after ${AI_VOICEOVER_COMMAND_TIMEOUT_MS}ms`));
+    }, AI_VOICEOVER_COMMAND_TIMEOUT_MS);
     child.stderr.on('data', (chunk) => {
       stderr += String(chunk);
     });
-    child.on('error', reject);
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     child.on('close', (code) => {
+      clearTimeout(timer);
       if (code === 0) {
         resolve();
         return;
@@ -61,16 +136,50 @@ function runCommandWithOutput(command: string, args: string[]): Promise<string> 
     const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`${command} timed out after ${AI_VOICEOVER_COMMAND_TIMEOUT_MS}ms`));
+    }, AI_VOICEOVER_COMMAND_TIMEOUT_MS);
     child.stdout.on('data', (chunk) => {
       stdout += String(chunk);
     });
     child.stderr.on('data', (chunk) => {
       stderr += String(chunk);
     });
-    child.on('error', reject);
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
     child.on('close', (code) => {
+      clearTimeout(timer);
       if (code === 0) {
         resolve(stdout);
+        return;
+      }
+      reject(new Error(`${command} exited with ${code}: ${stderr}`));
+    });
+  });
+}
+
+function runCommandWithStderrOutput(command: string, args: string[]): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`${command} timed out after ${AI_VOICEOVER_COMMAND_TIMEOUT_MS}ms`));
+    }, AI_VOICEOVER_COMMAND_TIMEOUT_MS);
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (code === 0) {
+        resolve(stderr);
         return;
       }
       reject(new Error(`${command} exited with ${code}: ${stderr}`));
@@ -95,6 +204,36 @@ async function getMediaDurationSeconds(filePath: string): Promise<number> {
   return duration;
 }
 
+async function getMeanVolumeDb(filePath: string): Promise<number> {
+  const output = await runCommandWithStderrOutput('ffmpeg', [
+    '-hide_banner',
+    '-nostats',
+    '-i',
+    filePath,
+    '-af',
+    'volumedetect',
+    '-f',
+    'null',
+    '-',
+  ]);
+  const match = output.match(/mean_volume:\s*(-?\d+(?:\.\d+)?)\s*dB/i);
+  const meanVolume = Number.parseFloat(match?.[1] || '');
+  if (!Number.isFinite(meanVolume)) {
+    throw new Error(`Unable to measure audio volume for ${path.basename(filePath)}`);
+  }
+  return meanVolume;
+}
+
+async function assertAudibleAudio(filePath: string, label: string): Promise<void> {
+  const duration = await getMediaDurationSeconds(filePath);
+  const meanVolume = await getMeanVolumeDb(filePath);
+  if (duration < 1 || meanVolume < -45) {
+    throw new Error(
+      `${label} is not audible enough (duration=${duration.toFixed(2)}s, mean=${meanVolume.toFixed(1)}dB)`
+    );
+  }
+}
+
 function buildAtempoFilter(speedFactor: number): string {
   const filters: string[] = [];
   let remaining = speedFactor;
@@ -115,39 +254,152 @@ function buildAtempoFilter(speedFactor: number): string {
 function getLanguageInstruction(language: VoiceoverJob['language']): string {
   if (language === 'telugu') return 'Write in Telugu script.';
   if (language === 'kannada') return 'Write in Kannada script.';
+  if (language === 'english') return 'Write in English.';
   return 'Write in Hindi (Devanagari script).';
 }
 
 function getTargetLanguageName(language: VoiceoverJob['language']): string {
   if (language === 'telugu') return 'Telugu';
   if (language === 'kannada') return 'Kannada';
+  if (language === 'english') return 'English';
   return 'Hindi';
 }
 
 function getAwsTranslateLanguageCode(language: VoiceoverJob['language']): string {
   if (language === 'telugu') return 'te';
   if (language === 'kannada') return 'kn';
+  if (language === 'english') return 'en';
   return 'hi';
 }
 
 function getVoiceName(language: VoiceoverJob['language']): string {
-  if (language === 'telugu') return 'Kore';
-  if (language === 'kannada') return 'Aoede';
-  return 'Puck';
+  const teluguVoice = process.env.AI_TTS_VOICE_TELUGU || 'Sulafat';
+  const kannadaVoice = process.env.AI_TTS_VOICE_KANNADA || 'Callirrhoe';
+  const hindiVoice = process.env.AI_TTS_VOICE_HINDI || 'Kore';
+  const englishVoice = process.env.AI_TTS_VOICE_ENGLISH || 'Sulafat';
+
+  if (language === 'telugu') return teluguVoice;
+  if (language === 'kannada') return kannadaVoice;
+  if (language === 'english') return englishVoice;
+  return hindiVoice;
 }
 
-function getPollyVoice(language: VoiceoverJob['language']): {
-  voiceId: string;
-  languageCode: string;
-} {
-  if (language === 'hindi') {
-    return { voiceId: 'Kajal', languageCode: 'hi-IN' };
+function getTtsStyleInstruction(language: VoiceoverJob['language']): string {
+  if (language === 'telugu') {
+    return [
+      'Speak in a natural Telugu (te-IN) conversational tone.',
+      'Sound warm and human, like a local seller explaining to a buyer.',
+      'Do not translate, summarize, or add extra words.',
+    ].join(' ');
   }
-  return { voiceId: 'Aditi', languageCode: 'en-IN' };
+  if (language === 'kannada') {
+    return [
+      'Speak in a natural Kannada (kn-IN) conversational tone.',
+      'Sound warm and human, like a local seller explaining to a buyer.',
+      'Do not translate, summarize, or add extra words.',
+    ].join(' ');
+  }
+  if (language === 'english') {
+    return [
+      'Speak in natural Indian English with a warm conversational tone.',
+      'Sound human and friendly, like a local seller explaining to a buyer.',
+      'Do not translate, summarize, or add extra words.',
+    ].join(' ');
+  }
+  return [
+    'Speak in a natural Hindi (hi-IN) conversational tone.',
+    'Sound warm and human, like a local seller explaining to a buyer.',
+    'Do not translate, summarize, or add extra words.',
+  ].join(' ');
 }
+
+
+function postProcessNarrationScript(
+  language: VoiceoverJob['language'],
+  inputScript: string
+): string {
+  let script = String(inputScript || '').trim();
+  if (!script) return script;
+
+  // Remove leading/trailing decorative quotes which can be spoken literally by some voices.
+  script = script.replace(/^[“"']+/, '').replace(/[”"']+$/, '');
+
+  if (language === 'telugu') {
+    script = script
+      .replace(/\bi\s*5\s*13\b/gi, 'ఐ ఫైవ్ పదమూడు')
+      .replace(/\bI\s*5\b/gi, 'ఐ ఫైవ్')
+      .replace(/\bI\s*7\b/gi, 'ఐ సెవెన్')
+      .replace(/ఐ\s*5/g, 'ఐ ఫైవ్')
+      .replace(/ఐ\s*7/g, 'ఐ సెవెన్')
+      .replace(/\b13\b/g, 'పదమూడు')
+      .replace(/\b32\b/g, 'ముప్పై రెండు')
+      .replace(/\b(\d+)\s*th\s*generation\b/gi, '$1వ తరం')
+      .replace(/\b(\d+)\s*gb\b/gi, '$1 జీబీ')
+      .replace(/\bRAM\b/gi, 'ర్యామ్')
+      .replace(/మనం\s+విక్రయించడానికి/g, 'అమ్మకానికి')
+      .replace(/కూర్నూల్\s*లో/g, 'కర్నూలులో')
+      .replace(/కర్నూల్\s*లో/g, 'కర్నూలులో')
+      .replace(/లాప్‌టాప్/g, 'ల్యాప్‌టాప్')
+      .replace(/ఆదర్శ\s+ఎంపిక/g, 'మంచి ఎంపిక')
+      .replace(
+        /రోజువారీ\s+ఉపయోగం\s+కోసం\s+సరళంగా\s+సిద్ధం\.?/g,
+        'రోజువారీ వినియోగానికి మంచి ఎంపిక.'
+      )
+      .replace(/కర్నూలులో\s+మీరు\s+కనుగొనవచ్చు\.?/g, 'కర్నూలులో అందుబాటులో ఉంది.')
+      .replace(/కర్నూలులో\s+దీనిని\s+కొనండి\.?/g, 'ఆసక్తి ఉంటే విక్రేతను సంప్రదించండి.')
+      .replace(
+        /మీ\s+డీల్‌?\s*ను\s+ఇప్పుడు\s+నిర్ధారించుకోండి\.?/g,
+        'ఆసక్తి ఉంటే విక్రేతను సంప్రదించండి.'
+      )
+      .replace(/[.]{2,}/g, '.');
+  }
+
+  if (language === 'kannada') {
+    script = script
+      .replace(/\bi\s*5\s*13\b/gi, 'ಐ ಫೈವ್ ಹದಿಮೂರು')
+      .replace(/\bI\s*5\b/gi, 'ಐ ಫೈವ್')
+      .replace(/\bI\s*7\b/gi, 'ಐ ಸೆವೆನ್')
+      .replace(/ಐ\s*5/g, 'ಐ ಫೈವ್')
+      .replace(/ಐ\s*7/g, 'ಐ ಸೆವೆನ್')
+      .replace(/\b13\b/g, 'ಹದಿಮೂರು')
+      .replace(/\b32\b/g, 'ಮೂವತ್ತೆರಡು')
+      .replace(/\b(\d+)\s*th\s*generation\b/gi, '$1ನೇ ತಲೆಮಾರು')
+      .replace(/\b(\d+)\s*gb\b/gi, '$1 ಜಿಬಿ')
+      .replace(/\bRAM\b/gi, 'ರ್ಯಾಮ್')
+      .replace(/[.]{2,}/g, '.');
+  }
+
+  if (language === 'hindi') {
+    script = script
+      .replace(/\bi\s*5\s*13\b/gi, 'आई फाइव तेरह')
+      .replace(/\bI\s*5\b/gi, 'आई फाइव')
+      .replace(/\bI\s*7\b/gi, 'आई सेवन')
+      .replace(/आई\s*5/g, 'आई फाइव')
+      .replace(/आई\s*7/g, 'आई सेवन')
+      .replace(/\b13\b/g, 'तेरह')
+      .replace(/\b32\b/g, 'बत्तीस')
+      .replace(/\b(\d+)\s*th\s*generation\b/gi, '$1वीं जेनरेशन')
+      .replace(/\b(\d+)\s*gb\b/gi, '$1 जीबी')
+      .replace(/\bRAM\b/gi, 'रैम')
+      .replace(/[.]{2,}/g, '.');
+  }
+
+  return script;
+}
+
 
 function normalizeContextValue(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function toSafeFileSlug(value: string): string {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+  return slug || 'ai-voiceover';
 }
 
 function parseContextFromLegacyScript(scriptText: string): {
@@ -177,7 +429,288 @@ function buildContextBlock(context: {
   return lines.join('\n');
 }
 
+function buildEngagingFallbackSeed(context: {
+  title: string;
+  highlights: string;
+  description: string;
+}): string {
+  const title = context.title || 'this listing';
+  const normalizedHighlights = context.highlights
+    .split(/\n|,|;|\||•|·/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const topHighlights = normalizedHighlights.slice(0, 3);
+  const highlightLine =
+    topHighlights.length > 0 ? `Top highlights: ${topHighlights.join(', ')}.` : '';
+  const descriptionLine = context.description ? `${context.description}.` : '';
+
+  return [
+    `Take a look at ${title}.`,
+    highlightLine,
+    descriptionLine,
+    'If this matches what you need, contact the seller today.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function buildDeterministicNarrationSeed(context: {
+  title: string;
+  highlights: string;
+  description: string;
+}): string {
+  const title = context.title || 'this listing';
+  const highlights = context.highlights ? `Key highlights: ${context.highlights}.` : '';
+  const description = context.description ? `${context.description}.` : '';
+  return [
+    `For sale: ${title}.`,
+    highlights,
+    description,
+    'If this fits your need, contact the seller now.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function scriptLooksContextual(
+  script: string,
+  context: { title: string; highlights: string; description: string }
+): boolean {
+  const normalizedScript = String(script || '').toLowerCase();
+  const normalizedTitle = String(context.title || '').toLowerCase();
+  if (!normalizedScript || !normalizedTitle) return Boolean(normalizedScript);
+
+  const titleTokens = normalizedTitle
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 4)
+    .slice(0, 6);
+
+  if (titleTokens.length === 0) return true;
+  return titleTokens.some((token) => normalizedScript.includes(token));
+}
+
+function scriptLooksTooWeak(script: string): boolean {
+  const value = String(script || '').trim();
+  if (!value) return true;
+  const words = value.split(/\s+/).filter(Boolean);
+  if (words.length < 4) return true;
+  const alphaChars = (value.match(/\p{L}/gu) || []).length;
+  const digitChars = (value.match(/[0-9]/g) || []).length;
+  if (alphaChars === 0) return true;
+  if (digitChars > alphaChars) return true;
+  return false;
+}
+
+function scriptLooksNumberHeavy(script: string): boolean {
+  const value = String(script || '').trim();
+  if (!value) return true;
+  const alphaChars = (value.match(/\p{L}/gu) || []).length;
+  const digitChars = (value.match(/[0-9]/g) || []).length;
+  if (alphaChars === 0) return true;
+  return digitChars >= Math.max(3, Math.floor(alphaChars * 0.35));
+}
+
+function scriptLooksTooSloganLike(script: string): boolean {
+  const value = String(script || '').toLowerCase();
+  return /\b(unleash|elevate|experience the|do not miss|don't miss|power[-\s]?packed|game[-\s]?changer|ultimate|revolutionary)\b/.test(
+    value
+  );
+}
+
+function scriptHasTargetWriting(script: string, language: VoiceoverJob['language']): boolean {
+  const value = String(script || '').trim();
+  if (!value) return false;
+  if (language === 'telugu') return /[\u0C00-\u0C7F]/.test(value);
+  if (language === 'kannada') return /[\u0C80-\u0CFF]/.test(value);
+  if (language === 'hindi') return /[\u0900-\u097F]/.test(value);
+  return /[A-Za-z]/.test(value);
+}
+
+async function translateFieldAws(
+  text: string,
+  language: VoiceoverJob['language']
+): Promise<string> {
+  const input = String(text || '').trim();
+  if (!input) return '';
+  const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+  const client = new TranslateClient({ region });
+  const response = await client.send(
+    new TranslateTextCommand({
+      SourceLanguageCode: 'auto',
+      TargetLanguageCode: getAwsTranslateLanguageCode(language),
+      Text: input,
+    })
+  );
+  return String(response.TranslatedText || input).trim();
+}
+
+async function buildGuaranteedMarketingNarration(
+  language: VoiceoverJob['language'],
+  context: { title: string; highlights: string; description: string }
+): Promise<string> {
+  const title = await translateFieldAws(context.title || 'this product', language);
+  const highlightsRaw = await translateFieldAws(context.highlights || '', language);
+  const description = await translateFieldAws(context.description || '', language);
+  const hasDigitsInHighlights = /[0-9]/.test(highlightsRaw);
+
+  if (language === 'telugu') {
+    const highlights = hasDigitsInHighlights
+      ? 'శక్తివంతమైన పనితీరు, చక్కటి కండిషన్, నమ్మకమైన రోజువారీ వినియోగం'
+      : highlightsRaw;
+    return [
+      `శక్తివంతమైన పనితీరుతో ${title} ఇప్పుడు అమ్మకానికి అందుబాటులో ఉంది.`,
+      highlights ? `ప్రధాన విశేషాలు: ${highlights}.` : '',
+      description ? `${description}.` : '',
+      'ఇలాంటి మంచి డీల్ మిస్ కావొద్దు, వెంటనే విక్రేతను సంప్రదించండి.',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  if (language === 'kannada') {
+    const highlights = hasDigitsInHighlights
+      ? 'ಶಕ್ತಿಯುತ ಕಾರ್ಯಕ್ಷಮತೆ, ಉತ್ತಮ ಸ್ಥಿತಿ, ವಿಶ್ವಾಸಾರ್ಹ ದಿನನಿತ್ಯ ಬಳಕೆ'
+      : highlightsRaw;
+    return [
+      `ಶಕ್ತಿಯುತ ಕಾರ್ಯಕ್ಷಮತೆಯೊಂದಿಗೆ ${title} ಈಗ ಮಾರಾಟಕ್ಕೆ ಲಭ್ಯವಿದೆ.`,
+      highlights ? `ಮುಖ್ಯ ವೈಶಿಷ್ಟ್ಯಗಳು: ${highlights}.` : '',
+      description ? `${description}.` : '',
+      'ಇಂತಹ ಒಳ್ಳೆಯ ಡೀಲ್ ತಪ್ಪಿಸಿಕೊಳ್ಳಬೇಡಿ, ತಕ್ಷಣ ಮಾರಾಟಗಾರರನ್ನು ಸಂಪರ್ಕಿಸಿ.',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  if (language === 'hindi') {
+    const highlights = hasDigitsInHighlights
+      ? 'दमदार परफॉर्मेंस, बेहतरीन कंडीशन और भरोसेमंद रोज़मर्रा उपयोग'
+      : highlightsRaw;
+    return [
+      `दमदार परफॉर्मेंस के साथ ${title} अभी बिक्री के लिए उपलब्ध है।`,
+      highlights ? `मुख्य विशेषताएँ: ${highlights}।` : '',
+      description ? `${description}।` : '',
+      'ऐसी बेहतरीन डील मिस न करें, अभी विक्रेता से संपर्क करें।',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  return [
+    `${context.title || 'This product'} is now available for sale with strong performance.`,
+    context.highlights ? `Key highlights: ${context.highlights}.` : '',
+    context.description ? `${context.description}.` : '',
+    'Do not miss this deal, contact the seller now.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function buildTeluguPhoneticTtsScript(context: {
+  title: string;
+  highlights: string;
+  description: string;
+}): string {
+  const rawTitle = context.title || 'this listing';
+  const safeTitle = rawTitle
+    .replace(/[^a-z0-9\s]/gi, ' ')
+    .replace(/\b(i\s*)?5\b/gi, 'i five')
+    .replace(/\b(i\s*)?7\b/gi, 'i seven')
+    .replace(/\b13\b/g, 'thirteen')
+    .replace(/\b32\b/g, 'thirty two')
+    .replace(/\b4\b/g, 'four')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const location = /kurnool/i.test(`${context.title} ${context.highlights} ${context.description}`)
+    ? 'Kurnool lo'
+    : 'mee area lo';
+
+  // ElevenLabs voices available in this workspace are not Telugu-native, so Telugu script
+  // can become silent or punctuation-like. Feed clean phonetic Telugu with no symbols.
+  return [
+    'Namaskaram',
+    `${safeTitle || 'ee product'} ippudu ${location} sale ki ready ga undi`,
+    'balamaina performance smooth daily use gaming ki chala manchi option',
+    'interested buyers ventane seller ni contact cheyyandi',
+  ].join(' ');
+}
+
+function buildTtsInputForProvider(
+  language: VoiceoverJob['language'],
+  script: string,
+  context: { title: string; highlights: string; description: string }
+): string {
+  return script;
+}
+
+function enforceSalesRubric(
+  language: VoiceoverJob['language'],
+  script: string,
+  context: { title: string; highlights: string; description: string }
+): string {
+  const normalized = String(script || '').replace(/\s+/g, ' ').trim();
+  const title = (context.title || '').trim();
+  const highlights = (context.highlights || '').trim();
+  const description = (context.description || '').trim();
+
+  let result = normalized;
+  if (!result) {
+    result = buildDeterministicNarrationSeed(context);
+  }
+
+  const lower = result.toLowerCase();
+  const titleMentioned =
+    !title ||
+    lower.includes(title.toLowerCase()) ||
+    title
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((part) => part.length >= 4)
+      .some((part) => lower.includes(part));
+
+  if (!titleMentioned) {
+    if (language === 'hindi') result = `${title} बिक्री के लिए उपलब्ध है. ${result}`.trim();
+    else if (language === 'kannada') result = `${title} ಈಗ ಮಾರಾಟಕ್ಕೆ ಲಭ್ಯವಿದೆ. ${result}`.trim();
+    else if (language === 'telugu') result = `${title} ఇప్పుడు అమ్మకానికి అందుబాటులో ఉంది. ${result}`.trim();
+    else result = `${title} is now available for sale. ${result}`.trim();
+  }
+
+  const benefitSignals = /(highlight|feature|benefit|performance|condition|quality|usage|విశేష|పనితీరు|మంచి|ವೈಶಿಷ್ಟ|ಕಾರ್ಯಕ್ಷಮ|उपयोग|फीचर|परफॉर्मेंस)/i;
+  const hasBenefitLine = benefitSignals.test(result) || Boolean(highlights || description);
+  if (!hasBenefitLine && highlights) {
+    if (language === 'hindi') result = `${result} मुख्य विशेषताएँ: ${highlights}.`;
+    else if (language === 'kannada') result = `${result} ಮುಖ್ಯ ವೈಶಿಷ್ಟ್ಯಗಳು: ${highlights}.`;
+    else if (language === 'telugu') result = `${result} ప్రధాన విశేషాలు: ${highlights}.`;
+    else result = `${result} Key highlights: ${highlights}.`;
+  }
+
+  const ctaSignals = /(contact|call|message|check this listing|seller|book now|సంప్రదించ|ಮಾರಾಟಗಾರ|ವಿಕ್ರೇತ|ಸಂಪರ್ಕಿಸಿ|संपर्क|विक्रेता)/i;
+  if (!ctaSignals.test(result)) {
+    if (language === 'hindi') result = `${result} इच्छुक खरीदार अभी विक्रेता से संपर्क करें।`;
+    else if (language === 'kannada') result = `${result} ಆಸಕ್ತ ಖರೀದಿದಾರರು ತಕ್ಷಣ ಮಾರಾಟಗಾರರನ್ನು ಸಂಪರ್ಕಿಸಿ.`;
+    else if (language === 'telugu')
+      result = `${result} ఆసక్తి ఉన్న కొనుగోలుదారులు వెంటనే విక్రేతను సంప్రదించండి.`;
+    else result = `${result} Interested buyers can contact the seller now.`;
+  }
+
+  return result.replace(/\s+/g, ' ').trim();
+}
+
 async function claimNextJob(): Promise<VoiceoverJob | null> {
+  // Recover jobs that got stuck in processing (for example due to external
+  // provider/network stalls) so the queue can keep moving.
+  await db.execute(sql`
+    UPDATE ai_voiceover_jobs
+    SET status = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'pending' END,
+        attempts = CASE WHEN attempts >= max_attempts THEN attempts ELSE attempts + 1 END,
+        error_message = COALESCE(error_message, 'Voice-over worker watchdog: processing timeout'),
+        updated_at = CURRENT_TIMESTAMP,
+        processed_at = CASE WHEN attempts >= max_attempts THEN CURRENT_TIMESTAMP ELSE processed_at END
+    WHERE status = 'processing'
+      AND updated_at < (CURRENT_TIMESTAMP - INTERVAL '8 minutes')
+  `);
+
   const result = await db.execute(sql`
     UPDATE ai_voiceover_jobs j
     SET status = 'processing',
@@ -207,20 +740,89 @@ async function generateScript(
   const instruction = getLanguageInstruction(language);
   const targetWords = Math.max(8, Math.min(45, Math.floor(videoDurationSeconds * 2.2)));
   const contextBlock = buildContextBlock(context);
-  const response = await ai.models.generateContent({
-    model: SCRIPT_MODEL,
-    contents: `Generate a concise, natural product promo voice-over script for a marketplace video.
+  const response = await callGeminiWithRetry('Gemini script generation', () =>
+    ai.models.generateContent({
+      model: SCRIPT_MODEL,
+      contents: `Generate a concise, natural product promo voice-over script for a marketplace video.
 Use Title and Highlights first, and Description as supporting context.
 Do not invent specs/claims not present in the input.
 Limit to 2-3 short sentences.
 Keep it around ${targetWords} words so it comfortably fits a ${videoDurationSeconds.toFixed(1)} second video.
-Tone: clear, friendly, and sales-focused.
+Tone: engaging, lively, and trustworthy (not robotic).
+Start with a strong hook in the first line.
+Highlight 2-3 strongest buyer benefits.
+End with a soft call-to-action (for example: contact now / check this listing).
+Avoid generic filler like "best deal ever" unless supported by input.
 ${instruction}
 Input:
 ${contextBlock || 'No listing context provided.'}
 Return only the final script.`,
-  });
+    })
+  );
   return String(response.text || '').trim();
+}
+
+async function generateScriptAws(
+  language: VoiceoverJob['language'],
+  videoDurationSeconds: number,
+  context: { title: string; highlights: string; description: string }
+): Promise<string> {
+  const targetLanguage = getTargetLanguageName(language);
+  const targetScript = getLanguageInstruction(language);
+  const targetWords = Math.max(8, Math.min(38, Math.floor(videoDurationSeconds * 2.0)));
+  const contextBlock = buildContextBlock(context);
+  const prompt = `Write the final product promo voice-over narration in ${targetLanguage} for a local marketplace video.
+${targetScript}
+Use only details from the input. Do not invent specs or claims.
+Make it marketing-oriented: clearly promote why the buyer should care about this product.
+Sound confident, clean, and natural (not robotic), like a real local seller speaking clearly to a buyer.
+Turn the key highlights into buyer benefits.
+Use plain local-seller wording, not big advertising slogans.
+Avoid idioms, metaphors, and phrases like "unleash", "elevate", "experience the", "do not miss", "ultimate", or "game changer".
+For Telugu, prefer everyday local wording like "అమ్మకానికి సిద్ధంగా ఉంది", "మంచి ఎంపిక", and "విక్రేతను సంప్రదించండి"; avoid formal phrases like "డీల్ నిర్ధారించుకోండి" or "ఆదర్శ ఎంపిక".
+For Hindi, prefer everyday local wording like "बिक्री के लिए उपलब्ध है", "अच्छा विकल्प", and "विक्रेता से संपर्क करें".
+Mention the product title clearly.
+Mention the strongest key highlights clearly.
+Mention the description/location if provided.
+Fit naturally inside a ${videoDurationSeconds.toFixed(1)} second video.
+Structure:
+1) Clear opening that says the item is available/sale-ready
+2) 2-3 strongest buyer benefits
+3) Soft call-to-action ending
+Length: around ${targetWords} spoken words, 2-3 short sentences.
+The narration should fit the video comfortably at natural speech speed, not slow and not rushed.
+Return only the final narration text in ${targetLanguage}. No labels, no bullets.
+
+Input:
+${contextBlock || 'No listing context provided.'}`;
+
+  const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+  const client = new BedrockRuntimeClient({ region });
+  const command = new ConverseCommand({
+    modelId: BEDROCK_SCRIPT_MODEL,
+    messages: [
+      {
+        role: 'user',
+        content: [{ text: prompt }],
+      },
+    ],
+    inferenceConfig: {
+      maxTokens: 220,
+      temperature: 0.65,
+    },
+  });
+  const response = await client.send(command);
+  const content = response.output?.message?.content ?? [];
+  const text = String(
+    content
+      .map((item: any) => (typeof item?.text === 'string' ? item.text : ''))
+      .filter(Boolean)
+      .join('\n')
+  ).trim();
+  if (!text || scriptLooksTooSloganLike(text)) {
+    return buildDeterministicNarrationSeed(context);
+  }
+  return text;
 }
 
 async function localizeScript(
@@ -232,17 +834,21 @@ async function localizeScript(
   const targetLanguage = getTargetLanguageName(language);
   const targetScript = getLanguageInstruction(language);
   const targetWords = Math.max(8, Math.min(45, Math.floor(videoDurationSeconds * 2.2)));
-  const response = await ai.models.generateContent({
-    model: SCRIPT_MODEL,
-    contents: `Rewrite the following product voice-over script in ${targetLanguage}.
+  const response = await callGeminiWithRetry('Gemini localization', () =>
+    ai.models.generateContent({
+      model: SCRIPT_MODEL,
+      contents: `Rewrite the following product voice-over script in ${targetLanguage}.
 ${targetScript}
 Keep meaning intact, keep it natural and realistic for spoken narration, and keep it concise.
 Target around ${targetWords} words so it fits a ${videoDurationSeconds.toFixed(1)} second video.
+Make the delivery engaging and conversational for marketplace buyers.
+Preserve a hook-like opening and a gentle call-to-action ending.
 Return only the rewritten script.
 
 Input script:
 ${script}`,
-  });
+    })
+  );
 
   const localized = String(response.text || '').trim();
   return localized || script;
@@ -261,7 +867,34 @@ async function localizeScriptAws(
       Text: script,
     })
   );
-  const translated = String(response.TranslatedText || '').trim();
+  let translated = String(response.TranslatedText || '').trim();
+
+  const isIndicLanguage = language === 'telugu' || language === 'kannada' || language === 'hindi';
+  const hasTargetScript = (value: string): boolean => {
+    if (language === 'telugu') return /[\u0C00-\u0C7F]/.test(value);
+    if (language === 'kannada') return /[\u0C80-\u0CFF]/.test(value);
+    if (language === 'hindi') return /[\u0900-\u097F]/.test(value);
+    return true;
+  };
+
+  // Guard against cases where translation returns mostly English text for Indic targets.
+  if (isIndicLanguage && translated && !hasTargetScript(translated)) {
+    const retry = await client.send(
+      new TranslateTextCommand({
+        SourceLanguageCode: 'en',
+        TargetLanguageCode: getAwsTranslateLanguageCode(language),
+        Text: script,
+      })
+    );
+    const retried = String(retry.TranslatedText || '').trim();
+    if (retried && hasTargetScript(retried)) translated = retried;
+  }
+
+  // Never allow English/Latin-only text to proceed for Indic languages.
+  if (isIndicLanguage && translated && !hasTargetScript(translated)) {
+    throw new Error(`Localization did not produce ${language} script text`);
+  }
+
   return translated || script;
 }
 
@@ -272,20 +905,28 @@ async function generateSpeechWav(
   outPath: string
 ): Promise<void> {
   const voiceName = getVoiceName(language);
-  const response = await ai.models.generateContent({
-    model: TTS_MODEL,
-    contents: script,
-    config: {
-      responseModalities: ['AUDIO'],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: {
-            voiceName,
+  const styleInstruction = getTtsStyleInstruction(language);
+  const ttsInput = `${styleInstruction}\n\n${script}`;
+  const response = await callGeminiWithRetry('Gemini TTS', () =>
+    withTimeout(
+      ai.models.generateContent({
+        model: TTS_MODEL,
+        contents: ttsInput,
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName,
+              },
+            },
           },
-        },
-      },
-    } as any,
-  });
+        } as any,
+      }),
+      AI_VOICEOVER_TTS_TIMEOUT_MS,
+      `Gemini TTS (${TTS_MODEL})`
+    )
+  );
 
   const parts = Array.isArray(response?.candidates?.[0]?.content?.parts)
     ? (response?.candidates?.[0]?.content?.parts as any[])
@@ -379,45 +1020,6 @@ async function streamToBuffer(stream: unknown): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-async function generateSpeechWavPolly(
-  script: string,
-  language: VoiceoverJob['language'],
-  outPath: string
-): Promise<void> {
-  const { voiceId, languageCode } = getPollyVoice(language);
-  const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
-  const polly = new PollyClient({ region });
-  const result = await polly.send(
-    new SynthesizeSpeechCommand({
-      Engine: 'neural',
-      OutputFormat: 'mp3',
-      TextType: 'text',
-      Text: script,
-      VoiceId: voiceId as any,
-      LanguageCode: languageCode as any,
-    })
-  );
-  const audioBuffer = await streamToBuffer(result.AudioStream);
-  if (!audioBuffer.length) {
-    throw new Error('AWS Polly did not return audio payload');
-  }
-  const tempMp3 = `${outPath}.polly.mp3`;
-  await fs.writeFile(tempMp3, audioBuffer);
-  await runCommand('ffmpeg', [
-    '-hide_banner',
-    '-loglevel',
-    'error',
-    '-y',
-    '-i',
-    tempMp3,
-    '-ac',
-    '1',
-    '-ar',
-    '24000',
-    outPath,
-  ]);
-}
-
 async function downloadToFile(url: string, targetPath: string): Promise<void> {
   const response = await axios.get<ArrayBuffer>(url, {
     responseType: 'arraybuffer',
@@ -431,7 +1033,7 @@ async function prepareBackgroundMusic(durationSeconds: number, outPath: string):
   if (AI_VOICEOVER_BGM_SOURCE === 'none') return false;
 
   if (AI_VOICEOVER_BGM_SOURCE === 'builtin-cinematic') {
-    // Procedurally generate a cinematic ambient bed so BGM is enabled by default.
+    // Procedurally generate a warm musical bed so BGM is clearly present by default.
     await runCommand('ffmpeg', [
       '-hide_banner',
       '-loglevel',
@@ -440,21 +1042,31 @@ async function prepareBackgroundMusic(durationSeconds: number, outPath: string):
       '-f',
       'lavfi',
       '-i',
-      `anoisesrc=color=brown:amplitude=0.05:sample_rate=24000:duration=${durationSeconds.toFixed(3)}`,
+      `anoisesrc=color=brown:amplitude=0.08:sample_rate=24000:duration=${durationSeconds.toFixed(3)}`,
       '-f',
       'lavfi',
       '-i',
-      `sine=frequency=110:sample_rate=24000:duration=${durationSeconds.toFixed(3)}`,
+      `sine=frequency=146.83:sample_rate=24000:duration=${durationSeconds.toFixed(3)}`,
       '-f',
       'lavfi',
       '-i',
       `sine=frequency=220:sample_rate=24000:duration=${durationSeconds.toFixed(3)}`,
+      '-f',
+      'lavfi',
+      '-i',
+      `sine=frequency=293.66:sample_rate=24000:duration=${durationSeconds.toFixed(3)}`,
+      '-f',
+      'lavfi',
+      '-i',
+      `sine=frequency=440:sample_rate=24000:duration=${durationSeconds.toFixed(3)}`,
       '-filter_complex',
-      '[0:a]lowpass=f=900,highpass=f=40,volume=0.45[n];' +
-        '[1:a]volume=0.05,bass=g=4:f=120[w1];' +
-        '[2:a]volume=0.025,lowpass=f=1400[w2];' +
-        '[n][w1][w2]amix=inputs=3:normalize=0,' +
-        'aecho=0.8:0.88:60:0.2,' +
+      '[0:a]lowpass=f=1200,highpass=f=60,volume=0.45[n];' +
+        '[1:a]volume=0.75,bass=g=5:f=140[p1];' +
+        '[2:a]volume=0.42[p2];' +
+        '[3:a]volume=0.32,tremolo=f=0.45:d=0.25[p3];' +
+        '[4:a]volume=0.18,lowpass=f=1600[p4];' +
+        '[n][p1][p2][p3][p4]amix=inputs=5:normalize=0,' +
+        'aecho=0.8:0.88:55:0.18,' +
         'afade=t=in:st=0:d=1.5,' +
         `afade=t=out:st=${Math.max(0, durationSeconds - 1.8).toFixed(3)}:d=1.8` +
         '[bgm]',
@@ -483,11 +1095,7 @@ async function prepareBackgroundMusic(durationSeconds: number, outPath: string):
 
 function buildVideoEnhancementFilter(): string {
   if (!AI_VOICEOVER_ENHANCE_VIDEO) return 'null';
-  const targetWidth = Number.isFinite(AI_VOICEOVER_OUTPUT_WIDTH)
-    ? Math.max(720, Math.min(1440, AI_VOICEOVER_OUTPUT_WIDTH))
-    : 1080;
   return [
-    `scale='min(${targetWidth},iw)':'-2':flags=lanczos`,
     'unsharp=5:5:0.6:5:5:0.2',
     'eq=contrast=1.06:brightness=0.01:saturation=1.08:gamma=1.02',
     'format=yuv420p',
@@ -499,8 +1107,7 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
   completed: number;
   failed: number;
 }> {
-  const usingGoogle = AI_TTS_PROVIDER !== 'aws';
-  if (usingGoogle && !SERVER_CONFIG.GOOGLE_GENAI_API_KEY) {
+  if (!SERVER_CONFIG.GOOGLE_GENAI_API_KEY) {
     return { processed: 0, completed: 0, failed: 0 };
   }
 
@@ -512,6 +1119,7 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
     const job = await claimNextJob();
     if (!job) break;
     processed++;
+    console.info('[AI Voiceover] Job claimed', { jobId: job.id, attempt: job.attempts, language: job.language });
 
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'nearhub-ai-voiceover-'));
     const sourceVideoPath = path.join(tempDir, 'source.mp4');
@@ -520,11 +1128,20 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
     const outputVideoPath = path.join(tempDir, 'output.mp4');
 
     try {
-      const ai = SERVER_CONFIG.GOOGLE_GENAI_API_KEY
-        ? new GoogleGenAI({ apiKey: SERVER_CONFIG.GOOGLE_GENAI_API_KEY })
-        : null;
+      // Google client is always needed for TTS in this worker, regardless of
+      // script/translation provider selection.
+      const needsGoogleForJob = true;
+      const ai =
+        needsGoogleForJob && SERVER_CONFIG.GOOGLE_GENAI_API_KEY
+          ? new GoogleGenAI({ apiKey: SERVER_CONFIG.GOOGLE_GENAI_API_KEY })
+          : null;
       await downloadToFile(job.source_video_url, sourceVideoPath);
+      console.info('[AI Voiceover] Source downloaded', { jobId: job.id });
       const videoDurationSeconds = await getMediaDurationSeconds(sourceVideoPath);
+      console.info('[AI Voiceover] Source inspected', {
+        jobId: job.id,
+        videoDurationSeconds: Number(videoDurationSeconds.toFixed(2)),
+      });
 
       const baseScript =
         typeof job.script_text === 'string' && job.script_text.trim().length > 0
@@ -542,30 +1159,84 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
         context.description = parsed.description;
       }
       const hasContext = Boolean(context.title || context.highlights || context.description);
-      const scriptSeed =
-        hasContext && ai
-          ? await generateScript(ai, job.language, videoDurationSeconds, context)
-          : baseScript || 'Limited time offer. Check this listing now.';
+      let scriptSeed = baseScript || 'Limited time offer. Check this listing now.';
+      let scriptSeedAlreadyLocalized = false;
+      if (hasContext && AI_SCRIPT_PROVIDER === 'google' && ai) {
+        scriptSeed = await generateScript(ai, job.language, videoDurationSeconds, context);
+        scriptSeedAlreadyLocalized = true;
+      } else if (hasContext && AI_SCRIPT_PROVIDER === 'aws') {
+        try {
+          scriptSeed = await generateScriptAws(job.language, videoDurationSeconds, context);
+          scriptSeedAlreadyLocalized = true;
+        } catch (error) {
+          scriptSeed = buildEngagingFallbackSeed(context);
+          console.warn(
+            '[AI Voiceover] Bedrock script generation failed, using fallback seed:',
+            error
+          );
+        }
+      } else if (hasContext) {
+        scriptSeed = buildEngagingFallbackSeed(context);
+      }
+      if (scriptSeedAlreadyLocalized && !scriptHasTargetWriting(scriptSeed, job.language)) {
+        scriptSeedAlreadyLocalized = false;
+      }
+      if (
+        hasContext &&
+        (!scriptSeedAlreadyLocalized || job.language === 'english') &&
+        (!scriptLooksContextual(scriptSeed, context) || scriptLooksTooSloganLike(scriptSeed))
+      ) {
+        scriptSeed = buildDeterministicNarrationSeed(context);
+        scriptSeedAlreadyLocalized = false;
+      }
       let script = baseScript;
-      if (AI_TRANSLATION_PROVIDER === 'aws') {
+      if (scriptSeedAlreadyLocalized) {
+        script = scriptSeed;
+      } else if (AI_TRANSLATION_PROVIDER === 'aws') {
         script = await localizeScriptAws(scriptSeed, job.language);
       } else if (ai) {
         script = await localizeScript(ai, scriptSeed, job.language, videoDurationSeconds);
       } else {
         script = scriptSeed;
       }
-      if (AI_TTS_PROVIDER === 'aws') {
-        await generateSpeechWavPolly(script, job.language, voiceWavPath);
-      } else {
-        if (!ai) throw new Error('Google API key missing for Google TTS provider');
-        await generateSpeechWav(ai, script, job.language, voiceWavPath);
+      if (hasContext && (scriptLooksTooWeak(script) || scriptLooksNumberHeavy(script))) {
+        const deterministicSeed = buildDeterministicNarrationSeed(context);
+        if (AI_TRANSLATION_PROVIDER === 'aws') {
+          script = await localizeScriptAws(deterministicSeed, job.language);
+        } else if (ai) {
+          script = await localizeScript(ai, deterministicSeed, job.language, videoDurationSeconds);
+        } else {
+          script = deterministicSeed;
+        }
       }
+      if (hasContext && (scriptLooksTooWeak(script) || scriptLooksNumberHeavy(script))) {
+        script = await buildGuaranteedMarketingNarration(job.language, context);
+      }
+      script = postProcessNarrationScript(job.language, script);
+      script = enforceSalesRubric(job.language, script, context);
+      console.info('[AI Voiceover] Script ready', {
+        jobId: job.id,
+        chars: script.length,
+      });
+      const ttsScript = buildTtsInputForProvider(job.language, script, context);
+      if (!ai) throw new Error('Google API key missing for Google TTS provider');
+      await generateSpeechWav(ai, ttsScript, job.language, voiceWavPath);
+      console.info('[AI Voiceover] TTS generated', { jobId: job.id });
 
-      const audioFilter = `apad,atrim=0:${videoDurationSeconds.toFixed(3)}`;
+      const voiceDurationSeconds = await getMediaDurationSeconds(voiceWavPath);
+      const targetNarrationDurationSeconds = Math.max(1, videoDurationSeconds - 0.35);
+      const voiceSpeedFactor =
+        voiceDurationSeconds > targetNarrationDurationSeconds
+          ? Math.min(1.18, voiceDurationSeconds / targetNarrationDurationSeconds)
+          : 1;
+      const voiceTempoFilter =
+        voiceSpeedFactor > 1.01 ? `${buildAtempoFilter(voiceSpeedFactor)},` : '';
+
       const hasBackgroundMusic = await prepareBackgroundMusic(videoDurationSeconds, bgmPath);
+      console.info('[AI Voiceover] Background prepared', { jobId: job.id, hasBackgroundMusic });
 
       const videoFilter = buildVideoEnhancementFilter();
-      const voiceFilter = `apad,atrim=0:${videoDurationSeconds.toFixed(3)},loudnorm=I=-16:TP=-1.5:LRA=7`;
+      const voiceFilter = `${voiceTempoFilter}apad,atrim=0:${videoDurationSeconds.toFixed(3)},loudnorm=I=-16:TP=-1.5:LRA=7`;
 
       if (hasBackgroundMusic) {
         const bgmVolume = Number.isFinite(AI_VOICEOVER_BGM_VOLUME) ? AI_VOICEOVER_BGM_VOLUME : 0.18;
@@ -607,6 +1278,7 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
           videoDurationSeconds.toFixed(3),
           outputVideoPath,
         ]);
+        console.info('[AI Voiceover] Rendered with BGM', { jobId: job.id });
       } else {
         await runCommand('ffmpeg', [
           '-hide_banner',
@@ -639,15 +1311,29 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
           videoDurationSeconds.toFixed(3),
           outputVideoPath,
         ]);
+        console.info('[AI Voiceover] Rendered without BGM', { jobId: job.id });
       }
 
-      const uploaded = await uploadLocalFileAsMedia({
-        mediaType: 'video',
-        contentType: 'video/mp4',
-        originalFileName: `ai_voiceover_${job.id}.mp4`,
-        filePath: outputVideoPath,
-        userId: job.user_id,
-      });
+      await withTimeout(
+        assertAudibleAudio(outputVideoPath, 'Final voice-over video audio'),
+        AI_VOICEOVER_COMMAND_TIMEOUT_MS,
+        'Voice-over audio validation'
+      );
+      console.info('[AI Voiceover] Audio validated', { jobId: job.id });
+      const titleSlug = toSafeFileSlug(context.title || job.title_text || '');
+
+      const uploaded = await withTimeout(
+        uploadLocalFileAsMedia({
+          mediaType: 'video',
+          contentType: 'video/mp4',
+          originalFileName: `${titleSlug}-${job.id.slice(0, 8)}.mp4`,
+          filePath: outputVideoPath,
+          userId: job.user_id,
+        }),
+        AI_VOICEOVER_COMMAND_TIMEOUT_MS,
+        'Voice-over upload'
+      );
+      console.info('[AI Voiceover] Uploaded output', { jobId: job.id, outputUrl: uploaded.publicUrl });
 
       await db.execute(sql`
         UPDATE ai_voiceover_jobs
@@ -660,6 +1346,7 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
         WHERE id = ${job.id}
       `);
       completed++;
+      console.info('[AI Voiceover] Job completed', { jobId: job.id });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Voice-over generation failed';
       const reachedMax = job.attempts >= job.max_attempts;
@@ -672,6 +1359,7 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
         WHERE id = ${job.id}
       `);
       failed++;
+      console.error('[AI Voiceover] Job failed', { jobId: job.id, error: message, reachedMax });
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
     }
