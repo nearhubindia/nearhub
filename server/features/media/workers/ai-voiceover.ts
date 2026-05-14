@@ -34,7 +34,9 @@ const AI_SCRIPT_PROVIDER = (process.env.AI_SCRIPT_PROVIDER || 'aws').toLowerCase
 const AI_TRANSLATION_PROVIDER = (process.env.AI_TRANSLATION_PROVIDER || 'aws').toLowerCase();
 const BEDROCK_SCRIPT_MODEL = process.env.BEDROCK_SCRIPT_MODEL || 'amazon.nova-lite-v1:0';
 const GOOGLE_TTS_API_KEY = String(process.env.GOOGLE_TTS_API_KEY || '').trim();
+const GOOGLE_CLOUD_PROJECT = String(process.env.GOOGLE_CLOUD_PROJECT || '').trim();
 const requiresGoogleGenAI = AI_SCRIPT_PROVIDER === 'google' || AI_TRANSLATION_PROVIDER === 'google';
+let googleTtsAccessTokenCache: { token: string; expiresAtMs: number } | null = null;
 const AI_VOICEOVER_BGM_SOURCE = process.env.AI_VOICEOVER_BGM_SOURCE || 'builtin-cinematic';
 const AI_VOICEOVER_BGM_VOLUME = Number.parseFloat(process.env.AI_VOICEOVER_BGM_VOLUME || '0.3');
 const AI_VOICEOVER_ENHANCE_VIDEO = process.env.AI_VOICEOVER_ENHANCE_VIDEO !== 'false';
@@ -833,12 +835,27 @@ async function generateSpeechWav(
   language: VoiceoverJob['language'],
   outPath: string
 ): Promise<void> {
-  if (!GOOGLE_TTS_API_KEY) throw new Error('Google TTS API key is missing');
+  if (!GOOGLE_TTS_API_KEY && !GOOGLE_CLOUD_PROJECT) {
+    throw new Error('Google TTS auth is missing (set GOOGLE_TTS_API_KEY or GOOGLE_CLOUD_PROJECT)');
+  }
   const voiceName = getVoiceName(language);
   const languageCode = getTtsLanguageCode(language);
-  const endpoint = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(
-    GOOGLE_TTS_API_KEY
-  )}`;
+  const endpoint = GOOGLE_TTS_API_KEY
+    ? `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(GOOGLE_TTS_API_KEY)}`
+    : 'https://texttospeech.googleapis.com/v1/text:synthesize';
+  const headers: Record<string, string> = {};
+  if (!GOOGLE_TTS_API_KEY) {
+    const now = Date.now();
+    if (!googleTtsAccessTokenCache || googleTtsAccessTokenCache.expiresAtMs <= now) {
+      const token = (
+        await runCommandWithOutput('gcloud', ['auth', 'application-default', 'print-access-token'])
+      ).trim();
+      if (!token) throw new Error('Failed to obtain Google Cloud access token for TTS');
+      googleTtsAccessTokenCache = { token, expiresAtMs: now + 45 * 60 * 1000 };
+    }
+    headers.Authorization = `Bearer ${googleTtsAccessTokenCache.token}`;
+    headers['x-goog-user-project'] = GOOGLE_CLOUD_PROJECT;
+  }
   const response = await withTimeout(
     axios.post(
       endpoint,
@@ -851,7 +868,7 @@ async function generateSpeechWav(
           pitch: 0,
         },
       },
-      { timeout: AI_VOICEOVER_TTS_TIMEOUT_MS }
+      { timeout: AI_VOICEOVER_TTS_TIMEOUT_MS, headers }
     ),
     AI_VOICEOVER_TTS_TIMEOUT_MS,
     'Google Cloud TTS request'
@@ -972,7 +989,8 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
   completed: number;
   failed: number;
 }> {
-  if ((requiresGoogleGenAI && !isGoogleGenAIConfigured()) || !GOOGLE_TTS_API_KEY) {
+  const hasGoogleTtsAuth = Boolean(GOOGLE_TTS_API_KEY || GOOGLE_CLOUD_PROJECT);
+  if ((requiresGoogleGenAI && !isGoogleGenAIConfigured()) || !hasGoogleTtsAuth) {
     await db.execute(sql`
       UPDATE ai_voiceover_jobs
       SET status = 'failed',
