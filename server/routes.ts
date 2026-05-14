@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import { createServer, type Server } from 'node:http';
 import { existsSync } from 'node:fs';
+import axios from 'axios';
 import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
 // Location routes from search feature
 import { registerLocationRoutes } from './features/search/routes/location';
@@ -57,11 +58,7 @@ import {
   getGoogleGenAIClient,
   isGoogleGenAIConfigured,
 } from './shared/ai/genai-client';
-import {
-  callGeminiWithRetry,
-  extractInlineAudioFromGeminiResponse,
-  isRetriableGeminiError,
-} from './shared/ai/genai-resilience';
+import { callGeminiWithRetry } from './shared/ai/genai-resilience';
 
 type AiHealthCachedResult = {
   expiresAt: number;
@@ -95,21 +92,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
-    const moderationProvider = (process.env.AI_MODERATION_PROVIDER || 'gemini').toLowerCase();
+    const moderationProvider = (process.env.AI_MODERATION_PROVIDER || 'aws').toLowerCase();
     const moderationModel = process.env.GEMINI_MODERATION_MODEL || 'gemini-2.5-flash';
-    const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
-    const ttsFallbackModels = String(process.env.GEMINI_TTS_FALLBACK_MODELS || '')
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const ttsModelCandidates = Array.from(new Set([ttsModel, ...ttsFallbackModels]));
+    const ttsModel = process.env.GOOGLE_TTS_VOICE_NAME || 'google-cloud-tts';
+    const googleTtsApiKey = String(process.env.GOOGLE_TTS_API_KEY || '').trim();
     const ttsProvider: string = 'google';
-    const translationProvider = (process.env.AI_TRANSLATION_PROVIDER || 'google').toLowerCase();
+    const translationProvider = (process.env.AI_TRANSLATION_PROVIDER || 'aws').toLowerCase();
     const googleGenAIConfigured = isGoogleGenAIConfigured();
     const googleGenAIAuthMode = getGoogleGenAIAuthMode();
     const aiFeaturesEnabled = Boolean(SERVER_CONFIG.AI_FEATURES_ENABLED);
-    const requiresGoogle =
-      moderationProvider !== 'aws' || ttsProvider === 'google' || translationProvider !== 'aws';
+    const requiresGoogle = moderationProvider !== 'aws' || translationProvider !== 'aws';
     const googleCredentialsPath = String(process.env.GOOGLE_APPLICATION_CREDENTIALS || '').trim();
     const googleLicenseReady =
       getGoogleGenAIAuthMode() === 'api_key'
@@ -235,44 +227,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     {
-      let lastTtsError: unknown = null;
-      for (const candidateModel of ttsModelCandidates) {
-        try {
-          if (!ai) throw new Error('Google GenAI is not configured');
-          const response = await callGeminiWithRetry(
-            `AI health TTS probe (${candidateModel})`,
-            () =>
-              ai.models.generateContent({
-                model: candidateModel,
-                contents: 'NearHub AI health check',
-                config: {
-                  responseModalities: ['AUDIO'],
-                } as any,
-              })
-          );
-          const inlineAudio = extractInlineAudioFromGeminiResponse(response);
-          const hasAudio = Boolean(inlineAudio?.data);
-          if (hasAudio) {
-            ttsCheck = { ok: true, provider: 'google', model: candidateModel };
-            lastTtsError = null;
-            break;
-          }
-          lastTtsError = new Error(`TTS response had no audio payload (${candidateModel})`);
-        } catch (error) {
-          lastTtsError = error;
-        }
-      }
-
-      if (!ttsCheck.ok) {
-        const transient = isRetriableGeminiError(lastTtsError);
+      try {
+        if (!googleTtsApiKey) throw new Error('Missing GOOGLE_TTS_API_KEY');
+        const response = await axios.post(
+          `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(googleTtsApiKey)}`,
+          {
+            input: { text: 'NearHub AI health check' },
+            voice: { languageCode: 'en-IN' },
+            audioConfig: { audioEncoding: 'LINEAR16' },
+          },
+          { timeout: 20000 }
+        );
+        const hasAudio = Boolean(String((response.data as any)?.audioContent || '').trim());
+        ttsCheck = hasAudio
+          ? { ok: true, provider: 'google', model: ttsModel }
+          : {
+              ok: false,
+              provider: 'google',
+              model: ttsModel,
+              error: 'TTS response had no audio payload',
+            };
+      } catch (error) {
         ttsCheck = {
-          ok: transient,
+          ok: false,
           provider: 'google',
-          model: ttsModelCandidates.join(','),
-          error:
-            lastTtsError instanceof Error
-              ? lastTtsError.message
-              : String(lastTtsError || 'TTS check failed'),
+          model: ttsModel,
+          error: error instanceof Error ? error.message : 'TTS check failed',
         };
       }
     }

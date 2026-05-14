@@ -12,9 +12,7 @@ import { uploadLocalFileAsMedia } from '../services/cloudflare-media';
 import { getGoogleGenAIClient, isGoogleGenAIConfigured } from '../../../shared/ai/genai-client';
 import {
   callGeminiWithRetry,
-  extractInlineAudioFromGeminiResponse,
   extractTextFromGeminiResponse,
-  isRetriableGeminiError,
   withTimeout,
 } from '../../../shared/ai/genai-resilience';
 
@@ -32,14 +30,13 @@ type VoiceoverJob = {
 };
 
 const SCRIPT_MODEL = process.env.GEMINI_SCRIPT_MODEL || 'gemini-2.5-flash';
-const TTS_MODEL = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
-const TTS_FALLBACK_MODELS = String(process.env.GEMINI_TTS_FALLBACK_MODELS || '')
-  .split(',')
-  .map((item) => item.trim())
-  .filter(Boolean);
 const AI_SCRIPT_PROVIDER = (process.env.AI_SCRIPT_PROVIDER || 'aws').toLowerCase();
 const AI_TRANSLATION_PROVIDER = (process.env.AI_TRANSLATION_PROVIDER || 'aws').toLowerCase();
 const BEDROCK_SCRIPT_MODEL = process.env.BEDROCK_SCRIPT_MODEL || 'amazon.nova-lite-v1:0';
+const GOOGLE_TTS_API_KEY = String(
+  process.env.GOOGLE_TTS_API_KEY || ''
+).trim();
+const requiresGoogleGenAI = AI_SCRIPT_PROVIDER === 'google' || AI_TRANSLATION_PROVIDER === 'google';
 const AI_VOICEOVER_BGM_SOURCE = process.env.AI_VOICEOVER_BGM_SOURCE || 'builtin-cinematic';
 const AI_VOICEOVER_BGM_VOLUME = Number.parseFloat(process.env.AI_VOICEOVER_BGM_VOLUME || '0.3');
 const AI_VOICEOVER_ENHANCE_VIDEO = process.env.AI_VOICEOVER_ENHANCE_VIDEO !== 'false';
@@ -226,10 +223,10 @@ function getAwsTranslateLanguageCode(language: VoiceoverJob['language']): string
 }
 
 function getVoiceName(language: VoiceoverJob['language']): string {
-  const teluguVoice = process.env.AI_TTS_VOICE_TELUGU || 'Sulafat';
-  const kannadaVoice = process.env.AI_TTS_VOICE_KANNADA || 'Callirrhoe';
-  const hindiVoice = process.env.AI_TTS_VOICE_HINDI || 'Kore';
-  const englishVoice = process.env.AI_TTS_VOICE_ENGLISH || 'Sulafat';
+  const teluguVoice = process.env.AI_TTS_VOICE_TELUGU || 'te-IN-Standard-A';
+  const kannadaVoice = process.env.AI_TTS_VOICE_KANNADA || 'kn-IN-Standard-A';
+  const hindiVoice = process.env.AI_TTS_VOICE_HINDI || 'hi-IN-Standard-A';
+  const englishVoice = process.env.AI_TTS_VOICE_ENGLISH || 'en-IN-Standard-A';
 
   if (language === 'telugu') return teluguVoice;
   if (language === 'kannada') return kannadaVoice;
@@ -237,33 +234,11 @@ function getVoiceName(language: VoiceoverJob['language']): string {
   return hindiVoice;
 }
 
-function getTtsStyleInstruction(language: VoiceoverJob['language']): string {
-  if (language === 'telugu') {
-    return [
-      'Speak in a natural Telugu (te-IN) conversational tone.',
-      'Sound warm and human, like a local seller explaining to a buyer.',
-      'Do not translate, summarize, or add extra words.',
-    ].join(' ');
-  }
-  if (language === 'kannada') {
-    return [
-      'Speak in a natural Kannada (kn-IN) conversational tone.',
-      'Sound warm and human, like a local seller explaining to a buyer.',
-      'Do not translate, summarize, or add extra words.',
-    ].join(' ');
-  }
-  if (language === 'english') {
-    return [
-      'Speak in natural Indian English with a warm conversational tone.',
-      'Sound human and friendly, like a local seller explaining to a buyer.',
-      'Do not translate, summarize, or add extra words.',
-    ].join(' ');
-  }
-  return [
-    'Speak in a natural Hindi (hi-IN) conversational tone.',
-    'Sound warm and human, like a local seller explaining to a buyer.',
-    'Do not translate, summarize, or add extra words.',
-  ].join(' ');
+function getTtsLanguageCode(language: VoiceoverJob['language']): string {
+  if (language === 'telugu') return 'te-IN';
+  if (language === 'kannada') return 'kn-IN';
+  if (language === 'english') return 'en-IN';
+  return 'hi-IN';
 }
 
 function postProcessNarrationScript(
@@ -856,134 +831,37 @@ async function localizeScriptAws(
 }
 
 async function generateSpeechWav(
-  ai: GoogleGenAI,
   script: string,
   language: VoiceoverJob['language'],
   outPath: string
 ): Promise<void> {
+  if (!GOOGLE_TTS_API_KEY) throw new Error('Google TTS API key is missing');
   const voiceName = getVoiceName(language);
-  const styleInstruction = getTtsStyleInstruction(language);
-  const ttsInput = `${styleInstruction}\n\n${script}`;
-  const ttsModelCandidates = Array.from(new Set([TTS_MODEL, ...TTS_FALLBACK_MODELS]));
-  let response: any = null;
-  let lastError: unknown = null;
-  for (const model of ttsModelCandidates) {
-    try {
-      response = await callGeminiWithRetry(`Gemini TTS (${model})`, () =>
-        withTimeout(
-          ai.models.generateContent({
-            model,
-            contents: ttsInput,
-            config: {
-              responseModalities: ['AUDIO'],
-              speechConfig: {
-                voiceConfig: {
-                  prebuiltVoiceConfig: {
-                    voiceName,
-                  },
-                },
-              },
-            } as any,
-          }),
-          AI_VOICEOVER_TTS_TIMEOUT_MS,
-          `Gemini TTS (${model})`
-        )
-      );
-      break;
-    } catch (error) {
-      lastError = error;
-      console.warn('[AI Voiceover] Gemini TTS model failed, trying fallback if available', {
-        model,
-        retriable: isRetriableGeminiError(error),
-        error: error instanceof Error ? error.message : String(error || 'Unknown error'),
-      });
-    }
-  }
-  if (!response) {
-    const message =
-      lastError instanceof Error ? lastError.message : String(lastError || 'TTS failed');
-    throw new Error(
-      `Gemini TTS failed across models (${ttsModelCandidates.join(', ')}): ${message}`
-    );
-  }
-
-  const inlineAudio = extractInlineAudioFromGeminiResponse(response);
-  const audioBase64 = inlineAudio?.data || null;
-  const mimeType = String(inlineAudio?.mimeType || '').toLowerCase();
-
-  if (!audioBase64) {
-    throw new Error('Gemini TTS did not return audio payload');
-  }
-  const audioBuffer = Buffer.from(String(audioBase64), 'base64');
-
-  if (!mimeType || mimeType.includes('wav')) {
-    await fs.writeFile(outPath, audioBuffer);
-    return;
-  }
-
-  if (mimeType.includes('mpeg') || mimeType.includes('mp3')) {
-    const tempMp3 = `${outPath}.mp3`;
-    await fs.writeFile(tempMp3, audioBuffer);
-    await runCommand('ffmpeg', [
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      '-y',
-      '-i',
-      tempMp3,
-      '-ac',
-      '1',
-      '-ar',
-      '24000',
-      outPath,
-    ]);
-    return;
-  }
-
-  if (mimeType.includes('l16') || mimeType.includes('pcm')) {
-    const sampleRateMatch = mimeType.match(/rate=(\d+)/);
-    const channelMatch = mimeType.match(/channels=(\d+)/);
-    const sampleRate = sampleRateMatch?.[1] || '24000';
-    const channels = channelMatch?.[1] || '1';
-    const tempRaw = `${outPath}.raw`;
-    await fs.writeFile(tempRaw, audioBuffer);
-    await runCommand('ffmpeg', [
-      '-hide_banner',
-      '-loglevel',
-      'error',
-      '-y',
-      '-f',
-      's16le',
-      '-ar',
-      sampleRate,
-      '-ac',
-      channels,
-      '-i',
-      tempRaw,
-      '-ac',
-      '1',
-      '-ar',
-      '24000',
-      outPath,
-    ]);
-    return;
-  }
-
-  const tempUnknown = `${outPath}.bin`;
-  await fs.writeFile(tempUnknown, audioBuffer);
-  await runCommand('ffmpeg', [
-    '-hide_banner',
-    '-loglevel',
-    'error',
-    '-y',
-    '-i',
-    tempUnknown,
-    '-ac',
-    '1',
-    '-ar',
-    '24000',
-    outPath,
-  ]);
+  const languageCode = getTtsLanguageCode(language);
+  const endpoint = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(
+    GOOGLE_TTS_API_KEY
+  )}`;
+  const response = await withTimeout(
+    axios.post(
+      endpoint,
+      {
+        input: { text: script },
+        voice: { languageCode, name: voiceName },
+        audioConfig: {
+          audioEncoding: 'LINEAR16',
+          speakingRate: 1.02,
+          pitch: 0,
+        },
+      },
+      { timeout: AI_VOICEOVER_TTS_TIMEOUT_MS }
+    ),
+    AI_VOICEOVER_TTS_TIMEOUT_MS,
+    'Google Cloud TTS request'
+  );
+  const audioBase64 = String((response.data as any)?.audioContent || '').trim();
+  if (!audioBase64) throw new Error('Google Cloud TTS did not return audio payload');
+  const audioBuffer = Buffer.from(audioBase64, 'base64');
+  await fs.writeFile(outPath, audioBuffer);
 }
 
 async function streamToBuffer(stream: unknown): Promise<Buffer> {
@@ -1080,14 +958,11 @@ function buildVideoEnhancementFilter(): string {
 
 function toUserFriendlyVoiceoverError(rawMessage: string): string {
   const message = String(rawMessage || '').trim();
-  const isGeminiTtsOutage =
-    /gemini tts failed across models/i.test(message) ||
-    (/gemini tts/i.test(message) &&
-      /\b(500|503|internal|unavailable|resource_exhausted|high demand|timed out|timeout)\b/i.test(
-        message
-      ));
+  const isGoogleTtsOutage =
+    /google cloud tts/i.test(message) &&
+    /\b(429|500|503|internal|unavailable|resource_exhausted|timed out|timeout)\b/i.test(message);
 
-  if (isGeminiTtsOutage) {
+  if (isGoogleTtsOutage) {
     return 'AI voice-over is down right now. Please try again after some time.';
   }
 
@@ -1099,7 +974,7 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
   completed: number;
   failed: number;
 }> {
-  if (!isGoogleGenAIConfigured()) {
+  if ((requiresGoogleGenAI && !isGoogleGenAIConfigured()) || !GOOGLE_TTS_API_KEY) {
     await db.execute(sql`
       UPDATE ai_voiceover_jobs
       SET status = 'failed',
@@ -1134,8 +1009,7 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
     try {
       // Google client is always needed for TTS in this worker, regardless of
       // script/translation provider selection.
-      const needsGoogleForJob = true;
-      const ai = needsGoogleForJob ? getGoogleGenAIClient() : null;
+      const ai = requiresGoogleGenAI && isGoogleGenAIConfigured() ? getGoogleGenAIClient() : null;
       await downloadToFile(job.source_video_url, sourceVideoPath);
       console.info('[AI Voiceover] Source downloaded', { jobId: job.id });
       const videoDurationSeconds = await getMediaDurationSeconds(sourceVideoPath);
@@ -1220,8 +1094,7 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
         chars: script.length,
       });
       const ttsScript = buildTtsInputForProvider(job.language, script, context);
-      if (!ai) throw new Error('Google API key missing for Google TTS provider');
-      await generateSpeechWav(ai, ttsScript, job.language, voiceWavPath);
+      await generateSpeechWav(ttsScript, job.language, voiceWavPath);
       console.info('[AI Voiceover] TTS generated', { jobId: job.id });
 
       const voiceDurationSeconds = await getMediaDurationSeconds(voiceWavPath);

@@ -6,6 +6,7 @@ import {
   callGeminiWithRetry,
   extractTextFromGeminiResponse,
 } from '../../../shared/ai/genai-resilience';
+const GOOGLE_TTS_API_KEY = String(process.env.GOOGLE_TTS_API_KEY || '').trim();
 
 type SupportedLanguage = 'telugu' | 'hindi' | 'english';
 
@@ -120,7 +121,7 @@ Return only script text.`,
           error: 'userId, sourceVideoUrl, and language (telugu|hindi|english) are required',
         });
       }
-      if (!isGoogleGenAIConfigured()) {
+      if (!GOOGLE_TTS_API_KEY) {
         return res.status(503).json({
           success: false,
           error: 'AI voice-over is temporarily unavailable. Please try again later.',
