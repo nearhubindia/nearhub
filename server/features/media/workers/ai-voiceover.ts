@@ -847,9 +847,18 @@ async function generateSpeechWav(
   if (!GOOGLE_TTS_API_KEY) {
     const now = Date.now();
     if (!googleTtsAccessTokenCache || googleTtsAccessTokenCache.expiresAtMs <= now) {
-      const token = (
-        await runCommandWithOutput('gcloud', ['auth', 'application-default', 'print-access-token'])
-      ).trim();
+      let token = '';
+      try {
+        token = (
+          await runCommandWithOutput('gcloud', [
+            'auth',
+            'application-default',
+            'print-access-token',
+          ])
+        ).trim();
+      } catch {
+        token = (await runCommandWithOutput('gcloud', ['auth', 'print-access-token'])).trim();
+      }
       if (!token) throw new Error('Failed to obtain Google Cloud access token for TTS');
       googleTtsAccessTokenCache = { token, expiresAtMs: now + 45 * 60 * 1000 };
     }
