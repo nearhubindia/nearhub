@@ -120,6 +120,12 @@ Return only script text.`,
           error: 'userId, sourceVideoUrl, and language (telugu|hindi|english) are required',
         });
       }
+      if (!isGoogleGenAIConfigured()) {
+        return res.status(503).json({
+          success: false,
+          error: 'AI voice-over is temporarily unavailable. Please try again later.',
+        });
+      }
       if (!titleText) {
         return res.status(400).json({
           success: false,

@@ -1100,6 +1100,14 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
   failed: number;
 }> {
   if (!isGoogleGenAIConfigured()) {
+    await db.execute(sql`
+      UPDATE ai_voiceover_jobs
+      SET status = 'failed',
+          error_message = 'AI voice-over is temporarily unavailable. Please try again later.',
+          updated_at = CURRENT_TIMESTAMP,
+          processed_at = CURRENT_TIMESTAMP
+      WHERE status IN ('pending', 'processing')
+    `);
     return { processed: 0, completed: 0, failed: 0 };
   }
 
