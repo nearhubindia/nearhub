@@ -461,10 +461,12 @@ function scriptLooksTooSloganLike(script: string): boolean {
 function scriptHasTargetWriting(script: string, language: VoiceoverJob['language']): boolean {
   const value = String(script || '').trim();
   if (!value) return false;
+  const hasIndicChars = /[\u0900-\u097F\u0C00-\u0C7F\u0C80-\u0CFF]/.test(value);
   if (language === 'telugu') return /[\u0C00-\u0C7F]/.test(value);
   if (language === 'kannada') return /[\u0C80-\u0CFF]/.test(value);
   if (language === 'hindi') return /[\u0900-\u097F]/.test(value);
-  return /[A-Za-z]/.test(value);
+  const hasLatinWords = /[A-Za-z]{3,}/.test(value);
+  return hasLatinWords && !hasIndicChars;
 }
 
 async function translateFieldAws(
@@ -1129,6 +1131,13 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
       }
       script = postProcessNarrationScript(job.language, script);
       script = enforceSalesRubric(job.language, script, context);
+      if (job.language === 'english' && !scriptHasTargetWriting(script, 'english')) {
+        script = enforceSalesRubric(
+          'english',
+          postProcessNarrationScript('english', buildDeterministicNarrationSeed(context)),
+          context
+        );
+      }
       console.info('[AI Voiceover] Script ready', {
         jobId: job.id,
         chars: script.length,
