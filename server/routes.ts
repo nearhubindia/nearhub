@@ -239,14 +239,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const candidateModel of ttsModelCandidates) {
         try {
           if (!ai) throw new Error('Google GenAI is not configured');
-          const response = await callGeminiWithRetry(`AI health TTS probe (${candidateModel})`, () =>
-            ai.models.generateContent({
-              model: candidateModel,
-              contents: 'NearHub AI health check',
-              config: {
-                responseModalities: ['AUDIO'],
-              } as any,
-            })
+          const response = await callGeminiWithRetry(
+            `AI health TTS probe (${candidateModel})`,
+            () =>
+              ai.models.generateContent({
+                model: candidateModel,
+                contents: 'NearHub AI health check',
+                config: {
+                  responseModalities: ['AUDIO'],
+                } as any,
+              })
           );
           const inlineAudio = extractInlineAudioFromGeminiResponse(response);
           const hasAudio = Boolean(inlineAudio?.data);

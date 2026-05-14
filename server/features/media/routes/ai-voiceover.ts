@@ -2,7 +2,10 @@ import type { Express, Request, Response } from 'express';
 import { db } from '../../../data/db';
 import { sql } from 'drizzle-orm';
 import { getGoogleGenAIClient, isGoogleGenAIConfigured } from '../../../shared/ai/genai-client';
-import { callGeminiWithRetry, extractTextFromGeminiResponse } from '../../../shared/ai/genai-resilience';
+import {
+  callGeminiWithRetry,
+  extractTextFromGeminiResponse,
+} from '../../../shared/ai/genai-resilience';
 
 type SupportedLanguage = 'telugu' | 'hindi' | 'english';
 

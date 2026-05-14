@@ -900,8 +900,11 @@ async function generateSpeechWav(
     }
   }
   if (!response) {
-    const message = lastError instanceof Error ? lastError.message : String(lastError || 'TTS failed');
-    throw new Error(`Gemini TTS failed across models (${ttsModelCandidates.join(', ')}): ${message}`);
+    const message =
+      lastError instanceof Error ? lastError.message : String(lastError || 'TTS failed');
+    throw new Error(
+      `Gemini TTS failed across models (${ttsModelCandidates.join(', ')}): ${message}`
+    );
   }
 
   const inlineAudio = extractInlineAudioFromGeminiResponse(response);

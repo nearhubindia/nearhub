@@ -6,7 +6,10 @@ type RetryOptions = {
   shouldRetry?: (error: unknown) => boolean;
 };
 
-const DEFAULT_ATTEMPTS = Math.max(1, Number.parseInt(process.env.AI_GEMINI_RETRY_ATTEMPTS || '4', 10) || 4);
+const DEFAULT_ATTEMPTS = Math.max(
+  1,
+  Number.parseInt(process.env.AI_GEMINI_RETRY_ATTEMPTS || '4', 10) || 4
+);
 const DEFAULT_BASE_DELAY_MS = Math.max(
   250,
   Number.parseInt(process.env.AI_GEMINI_RETRY_BASE_MS || '1200', 10) || 1200
@@ -34,7 +37,15 @@ function extractStatusLikeCode(error: any): number | null {
 
 export function isRetriableGeminiError(error: unknown): boolean {
   const status = extractStatusLikeCode(error);
-  if (status === 408 || status === 409 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
+  if (
+    status === 408 ||
+    status === 409 ||
+    status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504
+  ) {
     return true;
   }
 
@@ -83,7 +94,11 @@ export async function callGeminiWithRetry<T>(
   throw new Error(`${operationLabel} failed after retries: ${asErrorMessage(lastError)}`);
 }
 
-export async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string
+): Promise<T> {
   let timer: NodeJS.Timeout | null = null;
   try {
     return await Promise.race([

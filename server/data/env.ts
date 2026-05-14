@@ -14,7 +14,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 const cwd = process.cwd();
-const isProduction = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
+const isProduction =
+  String(process.env.NODE_ENV || '')
+    .trim()
+    .toLowerCase() === 'production';
 const explicitEnvFile = String(process.env.NEARHUB_ENV_FILE || '').trim();
 const defaultProductionEnvFile = '/etc/nearhub/server.env';
 
