@@ -461,7 +461,8 @@ function scriptLooksTooSloganLike(script: string): boolean {
 function scriptHasTargetWriting(script: string, language: VoiceoverJob['language']): boolean {
   const value = String(script || '').trim();
   if (!value) return false;
-  const hasIndicChars = /[\u0900-\u097F\u0C00-\u0C7F\u0C80-\u0CFF]/.test(value);
+  const hasIndicChars =
+    /[\u0900-\u097F]/.test(value) || /[\u0C00-\u0C7F]/.test(value) || /[\u0C80-\u0CFF]/.test(value);
   if (language === 'telugu') return /[\u0C00-\u0C7F]/.test(value);
   if (language === 'kannada') return /[\u0C80-\u0CFF]/.test(value);
   if (language === 'hindi') return /[\u0900-\u097F]/.test(value);
