@@ -55,7 +55,9 @@ export default function CouponsView() {
   const coupons: CouponRow[] = Array.isArray(couponsData?.coupons)
     ? (couponsData.coupons as CouponRow[])
     : [];
-  const tiers: TierOption[] = Array.isArray(tiersData?.tiers) ? (tiersData.tiers as TierOption[]) : [];
+  const tiers: TierOption[] = Array.isArray(tiersData?.tiers)
+    ? (tiersData.tiers as TierOption[])
+    : [];
 
   const formatDuration = (days: number): string => {
     if (days === 30) return '30 Days';
@@ -66,7 +68,10 @@ export default function CouponsView() {
   };
 
   const tierLabelById = new Map(
-    tiers.map((tier) => [tier.id, `${tier.name} (${formatDuration(Number(tier.durationDays || 0))})`])
+    tiers.map((tier) => [
+      tier.id,
+      `${tier.name} (${formatDuration(Number(tier.durationDays || 0))})`,
+    ])
   );
 
   const parseApplicableTiers = (value: string | null | undefined): string[] => {
@@ -117,9 +122,7 @@ export default function CouponsView() {
       accessorFn: (coupon) => {
         const ids = parseApplicableTiers(coupon.applicableTiers);
         if (!ids.length) return 'All Plans';
-        return ids
-          .map((id) => tierLabelById.get(id) || id)
-          .join(', ');
+        return ids.map((id) => tierLabelById.get(id) || id).join(', ');
       },
       meta: { filterPlaceholder: 'Filter plans...' },
       cell: ({ row }) => {
@@ -449,9 +452,7 @@ export default function CouponsView() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-900">
-                  Plan Name(s)
-                </label>
+                <label className="mb-2 block text-sm font-bold text-slate-900">Plan Name(s)</label>
                 <div
                   className={`max-h-48 space-y-2 overflow-y-auto rounded-lg border p-3 ${
                     formErrors.applicableTiers ? 'border-red-500' : 'border-slate-300'
