@@ -241,6 +241,19 @@ function getTtsLanguageCode(language: VoiceoverJob['language']): string {
   return 'hi-IN';
 }
 
+function getTtsSpeakingRate(language: VoiceoverJob['language']): number {
+  if (language === 'english') return 1.04;
+  if (language === 'hindi') return 1.03;
+  return 1.02;
+}
+
+function getTtsPitch(language: VoiceoverJob['language']): number {
+  if (language === 'english') return 1.2;
+  if (language === 'hindi') return 1.0;
+  if (language === 'kannada') return 0.8;
+  return 0.9;
+}
+
 function postProcessNarrationScript(
   language: VoiceoverJob['language'],
   inputScript: string
@@ -840,6 +853,8 @@ async function generateSpeechWav(
   }
   const voiceName = getVoiceName(language);
   const languageCode = getTtsLanguageCode(language);
+  const speakingRate = getTtsSpeakingRate(language);
+  const pitch = getTtsPitch(language);
   const endpoint = GOOGLE_TTS_API_KEY
     ? `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(GOOGLE_TTS_API_KEY)}`
     : 'https://texttospeech.googleapis.com/v1/text:synthesize';
@@ -873,8 +888,8 @@ async function generateSpeechWav(
         voice: { languageCode, name: voiceName },
         audioConfig: {
           audioEncoding: 'LINEAR16',
-          speakingRate: 1.02,
-          pitch: 0,
+          speakingRate,
+          pitch,
         },
       },
       { timeout: AI_VOICEOVER_TTS_TIMEOUT_MS, headers }
@@ -1124,12 +1139,21 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
 
       const voiceDurationSeconds = await getMediaDurationSeconds(voiceWavPath);
       const targetNarrationDurationSeconds = Math.max(1, videoDurationSeconds - 0.35);
-      const voiceSpeedFactor =
-        voiceDurationSeconds > targetNarrationDurationSeconds
-          ? Math.min(1.18, voiceDurationSeconds / targetNarrationDurationSeconds)
-          : 1;
+      // Fit narration timing in both directions:
+      // - if voice is too long, speed up slightly
+      // - if voice is too short, slow down slightly
+      const rawTempoFactor = voiceDurationSeconds / targetNarrationDurationSeconds;
+      const voiceTempoFactor = Math.max(0.88, Math.min(1.18, rawTempoFactor));
       const voiceTempoFilter =
-        voiceSpeedFactor > 1.01 ? `${buildAtempoFilter(voiceSpeedFactor)},` : '';
+        Math.abs(voiceTempoFactor - 1) > 0.01 ? `${buildAtempoFilter(voiceTempoFactor)},` : '';
+      console.info('[AI Voiceover] Timing fit', {
+        jobId: job.id,
+        videoDurationSeconds: Number(videoDurationSeconds.toFixed(2)),
+        voiceDurationSeconds: Number(voiceDurationSeconds.toFixed(2)),
+        targetNarrationDurationSeconds: Number(targetNarrationDurationSeconds.toFixed(2)),
+        rawTempoFactor: Number(rawTempoFactor.toFixed(4)),
+        appliedTempoFactor: Number(voiceTempoFactor.toFixed(4)),
+      });
 
       const hasBackgroundMusic = await prepareBackgroundMusic(videoDurationSeconds, bgmPath);
       console.info('[AI Voiceover] Background prepared', { jobId: job.id, hasBackgroundMusic });
@@ -1156,7 +1180,8 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
           `[0:v]${videoFilter}[vout];` +
             `[1:a]${voiceFilter}[vo];` +
             `[2:a]atrim=0:${videoDurationSeconds.toFixed(3)},apad,atrim=0:${videoDurationSeconds.toFixed(3)},volume=${bgmVolume.toFixed(3)}[bgm];` +
-            '[vo][bgm]amix=inputs=2:normalize=0:duration=first[outa]',
+            '[bgm][vo]sidechaincompress=threshold=0.03:ratio=10:attack=8:release=280[bgmduck];' +
+            '[vo][bgmduck]amix=inputs=2:normalize=0:duration=first[outa]',
           '-map',
           '[vout]',
           '-map',
