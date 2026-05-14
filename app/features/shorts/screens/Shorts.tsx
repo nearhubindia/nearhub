@@ -149,7 +149,7 @@ export default function ShortsScreen() {
     const userCity = String(user?.location?.city || '')
       .trim()
       .toLowerCase();
-    const userState = String(user?.location?.state || '')
+    const userState = String((user as any)?.location?.state || '')
       .trim()
       .toLowerCase();
 
