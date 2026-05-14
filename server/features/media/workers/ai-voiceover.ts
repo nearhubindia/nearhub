@@ -8,8 +8,15 @@ import { GoogleGenAI } from '@google/genai';
 import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import { db } from '../../../data/db';
-import { SERVER_CONFIG } from '../../../lib/config';
 import { uploadLocalFileAsMedia } from '../services/cloudflare-media';
+import { getGoogleGenAIClient, isGoogleGenAIConfigured } from '../../../shared/ai/genai-client';
+import {
+  callGeminiWithRetry,
+  extractInlineAudioFromGeminiResponse,
+  extractTextFromGeminiResponse,
+  isRetriableGeminiError,
+  withTimeout,
+} from '../../../shared/ai/genai-resilience';
 
 type VoiceoverJob = {
   id: string;
@@ -26,6 +33,10 @@ type VoiceoverJob = {
 
 const SCRIPT_MODEL = process.env.GEMINI_SCRIPT_MODEL || 'gemini-2.5-flash';
 const TTS_MODEL = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
+const TTS_FALLBACK_MODELS = String(process.env.GEMINI_TTS_FALLBACK_MODELS || '')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
 const AI_SCRIPT_PROVIDER = (process.env.AI_SCRIPT_PROVIDER || 'aws').toLowerCase();
 const AI_TRANSLATION_PROVIDER = (process.env.AI_TRANSLATION_PROVIDER || 'aws').toLowerCase();
 const BEDROCK_SCRIPT_MODEL = process.env.BEDROCK_SCRIPT_MODEL || 'amazon.nova-lite-v1:0';
@@ -46,65 +57,6 @@ const AI_VOICEOVER_TTS_TIMEOUT_MS = Math.max(
   15_000,
   Number.parseInt(process.env.AI_VOICEOVER_TTS_TIMEOUT_MS || '120000', 10) || 120000
 );
-const AI_GEMINI_RETRY_ATTEMPTS = Math.max(
-  1,
-  Number.parseInt(process.env.AI_GEMINI_RETRY_ATTEMPTS || '4', 10) || 4
-);
-const AI_GEMINI_RETRY_BASE_MS = Math.max(
-  500,
-  Number.parseInt(process.env.AI_GEMINI_RETRY_BASE_MS || '2000', 10) || 2000
-);
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
-  let timer: NodeJS.Timeout | null = null;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_, reject) => {
-        timer = setTimeout(() => {
-          reject(new Error(`${label} timed out after ${timeoutMs}ms`));
-        }, timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
-function isRetriableGeminiError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error || '');
-  return (
-    /UNAVAILABLE/i.test(message) ||
-    /high demand/i.test(message) ||
-    /\b503\b/.test(message) ||
-    /deadline/i.test(message) ||
-    /timed out/i.test(message) ||
-    /ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/i.test(message)
-  );
-}
-
-async function delay(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function callGeminiWithRetry<T>(operationLabel: string, fn: () => Promise<T>): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= AI_GEMINI_RETRY_ATTEMPTS; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error;
-      const shouldRetry = attempt < AI_GEMINI_RETRY_ATTEMPTS && isRetriableGeminiError(error);
-      if (!shouldRetry) break;
-      const backoff = AI_GEMINI_RETRY_BASE_MS * 2 ** (attempt - 1);
-      const jitter = Math.floor(Math.random() * 400);
-      await delay(backoff + jitter);
-    }
-  }
-  const message =
-    lastError instanceof Error ? lastError.message : String(lastError || 'Unknown error');
-  throw new Error(`${operationLabel} failed after retries: ${message}`);
-}
 
 function runCommand(command: string, args: string[]): Promise<void> {
   return new Promise<void>((resolve, reject) => {
@@ -764,7 +716,7 @@ ${contextBlock || 'No listing context provided.'}
 Return only the final script.`,
     })
   );
-  return String(response.text || '').trim();
+  return extractTextFromGeminiResponse(response);
 }
 
 async function generateScriptAws(
@@ -855,7 +807,7 @@ ${script}`,
     })
   );
 
-  const localized = String(response.text || '').trim();
+  const localized = extractTextFromGeminiResponse(response);
   return localized || script;
 }
 
@@ -912,33 +864,49 @@ async function generateSpeechWav(
   const voiceName = getVoiceName(language);
   const styleInstruction = getTtsStyleInstruction(language);
   const ttsInput = `${styleInstruction}\n\n${script}`;
-  const response = await callGeminiWithRetry('Gemini TTS', () =>
-    withTimeout(
-      ai.models.generateContent({
-        model: TTS_MODEL,
-        contents: ttsInput,
-        config: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName,
+  const ttsModelCandidates = Array.from(new Set([TTS_MODEL, ...TTS_FALLBACK_MODELS]));
+  let response: any = null;
+  let lastError: unknown = null;
+  for (const model of ttsModelCandidates) {
+    try {
+      response = await callGeminiWithRetry(`Gemini TTS (${model})`, () =>
+        withTimeout(
+          ai.models.generateContent({
+            model,
+            contents: ttsInput,
+            config: {
+              responseModalities: ['AUDIO'],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: {
+                    voiceName,
+                  },
+                },
               },
-            },
-          },
-        } as any,
-      }),
-      AI_VOICEOVER_TTS_TIMEOUT_MS,
-      `Gemini TTS (${TTS_MODEL})`
-    )
-  );
+            } as any,
+          }),
+          AI_VOICEOVER_TTS_TIMEOUT_MS,
+          `Gemini TTS (${model})`
+        )
+      );
+      break;
+    } catch (error) {
+      lastError = error;
+      console.warn('[AI Voiceover] Gemini TTS model failed, trying fallback if available', {
+        model,
+        retriable: isRetriableGeminiError(error),
+        error: error instanceof Error ? error.message : String(error || 'Unknown error'),
+      });
+    }
+  }
+  if (!response) {
+    const message = lastError instanceof Error ? lastError.message : String(lastError || 'TTS failed');
+    throw new Error(`Gemini TTS failed across models (${ttsModelCandidates.join(', ')}): ${message}`);
+  }
 
-  const parts = Array.isArray(response?.candidates?.[0]?.content?.parts)
-    ? (response?.candidates?.[0]?.content?.parts as any[])
-    : [];
-  const audioPart = parts.find((part) => typeof part?.inlineData?.data === 'string');
-  const audioBase64 = audioPart?.inlineData?.data || null;
-  const mimeType = String(audioPart?.inlineData?.mimeType || '').toLowerCase();
+  const inlineAudio = extractInlineAudioFromGeminiResponse(response);
+  const audioBase64 = inlineAudio?.data || null;
+  const mimeType = String(inlineAudio?.mimeType || '').toLowerCase();
 
   if (!audioBase64) {
     throw new Error('Gemini TTS did not return audio payload');
@@ -1107,12 +1075,28 @@ function buildVideoEnhancementFilter(): string {
   ].join(',');
 }
 
+function toUserFriendlyVoiceoverError(rawMessage: string): string {
+  const message = String(rawMessage || '').trim();
+  const isGeminiTtsOutage =
+    /gemini tts failed across models/i.test(message) ||
+    (/gemini tts/i.test(message) &&
+      /\b(500|503|internal|unavailable|resource_exhausted|high demand|timed out|timeout)\b/i.test(
+        message
+      ));
+
+  if (isGeminiTtsOutage) {
+    return 'AI voice-over is down right now. Please try again after some time.';
+  }
+
+  return message || 'Voice-over generation failed';
+}
+
 export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
   processed: number;
   completed: number;
   failed: number;
 }> {
-  if (!SERVER_CONFIG.GOOGLE_GENAI_API_KEY) {
+  if (!isGoogleGenAIConfigured()) {
     return { processed: 0, completed: 0, failed: 0 };
   }
 
@@ -1140,10 +1124,7 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
       // Google client is always needed for TTS in this worker, regardless of
       // script/translation provider selection.
       const needsGoogleForJob = true;
-      const ai =
-        needsGoogleForJob && SERVER_CONFIG.GOOGLE_GENAI_API_KEY
-          ? new GoogleGenAI({ apiKey: SERVER_CONFIG.GOOGLE_GENAI_API_KEY })
-          : null;
+      const ai = needsGoogleForJob ? getGoogleGenAIClient() : null;
       await downloadToFile(job.source_video_url, sourceVideoPath);
       console.info('[AI Voiceover] Source downloaded', { jobId: job.id });
       const videoDurationSeconds = await getMediaDurationSeconds(sourceVideoPath);
@@ -1360,7 +1341,9 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
       completed++;
       console.info('[AI Voiceover] Job completed', { jobId: job.id });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Voice-over generation failed';
+      const technicalMessage =
+        error instanceof Error ? error.message : 'Voice-over generation failed';
+      const message = toUserFriendlyVoiceoverError(technicalMessage);
       const reachedMax = job.attempts >= job.max_attempts;
       await db.execute(sql`
         UPDATE ai_voiceover_jobs
@@ -1371,7 +1354,12 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
         WHERE id = ${job.id}
       `);
       failed++;
-      console.error('[AI Voiceover] Job failed', { jobId: job.id, error: message, reachedMax });
+      console.error('[AI Voiceover] Job failed', {
+        jobId: job.id,
+        error: technicalMessage,
+        userMessage: message,
+        reachedMax,
+      });
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
     }

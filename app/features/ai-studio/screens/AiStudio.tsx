@@ -164,6 +164,44 @@ const LAST_JOB_KEY_PREFIX = 'ai_studio_last_job_id:';
 const LOCAL_VIDEO_MAP_KEY_PREFIX = 'ai_studio_local_video_map:';
 const GENERIC_PROCESSING_ERROR = 'Error in processing. Please retry.';
 
+function parseErrorMessage(error: unknown, fallback: string): string {
+  const raw = error instanceof Error ? error.message : String(error || '').trim();
+  if (!raw) return fallback;
+  const value = raw.trim();
+
+  if (
+    /resource_exhausted|quota exceeded|exceeded your current quota|rate[\s_-]?limit|429/i.test(value)
+  ) {
+    return 'AI quota is currently exhausted. Please try again in a minute, or contact support to increase quota.';
+  }
+
+  const firstBrace = value.indexOf('{');
+  if (firstBrace >= 0) {
+    const maybeJson = value.slice(firstBrace);
+    try {
+      const parsed = JSON.parse(maybeJson) as {
+        error?: { message?: string; status?: string; code?: number };
+        message?: string;
+      };
+      const nestedMessage = String(parsed?.error?.message || parsed?.message || '').trim();
+      if (nestedMessage) {
+        if (
+          /resource_exhausted|quota exceeded|exceeded your current quota|rate[\s_-]?limit|429/i.test(
+            nestedMessage
+          )
+        ) {
+          return 'AI quota is currently exhausted. Please try again in a minute, or contact support to increase quota.';
+        }
+        return nestedMessage.length > 220 ? `${nestedMessage.slice(0, 220)}...` : nestedMessage;
+      }
+    } catch {
+      // not a JSON payload; continue with raw message
+    }
+  }
+
+  return value.length > 220 ? `${value.slice(0, 220)}...` : value;
+}
+
 export default function AiStudio() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -267,7 +305,7 @@ export default function AiStudio() {
         uploadProgressTimerRef.current = null;
       }
       setUploadProgress(0);
-      Alert.alert('Upload failed', error instanceof Error ? error.message : 'Upload failed');
+      Alert.alert('Upload failed', parseErrorMessage(error, 'Upload failed'));
     } finally {
       setIsUploadingSource(false);
     }
@@ -333,7 +371,7 @@ export default function AiStudio() {
         uploadProgressTimerRef.current = null;
       }
       setUploadProgress(0);
-      Alert.alert('Failed', error instanceof Error ? error.message : 'Failed to create job');
+      Alert.alert('Failed', parseErrorMessage(error, 'Failed to create job'));
     } finally {
       setIsUploadingSource(false);
       setIsCreatingJob(false);
@@ -359,11 +397,14 @@ export default function AiStudio() {
         Alert.alert('Video Ready', 'Your AI voice-over video is ready to preview and share.');
       }
       if (nextJob.status === 'failed') {
-        Alert.alert('Generation failed', nextJob.error_message || 'Please try regenerate.');
+        Alert.alert(
+          'Generation failed',
+          parseErrorMessage(nextJob.error_message || '', 'Please try regenerate.')
+        );
       }
     } catch (error) {
       if (!silent) {
-        Alert.alert('Error', error instanceof Error ? error.message : 'Failed to fetch job');
+        Alert.alert('Error', parseErrorMessage(error, 'Failed to fetch job'));
       }
     } finally {
       if (!silent) setIsRefreshingJob(false);
@@ -383,7 +424,7 @@ export default function AiStudio() {
       }
       setJobs(payload.jobs as VoiceoverJob[]);
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to load videos');
+      Alert.alert('Error', parseErrorMessage(error, 'Failed to load videos'));
     } finally {
       setIsLoadingJobs(false);
     }
@@ -511,7 +552,7 @@ export default function AiStudio() {
       await AsyncStorage.setItem(`${LAST_JOB_KEY_PREFIX}${user.id}`, nextJob.id);
       setReadyPromptShownForJob(null);
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to regenerate');
+      Alert.alert('Error', parseErrorMessage(error, 'Failed to regenerate'));
     } finally {
       setIsRegenerating(false);
     }
@@ -536,7 +577,7 @@ export default function AiStudio() {
       await loadJobs();
       Alert.alert('Retry started', 'Voice-over generation has been queued again.');
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to retry');
+      Alert.alert('Error', parseErrorMessage(error, 'Failed to retry'));
     } finally {
       setIsRegenerating(false);
     }
@@ -565,7 +606,7 @@ export default function AiStudio() {
       await AsyncStorage.removeItem(`${LAST_JOB_KEY_PREFIX}${user.id}`);
       await removeLocalVideoByJobId(job.id);
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to delete');
+      Alert.alert('Error', parseErrorMessage(error, 'Failed to delete'));
     } finally {
       setIsDeleting(false);
     }
@@ -603,7 +644,7 @@ export default function AiStudio() {
     } catch (error) {
       Alert.alert(
         'Download failed',
-        error instanceof Error ? error.message : 'Failed to download video'
+        parseErrorMessage(error, 'Failed to download video')
       );
     }
   };
@@ -626,7 +667,7 @@ export default function AiStudio() {
       await removeLocalVideoByJobId(jobId);
       setJobs((prev) => prev.filter((item) => item.id !== jobId));
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to delete');
+      Alert.alert('Error', parseErrorMessage(error, 'Failed to delete'));
     } finally {
       setIsDeleting(false);
     }

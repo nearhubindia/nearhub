@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import {
   Menu,
-  ChevronLeft,
+  PanelLeftClose,
+  PanelLeftOpen,
   LogOut,
   Users,
   LayoutDashboard,
@@ -129,20 +130,25 @@ export default function AdminLayout() {
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 hover:bg-slate-800 rounded transition cursor-pointer"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/70 text-slate-200 shadow-[0_8px_18px_-12px_rgba(2,132,199,0.8)] backdrop-blur transition hover:border-cyan-400/45 hover:bg-slate-800 hover:text-white"
             aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            title={sidebarOpen ? 'Collapse menu' : 'Expand menu'}
           >
             {isMobile ? (
-              <X size={20} />
+              <X size={18} strokeWidth={2.2} />
             ) : sidebarOpen ? (
-              <ChevronLeft size={20} />
+              <PanelLeftClose size={18} strokeWidth={2.2} />
             ) : (
-              <Menu size={20} />
+              <PanelLeftOpen size={18} strokeWidth={2.2} />
             )}
           </button>
         </div>
 
-        <nav className="admin-sidebar-scrollbar flex-1 overflow-y-auto px-4 py-6 space-y-2">
+        <nav
+          className={`admin-sidebar-scrollbar flex-1 overflow-y-auto py-6 space-y-2 ${
+            isExpanded ? 'px-4' : 'px-2'
+          }`}
+        >
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -156,13 +162,15 @@ export default function AdminLayout() {
                     setSidebarOpen(false);
                   }
                 }}
-                className={`relative w-full flex items-center gap-3 px-4 py-3 rounded-lg transition font-semibold cursor-pointer ${
+                className={`relative w-full flex items-center rounded-lg transition font-semibold cursor-pointer ${
+                  isExpanded ? 'gap-3 px-4 py-3 justify-start' : 'justify-center px-2 py-3'
+                } ${
                   isActive
                     ? 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white'
-                    : 'text-slate-300 hover:bg-slate-800'
+                    : 'text-slate-200 hover:bg-slate-800 hover:text-white'
                 }`}
               >
-                <Icon size={20} />
+                <Icon size={22} strokeWidth={2.2} />
                 {isExpanded && (
                   <div className="flex items-center justify-between w-full">
                     <span>{item.name}</span>
@@ -186,9 +194,13 @@ export default function AdminLayout() {
         <div className="shrink-0 border-t border-slate-700 p-4">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-red-600/20 hover:text-red-400 transition font-semibold cursor-pointer"
+            className={`w-full flex items-center rounded-lg transition font-semibold cursor-pointer ${
+              isExpanded
+                ? 'gap-3 px-4 py-3 justify-start text-slate-300 hover:bg-red-600/20 hover:text-red-400'
+                : 'justify-center px-2 py-3 text-slate-200 hover:bg-red-600/20 hover:text-red-400'
+            }`}
           >
-            <LogOut size={20} />
+            <LogOut size={22} strokeWidth={2.2} />
             {isExpanded && <span>Logout</span>}
           </button>
         </div>

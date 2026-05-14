@@ -229,6 +229,13 @@ export function registerCouponRoutes(app: Express) {
         });
       }
 
+      if (!Array.isArray(applicableTiers) || applicableTiers.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'At least one applicable subscription plan is required',
+        });
+      }
+
       const result = await createCoupon(
         code,
         discountPercentage,
@@ -307,7 +314,7 @@ export function registerCouponRoutes(app: Express) {
   app.patch('/api/admin/coupons/:id', adminAuthMiddleware, async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const { discountPercentage, maxUsageCount, isActive, expiresAt } = req.body;
+      const { discountPercentage, maxUsageCount, isActive, expiresAt, applicableTiers } = req.body;
 
       const updates: Parameters<typeof updateCoupon>[1] = {};
 
@@ -337,6 +344,16 @@ export function registerCouponRoutes(app: Express) {
 
       if (expiresAt !== undefined) {
         updates.expiresAt = expiresAt;
+      }
+
+      if (applicableTiers !== undefined) {
+        if (!Array.isArray(applicableTiers)) {
+          return res.status(400).json({
+            success: false,
+            error: 'applicableTiers must be an array of tier IDs',
+          });
+        }
+        updates.applicableTiers = applicableTiers as string[];
       }
 
       const result = await updateCoupon(id, updates);

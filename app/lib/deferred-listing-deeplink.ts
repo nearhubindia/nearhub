@@ -51,6 +51,39 @@ function extractListingIdFromDeepLink(raw: string): string {
   return '';
 }
 
+function extractShortIdFromDeepLink(raw: string): string {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+
+  try {
+    const url = new URL(value);
+    const pathParts = String(url.pathname || '')
+      .split('/')
+      .filter(Boolean);
+
+    if (url.hostname.toLowerCase() === 'shorts' && pathParts.length > 0) {
+      return decodeURIComponent(pathParts[0] || '').trim();
+    }
+
+    if (pathParts.length >= 2 && pathParts[0].toLowerCase() === 'shorts') {
+      return decodeURIComponent(pathParts[1] || '').trim();
+    }
+  } catch {
+    // ignore parse errors and continue fallback parsing
+  }
+
+  const normalized = value
+    .replace(/^nearhub:\/\//i, '/')
+    .replace(/^https?:\/\/[^/]+/i, '')
+    .split('?')[0]
+    .split('#')[0];
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.length >= 2 && parts[0].toLowerCase() === 'shorts') {
+    return decodeURIComponent(parts[1] || '').trim();
+  }
+  return '';
+}
+
 function parseListingIdFromInstallReferrer(referrer: string): string {
   const params = parseQueryString(referrer);
   if (!params) return '';
@@ -74,6 +107,29 @@ function parseListingIdFromInstallReferrer(referrer: string): string {
   return '';
 }
 
+function parseShortIdFromInstallReferrer(referrer: string): string {
+  const params = parseQueryString(referrer);
+  if (!params) return '';
+
+  const directShortId = String(
+    params.get('nearhub_short_id') || params.get('short_id') || params.get('shortId') || ''
+  ).trim();
+  if (directShortId) {
+    try {
+      return decodeURIComponent(directShortId);
+    } catch {
+      return directShortId;
+    }
+  }
+
+  const deepLink = String(params.get('deep_link') || params.get('link') || '').trim();
+  if (deepLink) {
+    return extractShortIdFromDeepLink(deepLink);
+  }
+
+  return '';
+}
+
 export async function maybeHandleDeferredListingDeepLink(): Promise<boolean> {
   if (Platform.OS !== 'android') return false;
 
@@ -83,6 +139,13 @@ export async function maybeHandleDeferredListingDeepLink(): Promise<boolean> {
   const alreadyHandledReferrer = await AsyncStorage.getItem(DEFERRED_REFERRER_HANDLED_KEY);
   if (alreadyHandledReferrer === installReferrer) {
     return false;
+  }
+
+  const shortId = parseShortIdFromInstallReferrer(installReferrer);
+  if (shortId) {
+    await AsyncStorage.setItem(DEFERRED_REFERRER_HANDLED_KEY, installReferrer);
+    router.replace({ pathname: '/(tabs)/shorts', params: { listingId: shortId } });
+    return true;
   }
 
   const listingId = parseListingIdFromInstallReferrer(installReferrer);

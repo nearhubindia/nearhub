@@ -1,6 +1,7 @@
-import { GoogleGenAI } from '@google/genai';
 import axios from 'axios';
 import { SERVER_CONFIG } from '../../lib/config';
+import { getGoogleGenAIClient, isGoogleGenAIConfigured } from './genai-client';
+import { callGeminiWithRetry, extractTextFromGeminiResponse } from './genai-resilience';
 
 const GEMINI_MODEL = process.env.GEMINI_MODERATION_MODEL || 'gemini-2.5-flash';
 
@@ -80,7 +81,7 @@ function parseStructuredJson(text: string): GeminiStructuredResult | null {
 }
 
 export function isGeminiModerationConfigured(): boolean {
-  return Boolean(SERVER_CONFIG.AI_FEATURES_ENABLED && SERVER_CONFIG.GOOGLE_GENAI_API_KEY);
+  return Boolean(SERVER_CONFIG.AI_FEATURES_ENABLED && isGoogleGenAIConfigured());
 }
 
 export async function moderateListingWithGemini(input: {
@@ -106,7 +107,7 @@ export async function moderateListingWithGemini(input: {
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey: SERVER_CONFIG.GOOGLE_GENAI_API_KEY });
+    const ai = getGoogleGenAIClient();
     const imageParts = await Promise.all(
       imageUrls.map(async (url) => {
         const inline = await fetchImageAsInlinePart(url);
@@ -138,12 +139,14 @@ Category: "${category}"
 Description: "${description}"
 Video count: ${videoUrls.length}`;
 
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: [{ role: 'user', parts: [{ text: prompt }, ...imageParts] }],
-    });
+    const response = await callGeminiWithRetry('Gemini moderation', () =>
+      ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: [{ role: 'user', parts: [{ text: prompt }, ...imageParts] }],
+      })
+    );
 
-    const parsed = parseStructuredJson(response.text || '');
+    const parsed = parseStructuredJson(extractTextFromGeminiResponse(response));
     if (!parsed) {
       return {
         shouldAutoApprove: false,

@@ -287,6 +287,30 @@ export default function SubscriptionsScreen(): React.JSX.Element {
     setRefreshing(false);
   };
 
+  const refreshAfterPurchase = useCallback(
+    async (expectedSubscriptionId?: string): Promise<void> => {
+      // Backend writes can lag briefly after payment verification.
+      // Retry a few times so the screen reflects the new subscription without manual refresh.
+      const retryDelaysMs = [0, 1200, 2500];
+
+      for (const delayMs of retryDelaysMs) {
+        if (delayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+
+        await Promise.all([fetchTiers(), fetchActiveSubscription()]);
+
+        if (
+          expectedSubscriptionId &&
+          activeSubscriptions.some((sub) => sub.id === expectedSubscriptionId)
+        ) {
+          break;
+        }
+      }
+    },
+    [fetchTiers, fetchActiveSubscription, activeSubscriptions]
+  );
+
   const validateCoupon = useCallback(async (): Promise<void> => {
     if (!couponCode.trim()) {
       setCouponError('Please enter a coupon code');
@@ -575,7 +599,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
       // If 100% discount — subscription is free
       if (checkoutData.isFree) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        await fetchActiveSubscription();
+        await refreshAfterPurchase(subscriptionId);
         Alert.alert('Success!', checkoutData.message || 'Subscription activated for free!', [
           { text: 'OK' },
           {
@@ -691,8 +715,8 @@ export default function SubscriptionsScreen(): React.JSX.Element {
           }
         }
 
-        // Force refresh subscription data
-        await fetchActiveSubscription();
+        // Force refresh subscription data (with retry) to avoid stale UI after payment.
+        await refreshAfterPurchase(subscriptionId);
 
         console.log('[Subscriptions] Payment successful:', verifyData);
 
@@ -742,11 +766,12 @@ export default function SubscriptionsScreen(): React.JSX.Element {
     tiers,
     couponCode,
     couponDiscount,
-    fetchActiveSubscription,
+    refreshAfterPurchase,
   ]);
 
   const getFeaturesList = (tier: SubscriptionTier): string[] => {
     const features: string[] = [];
+    const planDurationDays = tier.durationDays || 30;
 
     const isBoostPack = String(tier.type || 'bundle') === 'boost';
     if (isBoostPack) {
@@ -755,7 +780,9 @@ export default function SubscriptionsScreen(): React.JSX.Element {
       features.push('Use credits from My Listings -> Boost');
     } else {
       features.push(
-        tier.maxListings === -1 ? 'Unlimited listings' : `Up to ${tier.maxListings} listings/month`
+        tier.maxListings === -1
+          ? `Unlimited listings for ${getDurationLabel(planDurationDays)}`
+          : `Up to ${tier.maxListings} listings for ${getDurationLabel(planDurationDays)}`
       );
       const credits = Number(tier.boostCredits || 0);
       if (credits > 0) {
@@ -1293,7 +1320,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                     ...prev,
                     visible: false,
                   }));
-                  fetchActiveSubscription();
+                  onRefresh();
                 }}
               >
                 <Text style={styles.successActionSecondaryText}>OK</Text>
@@ -1306,7 +1333,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
                     ...prev,
                     visible: false,
                   }));
-                  fetchActiveSubscription();
+                  onRefresh();
                   router.back();
                 }}
               >

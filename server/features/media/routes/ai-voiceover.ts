@@ -1,14 +1,16 @@
 import type { Express, Request, Response } from 'express';
 import { db } from '../../../data/db';
 import { sql } from 'drizzle-orm';
+import { getGoogleGenAIClient, isGoogleGenAIConfigured } from '../../../shared/ai/genai-client';
+import { callGeminiWithRetry, extractTextFromGeminiResponse } from '../../../shared/ai/genai-resilience';
 
-type SupportedLanguage = 'telugu' | 'kannada' | 'hindi';
+type SupportedLanguage = 'telugu' | 'hindi' | 'english';
 
 function parseLanguage(value: unknown): SupportedLanguage | null {
   const raw = String(value || '')
     .trim()
     .toLowerCase();
-  if (raw === 'telugu' || raw === 'kannada' || raw === 'hindi') return raw;
+  if (raw === 'telugu' || raw === 'hindi' || raw === 'english') return raw;
   return null;
 }
 
@@ -16,10 +18,14 @@ function asString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function normalizeForCompare(value: unknown): string {
+  return asString(value).replace(/\s+/g, ' ').toLowerCase();
+}
+
 function languageName(value: SupportedLanguage | null): string {
   if (value === 'telugu') return 'Telugu';
-  if (value === 'kannada') return 'Kannada';
   if (value === 'hindi') return 'Hindi';
+  if (value === 'english') return 'English';
   return 'Telugu';
 }
 
@@ -53,18 +59,17 @@ export function registerAIVoiceoverRoutes(app: Express) {
 
   app.post('/api/media/ai-voiceover/script-draft', async (req: Request, res: Response) => {
     try {
-      const { GoogleGenAI } = await import('@google/genai');
       const title = asString(req.body?.title || 'Product listing');
       const details = asString(req.body?.details || '');
       const language = parseLanguage(req.body?.language) || 'telugu';
-      const apiKey = process.env.GOOGLE_GENAI_API_KEY || '';
-      if (!apiKey) {
-        return res.status(400).json({ success: false, error: 'Gemini API key not configured' });
+      if (!isGoogleGenAIConfigured()) {
+        return res.status(400).json({ success: false, error: 'Gemini is not configured' });
       }
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: process.env.GEMINI_SCRIPT_MODEL || 'gemini-2.5-flash',
-        contents: `Write a short product-specific English voice-over script.
+      const ai = getGoogleGenAIClient();
+      const response = await callGeminiWithRetry('Gemini script draft', () =>
+        ai.models.generateContent({
+          model: process.env.GEMINI_SCRIPT_MODEL || 'gemini-2.5-flash',
+          contents: `Write a short product-specific English voice-over script.
 Title: ${title}
 Details: ${details}
 Target dubbing language: ${languageName(language)}
@@ -76,11 +81,12 @@ Rules:
 - Conversational and buyer-friendly tone.
 - No hashtags, no emojis.
 Return only script text.`,
-      });
+        })
+      );
 
       return res.json({
         success: true,
-        scriptText: String(response.text || '').trim(),
+        scriptText: extractTextFromGeminiResponse(response),
       });
     } catch (error) {
       return res.status(500).json({
@@ -108,7 +114,7 @@ Return only script text.`,
       if (!userId || !sourceVideoUrl || !language) {
         return res.status(400).json({
           success: false,
-          error: 'userId, sourceVideoUrl, and language (telugu|kannada|hindi) are required',
+          error: 'userId, sourceVideoUrl, and language (telugu|hindi|english) are required',
         });
       }
       if (!titleText) {
@@ -119,7 +125,7 @@ Return only script text.`,
       }
 
       const existingActive = await db.execute(sql`
-        SELECT id, status
+        SELECT id, status, script_text, title_text, highlights_text, description_text
         FROM ai_voiceover_jobs
         WHERE user_id = ${userId}
           AND source_video_url = ${sourceVideoUrl}
@@ -131,7 +137,22 @@ Return only script text.`,
       const activeRow = Array.isArray((existingActive as any).rows)
         ? (existingActive as any).rows[0]
         : null;
-      if (activeRow?.id) {
+      const inputSignature = [
+        normalizeForCompare(normalizedScriptText),
+        normalizeForCompare(titleText),
+        normalizeForCompare(highlightsText),
+        normalizeForCompare(descriptionText),
+      ].join('|');
+      const activeSignature = activeRow
+        ? [
+            normalizeForCompare(activeRow.script_text),
+            normalizeForCompare(activeRow.title_text),
+            normalizeForCompare(activeRow.highlights_text),
+            normalizeForCompare(activeRow.description_text),
+          ].join('|')
+        : '';
+
+      if (activeRow?.id && inputSignature === activeSignature) {
         return res.json({
           success: true,
           job: activeRow,
@@ -202,7 +223,7 @@ Return only script text.`,
       }
 
       const source = await db.execute(sql`
-        SELECT source_video_url, language
+        SELECT source_video_url, language, script_text, title_text, highlights_text, description_text
         FROM ai_voiceover_jobs
         WHERE id = ${id} AND user_id = ${userId}
         LIMIT 1
@@ -213,9 +234,20 @@ Return only script text.`,
       }
 
       const created = await db.execute(sql`
-        INSERT INTO ai_voiceover_jobs (user_id, source_video_url, language, status)
-        VALUES (${userId}, ${String(row.source_video_url)}, ${String(row.language)}, 'pending')
-        RETURNING id, user_id, source_video_url, language, status, created_at
+        INSERT INTO ai_voiceover_jobs (
+          user_id, source_video_url, language, status, script_text, title_text, highlights_text, description_text
+        )
+        VALUES (
+          ${userId},
+          ${String(row.source_video_url)},
+          ${String(row.language)},
+          'pending',
+          ${row.script_text ?? null},
+          ${row.title_text ?? null},
+          ${row.highlights_text ?? null},
+          ${row.description_text ?? null}
+        )
+        RETURNING id, user_id, source_video_url, language, status, script_text, title_text, highlights_text, description_text, created_at
       `);
       const newJob = Array.isArray((created as any).rows) ? (created as any).rows[0] : null;
       return res.json({ success: true, job: newJob });

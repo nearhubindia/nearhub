@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
 import { SERVER_CONFIG } from '../../../lib/config';
 
 export type MediaType = 'image' | 'video';
@@ -65,6 +66,12 @@ function getR2Client(): S3Client {
       accessKeyId,
       secretAccessKey,
     },
+    requestHandler: new NodeHttpHandler({
+      connectionTimeout:
+        Number.parseInt(process.env.CLOUDFLARE_R2_CONNECTION_TIMEOUT_MS || '10000', 10) || 10000,
+      requestTimeout:
+        Number.parseInt(process.env.CLOUDFLARE_R2_REQUEST_TIMEOUT_MS || '180000', 10) || 180000,
+    }),
   });
 }
 

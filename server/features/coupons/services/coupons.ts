@@ -418,6 +418,7 @@ export async function updateCoupon(
     maxUsageCount?: number;
     isActive?: boolean;
     expiresAt?: string | null;
+    applicableTiers?: string[] | null;
   }
 ): Promise<{
   success: boolean;
@@ -437,6 +438,12 @@ export async function updateCoupon(
       .update(coupons)
       .set({
         ...updates,
+        applicableTiers:
+          updates.applicableTiers !== undefined
+            ? updates.applicableTiers && updates.applicableTiers.length > 0
+              ? JSON.stringify(updates.applicableTiers)
+              : null
+            : coupon.applicableTiers,
         expiresAt: updates.expiresAt
           ? new Date(updates.expiresAt)
           : updates.expiresAt === null

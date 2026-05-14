@@ -146,6 +146,12 @@ export default function ShortsScreen() {
     const userLat = Number(user?.location?.latitude);
     const userLon = Number(user?.location?.longitude);
     const hasUserCoordinates = Number.isFinite(userLat) && Number.isFinite(userLon);
+    const userCity = String(user?.location?.city || '')
+      .trim()
+      .toLowerCase();
+    const userState = String(user?.location?.state || '')
+      .trim()
+      .toLowerCase();
 
     // Filter by location (within geo radius)
     if (hasUserCoordinates) {
@@ -158,6 +164,23 @@ export default function ShortsScreen() {
 
         const distance = calculateDistance(userLat, userLon, listingLat, listingLon);
         return Number.isFinite(distance) && distance <= effectiveGeoRadiusKm;
+      });
+    } else if (userCity || userState) {
+      // Fallback: when coordinates are missing, keep feed local to user's city/state.
+      filtered = filtered.filter((l) => {
+        const listingCity = String(l.location?.city || '')
+          .trim()
+          .toLowerCase();
+        const listingState = String(l.location?.state || '')
+          .trim()
+          .toLowerCase();
+        if (userCity && listingCity) {
+          return listingCity === userCity;
+        }
+        if (userState && listingState) {
+          return listingState === userState;
+        }
+        return false;
       });
     }
 
@@ -181,13 +204,10 @@ export default function ShortsScreen() {
     }
 
     if (targetListingId) {
-      const targetFromAllListings = listings.find(
-        (item) =>
-          item.id === targetListingId && Array.isArray(item.videos) && item.videos.length > 0
-      );
-      if (targetFromAllListings) {
+      const targetFromFilteredFeed = feed.find((item) => item.id === targetListingId);
+      if (targetFromFilteredFeed) {
         const withoutTarget = feed.filter((item) => item.id !== targetListingId);
-        return [targetFromAllListings, ...withoutTarget];
+        return [targetFromFilteredFeed, ...withoutTarget];
       }
     }
 

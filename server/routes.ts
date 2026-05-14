@@ -1,7 +1,6 @@
 import type { Express } from 'express';
 import { createServer, type Server } from 'node:http';
-import { GoogleGenAI } from '@google/genai';
-import { PollyClient, SynthesizeSpeechCommand } from '@aws-sdk/client-polly';
+import { existsSync } from 'node:fs';
 import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
 // Location routes from search feature
 import { registerLocationRoutes } from './features/search/routes/location';
@@ -53,6 +52,24 @@ import { registerMessageRoutes } from './features/messages/routes/messages';
 import { registerWorkerRoutes } from './features/workers/routes/workers';
 import { registerApiDocsRoutes } from './shared/routes/api-docs';
 import { SERVER_CONFIG } from './lib/config';
+import {
+  getGoogleGenAIAuthMode,
+  getGoogleGenAIClient,
+  isGoogleGenAIConfigured,
+} from './shared/ai/genai-client';
+import {
+  callGeminiWithRetry,
+  extractInlineAudioFromGeminiResponse,
+  isRetriableGeminiError,
+} from './shared/ai/genai-resilience';
+
+type AiHealthCachedResult = {
+  expiresAt: number;
+  statusCode: number;
+  body: any;
+};
+
+let aiHealthDeepCache: AiHealthCachedResult | null = null;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check
@@ -66,15 +83,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get('/api/health/ai', async (req, res) => {
+    const deepCheck =
+      String(req.query.deep || '')
+        .trim()
+        .toLowerCase() === 'true';
+    const now = Date.now();
+    if (deepCheck && aiHealthDeepCache && aiHealthDeepCache.expiresAt > now) {
+      return res.status(aiHealthDeepCache.statusCode).json({
+        ...aiHealthDeepCache.body,
+        cached: true,
+      });
+    }
+
     const moderationProvider = (process.env.AI_MODERATION_PROVIDER || 'gemini').toLowerCase();
     const moderationModel = process.env.GEMINI_MODERATION_MODEL || 'gemini-2.5-flash';
     const ttsModel = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
-    const ttsProvider = (process.env.AI_TTS_PROVIDER || 'google').toLowerCase();
+    const ttsFallbackModels = String(process.env.GEMINI_TTS_FALLBACK_MODELS || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const ttsModelCandidates = Array.from(new Set([ttsModel, ...ttsFallbackModels]));
+    const ttsProvider: string = 'google';
     const translationProvider = (process.env.AI_TRANSLATION_PROVIDER || 'google').toLowerCase();
-    const hasApiKey = Boolean(SERVER_CONFIG.GOOGLE_GENAI_API_KEY);
+    const googleGenAIConfigured = isGoogleGenAIConfigured();
+    const googleGenAIAuthMode = getGoogleGenAIAuthMode();
     const aiFeaturesEnabled = Boolean(SERVER_CONFIG.AI_FEATURES_ENABLED);
     const requiresGoogle =
-      moderationProvider !== 'aws' || ttsProvider !== 'aws' || translationProvider !== 'aws';
+      moderationProvider !== 'aws' || ttsProvider === 'google' || translationProvider !== 'aws';
+    const googleCredentialsPath = String(process.env.GOOGLE_APPLICATION_CREDENTIALS || '').trim();
+    const googleLicenseReady =
+      getGoogleGenAIAuthMode() === 'api_key'
+        ? Boolean(SERVER_CONFIG.GOOGLE_GENAI_API_KEY)
+        : Boolean(process.env.GOOGLE_CLOUD_PROJECT);
+    const awsLicenseReady =
+      Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) ||
+      (translationProvider !== 'aws' && moderationProvider !== 'aws');
+    const licensing = {
+      google: {
+        authMode: googleGenAIAuthMode,
+        configured: googleGenAIConfigured,
+        licenseReady: googleLicenseReady,
+        hasVertexProject: Boolean(process.env.GOOGLE_CLOUD_PROJECT),
+        hasCredentialsFile:
+          googleGenAIAuthMode === 'vertex'
+            ? Boolean(googleCredentialsPath && existsSync(googleCredentialsPath))
+            : null,
+      },
+      aws: {
+        required: translationProvider === 'aws' || moderationProvider === 'aws',
+        licenseReady: awsLicenseReady,
+        hasAccessKeyId: Boolean(process.env.AWS_ACCESS_KEY_ID),
+        hasSecretAccessKey: Boolean(process.env.AWS_SECRET_ACCESS_KEY),
+        region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1',
+      },
+    };
 
     if (!aiFeaturesEnabled) {
       return res.status(503).json({
@@ -83,28 +145,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: 'AI features are disabled',
         timestamp: new Date().toISOString(),
         checks: {
-          apiKeyConfigured: hasApiKey,
+          licensing,
+          googleGenAIConfigured,
+          googleGenAIAuthMode,
           moderation: { ok: false, model: moderationModel, reason: 'AI_FEATURES_DISABLED' },
           tts: { ok: false, model: ttsModel, reason: 'AI_FEATURES_DISABLED' },
         },
       });
     }
 
-    if (!hasApiKey && requiresGoogle) {
+    if (!googleGenAIConfigured && requiresGoogle) {
       return res.status(503).json({
         success: false,
         status: 'degraded',
-        message: 'Google GenAI API key is not configured',
+        message: 'Google GenAI is not configured',
         timestamp: new Date().toISOString(),
         checks: {
-          apiKeyConfigured: false,
-          moderation: { ok: false, model: moderationModel, reason: 'MISSING_API_KEY' },
-          tts: { ok: false, provider: ttsProvider, model: ttsModel, reason: 'MISSING_API_KEY' },
+          licensing,
+          googleGenAIConfigured: false,
+          googleGenAIAuthMode,
+          moderation: { ok: false, model: moderationModel, reason: 'MISSING_GOOGLE_GENAI_CONFIG' },
+          tts: {
+            ok: false,
+            provider: ttsProvider,
+            model: ttsModel,
+            reason: 'MISSING_GOOGLE_GENAI_CONFIG',
+          },
         },
       });
     }
 
-    const ai = hasApiKey ? new GoogleGenAI({ apiKey: SERVER_CONFIG.GOOGLE_GENAI_API_KEY }) : null;
+    const ai = requiresGoogle && googleGenAIConfigured ? getGoogleGenAIClient() : null;
     let moderationCheck: { ok: boolean; model: string; error?: string } = {
       ok: false,
       model: moderationModel,
@@ -120,15 +191,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       model: translationProvider === 'aws' ? 'translate:TranslateText' : moderationModel,
     };
 
+    if (!deepCheck) {
+      return res.status(200).json({
+        success: true,
+        status: 'ready',
+        message: 'AI readiness check passed (light mode)',
+        timestamp: new Date().toISOString(),
+        deepCheck: false,
+        checks: {
+          licensing,
+          googleGenAIConfigured: requiresGoogle ? googleGenAIConfigured : true,
+          googleGenAIAuthMode,
+          moderation: { provider: moderationProvider, model: moderationModel },
+          tts: { provider: ttsProvider, model: ttsModel },
+          translation: {
+            provider: translationProvider,
+            model: translationProvider === 'aws' ? 'translate:TranslateText' : moderationModel,
+          },
+        },
+        origin: req.header('origin') || '(no origin header)',
+      });
+    }
+
     if (moderationProvider === 'aws') {
       moderationCheck = { ok: true, model: 'aws-rekognition:configured' };
     } else {
       try {
-        if (!ai) throw new Error('Google API key is missing');
-        await ai.models.generateContent({
-          model: moderationModel,
-          contents: 'Return exactly: ok',
-        });
+        if (!ai) throw new Error('Google GenAI is not configured');
+        await callGeminiWithRetry('AI health moderation probe', () =>
+          ai.models.generateContent({
+            model: moderationModel,
+            contents: 'Return exactly: ok',
+          })
+        );
         moderationCheck = { ok: true, model: moderationModel };
       } catch (error) {
         moderationCheck = {
@@ -139,66 +234,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
 
-    if (ttsProvider === 'aws') {
-      try {
-        const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
-        const polly = new PollyClient({ region });
-        const response = await polly.send(
-          new SynthesizeSpeechCommand({
-            Engine: 'neural',
-            OutputFormat: 'mp3',
-            Text: 'NearHub AI health check',
-            VoiceId: 'Kajal',
-            LanguageCode: 'hi-IN',
-          })
-        );
-        const hasAudio = Boolean(response.AudioStream);
-        ttsCheck = hasAudio
-          ? { ok: true, provider: 'aws', model: 'polly:Kajal' }
-          : {
-              ok: false,
-              provider: 'aws',
-              model: 'polly:Kajal',
-              error: 'Polly response had no audio payload',
-            };
-      } catch (error) {
-        ttsCheck = {
-          ok: false,
-          provider: 'aws',
-          model: 'polly:Kajal',
-          error: error instanceof Error ? error.message : 'Polly health check failed',
-        };
+    {
+      let lastTtsError: unknown = null;
+      for (const candidateModel of ttsModelCandidates) {
+        try {
+          if (!ai) throw new Error('Google GenAI is not configured');
+          const response = await callGeminiWithRetry(`AI health TTS probe (${candidateModel})`, () =>
+            ai.models.generateContent({
+              model: candidateModel,
+              contents: 'NearHub AI health check',
+              config: {
+                responseModalities: ['AUDIO'],
+              } as any,
+            })
+          );
+          const inlineAudio = extractInlineAudioFromGeminiResponse(response);
+          const hasAudio = Boolean(inlineAudio?.data);
+          if (hasAudio) {
+            ttsCheck = { ok: true, provider: 'google', model: candidateModel };
+            lastTtsError = null;
+            break;
+          }
+          lastTtsError = new Error(`TTS response had no audio payload (${candidateModel})`);
+        } catch (error) {
+          lastTtsError = error;
+        }
       }
-    } else {
-      try {
-        if (!ai) throw new Error('Google API key is missing');
-        const response = await ai.models.generateContent({
-          model: ttsModel,
-          contents: 'NearHub AI health check',
-          config: {
-            responseModalities: ['AUDIO'],
-          } as any,
-        });
-        const parts = Array.isArray(response?.candidates?.[0]?.content?.parts)
-          ? (response.candidates?.[0]?.content?.parts as any[])
-          : [];
-        const hasAudio = parts.some(
-          (part) => typeof part?.inlineData?.data === 'string' && part.inlineData.data.length > 0
-        );
-        ttsCheck = hasAudio
-          ? { ok: true, provider: 'google', model: ttsModel }
-          : {
-              ok: false,
-              provider: 'google',
-              model: ttsModel,
-              error: 'TTS response had no audio payload',
-            };
-      } catch (error) {
+
+      if (!ttsCheck.ok) {
+        const transient = isRetriableGeminiError(lastTtsError);
         ttsCheck = {
-          ok: false,
+          ok: transient,
           provider: 'google',
-          model: ttsModel,
-          error: error instanceof Error ? error.message : 'TTS check failed',
+          model: ttsModelCandidates.join(','),
+          error:
+            lastTtsError instanceof Error
+              ? lastTtsError.message
+              : String(lastTtsError || 'TTS check failed'),
         };
       }
     }
@@ -233,11 +305,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } else {
       try {
-        if (!ai) throw new Error('Google API key is missing');
-        await ai.models.generateContent({
-          model: moderationModel,
-          contents: 'Translate this to Hindi: hello',
-        });
+        if (!ai) throw new Error('Google GenAI is not configured');
+        await callGeminiWithRetry('AI health translation probe', () =>
+          ai.models.generateContent({
+            model: moderationModel,
+            contents: 'Translate this to Hindi: hello',
+          })
+        );
         translationCheck = { ok: true, provider: 'google', model: moderationModel };
       } catch (error) {
         translationCheck = {
@@ -250,19 +324,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     const allHealthy = moderationCheck.ok && ttsCheck.ok && translationCheck.ok;
-    return res.status(allHealthy ? 200 : 503).json({
+    const responseBody = {
       success: allHealthy,
       status: allHealthy ? 'healthy' : 'degraded',
       message: allHealthy ? 'AI providers reachable' : 'One or more AI checks failed',
       timestamp: new Date().toISOString(),
+      deepCheck: true,
       checks: {
-        apiKeyConfigured: true,
+        licensing,
+        googleGenAIConfigured: requiresGoogle ? googleGenAIConfigured : true,
+        googleGenAIAuthMode,
         moderation: moderationCheck,
         tts: ttsCheck,
         translation: translationCheck,
       },
       origin: req.header('origin') || '(no origin header)',
-    });
+    };
+    const statusCode = allHealthy ? 200 : 503;
+    aiHealthDeepCache = {
+      expiresAt: Date.now() + 60_000,
+      statusCode,
+      body: responseBody,
+    };
+    return res.status(statusCode).json(responseBody);
   });
 
   // Domain route modules

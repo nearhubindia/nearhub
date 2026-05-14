@@ -9,6 +9,7 @@ import Contact from './features/landing/pages/Contact';
 import FooterPage from './features/landing/pages/FooterPage';
 import CompliancePage from './features/landing/pages/CompliancePage';
 import ListingDeepLink from './features/landing/pages/ListingDeepLink';
+import ShortsDeepLink from './features/landing/pages/ShortsDeepLink';
 import NotFound from './features/landing/pages/NotFound';
 import { ProtectedRoute } from './shared/components/ProtectedRoute';
 import { SeoManager } from './shared/components/SeoManager';
@@ -59,6 +60,8 @@ function App() {
             />
             <Route path="/delete-account" element={<CompliancePage pageKey="delete-account" />} />
             <Route path="/listing/:id" element={<ListingDeepLink />} />
+            <Route path="/shorts/:id" element={<ShortsDeepLink />} />
+            <Route path="/short/:id" element={<ShortsDeepLink />} />
             <Route path="/footer/:pageKey" element={<FooterPage />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route

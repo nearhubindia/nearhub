@@ -14,17 +14,23 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 const cwd = process.cwd();
-const envCandidates = [
-  process.env.NEARHUB_ENV_FILE || '',
-  // Local dev when running from server/
-  path.resolve(cwd, '.env'),
-  // Monorepo root style run
-  path.resolve(cwd, 'server/.env'),
-  // Release runtime where cwd is /releases/<timestamp>
-  path.resolve(cwd, '../shared/.env'),
-  // Production fallback used by deployment symlink target
-  '/etc/nearhub/server.env',
-].filter(Boolean);
+const isProduction = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
+const explicitEnvFile = String(process.env.NEARHUB_ENV_FILE || '').trim();
+const defaultProductionEnvFile = '/etc/nearhub/server.env';
+
+const envCandidates = isProduction
+  ? [explicitEnvFile || defaultProductionEnvFile]
+  : [
+      explicitEnvFile,
+      // Local dev when running from server/
+      path.resolve(cwd, '.env'),
+      // Monorepo root style run
+      path.resolve(cwd, 'server/.env'),
+      // Release runtime where cwd is /releases/<timestamp>
+      path.resolve(cwd, '../shared/.env'),
+      // Explicit fallback
+      defaultProductionEnvFile,
+    ].filter(Boolean);
 
 let loaded = false;
 for (const envPath of envCandidates) {
@@ -37,4 +43,12 @@ for (const envPath of envCandidates) {
   }
 }
 
-if (!loaded) console.warn('[Env] ⚠️  No server .env file found');
+if (!loaded) {
+  if (isProduction) {
+    console.warn(
+      `[Env] ⚠️  Production env file not found. Expected: ${explicitEnvFile || defaultProductionEnvFile}`
+    );
+  } else {
+    console.warn('[Env] ⚠️  No server .env file found');
+  }
+}

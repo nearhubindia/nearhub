@@ -1,7 +1,7 @@
 {
   "name": "nearhub-app",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.2.7",
   "description": "NearHub mobile app (Expo/React Native)",
   "scripts": {
     "dev": "npx expo start --clear --lan",

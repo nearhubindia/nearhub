@@ -8,6 +8,7 @@ import {
   useUpdateCoupon,
   useDeleteCoupon,
   useDeactivateCoupon,
+  useSubscriptionTiers,
 } from '@/features/admin/hooks';
 import { formatters, validators } from '@/features/admin/utils';
 import { ApiError } from '@/features/admin/api';
@@ -20,10 +21,19 @@ interface CouponRow {
   usageCount?: number;
   expiresAt?: string;
   isActive: boolean;
+  applicableTiers?: string | null;
+}
+
+interface TierOption {
+  id: string;
+  name: string;
+  durationDays: number;
+  isActive: boolean;
 }
 
 export default function CouponsView() {
   const { data: couponsData, isLoading } = useCoupons();
+  const { data: tiersData } = useSubscriptionTiers();
   const createCoupon = useCreateCoupon();
   const updateCoupon = useUpdateCoupon();
   const deleteCoupon = useDeleteCoupon();
@@ -39,11 +49,35 @@ export default function CouponsView() {
     discountPercentage: '',
     maxUsageCount: '',
     expiresAt: '',
+    applicableTiers: [] as string[],
   });
 
   const coupons: CouponRow[] = Array.isArray(couponsData?.coupons)
     ? (couponsData.coupons as CouponRow[])
     : [];
+  const tiers: TierOption[] = Array.isArray(tiersData?.tiers) ? (tiersData.tiers as TierOption[]) : [];
+
+  const formatDuration = (days: number): string => {
+    if (days === 30) return '30 Days';
+    if (days === 90) return '90 Days';
+    if (days === 180) return '180 Days';
+    if (days === 360 || days === 365) return '360 Days';
+    return `${days} Days`;
+  };
+
+  const tierLabelById = new Map(
+    tiers.map((tier) => [tier.id, `${tier.name} (${formatDuration(Number(tier.durationDays || 0))})`])
+  );
+
+  const parseApplicableTiers = (value: string | null | undefined): string[] => {
+    if (!value) return [];
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter((entry) => typeof entry === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
 
   const columns: ColumnDef<CouponRow>[] = [
     {
@@ -75,6 +109,28 @@ export default function CouponsView() {
           {row.original.usageCount || 0}/{row.original.maxUsageCount}
         </span>
       ),
+    },
+    {
+      id: 'plans',
+      header: 'Plans',
+      enableColumnFilter: true,
+      accessorFn: (coupon) => {
+        const ids = parseApplicableTiers(coupon.applicableTiers);
+        if (!ids.length) return 'All Plans';
+        return ids
+          .map((id) => tierLabelById.get(id) || id)
+          .join(', ');
+      },
+      meta: { filterPlaceholder: 'Filter plans...' },
+      cell: ({ row }) => {
+        const ids = parseApplicableTiers(row.original.applicableTiers);
+        if (!ids.length) return <span className="text-slate-500">All Plans</span>;
+        return (
+          <div className="max-w-xs text-xs text-slate-600 line-clamp-2">
+            {ids.map((id) => tierLabelById.get(id) || id).join(', ')}
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'expiresAt',
@@ -155,6 +211,14 @@ export default function CouponsView() {
       expiresAt: formData.expiresAt,
     });
 
+    if (formData.applicableTiers.length === 0) {
+      setFormErrors((prev) => ({
+        ...prev,
+        applicableTiers: 'Select at least one subscription plan',
+      }));
+      return;
+    }
+
     if (errors.length > 0) {
       const errorMap = errors.reduce((acc, err) => ({ ...acc, [err.field]: err.message }), {});
       setFormErrors(errorMap);
@@ -169,6 +233,8 @@ export default function CouponsView() {
     if (!editingCoupon) {
       payload.code = formData.code.toUpperCase();
     }
+
+    payload.applicableTiers = formData.applicableTiers;
 
     if (formData.expiresAt) {
       payload.expiresAt = new Date(formData.expiresAt).toISOString();
@@ -197,6 +263,7 @@ export default function CouponsView() {
       discountPercentage: String(Number(coupon.discountPercentage ?? 0)),
       maxUsageCount: String(Number(coupon.maxUsageCount ?? 1)),
       expiresAt: coupon.expiresAt || '',
+      applicableTiers: parseApplicableTiers(coupon.applicableTiers),
     });
     setShowCouponModal(true);
   };
@@ -251,7 +318,13 @@ export default function CouponsView() {
   const closeCouponModal = (): void => {
     setShowCouponModal(false);
     setEditingCoupon(null);
-    setFormData({ code: '', discountPercentage: '', maxUsageCount: '', expiresAt: '' });
+    setFormData({
+      code: '',
+      discountPercentage: '',
+      maxUsageCount: '',
+      expiresAt: '',
+      applicableTiers: [],
+    });
     setFormErrors({});
   };
 
@@ -266,7 +339,13 @@ export default function CouponsView() {
         <button
           onClick={() => {
             setEditingCoupon(null);
-            setFormData({ code: '', discountPercentage: '', maxUsageCount: '', expiresAt: '' });
+            setFormData({
+              code: '',
+              discountPercentage: '',
+              maxUsageCount: '',
+              expiresAt: '',
+              applicableTiers: [],
+            });
             setShowCouponModal(true);
           }}
           className="mb-6 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-teal-500 px-4 font-bold text-white transition hover:bg-teal-600 hover:shadow-lg"
@@ -367,6 +446,47 @@ export default function CouponsView() {
                     <p className="mt-1 text-sm text-red-600">{formErrors.maxUsageCount}</p>
                   )}
                 </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-bold text-slate-900">
+                  Plan Name(s)
+                </label>
+                <div
+                  className={`max-h-48 space-y-2 overflow-y-auto rounded-lg border p-3 ${
+                    formErrors.applicableTiers ? 'border-red-500' : 'border-slate-300'
+                  }`}
+                >
+                  {tiers
+                    .filter((tier) => tier.isActive)
+                    .sort((a, b) => Number(a.durationDays || 0) - Number(b.durationDays || 0))
+                    .map((tier) => (
+                      <label
+                        key={tier.id}
+                        className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-slate-50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formData.applicableTiers.includes(tier.id)}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? [...formData.applicableTiers, tier.id]
+                              : formData.applicableTiers.filter((id) => id !== tier.id);
+                            setFormData({ ...formData, applicableTiers: next });
+                          }}
+                        />
+                        <span className="text-sm text-slate-800">
+                          {tier.name} ({formatDuration(Number(tier.durationDays || 0))})
+                        </span>
+                      </label>
+                    ))}
+                </div>
+                {formErrors.applicableTiers && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.applicableTiers}</p>
+                )}
+                <p className="mt-1 text-xs text-slate-500">
+                  Required. Choose the plans this coupon should apply to (e.g., 30/90/180 days).
+                </p>
               </div>
 
               <div>
