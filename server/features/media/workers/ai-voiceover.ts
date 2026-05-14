@@ -33,9 +33,7 @@ const SCRIPT_MODEL = process.env.GEMINI_SCRIPT_MODEL || 'gemini-2.5-flash';
 const AI_SCRIPT_PROVIDER = (process.env.AI_SCRIPT_PROVIDER || 'aws').toLowerCase();
 const AI_TRANSLATION_PROVIDER = (process.env.AI_TRANSLATION_PROVIDER || 'aws').toLowerCase();
 const BEDROCK_SCRIPT_MODEL = process.env.BEDROCK_SCRIPT_MODEL || 'amazon.nova-lite-v1:0';
-const GOOGLE_TTS_API_KEY = String(
-  process.env.GOOGLE_TTS_API_KEY || ''
-).trim();
+const GOOGLE_TTS_API_KEY = String(process.env.GOOGLE_TTS_API_KEY || '').trim();
 const requiresGoogleGenAI = AI_SCRIPT_PROVIDER === 'google' || AI_TRANSLATION_PROVIDER === 'google';
 const AI_VOICEOVER_BGM_SOURCE = process.env.AI_VOICEOVER_BGM_SOURCE || 'builtin-cinematic';
 const AI_VOICEOVER_BGM_VOLUME = Number.parseFloat(process.env.AI_VOICEOVER_BGM_VOLUME || '0.3');
