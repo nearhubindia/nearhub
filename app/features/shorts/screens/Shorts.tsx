@@ -171,7 +171,7 @@ export default function ShortsScreen() {
         const listingCity = String(l.location?.city || '')
           .trim()
           .toLowerCase();
-        const listingState = String(l.location?.state || '')
+        const listingState = String((l.location as any)?.state || '')
           .trim()
           .toLowerCase();
         if (userCity && listingCity) {
