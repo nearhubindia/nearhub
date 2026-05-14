@@ -10,10 +10,19 @@ EC2_USER="${EC2_USER:-admin}"
 EC2_PORT="${EC2_PORT:-22}"
 EC2_KEY_PATH="${EC2_KEY_PATH:-$ROOT_DIR/nearhub-prod.pem}"
 PM2_APP_NAME="${PM2_APP_NAME:-nearhub-server}"
+REQUIRE_CLEAN_GIT="${REQUIRE_CLEAN_GIT:-true}"
 
 if [ ! -f "$EC2_KEY_PATH" ]; then
   echo "Missing EC2 key: $EC2_KEY_PATH" >&2
   exit 1
+fi
+
+if [ "$REQUIRE_CLEAN_GIT" = "true" ]; then
+  if [ -n "$(git -C "$ROOT_DIR" status --porcelain)" ]; then
+    echo "Refusing deploy: working tree has uncommitted changes." >&2
+    echo "Please commit/stash changes before running deploy." >&2
+    exit 1
+  fi
 fi
 
 RELEASE_DIR="$(mktemp -d /tmp/nearhub-release.XXXXXX)"
