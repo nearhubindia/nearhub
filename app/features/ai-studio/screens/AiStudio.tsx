@@ -170,7 +170,9 @@ function parseErrorMessage(error: unknown, fallback: string): string {
   const value = raw.trim();
 
   if (
-    /resource_exhausted|quota exceeded|exceeded your current quota|rate[\s_-]?limit|429/i.test(value)
+    /resource_exhausted|quota exceeded|exceeded your current quota|rate[\s_-]?limit|429/i.test(
+      value
+    )
   ) {
     return 'AI quota is currently exhausted. Please try again in a minute, or contact support to increase quota.';
   }
@@ -642,10 +644,7 @@ export default function AiStudio() {
 
       Alert.alert('Downloaded', 'Video saved to your device gallery in the NearHub album.');
     } catch (error) {
-      Alert.alert(
-        'Download failed',
-        parseErrorMessage(error, 'Failed to download video')
-      );
+      Alert.alert('Download failed', parseErrorMessage(error, 'Failed to download video'));
     }
   };
 

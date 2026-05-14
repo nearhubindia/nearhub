@@ -759,15 +759,7 @@ export default function SubscriptionsScreen(): React.JSX.Element {
     } finally {
       setIsSubscribing(false);
     }
-  }, [
-    selectedTierId,
-    user,
-    displayTiers,
-    tiers,
-    couponCode,
-    couponDiscount,
-    refreshAfterPurchase,
-  ]);
+  }, [selectedTierId, user, displayTiers, tiers, couponCode, couponDiscount, refreshAfterPurchase]);
 
   const getFeaturesList = (tier: SubscriptionTier): string[] => {
     const features: string[] = [];
