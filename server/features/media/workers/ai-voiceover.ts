@@ -1178,10 +1178,11 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
           bgmPath,
           '-filter_complex',
           `[0:v]${videoFilter}[vout];` +
-            `[1:a]${voiceFilter}[vo];` +
+            `[1:a]${voiceFilter}[vo0];` +
+            '[vo0]asplit=2[vo_sc][vo_mix];' +
             `[2:a]atrim=0:${videoDurationSeconds.toFixed(3)},apad,atrim=0:${videoDurationSeconds.toFixed(3)},volume=${bgmVolume.toFixed(3)}[bgm];` +
-            '[bgm][vo]sidechaincompress=threshold=0.03:ratio=10:attack=8:release=280[bgmduck];' +
-            '[vo][bgmduck]amix=inputs=2:normalize=0:duration=first[outa]',
+            '[bgm][vo_sc]sidechaincompress=threshold=0.03:ratio=10:attack=8:release=280[bgmduck];' +
+            '[vo_mix][bgmduck]amix=inputs=2:normalize=0:duration=first[outa]',
           '-map',
           '[vout]',
           '-map',
