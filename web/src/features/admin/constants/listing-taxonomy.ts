@@ -3,6 +3,14 @@ export type AdminCategoryGroup = {
   subcategories: string[];
 };
 
+export type ListingAttributeDefinition = {
+  name: string;
+  fieldType: string;
+  unit: string;
+  required: boolean;
+  status?: 'Active' | 'Inactive' | string;
+};
+
 export const ADMIN_CATEGORY_GROUPS: AdminCategoryGroup[] = [
   {
     mainCategory: 'Vehicles',
@@ -96,4 +104,8 @@ export function shouldRequireConditionForCategory(
   }
 
   return true;
+}
+
+export function getAttributeKey(mainCategory?: string | null, subCategory?: string | null): string {
+  return `${String(mainCategory || '').trim()}::${String(subCategory || '').trim()}`;
 }

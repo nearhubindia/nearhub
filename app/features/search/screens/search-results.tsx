@@ -26,6 +26,7 @@ import { Category, CATEGORIES } from '@/lib/types';
 import { formatCondition } from '@/lib/utils';
 import ListingCard from '@/shared/components/ListingCard';
 import CategoryPill from '@/shared/components/CategoryPill';
+import { shareListingLink } from '@/lib/share-app-link';
 import { useAdminSettings } from '@/lib/use-admin-settings';
 import { createResponsiveStyles } from '@/lib/responsive';
 
@@ -226,6 +227,7 @@ export default function SearchResultsScreen() {
             isSaved={savedIds.has(item.id)}
             onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
             onSave={() => handleSave(item.id, item.category)}
+            onShare={() => shareListingLink({ listingId: item.id, listingTitle: item.title })}
           />
         </View>
       );

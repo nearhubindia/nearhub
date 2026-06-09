@@ -15,43 +15,12 @@ import {
 } from '../../../shared/services/auto-notifications';
 import { createInAppNotification } from '../../../shared/services/in-app-notifications';
 import { SERVER_CONFIG } from '../../../lib/config';
+import { parseJsonArrayField } from '../../../shared/utils/json-fields';
 
 export function registerAdminListingsRoutes(app: Express) {
   type AdminAuthRequest = AuthRequest & { admin?: { id?: string } };
 
   app.use('/api/admin/listings', adminAuthMiddleware);
-
-  const parseJsonField = (value: unknown): unknown[] => {
-    if (Array.isArray(value)) return value;
-    if (value == null) return [];
-    if (typeof value !== 'string') return [];
-
-    const raw = value.trim();
-    if (!raw) return [];
-
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-      if (parsed == null) return [];
-      return [parsed];
-    } catch {
-      // Accept Postgres array literal format as well.
-      if (raw.startsWith('{') && raw.endsWith('}')) {
-        const inner = raw.slice(1, -1).trim();
-        if (!inner) return [];
-        return inner
-          .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
-          .map((item) =>
-            item
-              .trim()
-              .replace(/^"(.*)"$/, '$1')
-              .replace(/\\"/g, '"')
-          )
-          .filter(Boolean);
-      }
-      return [raw];
-    }
-  };
 
   const normalizeContactPhone = (value: unknown): string | null => {
     if (value === null || value === undefined) return null;
@@ -111,6 +80,41 @@ export function registerAdminListingsRoutes(app: Express) {
   };
 
   const looksLikePhone = (value: string): boolean => /^\d{10,15}$/.test(value.replace(/\D/g, ''));
+
+  const serializeAdminListing = (
+    listing: typeof listings.$inferSelect,
+    extras: {
+      displayName?: string | null;
+      mobileNumber?: string | null;
+      contactPhone?: string | null;
+    } = {}
+  ) => ({
+    id: listing.id,
+    title: listing.title,
+    description: listing.description,
+    mainCategory: listing.mainCategory,
+    subCategory: listing.subCategory || listing.category,
+    category: listing.category,
+    price: listing.price,
+    offerPrice: listing.offerPrice,
+    condition: listing.condition,
+    location: listing.location,
+    pincode: listing.pincode,
+    latitude: listing.latitude,
+    longitude: listing.longitude,
+    status: listing.status,
+    userId: listing.sellerId,
+    ...(extras.displayName !== undefined ? { displayName: extras.displayName } : {}),
+    ...(extras.mobileNumber !== undefined ? { mobileNumber: extras.mobileNumber } : {}),
+    contactPhone: extras.contactPhone !== undefined ? extras.contactPhone : listing.contactPhone,
+    isActive: listing.isActive,
+    featured: listing.featured,
+    sponsored: listing.sponsored,
+    createdAt: listing.createdAt?.toISOString(),
+    expiresAt: listing.expiresAt?.toISOString(),
+    images: parseJsonArrayField(listing.images),
+    videos: parseJsonArrayField(listing.videos),
+  });
 
   const hasLocalDeviceUri = (value: unknown): boolean => {
     if (typeof value !== 'string') return false;
@@ -278,33 +282,11 @@ export function registerAdminListingsRoutes(app: Express) {
             normalizeContactPhone(profileUser?.phone) ||
             (looksLikePhone(sellerId) ? sellerId : null);
 
-          return {
-            id: listing.id,
-            title: listing.title,
-            description: listing.description,
-            mainCategory: listing.mainCategory,
-            subCategory: listing.subCategory || listing.category,
-            category: listing.category,
-            price: listing.price,
-            offerPrice: listing.offerPrice,
-            condition: listing.condition,
-            location: listing.location,
-            pincode: listing.pincode,
-            latitude: listing.latitude,
-            longitude: listing.longitude,
-            status: listing.status,
-            userId: listing.sellerId,
+          return serializeAdminListing(listing, {
             displayName,
             mobileNumber,
             contactPhone: mobileNumber,
-            isActive: listing.isActive,
-            featured: listing.featured,
-            sponsored: listing.sponsored,
-            createdAt: listing.createdAt?.toISOString(),
-            expiresAt: listing.expiresAt?.toISOString(),
-            images: parseJsonField(listing.images),
-            videos: parseJsonField(listing.videos),
-          };
+          });
         }),
         total,
         limit,
@@ -494,8 +476,8 @@ export function registerAdminListingsRoutes(app: Express) {
           userId: created.sellerId,
           createdAt: created.createdAt?.toISOString() || null,
           expiresAt: created.expiresAt?.toISOString() || null,
-          images: parseJsonField(created.images),
-          videos: parseJsonField(created.videos),
+          images: parseJsonArrayField(created.images),
+          videos: parseJsonArrayField(created.videos),
         },
         message: 'Listing created successfully',
       });
@@ -521,31 +503,7 @@ export function registerAdminListingsRoutes(app: Express) {
 
       res.json({
         success: true,
-        data: {
-          id: listing.id,
-          title: listing.title,
-          description: listing.description,
-          mainCategory: listing.mainCategory,
-          subCategory: listing.subCategory || listing.category,
-          category: listing.category,
-          price: listing.price,
-          offerPrice: listing.offerPrice,
-          condition: listing.condition,
-          location: listing.location,
-          pincode: listing.pincode,
-          latitude: listing.latitude,
-          longitude: listing.longitude,
-          status: listing.status,
-          userId: listing.sellerId,
-          contactPhone: listing.contactPhone,
-          isActive: listing.isActive,
-          featured: listing.featured,
-          sponsored: listing.sponsored,
-          createdAt: listing.createdAt?.toISOString(),
-          expiresAt: listing.expiresAt?.toISOString(),
-          images: parseJsonField(listing.images),
-          videos: parseJsonField(listing.videos),
-        },
+        data: serializeAdminListing(listing),
       });
     } catch (error) {
       console.error('[Admin Listings] Error fetching listing:', error);
@@ -862,29 +820,7 @@ export function registerAdminListingsRoutes(app: Express) {
       const listing = result[0];
       res.json({
         success: true,
-        data: {
-          id: listing.id,
-          title: listing.title,
-          description: listing.description,
-          mainCategory: listing.mainCategory,
-          subCategory: listing.subCategory || listing.category,
-          category: listing.category,
-          price: listing.price,
-          offerPrice: listing.offerPrice,
-          condition: listing.condition,
-          location: listing.location,
-          pincode: listing.pincode,
-          latitude: listing.latitude,
-          longitude: listing.longitude,
-          status: listing.status,
-          userId: listing.sellerId,
-          contactPhone: listing.contactPhone,
-          isActive: listing.isActive,
-          featured: listing.featured,
-          sponsored: listing.sponsored,
-          createdAt: listing.createdAt?.toISOString(),
-          expiresAt: listing.expiresAt?.toISOString(),
-        },
+        data: serializeAdminListing(listing),
         message: 'Listing updated successfully',
       });
     } catch (error) {

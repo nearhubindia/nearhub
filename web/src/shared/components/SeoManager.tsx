@@ -101,9 +101,41 @@ function resolveMeta(pathname: string): RouteMeta {
 
   if (normalizedPath.startsWith('/listing/')) {
     return {
-      title: `Open Listing in NearHub App | ${BRAND_SIGNATURE}`,
+      title: `Listing Details | ${SITE_BRAND_NAME}`,
       description:
-        'Open this NearHub listing in the app. If the app is not installed, download it to buy, sell, and discover local deals near you.',
+        'View NearHub listing details, seller information, pricing, and local deal availability.',
+      robots: 'index,follow',
+    };
+  }
+
+  if (normalizedPath.startsWith('/edit-listing/')) {
+    return {
+      title: `Edit Listing | ${SITE_BRAND_NAME}`,
+      description: 'Update your NearHub listing details, photos, category, location, and deal settings.',
+      robots: 'noindex,nofollow',
+    };
+  }
+
+  if (normalizedPath.startsWith('/order-summary/')) {
+    return {
+      title: `Deal Checkout | ${SITE_BRAND_NAME}`,
+      description: 'Review and purchase your NearHub deal voucher.',
+      robots: 'noindex,nofollow',
+    };
+  }
+
+  if (normalizedPath.startsWith('/messages/')) {
+    return {
+      title: `Conversation | ${SITE_BRAND_NAME}`,
+      description: 'View your NearHub buyer and seller conversation.',
+      robots: 'noindex,nofollow',
+    };
+  }
+
+  if (normalizedPath.startsWith('/shorts/') || normalizedPath.startsWith('/short/')) {
+    return {
+      title: `NearHub Short | ${SITE_BRAND_NAME}`,
+      description: 'Open a NearHub short video listing.',
       robots: 'noindex,nofollow',
     };
   }

@@ -339,7 +339,7 @@ export default function CompliancePage({ pageKey }: { pageKey: CompliancePageKey
             <div className="mt-5 lg:mt-0">
               <Link
                 to="/contact"
-                className="inline-flex items-center gap-2 rounded-xl bg-[#ff9933] px-6 py-3 text-sm font-semibold text-slate-900 shadow-[0_14px_34px_-18px_rgba(255,153,51,0.95)] transition hover:bg-[#ffad57]"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#ff9933] px-4 py-2 text-xs font-bold text-slate-900 shadow-[0_14px_34px_-18px_rgba(255,153,51,0.95)] transition hover:bg-[#ffad57]"
               >
                 Contact Support
                 <ArrowRight size={18} />

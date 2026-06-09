@@ -16,6 +16,7 @@ import {
   upsertUserFromAuth,
 } from '../../users/services/user-profiles';
 import { touchUserActivity } from '../../users/services/user-lifecycle';
+import { signWebUserToken } from '../services/web-auth';
 
 async function upsertAuthUserRecord(input: {
   phone: string;
@@ -285,6 +286,7 @@ export function registerAuthRoutes(app: Express) {
 
       res.json({
         success: true,
+        token: signWebUserToken({ id: canonicalUserId, phone: normalizedPhone }),
         user,
         isNewUser,
         requiresProfileCompletion,

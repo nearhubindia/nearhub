@@ -129,7 +129,7 @@ function setupCors(app: express.Application) {
       res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
       res.header(
         'Access-Control-Allow-Headers',
-        'Content-Type, Authorization, Range, x-user-id, x-user-phone'
+        'Content-Type, Authorization, Range, x-user-id, x-user-phone, x-user-name'
       );
       res.header('Access-Control-Expose-Headers', 'Content-Range, Content-Length, Accept-Ranges');
       res.header('Access-Control-Allow-Credentials', 'true');

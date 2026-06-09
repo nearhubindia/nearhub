@@ -7,8 +7,10 @@
  */
 
 import '../data/env';
-import { db } from '../data/db';
+import { closeDatabasePool, db } from '../data/db';
 import { listings } from '../features/admin/models/admin-settings';
+import { users } from '../features/users/models/users';
+import { desc, sql } from 'drizzle-orm';
 
 const CATEGORIES = ['Electronics', 'Vehicles', 'Furniture', 'Clothing', 'Sports', 'Books'];
 const CONDITIONS = ['New', 'Like New', 'Good Condition', 'Used', 'Fair'];
@@ -31,37 +33,47 @@ const PRODUCTS: Record<string, string[]> = {
   Books: ['Self-Help Book', 'Fiction Novel', 'Technical Manual', 'History Book', 'Biography'],
 };
 
-const SELLERS = [
-  'seller001',
-  'seller002',
-  'seller003',
-  'seller004',
-  'seller005',
-  'seller006',
-  'seller007',
-  'seller008',
-  'seller009',
-  'seller010',
-];
-
 async function seedListings() {
   console.log('[Seed] Starting listings seeding...');
 
   try {
-    // Check existing listings
-    const existingListings = await db.select().from(listings);
-    console.log(`[Seed] Found ${existingListings.length} existing listings`);
+    const sellers = await db
+      .select({ id: users.id, mobile: users.mobile })
+      .from(users)
+      .orderBy(desc(users.createdAt))
+      .limit(20);
 
-    if (existingListings.length > 100) {
-      console.log('[Seed] Database already has 100+ listings. Skipping listings seed.');
+    if (sellers.length === 0) {
+      console.log('[Seed] No users found. Run `npm run seed:users` first.');
       return;
     }
 
-    console.log('[Seed] Inserting 500 sample listings...');
+    // Check existing listings
+    const existingListings = await db.select({ count: sql<number>`count(*)` }).from(listings);
+    const existingSampleListings = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(listings)
+      .where(sql`${listings.id} LIKE 'sample-discount-%'`);
+
+    const existingListingsCount = Number(existingListings[0]?.count || 0);
+    const existingSampleCount = Number(existingSampleListings[0]?.count || 0);
+    console.log(`[Seed] Found ${existingListingsCount} existing listings`);
+
+    if (existingSampleCount >= 24) {
+      console.log(
+        '[Seed] Database already has 24+ sample discounted listings. Skipping listings seed.'
+      );
+      return;
+    }
+
+    const totalListings = 24 - existingSampleCount;
+    console.log(
+      `[Seed] Found ${existingListingsCount} total listings and ${existingSampleCount} sample discounted listings.`
+    );
+    console.log(`[Seed] Inserting ${totalListings} sample discounted listings...`);
 
     let insertedCount = 0;
-    const batchSize = 50;
-    const totalListings = 500;
+    const batchSize = 12;
 
     for (let i = 0; i < totalListings; i += batchSize) {
       const batch = [];
@@ -70,17 +82,21 @@ async function seedListings() {
         const product = PRODUCTS[category][Math.floor(Math.random() * PRODUCTS[category].length)];
         const title = `${product} - ${CONDITIONS[Math.floor(Math.random() * CONDITIONS.length)]}`;
         const price = Math.floor(Math.random() * 500000) + 500;
+        const discountPercent = Math.floor(Math.random() * 26) + 10;
+        const offerPrice = Math.max(1, Math.round(price * (1 - discountPercent / 100)));
         const city = CITIES[Math.floor(Math.random() * CITIES.length)];
-        const seller = SELLERS[Math.floor(Math.random() * SELLERS.length)];
+        const seller = sellers[Math.floor(Math.random() * sellers.length)];
 
         batch.push({
-          id: `listing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${i}-${j}`,
+          id: `sample-discount-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${i}-${j}`,
           title,
-          description: `${title} in excellent condition. Available in ${city}. Contact for more details.`,
+          description: `${title} in excellent condition. ${discountPercent}% sample discount active. Available in ${city}. Contact for more details.`,
           category,
           price: price.toString(),
+          offerPrice: offerPrice.toString(),
           condition: CONDITIONS[Math.floor(Math.random() * CONDITIONS.length)],
           location: `${city}, India`,
+          contactPhone: seller.mobile || undefined,
           images: JSON.stringify([
             `https://via.placeholder.com/400?text=${encodeURIComponent(title)}+1`,
             `https://via.placeholder.com/400?text=${encodeURIComponent(title)}+2`,
@@ -89,7 +105,7 @@ async function seedListings() {
           videos: JSON.stringify([]),
           status: 'active',
           isActive: true,
-          sellerId: seller,
+          sellerId: seller.id,
           createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
           expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         });
@@ -107,6 +123,8 @@ async function seedListings() {
   } catch (error) {
     console.error('[Seed] Error:', error);
     process.exit(1);
+  } finally {
+    await closeDatabasePool();
   }
 }
 

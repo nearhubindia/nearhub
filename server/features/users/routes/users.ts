@@ -18,40 +18,12 @@ import {
 import { getRequestUserId } from '../../../lib/request-user';
 import { db } from '../../../data/db';
 import { users } from '../models/users';
+import { parseJsonArrayField } from '../../../shared/utils/json-fields';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isUuid(value: string): boolean {
   return UUID_REGEX.test(String(value || '').trim());
-}
-
-function parseJsonField(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value;
-  if (value == null) return [];
-  if (typeof value === 'string') {
-    const raw = value.trim();
-    if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      if (raw.startsWith('{') && raw.endsWith('}')) {
-        const inner = raw.slice(1, -1).trim();
-        if (!inner) return [];
-        return inner
-          .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
-          .map((item) =>
-            item
-              .trim()
-              .replace(/^"(.*)"$/, '$1')
-              .replace(/\\"/g, '"')
-          )
-          .filter(Boolean);
-      }
-      return [raw];
-    }
-  }
-  return [];
 }
 
 export function registerUserRoutes(app: Express) {
@@ -66,7 +38,14 @@ export function registerUserRoutes(app: Express) {
   const syncDbUserProfile = async (
     userId: string,
     avatarUrl: string | undefined,
-    profile: { name?: string; email?: string; address?: string; gstin?: string }
+    profile: {
+      name?: string;
+      email?: string;
+      address?: string;
+      gstin?: string;
+      latitude?: number | null;
+      longitude?: number | null;
+    }
   ) => {
     if (!isUuid(userId)) {
       throw new Error('Invalid user id format');
@@ -81,6 +60,8 @@ export function registerUserRoutes(app: Express) {
       typeof profile.email === 'string' && profile.email.trim() ? profile.email.trim() : '';
     const profileGstin =
       typeof profile.gstin === 'string' && profile.gstin.trim() ? profile.gstin.trim() : '';
+    const profileLatitude = typeof profile.latitude === 'number' ? profile.latitude : null;
+    const profileLongitude = typeof profile.longitude === 'number' ? profile.longitude : null;
 
     const normalizedAvatarUrl = typeof avatarUrl === 'string' ? avatarUrl.trim() : '';
 
@@ -94,6 +75,8 @@ export function registerUserRoutes(app: Express) {
           email: profileEmail || dbUser.email || null,
           address: profileAddress || dbUser.address || null,
           gstin: profileGstin || dbUser.gstin || null,
+          latitude: profileLatitude ?? dbUser.latitude ?? null,
+          longitude: profileLongitude ?? dbUser.longitude ?? null,
           avatarUrl: normalizedAvatarUrl || dbUser.avatarUrl || null,
           mobile: dbUser.mobile,
         })
@@ -112,6 +95,8 @@ export function registerUserRoutes(app: Express) {
         email: profileEmail || null,
         address: profileAddress || null,
         gstin: profileGstin || null,
+        latitude: profileLatitude,
+        longitude: profileLongitude,
         avatarUrl: normalizedAvatarUrl || null,
         createdAt: new Date(),
       })
@@ -138,6 +123,7 @@ export function registerUserRoutes(app: Express) {
         notifications: true,
         emailNotifications: true,
         autoLocalizeListings: true,
+        searchRadiusKm: 50,
       },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -185,11 +171,14 @@ export function registerUserRoutes(app: Express) {
         address: String(dbUser.address || existing?.address || '').trim(),
         gstin: String(dbUser.gstin || existing?.gstin || '').trim(),
         location: dbUser.location || existing?.location || null,
+        latitude: dbUser.latitude ?? existing?.latitude ?? null,
+        longitude: dbUser.longitude ?? existing?.longitude ?? null,
         isVerified: Boolean(dbUser.isVerified || existing?.isVerified),
         preferences: existing?.preferences || {
           notifications: true,
           emailNotifications: true,
           autoLocalizeListings: true,
+          searchRadiusKm: 50,
         },
         createdAt: existing?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -206,6 +195,9 @@ export function registerUserRoutes(app: Express) {
         address: user.address,
         gstin: user.gstin,
         location: user.location,
+        latitude: user.latitude ?? null,
+        longitude: user.longitude ?? null,
+        preferences: user.preferences,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         isVerified: user.isVerified || false,
@@ -283,6 +275,8 @@ export function registerUserRoutes(app: Express) {
           address: String(dbUser.address || '').trim(),
           gstin: String(dbUser.gstin || '').trim(),
           location: dbUser.location || null,
+          latitude: dbUser.latitude ?? null,
+          longitude: dbUser.longitude ?? null,
           isVerified: Boolean(dbUser.isVerified),
           createdAt: dbUser.createdAt
             ? new Date(dbUser.createdAt).toISOString()
@@ -292,6 +286,7 @@ export function registerUserRoutes(app: Express) {
             notifications: true,
             emailNotifications: true,
             autoLocalizeListings: true,
+            searchRadiusKm: 50,
           },
         });
       } else if (user && dbUser) {
@@ -320,6 +315,9 @@ export function registerUserRoutes(app: Express) {
           address: user.address,
           gstin: user.gstin,
           location: user.location,
+          latitude: user.latitude ?? null,
+          longitude: user.longitude ?? null,
+          preferences: user.preferences,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
           isVerified: user.isVerified || false,
@@ -349,6 +347,8 @@ export function registerUserRoutes(app: Express) {
         return res.status(403).json({ error: 'You can only update your own profile' });
       }
       const { name, email, bio, address, gstin, avatarUrl } = req.body;
+      const latitude = typeof req.body.latitude === 'number' ? req.body.latitude : null;
+      const longitude = typeof req.body.longitude === 'number' ? req.body.longitude : null;
 
       // Validate required fields
       if (!name || !name.trim()) {
@@ -371,6 +371,8 @@ export function registerUserRoutes(app: Express) {
         bio: bio?.trim() || user.bio,
         address: address?.trim() || user.address,
         gstin: gstin?.trim() || user.gstin,
+        latitude: latitude ?? user.latitude ?? null,
+        longitude: longitude ?? user.longitude ?? null,
         updatedAt: new Date().toISOString(),
       };
 
@@ -380,6 +382,8 @@ export function registerUserRoutes(app: Express) {
         email: user.email,
         address: user.address,
         gstin: user.gstin,
+        latitude: user.latitude,
+        longitude: user.longitude,
       });
 
       return res.json({
@@ -394,7 +398,10 @@ export function registerUserRoutes(app: Express) {
           bio: user.bio,
           address: user.address,
           gstin: user.gstin,
+          latitude: user.latitude ?? null,
+          longitude: user.longitude ?? null,
           location: user.location,
+          preferences: user.preferences,
         },
       });
     } catch (error) {
@@ -440,8 +447,8 @@ export function registerUserRoutes(app: Express) {
             listing.offerPrice !== undefined && listing.offerPrice !== null
               ? Number(listing.offerPrice)
               : undefined,
-          images: parseJsonField(listing.images),
-          videos: parseJsonField(listing.videos),
+          images: parseJsonArrayField(listing.images),
+          videos: parseJsonArrayField(listing.videos),
         })),
         total: userListings.length,
       });
@@ -529,7 +536,9 @@ export function registerUserRoutes(app: Express) {
   app.put('/api/users/:userId/settings', async (req: Request, res: Response) => {
     try {
       const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
-      const { notifications, emailNotifications, autoLocalize } = req.body;
+      const { notifications, emailNotifications, autoLocalize, searchRadiusKm } = req.body;
+      const latitude = typeof req.body.latitude === 'number' ? req.body.latitude : null;
+      const longitude = typeof req.body.longitude === 'number' ? req.body.longitude : null;
 
       // Get existing user
       let user = getUserById(String(userId));
@@ -546,7 +555,13 @@ export function registerUserRoutes(app: Express) {
           notifications: notifications ?? user.preferences?.notifications,
           emailNotifications: emailNotifications ?? user.preferences?.emailNotifications,
           autoLocalizeListings: autoLocalize ?? user.preferences?.autoLocalizeListings,
+          searchRadiusKm:
+            typeof searchRadiusKm === 'number'
+              ? searchRadiusKm
+              : (user.preferences?.searchRadiusKm ?? 50),
         },
+        latitude: latitude ?? user.latitude ?? null,
+        longitude: longitude ?? user.longitude ?? null,
         updatedAt: new Date().toISOString(),
       };
 

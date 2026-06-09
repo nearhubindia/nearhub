@@ -21,7 +21,7 @@ export interface Listing {
   title: string;
   price: string | number;
   offerPrice?: string | number;
-  status: 'active' | 'sold' | 'pending' | 'rejected' | 'inactive' | 'expired';
+  status: "active" | "sold" | "pending" | "rejected" | "inactive" | "expired";
   date: string;
   description?: string;
   condition?: string;
@@ -41,6 +41,15 @@ export interface Listing {
   createdAt?: string;
   featured?: boolean;
   sponsored?: boolean;
+  isDeal?: boolean;
+  dealType?: "normal" | "combo" | string | null;
+  dealStartAt?: string | null;
+  dealEndAt?: string | null;
+  maxDealBookings?: number | null;
+  dealBookingsUsed?: number | null;
+  comboItems?: string[] | string | null;
+  dealTerms?: string | null;
+  voucherEnabled?: boolean;
   enhancements?: Enhancements;
   folderId?: number;
 }
@@ -63,7 +72,7 @@ export interface User {
   email: string;
   phone: string;
   listings: number;
-  status: 'active' | 'suspended';
+  status: "active" | "suspended";
   joined: string;
 }
 
@@ -91,7 +100,7 @@ export interface AdminUserWriteData {
 export interface AppScreenBanner {
   id: string;
   title: string;
-  screen: 'home' | 'search' | 'profile' | 'shorts' | 'listings';
+  screen: "home" | "search" | "profile" | "shorts" | "listings";
   imageUrl: string;
   sortOrder: number;
   isActive: boolean;
@@ -102,7 +111,7 @@ export interface AppScreenBanner {
 
 export interface BannerPayload {
   title: string;
-  screen: AppScreenBanner['screen'];
+  screen: AppScreenBanner["screen"];
   imageUrl: string;
   sortOrder: number;
   isActive: boolean;

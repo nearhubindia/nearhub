@@ -3,6 +3,7 @@ type NotificationTargetData = {
   listingId?: string;
   conversationId?: string;
   url?: string;
+  dealUrl?: string;
   otherUserId?: string;
   otherUserAvatar?: string;
   sellerName?: string;
@@ -44,5 +45,10 @@ export async function openNotificationTarget(data?: NotificationTargetData): Pro
 
   if (data.url) {
     router.push(data.url);
+    return;
+  }
+
+  if (data.dealUrl) {
+    router.push(data.dealUrl);
   }
 }

@@ -1,27 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useState } from 'react';
+import { FileText, Sparkles, Star, Target, Zap, Check } from 'lucide-react';
 import {
-  CircleDollarSign,
-  FileText,
-  MapPin,
-  Sparkles,
-  Star,
-  Tag,
-  Target,
-  X,
-  Zap,
-  Check,
-} from 'lucide-react';
+  AdminListingBasicFields,
+  AdminListingCategoryFields,
+  AdminListingLocationFields,
+  AdminListingPriceFields,
+} from '@/features/admin/components/AdminListingFormFields';
+import { AdminListingModalFrame } from '@/features/admin/components/AdminListingModalFrame';
 import {
-  ADMIN_CATEGORY_GROUPS,
   getDefaultAdminSubCategory,
   getMainCategoryForSubCategory,
-  getSubCategoriesForMainCategory,
-  shouldRequireConditionForCategory,
 } from '@/features/admin/constants/listing-taxonomy';
 import type { Listing, Enhancements } from '@/features/admin/types/admin-types';
 import { useUpdateListing } from '@/features/admin/hooks';
-import { validators } from '@/features/admin/utils';
-import { getApiUrl } from '@/lib/config';
+import {
+  useAdminListingCategoryOptions,
+  useCoordinateLocationAutofill,
+  validateAdminListingDetails,
+} from '@/features/admin/hooks/useAdminListingFormHelpers';
 
 interface EditListingModalProps {
   listing: Listing | null;
@@ -56,11 +52,6 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
     contactPhone: listing?.contactPhone ?? '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [isResolvingLocation, setIsResolvingLocation] = useState(false);
-  const [locationResolveError, setLocationResolveError] = useState('');
-  const [lastAutoFilledLocation, setLastAutoFilledLocation] = useState('');
-  const [lastAutoFilledPincode, setLastAutoFilledPincode] = useState('');
-  const resolveRequestIdRef = useRef(0);
   const [enhancements, setEnhancements] = useState<Enhancements>({
     featured: Boolean(listing?.featured || listing?.enhancements?.featured),
     priority: listing?.enhancements?.priority || false,
@@ -71,190 +62,18 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [isSuggestingCategory, setIsSuggestingCategory] = useState(false);
   const [sponsored, setSponsored] = useState(Boolean(listing?.sponsored));
-
-  const mainCategories = useMemo(
-    () => ADMIN_CATEGORY_GROUPS.map((group) => group.mainCategory),
-    []
+  const {
+    mainCategories,
+    subCategories,
+    showConditionField,
+    conditions,
+    handleMainCategoryChange,
+    handleSubCategoryChange,
+  } = useAdminListingCategoryOptions(formData, setFormData);
+  const { isResolvingLocation, locationResolveError } = useCoordinateLocationAutofill(
+    formData,
+    setFormData
   );
-  const subCategories = useMemo(
-    () => getSubCategoriesForMainCategory(formData.mainCategory),
-    [formData.mainCategory]
-  );
-  const showConditionField = useMemo(
-    () => shouldRequireConditionForCategory(formData.mainCategory, formData.subCategory),
-    [formData.mainCategory, formData.subCategory]
-  );
-  const conditions = ['new', 'like_new', 'good', 'fair', 'poor'];
-
-  const parseCoordinate = (
-    rawValue: string,
-    fieldName: 'latitude' | 'longitude',
-    min: number,
-    max: number
-  ): number | null => {
-    const trimmed = rawValue.trim();
-    if (!trimmed) return null;
-    const numeric = Number.parseFloat(trimmed);
-    if (!Number.isFinite(numeric) || numeric < min || numeric > max) {
-      throw new Error(`${fieldName} must be between ${min} and ${max}`);
-    }
-    return numeric;
-  };
-
-  useEffect(() => {
-    const latitudeRaw = formData.latitude.trim();
-    const longitudeRaw = formData.longitude.trim();
-
-    if (!latitudeRaw || !longitudeRaw) {
-      setIsResolvingLocation(false);
-      setLocationResolveError('');
-      return;
-    }
-
-    const latitude = Number.parseFloat(latitudeRaw);
-    const longitude = Number.parseFloat(longitudeRaw);
-    if (
-      !Number.isFinite(latitude) ||
-      !Number.isFinite(longitude) ||
-      latitude < -90 ||
-      latitude > 90 ||
-      longitude < -180 ||
-      longitude > 180
-    ) {
-      setIsResolvingLocation(false);
-      setLocationResolveError('');
-      return;
-    }
-
-    const timeoutId = window.setTimeout(async () => {
-      const requestId = resolveRequestIdRef.current + 1;
-      resolveRequestIdRef.current = requestId;
-      setIsResolvingLocation(true);
-      setLocationResolveError('');
-
-      try {
-        const apiUrl = getApiUrl();
-        let resolvedLocation = '';
-        let resolvedPincode = '';
-
-        try {
-          const reverseResponse = await fetch(
-            `${apiUrl}/api/location/reverse-geocode?latitude=${encodeURIComponent(latitudeRaw)}&longitude=${encodeURIComponent(longitudeRaw)}`
-          );
-          if (!reverseResponse.ok) {
-            throw new Error('Reverse geocode failed');
-          }
-
-          const reversePayload = (await reverseResponse.json()) as {
-            success?: boolean;
-            data?: {
-              locationName?: string;
-              city?: string;
-              state?: string;
-              pincode?: string;
-            };
-          };
-
-          if (reversePayload.success && reversePayload.data) {
-            resolvedLocation = String(
-              reversePayload.data.locationName ||
-                reversePayload.data.city ||
-                reversePayload.data.state ||
-                ''
-            ).trim();
-            resolvedPincode = String(reversePayload.data.pincode || '').trim();
-          }
-        } catch {
-          // Fall through to nearby lookup
-        }
-
-        if (!resolvedLocation || !resolvedPincode) {
-          const nearbyResponse = await fetch(
-            `${apiUrl}/api/location/nearby?latitude=${encodeURIComponent(latitudeRaw)}&longitude=${encodeURIComponent(longitudeRaw)}&radius=50`
-          );
-          if (nearbyResponse.ok) {
-            const nearbyPayload = (await nearbyResponse.json()) as Array<{
-              locationName?: string;
-              city?: string;
-              state?: string;
-              pincode?: string;
-            }>;
-            const nearest = Array.isArray(nearbyPayload) ? nearbyPayload[0] : null;
-            if (nearest) {
-              if (!resolvedLocation) {
-                resolvedLocation = String(
-                  nearest.locationName || nearest.city || nearest.state || ''
-                ).trim();
-              }
-              if (!resolvedPincode) {
-                resolvedPincode = String(nearest.pincode || '').trim();
-              }
-            }
-          }
-        }
-
-        if (resolveRequestIdRef.current !== requestId) {
-          return;
-        }
-
-        if (!resolvedLocation && !resolvedPincode) {
-          throw new Error('No internal location match found');
-        }
-
-        let nextAutoLocation = '';
-        let nextAutoPincode = '';
-
-        setFormData((prev) => {
-          const next = { ...prev };
-          const canAutoReplaceLocation =
-            !prev.location.trim() || prev.location.trim() === lastAutoFilledLocation;
-          const canAutoReplacePincode =
-            !prev.pincode.trim() || prev.pincode.trim() === lastAutoFilledPincode;
-
-          if (resolvedLocation && canAutoReplaceLocation) {
-            next.location = resolvedLocation;
-            nextAutoLocation = resolvedLocation;
-          }
-          if (resolvedPincode && canAutoReplacePincode) {
-            next.pincode = resolvedPincode;
-            nextAutoPincode = resolvedPincode;
-          }
-          return next;
-        });
-
-        if (nextAutoLocation) {
-          setLastAutoFilledLocation(nextAutoLocation);
-        }
-        if (nextAutoPincode) {
-          setLastAutoFilledPincode(nextAutoPincode);
-        }
-      } catch {
-        if (resolveRequestIdRef.current === requestId) {
-          setLocationResolveError('Unable to auto-resolve location for these coordinates');
-        }
-      } finally {
-        if (resolveRequestIdRef.current === requestId) {
-          setIsResolvingLocation(false);
-        }
-      }
-    }, 450);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [formData.latitude, formData.longitude, lastAutoFilledLocation, lastAutoFilledPincode]);
-
-  useEffect(() => {
-    if (subCategories.includes(formData.subCategory)) {
-      return;
-    }
-    const fallbackSubCategory = subCategories[0] || getDefaultAdminSubCategory();
-    setFormData((prev) => ({
-      ...prev,
-      subCategory: fallbackSubCategory,
-      category: fallbackSubCategory,
-    }));
-  }, [formData.subCategory, subCategories]);
 
   const generateTitleWithAI = async (): Promise<void> => {
     if (!formData.description) {
@@ -305,46 +124,9 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
       return;
     }
 
-    // Validate form
-    const errors = validators.validateListingForm({
-      title: formData.title,
-      description: formData.description,
-      price: formData.price,
-      location: formData.location,
-    });
-
-    if (errors.length > 0) {
-      const errorMap = errors.reduce((acc, err) => ({ ...acc, [err.field]: err.message }), {});
-      setFormErrors(errorMap);
-      return;
-    }
-
-    const pincode = formData.pincode.trim();
-    if (pincode && !/^\d{6}$/.test(pincode)) {
-      setFormErrors({ pincode: 'Pincode must be a 6-digit number' });
-      return;
-    }
-
-    let latitude: number | null = null;
-    let longitude: number | null = null;
-    try {
-      latitude = parseCoordinate(formData.latitude, 'latitude', -90, 90);
-      longitude = parseCoordinate(formData.longitude, 'longitude', -180, 180);
-    } catch (error) {
-      setFormErrors({
-        latitude:
-          error instanceof Error ? error.message : 'Invalid coordinates. Check latitude/longitude.',
-      });
-      return;
-    }
-
-    const hasLatitude = latitude !== null;
-    const hasLongitude = longitude !== null;
-    if (hasLatitude !== hasLongitude) {
-      setFormErrors({
-        latitude: 'Both latitude and longitude are required together',
-        longitude: 'Both latitude and longitude are required together',
-      });
+    const validation = validateAdminListingDetails(formData);
+    if (!validation.ok) {
+      setFormErrors(validation.errors);
       return;
     }
 
@@ -364,9 +146,9 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
         ...enhancements,
       };
 
-      payload.pincode = pincode || null;
-      payload.latitude = hasLatitude ? latitude : null;
-      payload.longitude = hasLongitude ? longitude : null;
+      payload.pincode = validation.pincode || null;
+      payload.latitude = validation.hasLatitude ? validation.latitude : null;
+      payload.longitude = validation.hasLongitude ? validation.longitude : null;
 
       if (formData.offerPrice && Number(formData.offerPrice) > 0) {
         payload.offerPrice = Number(formData.offerPrice);
@@ -388,17 +170,10 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
   const labelClass = 'mb-2 block text-sm font-semibold tracking-wide text-slate-700';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
-      <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-[0_24px_80px_-24px_rgba(2,6,23,0.65)]">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close modal"
-          className="absolute right-4 top-4 z-20 rounded-full bg-white/90 p-2 text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-900"
-        >
-          <X size={16} />
-        </button>
-
+    <AdminListingModalFrame
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      header={
         <div className="relative overflow-hidden border-b border-cyan-200 bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-6 text-white sm:px-8">
           <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/15 blur-2xl" />
           <p className="relative mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide">
@@ -414,9 +189,27 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
             </p>
           )}
         </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="max-h-[72vh] space-y-6 overflow-y-auto p-6 sm:p-8">
+      }
+      footer={
+        <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-5 sm:flex-row sm:p-6">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={updateListing.isPending}
+            className="w-full rounded-xl border border-slate-300 bg-white px-6 py-3 font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={updateListing.isPending}
+            className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-200 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
+          >
+            {updateListing.isPending ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      }
+    >
             {formErrors.submit && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
                 {formErrors.submit}
@@ -429,9 +222,12 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
               </h3>
 
               <div className="space-y-4">
-                <div>
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <label className={labelClass}>Title</label>
+                <AdminListingBasicFields
+                  formData={formData}
+                  setFormData={setFormData}
+                  inputClass={inputClass}
+                  labelClass={labelClass}
+                  titleAction={
                     <button
                       type="button"
                       onClick={generateTitleWithAI}
@@ -440,18 +236,8 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                     >
                       {isGeneratingTitle ? 'Generating...' : 'AI Generate'}
                     </button>
-                  </div>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className={inputClass}
-                  />
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <label className={labelClass}>Description</label>
+                  }
+                  descriptionAction={
                     <button
                       type="button"
                       onClick={generateDescriptionWithAI}
@@ -460,225 +246,67 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                     >
                       {isGeneratingDescription ? 'Generating...' : 'AI Generate'}
                     </button>
-                  </div>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={4}
-                    className={inputClass}
-                  />
-                </div>
+                  }
+                />
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <label className={`${labelClass} flex items-center gap-2`}>
-                      <CircleDollarSign size={14} /> Price
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      className={inputClass}
-                    />
-                  </div>
-                  <div>
-                    <label className={`${labelClass} flex items-center gap-2`}>
-                      <Tag size={14} /> Offer Price
-                      <span className="text-xs font-normal text-slate-500">Optional</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.offerPrice || ''}
-                      onChange={(e) => setFormData({ ...formData, offerPrice: e.target.value })}
-                      className={inputClass}
-                      placeholder="Discounted price"
-                    />
-                    {formData.offerPrice &&
-                      parseFloat(formData.offerPrice) > 0 &&
-                      parseFloat(formData.offerPrice) >= parseFloat(formData.price || '0') && (
-                        <p className="mt-1 text-xs font-medium text-rose-600">
-                          Offer price must be less than listed price.
-                        </p>
-                      )}
-                  </div>
-                </div>
+                <AdminListingPriceFields
+                  formData={formData}
+                  setFormData={setFormData}
+                  inputClass={inputClass}
+                  labelClass={labelClass}
+                />
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <label className={labelClass}>Main Category</label>
-                      <button
-                        type="button"
-                        onClick={suggestCategoryWithAI}
-                        disabled={isSuggestingCategory || !formData.title}
-                        className="rounded-full bg-fuchsia-100 px-3 py-1 text-xs font-bold text-fuchsia-700 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {isSuggestingCategory ? 'Suggesting...' : 'AI Suggest'}
-                      </button>
-                    </div>
-                    <select
-                      value={formData.mainCategory}
-                      onChange={(e) => {
-                        const nextMainCategory = e.target.value;
-                        const nextSubCategories = getSubCategoriesForMainCategory(nextMainCategory);
-                        const nextSubCategory =
-                          nextSubCategories[0] || getDefaultAdminSubCategory();
-                        setFormData({
-                          ...formData,
-                          mainCategory: nextMainCategory,
-                          subCategory: nextSubCategory,
-                          category: nextSubCategory,
-                        });
-                      }}
-                      className={inputClass}
+                <AdminListingCategoryFields
+                  formData={formData}
+                  setFormData={setFormData}
+                  inputClass={inputClass}
+                  labelClass={labelClass}
+                  mainCategories={mainCategories}
+                  subCategories={subCategories}
+                  conditions={conditions}
+                  showConditionField={showConditionField}
+                  handleMainCategoryChange={handleMainCategoryChange}
+                  handleSubCategoryChange={handleSubCategoryChange}
+                  aiSuggestButton={
+                    <button
+                      type="button"
+                      onClick={suggestCategoryWithAI}
+                      disabled={isSuggestingCategory || !formData.title}
+                      className="rounded-full bg-fuchsia-100 px-3 py-1 text-xs font-bold text-fuchsia-700 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <option value="">Select Main Category</option>
-                      {mainCategories.map((main) => (
-                        <option key={main} value={main}>
-                          {main}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelClass}>Subcategory</label>
-                    <select
-                      value={formData.subCategory}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          subCategory: e.target.value,
-                          category: e.target.value,
-                        })
-                      }
-                      className={inputClass}
-                    >
-                      {subCategories.map((sub) => (
-                        <option key={sub} value={sub}>
-                          {sub}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {showConditionField && (
+                      {isSuggestingCategory ? 'Suggesting...' : 'AI Suggest'}
+                    </button>
+                  }
+                />
+
+                <AdminListingLocationFields
+                  formData={formData}
+                  setFormData={setFormData}
+                  inputClass={inputClass}
+                  labelClass={labelClass}
+                  formErrors={formErrors}
+                  isResolvingLocation={isResolvingLocation}
+                  locationResolveError={locationResolveError}
+                  statusField={
                     <div>
-                      <label className={labelClass}>Condition</label>
+                      <label className={labelClass}>Status</label>
                       <select
-                        value={formData.condition}
-                        onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
+                        value={formData.status}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            status: e.target.value as 'active' | 'sold' | 'pending',
+                          })
+                        }
                         className={inputClass}
                       >
-                        {conditions.map((cond) => (
-                          <option key={cond} value={cond}>
-                            {cond.replace('_', ' ')}
-                          </option>
-                        ))}
+                        <option value="active">Active</option>
+                        <option value="pending">Pending</option>
+                        <option value="sold">Sold</option>
                       </select>
                     </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <label className={`${labelClass} flex items-center gap-2`}>
-                      <MapPin size={14} /> Location
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.location}
-                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                      className={inputClass}
-                      placeholder="City, State"
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>
-                      Pincode <span className="text-xs font-normal text-slate-500">Optional</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.pincode}
-                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-                      className={inputClass}
-                      placeholder="6-digit pincode"
-                      inputMode="numeric"
-                    />
-                    {formErrors.pincode && (
-                      <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.pincode}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>
-                      Latitude <span className="text-xs font-normal text-slate-500">Optional</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.latitude}
-                      onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
-                      className={inputClass}
-                      placeholder="e.g. 17.3850"
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>
-                      Longitude <span className="text-xs font-normal text-slate-500">Optional</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.longitude}
-                      onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
-                      className={inputClass}
-                      placeholder="e.g. 78.4867"
-                    />
-                    {(formErrors.latitude || formErrors.longitude) && (
-                      <p className="mt-1 text-xs font-medium text-rose-600">
-                        {formErrors.latitude || formErrors.longitude}
-                      </p>
-                    )}
-                    {!formErrors.latitude && !formErrors.longitude && isResolvingLocation && (
-                      <p className="mt-1 text-xs text-cyan-700">
-                        Resolving location from coordinates...
-                      </p>
-                    )}
-                    {!formErrors.latitude && !formErrors.longitude && locationResolveError && (
-                      <p className="mt-1 text-xs text-slate-500">{locationResolveError}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>Status</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          status: e.target.value as 'active' | 'sold' | 'pending',
-                        })
-                      }
-                      className={inputClass}
-                    >
-                      <option value="active">Active</option>
-                      <option value="pending">Pending</option>
-                      <option value="sold">Sold</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelClass}>
-                      Contact Number{' '}
-                      <span className="text-xs font-normal text-slate-500">Optional</span>
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.contactPhone}
-                      onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
-                      className={inputClass}
-                      placeholder="e.g. 9876543210"
-                    />
-                  </div>
-                </div>
+                  }
+                />
               </div>
             </div>
 
@@ -808,27 +436,6 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
                 </div>
               )}
             </div>
-          </div>
-
-          <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-5 sm:flex-row sm:p-6">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={updateListing.isPending}
-              className="w-full rounded-xl border border-slate-300 bg-white px-6 py-3 font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={updateListing.isPending}
-              className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-200 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
-            >
-              {updateListing.isPending ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    </AdminListingModalFrame>
   );
 }

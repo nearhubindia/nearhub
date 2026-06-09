@@ -10,6 +10,7 @@ import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { formatCondition } from '@/lib/utils';
 import ListingCard from '@/shared/components/ListingCard';
+import { shareListingLink } from '@/lib/share-app-link';
 import { createResponsiveStyles } from '@/lib/responsive';
 
 export default function SavedScreen() {
@@ -137,6 +138,7 @@ export default function SavedScreen() {
                 isSaved={savedIds.has(item.id)}
                 onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
                 onSave={() => handleSave(item.id)}
+                onShare={() => shareListingLink({ listingId: item.id, listingTitle: item.title })}
               />
             </View>
           );

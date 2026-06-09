@@ -280,8 +280,24 @@ export function registerPushNotificationRoutes(app: Express) {
    */
   app.post('/api/admin/push/broadcast', async (req: Request, res: Response) => {
     try {
-      const { title, body, data, userType, notificationType, adminId, sound, badge, channelId } =
-        req.body;
+      const {
+        title,
+        body,
+        data,
+        userType,
+        notificationType,
+        adminId,
+        sound,
+        badge,
+        channelId,
+        dealUrl,
+        imageUrl,
+        locations,
+        pincodes,
+        centerLatitude,
+        centerLongitude,
+        radiusKm,
+      } = req.body;
 
       if (!title || !body || !notificationType) {
         return res.status(400).json({
@@ -300,6 +316,13 @@ export function registerPushNotificationRoutes(app: Express) {
         sound,
         badge,
         channelId,
+        dealUrl: typeof dealUrl === 'string' && dealUrl.trim() ? dealUrl.trim() : undefined,
+        imageUrl: typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : undefined,
+        locations: Array.isArray(locations) ? locations : [],
+        pincodes: Array.isArray(pincodes) ? pincodes : [],
+        centerLatitude: typeof centerLatitude === 'number' ? centerLatitude : undefined,
+        centerLongitude: typeof centerLongitude === 'number' ? centerLongitude : undefined,
+        radiusKm: typeof radiusKm === 'number' ? radiusKm : undefined,
       });
 
       res.json({

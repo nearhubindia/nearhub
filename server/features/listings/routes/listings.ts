@@ -26,39 +26,7 @@ import { redisCache } from '../../../shared/cache/redis-cache';
 import { users } from '../../users/models/users';
 import { resolveUserDisplayName } from '../../users/services/user-profiles';
 import { eq, inArray, or } from 'drizzle-orm';
-
-function parseJsonField(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value;
-  if (value == null) return [];
-  if (typeof value !== 'string') return [];
-
-  const raw = value.trim();
-  if (!raw) return [];
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
-    if (parsed == null) return [];
-    return [parsed];
-  } catch {
-    // Fallback for Postgres array literal format: {"a","b"} or {a,b}
-    if (raw.startsWith('{') && raw.endsWith('}')) {
-      const inner = raw.slice(1, -1).trim();
-      if (!inner) return [];
-      return inner
-        .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
-        .map((item) =>
-          item
-            .trim()
-            .replace(/^"(.*)"$/, '$1')
-            .replace(/\\"/g, '"')
-        )
-        .filter(Boolean);
-    }
-
-    return [raw];
-  }
-}
+import { parseJsonArrayField } from '../../../shared/utils/json-fields';
 
 function normalizeOwnerId(value: unknown): string {
   if (typeof value !== 'string') return '';
@@ -344,8 +312,8 @@ function toPublicListing(
   const includeSellerIdentity = Boolean(options?.includeSellerIdentity);
   const chatCount = Number(options?.chatCountMap?.get(listingId) || 0);
   const likeCount = Number(options?.likeCountMap?.get(listingId) || 0);
-  const images = parseJsonField(listing?.images);
-  const videos = parseJsonField(listing?.videos);
+  const images = parseJsonArrayField(listing?.images);
+  const videos = parseJsonArrayField(listing?.videos);
 
   return {
     ...rest,
@@ -417,6 +385,9 @@ export function registerListingRoutes(app: Express) {
       const latitude = req.query.latitude ? parseFloat(req.query.latitude as string) : undefined;
       const longitude = req.query.longitude ? parseFloat(req.query.longitude as string) : undefined;
       const radiusKm = req.query.radius ? parseFloat(req.query.radius as string) : undefined;
+      const dealsOnly = req.query.dealsOnly === '1' || req.query.dealsOnly === 'true';
+      const includeExpiredDeals =
+        req.query.includeExpiredDeals === '1' || req.query.includeExpiredDeals === 'true';
 
       const listings = await getActiveListing({
         limit,
@@ -428,6 +399,8 @@ export function registerListingRoutes(app: Express) {
         latitude,
         longitude,
         radiusKm,
+        dealsOnly,
+        includeExpiredDeals,
       });
 
       const priceFilteredListings = listings.filter((listing) => {
@@ -702,7 +675,9 @@ export function registerListingRoutes(app: Express) {
       }
 
       const media =
-        mediaType === 'images' ? parseJsonField(listing.images) : parseJsonField(listing.videos);
+        mediaType === 'images'
+          ? parseJsonArrayField(listing.images)
+          : parseJsonArrayField(listing.videos);
       const item = media[rawIndex];
       const targetUrl = typeof item === 'string' ? item.trim() : '';
 
@@ -848,6 +823,7 @@ export function registerListingRoutes(app: Express) {
         // Re-approval should only happen for core listing media/content changes.
         'images',
         'videos',
+        'attributes',
       ]);
       const hasModerationSensitiveChanges = Object.keys(sanitizedUpdates).some((field) =>
         moderationSensitiveFields.has(field)

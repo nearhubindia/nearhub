@@ -6,7 +6,9 @@
 import { Expo, ExpoPushMessage, ExpoPushTicket, ExpoPushErrorReceipt } from 'expo-server-sdk';
 import { db } from '../../data/db';
 import { pushTokens, notificationLogs } from '../../features/admin/models/admin-settings';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, ilike, or, sql } from 'drizzle-orm';
+import { users } from '../../features/users/models/users';
+import { listings } from '../../features/admin/models/admin-settings';
 
 // Create Expo SDK client
 const expo = new Expo({
@@ -17,6 +19,8 @@ export interface SendPushNotificationOptions {
   title: string;
   body: string;
   data?: Record<string, any>;
+  dealUrl?: string;
+  imageUrl?: string;
   sound?: 'default' | null;
   badge?: number;
   channelId?: string;
@@ -28,6 +32,11 @@ export interface BroadcastOptions extends SendPushNotificationOptions {
   userType?: 'buyer' | 'seller' | 'all';
   notificationType: string;
   sentBy?: string; // Admin user ID
+  locations?: string[];
+  pincodes?: string[];
+  centerLatitude?: number;
+  centerLongitude?: number;
+  radiusKm?: number;
 }
 
 /**
@@ -139,14 +148,15 @@ export async function broadcastPushNotification(
   options: BroadcastOptions
 ): Promise<{ success: boolean; sentCount: number; errors: string[] }> {
   try {
-    // Build query conditions
+    const userIds = await resolveTargetUserIds(options);
     const conditions = [eq(pushTokens.isActive, true)];
-
     if (options.userType && options.userType !== 'all') {
       conditions.push(eq(pushTokens.userType, options.userType));
     }
+    if (userIds.length > 0) {
+      conditions.push(inArray(pushTokens.userId, userIds));
+    }
 
-    // Get all active tokens matching criteria
     const tokens = await db.query.pushTokens.findMany({
       where: and(...conditions),
     });
@@ -190,6 +200,103 @@ export async function broadcastPushNotification(
       errors: [error instanceof Error ? error.message : 'Unknown error'],
     };
   }
+}
+
+async function resolveTargetUserIds(options: BroadcastOptions): Promise<string[]> {
+  const locations = (options.locations || [])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  const pincodes = (options.pincodes || [])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  const centerLatitude = Number(options.centerLatitude);
+  const centerLongitude = Number(options.centerLongitude);
+  const radiusKm = Number(options.radiusKm);
+
+  if (
+    locations.length === 0 &&
+    pincodes.length === 0 &&
+    (!Number.isFinite(centerLatitude) ||
+      !Number.isFinite(centerLongitude) ||
+      !Number.isFinite(radiusKm))
+  ) {
+    return [];
+  }
+
+  const matched = new Set<string>();
+
+  if (locations.length > 0) {
+    const userLocationConditions = locations.map((location) =>
+      ilike(users.location, `%${location}%`)
+    );
+    const listingLocationConditions = locations.map((location) =>
+      ilike(listings.location, `%${location}%`)
+    );
+
+    const userLocationRows = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(or(...userLocationConditions)!);
+
+    userLocationRows.forEach((row) => {
+      if (row.id) matched.add(String(row.id));
+    });
+
+    const listingLocationRows = await db
+      .select({ sellerId: listings.sellerId })
+      .from(listings)
+      .where(or(...listingLocationConditions)!);
+
+    listingLocationRows.forEach((row) => {
+      if (row.sellerId) matched.add(String(row.sellerId));
+    });
+  }
+
+  if (pincodes.length > 0) {
+    const pincodeConditions = pincodes.map((pincode) => ilike(listings.pincode, `%${pincode}%`));
+
+    const listingPincodeRows = await db
+      .select({ sellerId: listings.sellerId })
+      .from(listings)
+      .where(or(...pincodeConditions)!);
+
+    listingPincodeRows.forEach((row) => {
+      if (row.sellerId) matched.add(String(row.sellerId));
+    });
+  }
+
+  if (
+    Number.isFinite(centerLatitude) &&
+    Number.isFinite(centerLongitude) &&
+    Number.isFinite(radiusKm) &&
+    radiusKm > 0
+  ) {
+    const usersWithCoords = await db.query.users.findMany({
+      columns: { id: true, latitude: true, longitude: true },
+      where: and(sql`${users.latitude} IS NOT NULL`, sql`${users.longitude} IS NOT NULL`),
+    });
+
+    const R = 6371;
+    for (const user of usersWithCoords) {
+      if (user.latitude === null || user.longitude === null) continue;
+      const dLat = ((centerLatitude - Number(user.latitude)) * Math.PI) / 180;
+      const dLon = ((centerLongitude - Number(user.longitude)) * Math.PI) / 180;
+      const lat1 = Number(user.latitude);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos((lat1 * Math.PI) / 180) *
+          Math.cos((centerLatitude * Math.PI) / 180) *
+          Math.sin(dLon / 2) *
+          Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distance = R * c;
+      if (distance <= radiusKm) {
+        matched.add(String(user.id));
+      }
+    }
+  }
+
+  return [...matched];
 }
 
 /**
@@ -294,11 +401,21 @@ function createPushMessages(
     sound: options.sound !== null ? options.sound || 'default' : undefined,
     title: options.title,
     body: options.body,
-    data: options.data || {},
+    data: {
+      ...(options.data || {}),
+      ...(options.dealUrl ? { dealUrl: options.dealUrl, url: options.dealUrl } : {}),
+    },
     badge: options.badge,
     channelId: options.channelId || 'default',
     priority: options.priority || 'high',
     ttl: options.ttl,
+    ...(options.imageUrl
+      ? {
+          richContent: {
+            image: options.imageUrl,
+          },
+        }
+      : {}),
   }));
 }
 

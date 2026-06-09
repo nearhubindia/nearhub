@@ -36,6 +36,18 @@ export interface CreateListingRequest {
   pincode?: string;
   latitude?: number;
   longitude?: number;
+  isDeal?: boolean;
+  dealType?: 'normal' | 'combo';
+  dealStartAt?: string;
+  dealEndAt?: string;
+  dealRecurrence?: 'none' | 'daily' | 'weekly' | 'monthly';
+  dealRecurrenceUntil?: string;
+  dealCycleQuantity?: number;
+  maxDealBookings?: number;
+  comboItems?: string[];
+  dealTerms?: string;
+  voucherEnabled?: boolean;
+  attributes?: Record<string, string | number | boolean>;
 }
 
 export interface CheckoutRequest extends CreateListingRequest {

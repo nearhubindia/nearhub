@@ -113,6 +113,41 @@
       "when": 1777077600000,
       "tag": "0015_admin_settings_hard_update_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1777077601000,
+      "tag": "0016_user_location_coordinates",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1777077602000,
+      "tag": "0017_listing_attributes_and_admin_attributes",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1777077603000,
+      "tag": "0018_master_listing_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1777077604000,
+      "tag": "0019_listing_attribute_values",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1777077605000,
+      "tag": "0020_drop_legacy_listing_attributes",
+      "breakpoints": true
     }
   ]
 }

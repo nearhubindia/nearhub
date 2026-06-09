@@ -1,4 +1,4 @@
-import { type ReactElement } from 'react';
+import { type ReactElement, useMemo } from 'react';
 import {
   ArrowRight,
   BadgeCheck,
@@ -13,8 +13,10 @@ import {
   Video,
   Zap,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { LandingFooter, LandingHeader } from '@/shared/components';
+import { getApiUrl } from '@/lib/config';
 import { BRAND_SIGNATURE } from '@/shared/brand';
 
 const capabilityCards = [
@@ -101,7 +103,68 @@ const appBenefits = [
 const homeBanner = '/banner_web_1.png';
 const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.synvide.nearhub';
 
+type Listing = {
+  id: string;
+  title: string;
+  location?: string;
+  price?: string | number;
+  offerPrice?: string | number;
+  images?: string[];
+  isDeal?: boolean;
+  is_deal?: boolean;
+};
+
+type ListingsResponse = {
+  success?: boolean;
+  data?: Listing[];
+  results?: Listing[];
+};
+
+function formatPrice(value: string | number | undefined): string {
+  const n = typeof value === 'string' ? Number(value) : value;
+  if (!Number.isFinite(n as number)) return 'Price on request';
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n as number);
+}
+
+function normalizeImageUrl(value: string | undefined): string {
+  const raw = String(value || '').trim();
+  if (!raw) return '/nearhub.png';
+  if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('/')) return raw;
+  return '/nearhub.png';
+}
+
 export default function Landing(): ReactElement {
+  const [searchParams] = useSearchParams();
+  const location = searchParams.get('location') ?? '';
+  const latitude = searchParams.get('latitude') ?? '';
+  const longitude = searchParams.get('longitude') ?? '';
+  const radius = searchParams.get('radius') ?? '50';
+  const query = searchParams.get('q') ?? '';
+
+  const nearbyEndpoint = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set('limit', '8');
+    if (query.trim()) params.set('q', query.trim());
+    if (location.trim()) params.set('location', location.trim());
+    if (latitude && longitude) {
+      params.set('latitude', latitude);
+      params.set('longitude', longitude);
+      params.set('radius', radius || '50');
+    }
+    const searchPath = query.trim() || location.trim() ? '/api/listings/search' : '/api/listings';
+    return `${getApiUrl()}${searchPath}?${params.toString()}`;
+  }, [latitude, longitude, location, query, radius]);
+
+  const nearbyListingsQuery = useQuery({
+    queryKey: ['landing-nearby-listings', query, location, latitude, longitude, radius],
+    queryFn: async () => {
+      const response = await fetch(nearbyEndpoint);
+      if (!response.ok) throw new Error('Failed to load nearby listings');
+      const payload = (await response.json()) as ListingsResponse;
+      return (payload.data || payload.results || []).slice(0, 8);
+    },
+  });
+
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7fbff_0%,#edf5ff_46%,#fff5ea_100%)] text-slate-900">
       <div className="fixed inset-0 -z-10 overflow-hidden">
@@ -113,21 +176,21 @@ export default function Landing(): ReactElement {
 
       <main className="pt-20">
         <section className="w-full border-y border-[#1e5da8]/15 bg-[#0e3f78]">
-          <div className="relative w-full overflow-hidden">
+          <div className="relative w-full overflow-hidden min-h-[280px] sm:min-h-[320px] lg:min-h-[420px]">
             <img
               src={homeBanner}
               alt="NearHub home banner"
-              className="block h-auto w-full"
+              className="absolute inset-0 block h-full w-full object-contain object-center"
               loading="eager"
               decoding="async"
               fetchPriority="high"
             />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0e3f78]/18 via-transparent to-[#0e3f78]/14" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0e3f78]/10 via-transparent to-[#0e3f78]/8" />
           </div>
         </section>
 
         <section className="w-full px-4 pb-8 pt-8 sm:px-8 lg:px-12">
-          <div className="grid gap-8 xl:grid-cols-[1.15fr,0.85fr] xl:items-stretch">
+          <div className="grid gap-8 xl:grid-cols-[1.15fr_0.85fr] xl:items-stretch">
             <div className="rounded-[2rem] border border-[#1e5da8]/20 bg-[linear-gradient(125deg,#0f4684_0%,#1e5da8_42%,#ff9933_165%)] px-6 py-8 text-white shadow-[0_34px_72px_-40px_rgba(14,63,120,0.78)] sm:px-9 sm:py-10">
               <p className="inline-flex items-center gap-2 rounded-full border border-white/35 bg-white/12 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em]">
                 <Sparkles size={12} />
@@ -196,6 +259,59 @@ export default function Landing(): ReactElement {
           </div>
         </section>
 
+        <section className="w-full px-4 pb-16 sm:px-8 lg:px-12">
+          <div className="mb-5 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#ff9933]">
+                Nearby Listings
+              </p>
+              <h2 className="mt-2 text-2xl font-bold text-[#113965]">
+                {location ? `Live picks near ${location}` : 'Live picks near you'}
+              </h2>
+            </div>
+            <Link to="/browse" className="text-sm font-semibold text-[#1e5da8] hover:underline">
+              View all
+            </Link>
+          </div>
+
+          {nearbyListingsQuery.isLoading ? (
+            <div className="rounded-2xl border border-[#1e5da8]/12 bg-white/85 p-6 text-sm text-slate-600 shadow-sm">
+              Loading nearby listings...
+            </div>
+          ) : null}
+
+          {!nearbyListingsQuery.isLoading && (nearbyListingsQuery.data || []).length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#1e5da8]/20 bg-white/85 p-6 text-sm text-slate-600 shadow-sm">
+              {location
+                ? `No nearby listings found for ${location} yet. Try a different location or adjust your radius.`
+                : 'Pick a location in the header to see nearby listings here.'}
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {(nearbyListingsQuery.data || []).map((listing) => (
+              <Link
+                key={listing.id}
+                to={`/listing/${listing.id}`}
+                className="group overflow-hidden rounded-2xl border border-[#1e5da8]/12 bg-white shadow-[0_18px_42px_-30px_rgba(30,93,168,0.55)] transition hover:-translate-y-0.5 hover:shadow-[0_28px_54px_-34px_rgba(30,93,168,0.7)]"
+              >
+                <img
+                  src={normalizeImageUrl(listing.images?.[0])}
+                  alt={listing.title}
+                  className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                />
+                <div className="p-4">
+                  <p className="line-clamp-2 text-sm font-semibold text-[#113965]">{listing.title}</p>
+                  <p className="mt-2 text-sm font-bold text-slate-950">
+                    {formatPrice(listing.offerPrice || listing.price)}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">{listing.location || 'Nearby'}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+
         <section className="w-full px-4 pb-9 sm:px-8 lg:px-12">
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
             {capabilityCards.map(({ Icon, title, text }) => (
@@ -218,7 +334,7 @@ export default function Landing(): ReactElement {
         </section>
 
         <section className="w-full px-4 pb-16 sm:px-8 lg:px-12">
-          <div className="overflow-hidden rounded-[2rem] border border-[#1e5da8]/18 bg-[linear-gradient(120deg,#0f3f78_0%,#1e5da8_58%,#ff9933_165%)] px-6 py-8 text-white shadow-[0_30px_62px_-38px_rgba(15,63,120,0.8)] sm:px-9 lg:grid lg:grid-cols-[1.1fr,0.9fr] lg:items-center lg:gap-12">
+          <div className="overflow-hidden rounded-[2rem] border border-[#1e5da8]/18 bg-[linear-gradient(120deg,#0f3f78_0%,#1e5da8_58%,#ff9933_165%)] px-6 py-8 text-white shadow-[0_30px_62px_-38px_rgba(15,63,120,0.8)] sm:px-9 lg:grid lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-12">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#ffe2bf]">
                 Get The App
@@ -235,7 +351,7 @@ export default function Landing(): ReactElement {
                 href={playStoreUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#ff9933] px-6 py-3 text-sm font-semibold text-slate-900 shadow-[0_14px_34px_-18px_rgba(255,153,51,0.95)] transition hover:bg-[#ffad57]"
+                className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#ff9933] px-4 py-2 text-xs font-bold text-slate-900 shadow-[0_14px_34px_-18px_rgba(255,153,51,0.95)] transition hover:bg-[#ffad57]"
               >
                 <Download size={18} />
                 Download On Play Store

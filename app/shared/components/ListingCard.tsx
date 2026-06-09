@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
+import { getDiscountPercent } from '@/lib/deals';
 import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
 import { stripRichTextFormatting } from '@/lib/rich-text';
 
@@ -25,6 +26,7 @@ interface ListingCardProps {
   isSaved: boolean;
   onPress: () => void;
   onSave: () => void;
+  onShare?: () => void;
 }
 
 export default function ListingCard({
@@ -45,6 +47,7 @@ export default function ListingCard({
   isSaved,
   onPress,
   onSave,
+  onShare,
 }: ListingCardProps) {
   const hasUnreachablePlaceholder =
     typeof image === 'string' && image.includes('via.placeholder.com');
@@ -52,6 +55,7 @@ export default function ListingCard({
     !image || hasUnreachablePlaceholder ? require('../../assets/images/icon.png') : { uri: image };
   const hasValidOfferPrice = typeof offerPrice === 'number' && offerPrice > 0 && offerPrice < price;
   const displayPrice = hasValidOfferPrice ? offerPrice : price;
+  const discountPercent = getDiscountPercent({ price, offerPrice });
   const normalizedTitle = title.trim();
   const normalizedDescription = stripRichTextFormatting(description || '');
   const shouldTruncateTitle =
@@ -75,13 +79,18 @@ export default function ListingCard({
         ]}
       >
         <Image source={imageSource} style={styles.image} contentFit="cover" transition={200} />
-        <Pressable style={styles.saveButton} onPress={onSave} hitSlop={8}>
-          <Ionicons
-            name={isSaved ? 'heart' : 'heart-outline'}
-            size={responsiveModerateScale(18)}
-            color={isSaved ? Colors.accent : '#fff'}
-          />
-        </Pressable>
+        <View style={styles.topRightActions}>
+          <Pressable style={styles.shareButton} onPress={onShare} hitSlop={8} disabled={!onShare}>
+            <Feather name="share-2" size={responsiveModerateScale(16)} color="#fff" />
+          </Pressable>
+          <Pressable style={styles.saveButton} onPress={onSave} hitSlop={8}>
+            <Ionicons
+              name={isSaved ? 'heart' : 'heart-outline'}
+              size={responsiveModerateScale(18)}
+              color={isSaved ? Colors.accent : '#fff'}
+            />
+          </Pressable>
+        </View>
         <View style={styles.badgeStack}>
           {isBoosted && (
             <View style={styles.boostBadge}>
@@ -102,6 +111,11 @@ export default function ListingCard({
         <View style={styles.conditionBadge}>
           <Text style={styles.conditionText}>{condition}</Text>
         </View>
+        {discountPercent ? (
+          <View style={styles.discountBadge}>
+            <Text style={styles.discountBadgeText}>{discountPercent}% OFF</Text>
+          </View>
+        ) : null}
       </View>
       <View style={styles.info}>
         <View style={styles.priceRow}>
@@ -152,10 +166,22 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  saveButton: {
+  topRightActions: {
     position: 'absolute',
     top: responsiveModerateScale(8),
     right: responsiveModerateScale(8),
+    alignItems: 'center',
+    gap: responsiveModerateScale(6),
+  },
+  shareButton: {
+    width: responsiveModerateScale(28),
+    height: responsiveModerateScale(28),
+    borderRadius: responsiveModerateScale(14),
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveButton: {
     width: responsiveModerateScale(28),
     height: responsiveModerateScale(28),
     borderRadius: responsiveModerateScale(14),
@@ -176,6 +202,25 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: responsiveFont(10),
     fontFamily: 'Inter_500Medium',
+  },
+  discountBadge: {
+    position: 'absolute',
+    right: responsiveModerateScale(8),
+    bottom: responsiveModerateScale(8),
+    backgroundColor: '#DC2626',
+    paddingHorizontal: responsiveModerateScale(7),
+    paddingVertical: responsiveModerateScale(2),
+    borderRadius: responsiveModerateScale(8),
+    shadowColor: '#7F1D1D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  discountBadgeText: {
+    color: '#fff',
+    fontSize: responsiveFont(10),
+    fontFamily: 'Inter_700Bold',
   },
   badgeStack: {
     position: 'absolute',

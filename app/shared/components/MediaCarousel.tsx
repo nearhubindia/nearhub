@@ -12,52 +12,7 @@ import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { Feather } from '@expo/vector-icons';
-import { getApiUrl } from '@/lib/query-client';
-
-function remapLoopbackUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    const isLoopbackHost =
-      parsed.hostname === 'localhost' ||
-      parsed.hostname === '127.0.0.1' ||
-      parsed.hostname === '0.0.0.0';
-
-    if (!isLoopbackHost) {
-      return url;
-    }
-
-    const apiBase = new URL(getApiUrl());
-    parsed.protocol = apiBase.protocol;
-    parsed.host = apiBase.host;
-    return parsed.toString();
-  } catch {
-    return url;
-  }
-}
-
-function getStreamingUrl(videoUrl: string): string {
-  const apiBaseUrl = getApiUrl();
-
-  // Use direct absolute URLs as-is (do not force protocol changes)
-  if (videoUrl.startsWith('https://') || videoUrl.startsWith('http://')) {
-    return remapLoopbackUrl(videoUrl);
-  }
-
-  // If backend returns a relative path, resolve via API stream endpoint
-  if (videoUrl.startsWith('/videos/')) {
-    const filename = videoUrl.replace(/^\/videos\//, '');
-    return `${apiBaseUrl}/api/videos/stream/${filename}`;
-  }
-
-  return `${apiBaseUrl}/api/videos/stream/${videoUrl}`;
-}
-
-function getAdaptiveStreamingUrl(videoUrl: string): string {
-  const streamingUrl = getStreamingUrl(videoUrl);
-  if (!/^https?:\/\//i.test(streamingUrl)) return streamingUrl;
-  const apiBaseUrl = getApiUrl();
-  return `${apiBaseUrl}/api/videos/hls/master.m3u8?source=${encodeURIComponent(streamingUrl)}`;
-}
+import { getAdaptiveStreamingUrl, getStreamingUrl } from '@/lib/video-streaming-url';
 
 interface MediaItem {
   type: 'image' | 'video';

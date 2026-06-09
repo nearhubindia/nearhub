@@ -36,6 +36,8 @@ export class MemStorage implements IStorage {
       address: null,
       gstin: null,
       location: null,
+      latitude: null,
+      longitude: null,
       avatarUrl: null,
       isVerified: false,
       createdAt: new Date(),

@@ -29,7 +29,7 @@ import { getTabOverlayContentPadding } from '@/constants/layout';
 import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useUserInterests } from '@/shared/contexts/user-interests-context';
-import { hasValidOfferPrice, isNewProductDeal } from '@/lib/deals';
+import { getDiscountPercent, hasValidOfferPrice, isNewProductDeal } from '@/lib/deals';
 import { calculateDistance } from '@/lib/location-data';
 import { Category } from '@/lib/types';
 import { formatCondition } from '@/lib/utils';
@@ -37,6 +37,7 @@ import { NotificationBell } from '@/shared/components/NotificationBell';
 import { Logo } from '@/shared/components/Logo';
 import ListingCard from '@/shared/components/ListingCard';
 import AppScreenBanners from '@/shared/components/AppScreenBanners';
+import { shareListingLink } from '@/lib/share-app-link';
 import { getApiUrl } from '@/lib/query-client';
 import { useAdminSettings } from '@/lib/use-admin-settings';
 import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
@@ -652,6 +653,7 @@ export default function HomeScreen() {
             isSaved={savedIds.has(item.id)}
             onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
             onSave={() => handleSave(item.id, item.category)}
+            onShare={() => shareListingLink({ listingId: item.id, listingTitle: item.title })}
           />
         </View>
       );
@@ -670,6 +672,7 @@ export default function HomeScreen() {
     ) => {
       const basePrice = Number(item.price) || 0;
       const displayPrice = hasValidOfferPrice(item) ? Number(item.offerPrice) : basePrice;
+      const discountPercent = getDiscountPercent(item);
       const itemDistanceKm = distanceByListingId.get(item.id);
 
       return (
@@ -686,6 +689,11 @@ export default function HomeScreen() {
           {options?.badgeLabel ? (
             <View style={styles.cardLabelBadge}>
               <Text style={styles.cardLabelBadgeText}>{options.badgeLabel}</Text>
+            </View>
+          ) : null}
+          {discountPercent ? (
+            <View style={styles.cardDiscountBadge}>
+              <Text style={styles.cardDiscountBadgeText}>{discountPercent}% OFF</Text>
             </View>
           ) : null}
           <View style={styles.cardInfoOverlay}>
@@ -1647,6 +1655,25 @@ const styles = createResponsiveStyles({
   cardLabelBadgeText: {
     fontSize: 9,
     fontFamily: 'Inter_600SemiBold',
+    color: '#FFFFFF',
+  },
+  cardDiscountBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
+    shadowColor: '#7F1D1D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cardDiscountBadgeText: {
+    fontSize: 9,
+    fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
   },
   cardTitle: {

@@ -9,6 +9,7 @@ import { db } from '../../../data/db';
 import { listings } from '../../admin/models/admin-settings';
 import { getAdminSettings } from '../../admin/services/admin-settings';
 import { getActiveListing } from '../../listings/services/listings';
+import { parseJsonArrayField } from '../../../shared/utils/json-fields';
 
 type DBListing = typeof listings.$inferSelect;
 
@@ -35,19 +36,6 @@ function toPositiveLimit(value: unknown, fallback: number, max: number): number 
   return Math.min(parsed, max);
 }
 
-function parseJsonField(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value;
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
-
 function mapListing(listing: DBListing): SearchResult {
   return {
     ...(listing as any),
@@ -59,8 +47,8 @@ function mapListing(listing: DBListing): SearchResult {
         : undefined,
     latitude: listing.latitude ? Number(listing.latitude) : undefined,
     longitude: listing.longitude ? Number(listing.longitude) : undefined,
-    images: parseJsonField(listing.images) as any,
-    videos: parseJsonField(listing.videos) as any,
+    images: parseJsonArrayField(listing.images) as any,
+    videos: parseJsonArrayField(listing.videos) as any,
   };
 }
 

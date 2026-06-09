@@ -12,14 +12,25 @@ function buildListingShareUrl(listingId: string): string {
   return `${baseUrl}/listing/${encodedListingId}`;
 }
 
+function buildListingAppDeepLink(listingId: string): string {
+  const encodedListingId = encodeURIComponent(listingId.trim());
+  return `nearhub://listing/${encodedListingId}`;
+}
+
 function buildShortsShareUrl(listingId: string): string {
   const baseUrl = getWebBaseUrl();
   const encodedListingId = encodeURIComponent(listingId.trim());
   return `${baseUrl}/shorts/${encodedListingId}`;
 }
 
+function buildShortsAppDeepLink(listingId: string): string {
+  const encodedListingId = encodeURIComponent(listingId.trim());
+  return `nearhub://shorts/${encodedListingId}`;
+}
+
 function buildListingShareMessage(
   listingUrl: string,
+  appDeepLink: string,
   downloadUrl: string,
   listingTitle?: string
 ): string {
@@ -28,7 +39,7 @@ function buildListingShareMessage(
     ? `Check out this listing on NearHub:\n${title}`
     : 'Check out this listing on NearHub:';
 
-  return `${heading}\n${listingUrl}\n\nIf the app is not installed, download it here:\n${downloadUrl}`;
+  return `${heading}\nOpen directly in app:\n${appDeepLink}\n\nWeb link:\n${listingUrl}\n\nIf the app is not installed, download it here:\n${downloadUrl}`;
 }
 
 export async function shareAppDownloadLink(): Promise<void> {
@@ -60,12 +71,13 @@ export async function shareListingLink({
   }
 
   const listingUrl = buildListingShareUrl(normalizedListingId);
+  const appDeepLink = buildListingAppDeepLink(normalizedListingId);
   const downloadUrl = getAppDownloadUrl();
 
   try {
     await Share.share({
       title: listingTitle ? `NearHub Listing: ${listingTitle}` : 'NearHub Listing',
-      message: buildListingShareMessage(listingUrl, downloadUrl, listingTitle),
+      message: buildListingShareMessage(listingUrl, appDeepLink, downloadUrl, listingTitle),
       url: listingUrl,
     });
   } catch (error) {
@@ -88,10 +100,11 @@ export async function shareShortsLink({
   }
 
   const shortUrl = buildShortsShareUrl(normalizedListingId);
+  const appDeepLink = buildShortsAppDeepLink(normalizedListingId);
   const downloadUrl = getAppDownloadUrl();
   const title = String(listingTitle || '').trim();
   const heading = title ? `Watch this NearHub short:\n${title}` : 'Watch this NearHub short:';
-  const message = `${heading}\n${shortUrl}\n\nIf the app is not installed, download it here:\n${downloadUrl}`;
+  const message = `${heading}\nOpen directly in app:\n${appDeepLink}\n\nWeb link:\n${shortUrl}\n\nIf the app is not installed, download it here:\n${downloadUrl}`;
 
   try {
     await Share.share({

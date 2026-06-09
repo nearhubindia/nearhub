@@ -1,246 +1,110 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
-
+import { Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
 import { Logo } from '@/shared/components/Logo';
-import { BRAND_SIGNATURE } from '@/shared/brand';
+import { Container } from './Container';
+
+const platformLinks = [
+  ['Browse Listings', '/footer/browse-listings'],
+  ['Post an Ad', '/footer/post-an-ad'],
+  ['Categories', '/footer/categories'],
+  ['Mobile App', '/footer/mobile-app'],
+];
+
+const companyLinks = [
+  ['About Us', '/about'],
+  ['Careers', '/footer/careers'],
+  ['Blog', '/footer/blog'],
+  ['Press Kit', '/footer/press-kit'],
+  ['Contact Us', '/contact'],
+];
+
+const supportLinks = [
+  ['Help Center', '/footer/help-center'],
+  ['Safety Tips', '/footer/safety-tips'],
+  ['Terms of Service', '/terms'],
+  ['Privacy Policy', '/privacy-policy'],
+  ['Refund Policy', '/refund-policy'],
+  ['Payment Security', '/payment-security'],
+  ['Report Issue', '/footer/report-issue'],
+];
+
+function FooterColumn({ title, links }: { title: string; links: string[][] }): ReactElement {
+  return (
+    <div>
+      <h3 className="text-lg font-black text-white">{title}</h3>
+      <ul className="mt-4 space-y-2.5">
+        {links.map(([label, to]) => (
+          <li key={label}>
+            <Link to={to} className="text-sm font-medium text-blue-100/85 transition hover:text-[#ffb04a]">
+              {label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function LandingFooter(): ReactElement {
   return (
-    <footer className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-24 sm:pb-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
-          <div className="space-y-4">
-            <div className="mb-4 bg-white/95 rounded-lg p-3 w-fit">
-              <Logo size="md" />
-            </div>
-            <p className="text-slate-300 text-sm leading-relaxed">
-              {BRAND_SIGNATURE}. Buy, sell, and connect with trusted local listings, deals, and
-              services across India.
+    <footer className="bg-[linear-gradient(135deg,#00234b_0%,#00152f_52%,#00305f_100%)] text-white">
+      <Container className="py-10">
+        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-[1.35fr_0.75fr_0.75fr_0.9fr]">
+          <div>
+            <Logo size="md" />
+            <p className="mt-4 max-w-sm text-sm leading-6 text-blue-100/85">
+              NearHub - Buy, Sell & Discover Local Deals Near You. Buy, sell and connect with
+              trusted local listings, deals, and services across India.
             </p>
-            <div className="flex gap-3 pt-2">
-              <a
-                href="https://x.com"
-                target="_blank"
-                rel="noreferrer"
-                className="w-10 h-10 bg-slate-700/50 hover:bg-[#1e5da8] rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110"
-              >
-                <span className="text-lg">𝕏</span>
-              </a>
-              <a
-                href="https://www.facebook.com"
-                target="_blank"
-                rel="noreferrer"
-                className="w-10 h-10 bg-slate-700/50 hover:bg-[#1e5da8] rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110"
-              >
-                <span className="text-lg">f</span>
-              </a>
-              <a
-                href="https://www.linkedin.com"
-                target="_blank"
-                rel="noreferrer"
-                className="w-10 h-10 bg-slate-700/50 hover:bg-[#1e5da8] rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110"
-              >
-                <span className="text-lg">in</span>
-              </a>
-              <a
-                href="https://www.instagram.com"
-                target="_blank"
-                rel="noreferrer"
-                className="w-10 h-10 bg-slate-700/50 hover:bg-[#1e5da8] rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110"
-              >
-                <span className="text-lg">📷</span>
-              </a>
+            <div className="mt-5 flex gap-3">
+              {[
+                [Facebook, 'https://www.facebook.com'],
+                [Instagram, 'https://www.instagram.com'],
+                [Twitter, 'https://x.com'],
+                [Youtube, 'https://www.youtube.com'],
+              ].map(([Icon, href]) => (
+                <a
+                  key={href as string}
+                  href={href as string}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="grid h-10 w-10 place-items-center rounded-full bg-white/12 text-white transition hover:bg-[#0759e6]"
+                >
+                  <Icon size={18} />
+                </a>
+              ))}
             </div>
           </div>
 
-          <div>
-            <h3 className="text-lg font-bold mb-4 text-white">Platform</h3>
-            <ul className="space-y-3">
-              <li>
-                <Link
-                  to="/footer/browse-listings"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Browse Listings
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/footer/post-an-ad"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Post an Ad
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/footer/categories"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Categories
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/footer/mobile-app"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Mobile App
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="text-lg font-bold mb-4 text-white">Company</h3>
-            <ul className="space-y-3">
-              <li>
-                <Link
-                  to="/about"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  About Us
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/footer/careers"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Careers
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/footer/blog"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Blog
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/footer/press-kit"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Press Kit
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/contact"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Contact Us
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="text-lg font-bold mb-4 text-white">Support</h3>
-            <ul className="space-y-3">
-              <li>
-                <Link
-                  to="/footer/help-center"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Help Center
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/footer/safety-tips"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Safety Tips
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/terms"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Terms of Service
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/privacy-policy"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Privacy Policy
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/refund-policy"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Refund Policy
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/payment-security"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Payment Security
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/footer/report-issue"
-                  className="text-slate-300 hover:text-[#ff9933] transition text-sm"
-                >
-                  Report Issue
-                </Link>
-              </li>
-            </ul>
-          </div>
+          <FooterColumn title="Platform" links={platformLinks} />
+          <FooterColumn title="Company" links={companyLinks} />
+          <FooterColumn title="Support" links={supportLinks} />
         </div>
 
-        <div className="mt-10 rounded-xl border border-slate-600/70 bg-slate-950/85 px-4 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:px-6">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-slate-200 text-sm">
-              &copy; 2026 <span className="text-[#ff9933] font-semibold">NearHub</span>. All rights
-              reserved.
-            </p>
-            <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm md:justify-end">
-              <Link
-                to="/terms"
-                className="text-slate-100 hover:text-[#ff9933] transition font-medium"
-              >
-                Terms
-              </Link>
-              <Link
-                to="/privacy-policy"
-                className="text-slate-100 hover:text-[#ff9933] transition font-medium"
-              >
-                Privacy
-              </Link>
-              <Link
-                to="/refund-policy"
-                className="text-slate-100 hover:text-[#ff9933] transition font-medium"
-              >
-                Refunds
-              </Link>
-              <Link
-                to="/footer/cookies"
-                className="text-slate-100 hover:text-[#ff9933] transition font-medium"
-              >
-                Cookies
-              </Link>
-              <Link
-                to="/footer/sitemap"
-                className="text-slate-100 hover:text-[#ff9933] transition font-medium"
-              >
-                Sitemap
-              </Link>
-            </div>
+        <div className="mt-10 flex flex-col gap-4 border-t border-white/10 pt-6 text-sm text-blue-100/80 md:flex-row md:items-center md:justify-between">
+          <p>
+            © 2026 <span className="font-black text-[#ffb04a]">NearHub</span>. All rights reserved.
+          </p>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            <Link to="/terms" className="hover:text-[#ffb04a]">
+              Terms
+            </Link>
+            <Link to="/privacy-policy" className="hover:text-[#ffb04a]">
+              Privacy
+            </Link>
+            <Link to="/refund-policy" className="hover:text-[#ffb04a]">
+              Refunds
+            </Link>
+            <Link to="/footer/cookies" className="hover:text-[#ffb04a]">
+              Cookies
+            </Link>
+            <Link to="/footer/sitemap" className="hover:text-[#ffb04a]">
+              Sitemap
+            </Link>
           </div>
         </div>
-      </div>
+      </Container>
     </footer>
   );
 }

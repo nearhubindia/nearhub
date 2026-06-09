@@ -5,7 +5,8 @@ import {
   type Listing,
   type InsertListing,
 } from '../../admin/models/admin-settings';
-import { eq, and, desc, or, gte, lt, isNull } from 'drizzle-orm';
+import { loadListingAttributeValueMap, replaceListingAttributeValues } from './listing-attributes';
+import { eq, and, desc, or, gte, lt, isNull, inArray } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
 function coerceMediaToArray(value: unknown): unknown {
@@ -32,9 +33,14 @@ function coerceMediaToArray(value: unknown): unknown {
 /**
  * Create new listing
  */
-export async function createListing(data: InsertListing): Promise<Listing> {
+export async function createListing(
+  data: InsertListing & { attributes?: unknown }
+): Promise<Listing> {
+  const { attributes, ...rest } = data as InsertListing & {
+    attributes?: unknown;
+  };
   // Validate schema
-  const validated = insertListingSchema.parse(data);
+  const validated = insertListingSchema.parse(rest);
   const normalizedSubCategory =
     typeof validated.subCategory === 'string' && validated.subCategory.trim()
       ? validated.subCategory.trim()
@@ -78,7 +84,16 @@ export async function createListing(data: InsertListing): Promise<Listing> {
       .insert(listings)
       .values(insertValues(imagesAsJson, videosAsJson))
       .returning();
-    return result[0];
+    const created = result[0];
+    if (created && attributes && Object.keys(attributes).length > 0) {
+      await replaceListingAttributeValues({
+        listingId: created.id,
+        mainCategory: created.mainCategory,
+        subCategory: created.subCategory,
+        attributes,
+      }).catch(() => undefined);
+    }
+    return created;
   } catch (error: any) {
     // Fallback for deployments where media columns are arrays (text[]) instead of text JSON.
     const isMalformedArray =
@@ -94,17 +109,34 @@ export async function createListing(data: InsertListing): Promise<Listing> {
       .insert(listings)
       .values(insertValues(imagesAsArray, videosAsArray))
       .returning();
-    return retry[0];
+    const created = retry[0];
+    if (created && attributes && Object.keys(attributes).length > 0) {
+      await replaceListingAttributeValues({
+        listingId: created.id,
+        mainCategory: created.mainCategory,
+        subCategory: created.subCategory,
+        attributes,
+      }).catch(() => undefined);
+    }
+    return created;
   }
 }
 
 /**
  * Get listing by ID
  */
-export async function getListingById(id: string): Promise<Listing | null> {
+export async function getListingById(
+  id: string
+): Promise<(Listing & { attributes?: Record<string, string | number | boolean> }) | null> {
   const result = await db.select().from(listings).where(eq(listings.id, id)).limit(1);
 
-  return result.length > 0 ? result[0] : null;
+  if (result.length === 0) return null;
+  const listing = result[0];
+  const attributes = await loadListingAttributeValueMap(id).catch(() => ({}));
+  return {
+    ...listing,
+    attributes,
+  };
 }
 
 /**
@@ -121,6 +153,8 @@ export async function getActiveListing(
     latitude?: number;
     longitude?: number;
     radiusKm?: number;
+    dealsOnly?: boolean;
+    includeExpiredDeals?: boolean;
   } = {}
 ): Promise<Listing[]> {
   const {
@@ -133,13 +167,22 @@ export async function getActiveListing(
     latitude,
     longitude,
     radiusKm,
+    dealsOnly,
+    includeExpiredDeals,
   } = opts;
 
-  const conditions = [
-    eq(listings.isActive, true),
-    eq(listings.status, 'active'),
-    or(isNull(listings.expiresAt), gte(listings.expiresAt, sql`now()`)),
-  ];
+  const conditions =
+    includeExpiredDeals && dealsOnly
+      ? [eq(listings.isDeal, true), inArray(listings.status, ['active', 'expired'])]
+      : [
+          eq(listings.isActive, true),
+          eq(listings.status, 'active'),
+          or(isNull(listings.expiresAt), gte(listings.expiresAt, sql`now()`)),
+        ];
+
+  if (dealsOnly && !(includeExpiredDeals && dealsOnly)) {
+    conditions.push(eq(listings.isDeal, true));
+  }
 
   if (category) {
     conditions.push(eq(listings.category, category));
@@ -178,8 +221,9 @@ export async function getActiveListing(
 
     // Filter results by distance (since we can't use HAVING without GROUP BY)
     const filtered = allResults.filter((listing) => {
-      // Keep non-geotagged listings visible (e.g., admin-created/manual entries).
-      if (!listing.latitude || !listing.longitude) return true;
+      // When geo filtering is active, only show listings with valid coordinates.
+      // This prevents unrelated locations from leaking into nearby results.
+      if (!listing.latitude || !listing.longitude) return false;
       const lat1 = parseFloat(listing.latitude);
       const lon1 = parseFloat(listing.longitude);
       const lat2 = latitude;
@@ -264,9 +308,12 @@ export async function getListingsByCoupon(couponId: string): Promise<Listing[]> 
  */
 export async function updateListing(
   id: string,
-  updates: Partial<InsertListing>
+  updates: Partial<InsertListing> & { attributes?: unknown }
 ): Promise<Listing | null> {
-  const normalizedUpdates = { ...updates } as Partial<InsertListing> & {
+  const { attributes, ...updatesWithoutAttributes } = updates as Partial<InsertListing> & {
+    attributes?: unknown;
+  };
+  const normalizedUpdates = { ...updatesWithoutAttributes } as Partial<InsertListing> & {
     subcategory?: string;
   };
   const normalizedSubCategory =
@@ -330,7 +377,17 @@ export async function updateListing(
       .where(eq(listings.id, id))
       .returning();
 
-    return result.length > 0 ? result[0] : null;
+    const updated = result.length > 0 ? result[0] : null;
+    if (updated && attributes !== undefined) {
+      await replaceListingAttributeValues({
+        listingId: updated.id,
+        mainCategory: updated.mainCategory,
+        subCategory: updated.subCategory,
+        attributes,
+      }).catch(() => undefined);
+    }
+
+    return updated;
   } catch (error: any) {
     const isMalformedArray =
       error?.code === '22P02' && String(error?.message || '').includes('malformed array literal');
@@ -349,7 +406,17 @@ export async function updateListing(
       .where(eq(listings.id, id))
       .returning();
 
-    return result.length > 0 ? result[0] : null;
+    const updated = result.length > 0 ? result[0] : null;
+    if (updated && attributes !== undefined) {
+      await replaceListingAttributeValues({
+        listingId: updated.id,
+        mainCategory: updated.mainCategory,
+        subCategory: updated.subCategory,
+        attributes,
+      }).catch(() => undefined);
+    }
+
+    return updated;
   }
 }
 

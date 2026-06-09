@@ -7,6 +7,7 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', ...defaultTheme.fontFamily.sans],
+        heading: ['Poppins', 'Inter', ...defaultTheme.fontFamily.sans],
       },
       colors: {
         primary: '#0D9488',

@@ -22,6 +22,7 @@ import {
   type CheckoutRequest,
 } from '../services/subscription';
 import { verifyAdminToken } from '../../admin/services/admin-auth';
+import { verifyWebUserToken } from '../../auth/services/web-auth';
 import { isListingFree, getPricingForDuration, type DurationOption } from '../services/pricing';
 import { getRazorpayService } from '../../payments/services/razorpay';
 import { getRequestUserId } from '../../../lib/request-user';
@@ -87,6 +88,11 @@ import {
 function getAuthenticatedUserId(req: Request): string {
   const userId = getRequestUserId(req);
   return typeof userId === 'string' ? userId.trim() : '';
+}
+
+function getBearerToken(req: Request): string {
+  const authHeader = req.get('Authorization') || '';
+  return authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
 }
 
 function roundToTwo(value: number): number {
@@ -684,9 +690,23 @@ export function registerSubscriptionRoutes(app: Express) {
           latitude,
           longitude,
           featured = false,
+          isDeal = false,
+          dealType,
+          dealStartAt,
+          dealEndAt,
+          dealRecurrence,
+          dealRecurrenceUntil,
+          dealCycleQuantity,
+          maxDealBookings,
+          comboItems,
+          dealTerms,
+          voucherEnabled = true,
+          attributes,
         } = req.body;
 
         const ownerId = typeof userId === 'string' ? userId.trim() : '';
+        const bearerToken = getBearerToken(req);
+        const authenticatedWebUser = verifyWebUserToken(bearerToken);
         const normalizedSubCategory =
           typeof subCategory === 'string' && subCategory.trim()
             ? subCategory.trim()
@@ -701,6 +721,34 @@ export function registerSubscriptionRoutes(app: Express) {
             : normalizedSubCategory;
         const normalizedCondition =
           typeof condition === 'string' && condition.trim() ? condition.trim() : '';
+        const normalizedIsDeal = Boolean(isDeal);
+        const normalizedDealType =
+          typeof dealType === 'string' && (dealType === 'normal' || dealType === 'combo')
+            ? dealType
+            : 'normal';
+        const normalizedDealStartAt =
+          typeof dealStartAt === 'string' && dealStartAt.trim() ? new Date(dealStartAt) : null;
+        const normalizedDealEndAt =
+          typeof dealEndAt === 'string' && dealEndAt.trim() ? new Date(dealEndAt) : null;
+        const recurrenceOptions = ['none', 'daily', 'weekly', 'monthly'] as const;
+        type DealRecurrence = (typeof recurrenceOptions)[number];
+        const normalizedDealRecurrence: DealRecurrence =
+          typeof dealRecurrence === 'string' &&
+          recurrenceOptions.includes(dealRecurrence as DealRecurrence)
+            ? (dealRecurrence as DealRecurrence)
+            : 'none';
+        const normalizedDealRecurrenceUntil =
+          typeof dealRecurrenceUntil === 'string' && dealRecurrenceUntil.trim()
+            ? new Date(dealRecurrenceUntil)
+            : null;
+        const normalizedMaxDealBookings = Number(maxDealBookings || 0);
+        const normalizedDealCycleQuantity = Number(dealCycleQuantity || maxDealBookings || 0);
+        const normalizedComboItems = Array.isArray(comboItems)
+          ? comboItems
+              .map((item) => String(item || '').trim())
+              .filter(Boolean)
+              .slice(0, 20)
+          : [];
         const shouldRequireCondition = requiresListingCondition({
           mainCategory: normalizedMainCategory,
           subCategory: normalizedSubCategory,
@@ -710,12 +758,22 @@ export function registerSubscriptionRoutes(app: Express) {
 
         // if ownerId appears to be an admin account, ensure request includes a valid admin JWT
         if (ownerId.startsWith('admin')) {
-          const authHeader = req.get('Authorization') || '';
-          const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-          const admin = verifyAdminToken(token);
+          const admin = verifyAdminToken(bearerToken);
           if (!admin) {
             return res.status(401).json({ error: 'Unauthorized: valid admin token required' });
           }
+        } else if (!authenticatedWebUser) {
+          return res.status(401).json({
+            success: false,
+            error: 'Authentication required. Please log in again.',
+            code: 'AUTH_REQUIRED',
+          });
+        } else if (authenticatedWebUser.id !== ownerId) {
+          return res.status(403).json({
+            success: false,
+            error: 'You can only create listings for your own account.',
+            code: 'USER_MISMATCH',
+          });
         }
 
         // Validate required fields
@@ -761,6 +819,43 @@ export function registerSubscriptionRoutes(app: Express) {
               .set({ displayName: normalizedSellerName })
               .where(eq(users.id, ownerId))
               .catch(() => undefined);
+          }
+        }
+
+        if (normalizedIsDeal) {
+          if (
+            !normalizedDealStartAt ||
+            !normalizedDealEndAt ||
+            !Number.isFinite(normalizedDealStartAt.getTime()) ||
+            !Number.isFinite(normalizedDealEndAt.getTime())
+          ) {
+            return res.status(400).json({
+              error: 'Deal start and end time are required for deal listings',
+              code: 'INVALID_DEAL_WINDOW',
+            });
+          }
+          if (normalizedDealEndAt <= normalizedDealStartAt) {
+            return res.status(400).json({
+              error: 'Deal end time must be after start time',
+              code: 'INVALID_DEAL_WINDOW',
+            });
+          }
+          if (!Number.isInteger(normalizedMaxDealBookings) || normalizedMaxDealBookings <= 0) {
+            return res.status(400).json({
+              error: 'maxDealBookings must be a positive integer',
+              code: 'INVALID_DEAL_SLOTS',
+            });
+          }
+          if (
+            normalizedDealRecurrence !== 'none' &&
+            (!normalizedDealRecurrenceUntil ||
+              !Number.isFinite(normalizedDealRecurrenceUntil.getTime()) ||
+              normalizedDealRecurrenceUntil <= normalizedDealEndAt)
+          ) {
+            return res.status(400).json({
+              error: 'Recurring deals require a repeat-until date after the first deal window',
+              code: 'INVALID_DEAL_RECURRENCE',
+            });
           }
         }
 
@@ -948,6 +1043,31 @@ export function registerSubscriptionRoutes(app: Express) {
           pincode,
           latitude: latitude ? parseFloat(latitude as string) : undefined,
           longitude: longitude ? parseFloat(longitude as string) : undefined,
+          isDeal: normalizedIsDeal,
+          dealType: normalizedDealType,
+          dealStartAt:
+            normalizedIsDeal && normalizedDealStartAt
+              ? normalizedDealStartAt.toISOString()
+              : undefined,
+          dealEndAt:
+            normalizedIsDeal && normalizedDealEndAt ? normalizedDealEndAt.toISOString() : undefined,
+          dealRecurrence: normalizedIsDeal ? normalizedDealRecurrence : 'none',
+          dealRecurrenceUntil:
+            normalizedIsDeal && normalizedDealRecurrenceUntil
+              ? normalizedDealRecurrenceUntil.toISOString()
+              : undefined,
+          dealCycleQuantity:
+            normalizedIsDeal && normalizedDealRecurrence !== 'none'
+              ? normalizedDealCycleQuantity
+              : undefined,
+          maxDealBookings: normalizedIsDeal ? normalizedMaxDealBookings : undefined,
+          comboItems: normalizedIsDeal ? normalizedComboItems : undefined,
+          dealTerms: normalizedIsDeal ? String(dealTerms || '').trim() : undefined,
+          voucherEnabled: normalizedIsDeal ? Boolean(voucherEnabled) : undefined,
+          attributes:
+            attributes && typeof attributes === 'object' && !Array.isArray(attributes)
+              ? (attributes as Record<string, string | number | boolean>)
+              : undefined,
         };
 
         // Create the listing
@@ -974,6 +1094,27 @@ export function registerSubscriptionRoutes(app: Express) {
             subscriptionTierId: subscriptionTierId || null,
             userSubscriptionId: userSubscriptionId || null, // NEW: Track which subscription instance
             featured: isFeatured,
+            isDeal: listingData.isDeal || false,
+            dealType: listingData.isDeal ? listingData.dealType || 'normal' : null,
+            dealStartAt:
+              listingData.isDeal && listingData.dealStartAt
+                ? new Date(listingData.dealStartAt)
+                : null,
+            dealEndAt:
+              listingData.isDeal && listingData.dealEndAt ? new Date(listingData.dealEndAt) : null,
+            dealRecurrence: listingData.isDeal ? listingData.dealRecurrence || 'none' : 'none',
+            dealRecurrenceUntil:
+              listingData.isDeal && listingData.dealRecurrenceUntil
+                ? new Date(listingData.dealRecurrenceUntil)
+                : null,
+            dealCycleQuantity: listingData.isDeal ? listingData.dealCycleQuantity || null : null,
+            dealLastCycleKey: null,
+            maxDealBookings: listingData.isDeal ? listingData.maxDealBookings || null : null,
+            dealBookingsUsed: 0,
+            comboItems: listingData.isDeal ? JSON.stringify(listingData.comboItems || []) : null,
+            dealTerms: listingData.isDeal ? listingData.dealTerms || null : null,
+            voucherEnabled: listingData.isDeal ? Boolean(listingData.voucherEnabled) : true,
+            attributes: listingData.attributes || null,
             isPaid,
             durationDays,
             status: 'pending',

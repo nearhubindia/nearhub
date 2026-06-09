@@ -47,6 +47,12 @@ export default function PushNotificationsView() {
   const [body, setBody] = useState('');
   const [userType, setUserType] = useState<'all' | 'buyer' | 'seller'>('all');
   const [notificationType, setNotificationType] = useState('admin_broadcast');
+  const [imageUrl, setImageUrl] = useState('');
+  const [dealUrl, setDealUrl] = useState('');
+  const [centerLatitude, setCenterLatitude] = useState('');
+  const [centerLongitude, setCenterLongitude] = useState('');
+  const [radiusKm, setRadiusKm] = useState('50');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Success/error state
   const [successMessage, setSuccessMessage] = useState('');
@@ -94,6 +100,77 @@ export default function PushNotificationsView() {
     }
   };
 
+  const requestPresignedUpload = async (params: {
+    fileName: string;
+    contentType: string;
+    fileSizeBytes: number;
+  }): Promise<{ uploadUrl: string; publicUrl: string }> => {
+    const response = await fetch(`${getApiUrl()}/api/media/presign-upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getAdminToken()}`,
+      },
+      body: JSON.stringify({
+        mediaType: 'image',
+        fileName: params.fileName,
+        contentType: params.contentType,
+        fileSizeBytes: params.fileSizeBytes,
+      }),
+    });
+
+    const payload = (await response.json().catch(() => null)) as {
+      success?: boolean;
+      error?: string;
+      data?: { uploadUrl?: string; publicUrl?: string };
+    } | null;
+
+    if (!response.ok || !payload?.success || !payload.data?.uploadUrl || !payload.data?.publicUrl) {
+      throw new Error(payload?.error || 'Failed to create image upload URL');
+    }
+
+    return {
+      uploadUrl: payload.data.uploadUrl,
+      publicUrl: payload.data.publicUrl,
+    };
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const selectedFile = event.target.files?.[0];
+    event.target.value = '';
+    if (!selectedFile) return;
+    if (!selectedFile.type.startsWith('image/')) {
+      setErrorMessage('Please choose an image file');
+      return;
+    }
+
+    try {
+      setIsUploadingImage(true);
+      setErrorMessage('');
+      const signed = await requestPresignedUpload({
+        fileName: selectedFile.name,
+        contentType: selectedFile.type || 'image/jpeg',
+        fileSizeBytes: selectedFile.size,
+      });
+
+      const uploadResponse = await fetch(signed.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': selectedFile.type || 'image/jpeg' },
+        body: selectedFile,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Image upload failed (${uploadResponse.status})`);
+      }
+
+      setImageUrl(signed.publicUrl);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to upload image');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const handleSendNotification = async () => {
     if (!title.trim() || !body.trim()) {
       setErrorMessage('Title and message are required');
@@ -117,6 +194,11 @@ export default function PushNotificationsView() {
           userType,
           notificationType,
           adminId: 'admin', // You can get this from auth context
+          imageUrl: imageUrl || undefined,
+          dealUrl: dealUrl || undefined,
+          centerLatitude: centerLatitude ? Number(centerLatitude) : undefined,
+          centerLongitude: centerLongitude ? Number(centerLongitude) : undefined,
+          radiusKm: radiusKm ? Number(radiusKm) : undefined,
           data: {
             type: notificationType,
             timestamp: new Date().toISOString(),
@@ -130,6 +212,11 @@ export default function PushNotificationsView() {
         setSuccessMessage(`✅ Sent to ${result.sentCount} devices!`);
         setTitle('');
         setBody('');
+        setImageUrl('');
+        setDealUrl('');
+        setCenterLatitude('');
+        setCenterLongitude('');
+        setRadiusKm('50');
         fetchStats();
         fetchLogs();
       } else {
@@ -458,7 +545,90 @@ export default function PushNotificationsView() {
                 className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
                 maxLength={200}
               />
-              <div className="text-xs text-slate-500 mt-1">{body.length}/200</div>
+            <div className="text-xs text-slate-500 mt-1">{body.length}/200</div>
+          </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-bold text-slate-700 mb-2">
+                Notification Image
+                <span className="ml-2 text-xs font-normal text-slate-500">
+                  optional, shown as a banner on supported devices
+                </span>
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                disabled={isUploadingImage}
+                className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {isUploadingImage ? <div className="mt-2 text-xs text-slate-500">Uploading image...</div> : null}
+              {imageUrl ? (
+                <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
+                  <img src={imageUrl} alt="Notification banner preview" className="h-40 w-full object-cover" />
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-bold text-slate-700 mb-2">
+                Deal URL
+                <span className="ml-2 text-xs font-normal text-slate-500">
+                  optional, opens when the notification is tapped
+                </span>
+              </label>
+              <input
+                type="url"
+                value={dealUrl}
+                onChange={(e) => setDealUrl(e.target.value)}
+                placeholder="https://nearhub.in/deals/123"
+                className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Center Latitude
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={centerLatitude}
+                    onChange={(e) => setCenterLatitude(e.target.value)}
+                    placeholder="e.g. 15.828"
+                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Center Longitude
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={centerLongitude}
+                    onChange={(e) => setCenterLongitude(e.target.value)}
+                    placeholder="e.g. 78.037"
+                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    Radius (km)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={radiusKm}
+                    onChange={(e) => setRadiusKm(e.target.value)}
+                    placeholder="50"
+                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Success/Error Messages */}

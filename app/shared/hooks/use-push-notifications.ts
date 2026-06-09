@@ -24,6 +24,7 @@ export interface PushNotificationData {
   listingId?: string;
   conversationId?: string;
   url?: string;
+  dealUrl?: string;
   [key: string]: any;
 }
 
@@ -43,7 +44,8 @@ function isActionablePushData(data: unknown): data is PushNotificationData {
     typeof payload.type === 'string' ||
     typeof payload.listingId === 'string' ||
     typeof payload.conversationId === 'string' ||
-    typeof payload.url === 'string'
+    typeof payload.url === 'string' ||
+    typeof payload.dealUrl === 'string'
   );
 }
 

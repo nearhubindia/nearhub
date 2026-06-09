@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import { createServer, type Server } from 'node:http';
 import { existsSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import axios from 'axios';
 import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
 // Location routes from search feature
@@ -24,6 +25,7 @@ import { registerContactRoutes } from './features/shared/routes/contact';
 // Listings feature routes
 import { registerListingRoutes } from './features/listings/routes/listings';
 import { registerListingExpirationRoutes } from './features/listings/routes/listing-expiration';
+import { registerDealRoutes } from './features/listings/routes/deals';
 // Media feature routes
 import { registerMediaCleanupRoutes } from './features/media/routes/media-cleanup';
 import { registerCloudflareMediaRoutes } from './features/media/routes/cloudflare-media';
@@ -67,6 +69,57 @@ type AiHealthCachedResult = {
 };
 
 let aiHealthDeepCache: AiHealthCachedResult | null = null;
+let googleTtsAccessTokenCache: { token: string; expiresAtMs: number } | null = null;
+
+function runCommandWithOutput(command: string, args: string[]): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve(stdout.trim());
+        return;
+      }
+      reject(new Error(`${command} exited with ${code}: ${stderr}`));
+    });
+  });
+}
+
+async function getGoogleTtsAccessToken(): Promise<string> {
+  const now = Date.now();
+  if (googleTtsAccessTokenCache && googleTtsAccessTokenCache.expiresAtMs > now) {
+    return googleTtsAccessTokenCache.token;
+  }
+
+  let token = '';
+  try {
+    token = await runCommandWithOutput('gcloud', [
+      'auth',
+      'application-default',
+      'print-access-token',
+    ]);
+  } catch {
+    token = await runCommandWithOutput('gcloud', ['auth', 'print-access-token']);
+  }
+
+  if (!token) {
+    throw new Error('Failed to obtain Google Cloud access token for TTS');
+  }
+
+  googleTtsAccessTokenCache = {
+    token,
+    expiresAtMs: now + 45 * 60 * 1000,
+  };
+  return token;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check
@@ -228,15 +281,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     {
       try {
-        if (!googleTtsApiKey) throw new Error('Missing GOOGLE_TTS_API_KEY');
+        const endpoint = googleTtsApiKey
+          ? `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(googleTtsApiKey)}`
+          : 'https://texttospeech.googleapis.com/v1/text:synthesize';
+        const headers: Record<string, string> = {};
+        if (!googleTtsApiKey) {
+          if (!process.env.GOOGLE_CLOUD_PROJECT) {
+            throw new Error(
+              'Google TTS auth is missing (set GOOGLE_TTS_API_KEY or GOOGLE_CLOUD_PROJECT)'
+            );
+          }
+          headers.Authorization = `Bearer ${await getGoogleTtsAccessToken()}`;
+          headers['x-goog-user-project'] = process.env.GOOGLE_CLOUD_PROJECT;
+        }
         const response = await axios.post(
-          `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(googleTtsApiKey)}`,
+          endpoint,
           {
             input: { text: 'NearHub AI health check' },
             voice: { languageCode: 'en-IN' },
             audioConfig: { audioEncoding: 'LINEAR16' },
           },
-          { timeout: 20000 }
+          { timeout: 20000, headers }
         );
         const hasAudio = Boolean(String((response.data as any)?.audioContent || '').trim());
         ttsCheck = hasAudio
@@ -346,6 +411,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerAdminUserLifecycleRoutes(app);
   registerErrorLogRoutes(app);
   registerListingRoutes(app);
+  registerDealRoutes(app);
 
   // Location
   await registerLocationRoutes(app);

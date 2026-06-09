@@ -12,6 +12,7 @@ import { calculateDistance } from '@/lib/location-data';
 import { isHotelDeal, isNewProductDeal, isRestaurantDeal } from '@/lib/deals';
 import { formatCondition } from '@/lib/utils';
 import ListingCard from '@/shared/components/ListingCard';
+import { shareListingLink } from '@/lib/share-app-link';
 import { createResponsiveStyles } from '@/lib/responsive';
 
 type SectionType = 'nearby' | 'featured' | 'restaurantDeals' | 'hotelDeals' | 'newProductDeals';
@@ -155,6 +156,7 @@ export default function HomeSectionListScreen() {
             isSaved={savedIds.has(item.id)}
             onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
             onSave={() => handleSave(item.id, item.category)}
+            onShare={() => shareListingLink({ listingId: item.id, listingTitle: item.title })}
           />
         </View>
       );

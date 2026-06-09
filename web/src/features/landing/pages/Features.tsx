@@ -172,14 +172,14 @@ export default function Features(): ReactElement {
             <div className="mt-5 flex flex-wrap gap-3 lg:mt-0 lg:justify-end">
               <Link
                 to="/contact"
-                className="inline-flex items-center gap-2 rounded-xl bg-[#ff9933] px-6 py-3 text-sm font-semibold text-slate-900 shadow-[0_14px_34px_-18px_rgba(255,153,51,0.95)] transition hover:bg-[#ffad57]"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#ff9933] px-4 py-2 text-xs font-bold text-slate-900 shadow-[0_14px_34px_-18px_rgba(255,153,51,0.95)] transition hover:bg-[#ffad57]"
               >
                 Talk to Team
                 <ChartSpline size={18} />
               </Link>
               <Link
                 to="/"
-                className="inline-flex items-center gap-2 rounded-xl border border-white/35 bg-white/14 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/24"
+                className="inline-flex items-center gap-2 rounded-lg border border-white/35 bg-white/14 px-4 py-2 text-xs font-bold text-white transition hover:bg-white/24"
               >
                 Back to Home
                 <ArrowRight size={16} />

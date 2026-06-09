@@ -12,10 +12,10 @@ Set these in `GitHub -> Settings -> Secrets and variables -> Actions`.
 
 ### Server deploy (AWS EC2)
 
-- `AWS_EC2_HOST` (current production: `56.228.28.36`)
+- `AWS_EC2_HOST` (current production: `65.2.151.47`)
 - `AWS_EC2_USER` (current production: `admin`)
 - `AWS_EC2_PORT` (default: `22`)
-- `AWS_EC2_SSH_KEY` (private key content for `nearhub-prod.pem`)
+- `AWS_EC2_SSH_KEY` (private key content for `nearhub-debian-key-20260524-015812.pem`)
 - `AWS_APP_DIR` (current production: `/opt/nearhub-server`)
 - `AWS_ENV_FILE` (current production: `/etc/nearhub/server.env`)
 - `AWS_SERVICE_NAME` (optional; leave empty when using PM2)
@@ -59,6 +59,10 @@ pm2 save
 
 7. Ensure DB credentials in `/etc/nearhub/server.env` have permission to run migrations.
 8. Ensure `/etc/nearhub/rds-global-bundle.pem` exists for the RDS TLS connection and is readable by the deploy user.
+9. For Razorpay, keep both alias pairs populated in `/etc/nearhub/server.env`:
+   - `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`
+   - `RAZORPAY_API_KEY` and `RAZORPAY_API_SECRET`
+   The runtime accepts either pair, but setting both avoids mismatches across scripts and services.
 
 ## 3. How Deploy Works
 
@@ -80,8 +84,12 @@ No `git pull` is done on EC2.
 
 ### Manual EC2 deploy
 
-- Local PEM path: `nearhub-prod.pem`
+- Local PEM path: `nearhub-debian-key-20260524-015812.pem`
 - Local helper script: `scripts/deploy-server-ec2.sh`
+
+If the production EC2 does not use an Elastic IP, update `AWS_EC2_HOST` and the manual
+deploy script defaults after any stop/start or instance replacement because the public IP
+can change.
 
 Example:
 

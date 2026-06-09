@@ -37,6 +37,14 @@ export function hasValidOfferPrice(listing: Pick<Listing, 'price' | 'offerPrice'
   return offerPrice > 0 && price > 0 && offerPrice < price;
 }
 
+export function getDiscountPercent(listing: Pick<Listing, 'price' | 'offerPrice'>): number | null {
+  const price = toNumericPrice(listing.price);
+  const offerPrice = toNumericPrice(listing.offerPrice);
+  if (offerPrice <= 0 || price <= 0 || offerPrice >= price) return null;
+
+  return Math.max(1, Math.round(((price - offerPrice) / price) * 100));
+}
+
 export function isProductCategory(category: Category | 'All' | string): boolean {
   return PRODUCT_CATEGORIES.includes(category as Category);
 }

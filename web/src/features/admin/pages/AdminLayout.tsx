@@ -97,6 +97,7 @@ export default function AdminLayout() {
     { path: '/admin/transactions', name: 'Transactions', icon: HandCoins },
     { path: '/admin/reports', name: 'Reports', icon: BarChart3 },
     { path: '/admin/settings', name: 'Settings', icon: Settings },
+    { path: '/admin/master-data', name: 'Master Data', icon: Tag },
   ];
 
   const isExpanded = isMobile || sidebarOpen;

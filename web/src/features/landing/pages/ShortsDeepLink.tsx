@@ -78,14 +78,14 @@ export default function ShortsDeepLink(): ReactElement {
               <button
                 type="button"
                 onClick={handleOpenApp}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#1e5da8] px-5 py-2.5 text-sm font-bold text-white shadow-[0_14px_34px_-18px_rgba(30,93,168,0.95)] transition hover:bg-[#2a71c6]"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#1e5da8] px-4 py-2 text-xs font-bold text-white shadow-[0_14px_34px_-18px_rgba(30,93,168,0.95)] transition hover:bg-[#2a71c6]"
               >
                 Open NearHub App
                 <ExternalLink size={16} />
               </button>
               <a
                 href={playStoreInstallUrl}
-                className="inline-flex items-center gap-2 rounded-xl border border-[#1e5da8]/30 bg-white px-5 py-2.5 text-sm font-semibold text-[#1e5da8] transition hover:border-[#1e5da8]/55 hover:bg-[#1e5da8]/5"
+                className="inline-flex items-center gap-2 rounded-lg border border-[#1e5da8]/30 bg-white px-4 py-2 text-xs font-bold text-[#1e5da8] transition hover:border-[#1e5da8]/55 hover:bg-[#1e5da8]/5"
               >
                 Install From Play Store
               </a>

@@ -33,7 +33,7 @@ export default function NotFound(): ReactElement {
             <div className="mt-7 flex justify-center">
               <Link
                 to="/"
-                className="inline-flex items-center gap-2 rounded-xl bg-[#1e5da8] px-6 py-3 text-sm font-semibold text-white shadow-[0_14px_34px_-18px_rgba(30,93,168,0.95)] transition hover:bg-[#2b71c5]"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#1e5da8] px-4 py-2 text-xs font-bold text-white shadow-[0_14px_34px_-18px_rgba(30,93,168,0.95)] transition hover:bg-[#2b71c5]"
               >
                 <ArrowLeft size={16} />
                 Back To Home

@@ -116,6 +116,9 @@ export const adminSettings = pgTable('admin_settings', {
 
   // Geo-location settings
   geoRadiusKm: integer('geo_radius_km').default(50), // Radius in km for ad search filtering
+  listingCategoryGroups: jsonb('listing_category_groups'),
+  listingPriceUnits: jsonb('listing_price_units'),
+  attributesByKey: jsonb('attributes_by_key'),
   inactiveUserReviewDays: integer('inactive_user_review_days').notNull().default(90), // Users inactive for N days become eligible for deletion review
 
   // Hard update settings (app version enforcement)
@@ -226,8 +229,196 @@ export const insertAdminSettingsSchema = createInsertSchema(adminSettings).omit(
   updatedAt: true,
 });
 
+/**
+ * Master Data Tables
+ * Normalized category, subcategory, unit, and attribute definitions.
+ */
+export const masterListingCategories = pgTable(
+  'master_listing_categories',
+  {
+    id: varchar('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+
+    name: varchar('name', { length: 120 }).notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    isActive: boolean('is_active').notNull().default(true),
+
+    createdAt: timestamp('created_at')
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp('updated_at')
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    nameUnique: uniqueIndex('master_listing_categories_name_unique').on(table.name),
+  })
+);
+
+export const masterListingSubcategories = pgTable(
+  'master_listing_subcategories',
+  {
+    id: varchar('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+
+    categoryId: varchar('category_id')
+      .notNull()
+      .references(() => masterListingCategories.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 120 }).notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    isActive: boolean('is_active').notNull().default(true),
+
+    createdAt: timestamp('created_at')
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp('updated_at')
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    categoryNameUnique: uniqueIndex('master_listing_subcategories_category_name_unique').on(
+      table.categoryId,
+      table.name
+    ),
+  })
+);
+
+export const masterListingUnits = pgTable(
+  'master_listing_units',
+  {
+    id: varchar('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+
+    name: varchar('name', { length: 120 }).notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    isActive: boolean('is_active').notNull().default(true),
+
+    createdAt: timestamp('created_at')
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp('updated_at')
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    nameUnique: uniqueIndex('master_listing_units_name_unique').on(table.name),
+  })
+);
+
+export const masterListingAttributes = pgTable(
+  'master_listing_attributes',
+  {
+    id: varchar('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+
+    subcategoryId: varchar('subcategory_id')
+      .notNull()
+      .references(() => masterListingSubcategories.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 160 }).notNull(),
+    fieldType: varchar('field_type', { length: 40 }).notNull().default('Text'),
+    unitId: varchar('unit_id').references(() => masterListingUnits.id, {
+      onDelete: 'set null',
+    }),
+    required: boolean('required').notNull().default(false),
+    status: varchar('status', { length: 20 }).notNull().default('Active'),
+    sortOrder: integer('sort_order').notNull().default(0),
+
+    createdAt: timestamp('created_at')
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp('updated_at')
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    subcategoryNameUnique: uniqueIndex('master_listing_attributes_subcategory_name_unique').on(
+      table.subcategoryId,
+      table.name
+    ),
+  })
+);
+
+export const insertMasterListingCategorySchema = createInsertSchema(masterListingCategories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertMasterListingSubcategorySchema = createInsertSchema(
+  masterListingSubcategories
+).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertMasterListingUnitSchema = createInsertSchema(masterListingUnits).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertMasterListingAttributeSchema = createInsertSchema(masterListingAttributes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type AdminSettings = typeof adminSettings.$inferSelect;
 export type InsertAdminSettings = z.infer<typeof insertAdminSettingsSchema>;
+export type MasterListingCategory = typeof masterListingCategories.$inferSelect;
+export type InsertMasterListingCategory = z.infer<typeof insertMasterListingCategorySchema>;
+export type MasterListingSubcategory = typeof masterListingSubcategories.$inferSelect;
+export type InsertMasterListingSubcategory = z.infer<typeof insertMasterListingSubcategorySchema>;
+export type MasterListingUnit = typeof masterListingUnits.$inferSelect;
+export type InsertMasterListingUnit = z.infer<typeof insertMasterListingUnitSchema>;
+export type MasterListingAttribute = typeof masterListingAttributes.$inferSelect;
+export type InsertMasterListingAttribute = z.infer<typeof insertMasterListingAttributeSchema>;
+
+export const listingAttributeValues = pgTable(
+  'listing_attribute_values',
+  {
+    id: varchar('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+
+    listingId: varchar('listing_id')
+      .notNull()
+      .references(() => listings.id, { onDelete: 'cascade' }),
+    attributeId: varchar('attribute_id')
+      .notNull()
+      .references(() => masterListingAttributes.id, { onDelete: 'cascade' }),
+    textValue: text('text_value'),
+    numberValue: decimal('number_value', { precision: 18, scale: 6 }),
+    booleanValue: boolean('boolean_value'),
+
+    createdAt: timestamp('created_at')
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp('updated_at')
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+  },
+  (table) => ({
+    listingAttributeUnique: uniqueIndex('listing_attribute_values_listing_attribute_unique').on(
+      table.listingId,
+      table.attributeId
+    ),
+  })
+);
+
+export const insertListingAttributeValueSchema = createInsertSchema(listingAttributeValues).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type ListingAttributeValue = typeof listingAttributeValues.$inferSelect;
+export type InsertListingAttributeValue = z.infer<typeof insertListingAttributeValueSchema>;
 
 /**
  * Pricing configuration that combines admin settings with calculations
@@ -625,6 +816,21 @@ export const listings = pgTable('listings', {
   boostedUntil: timestamp('boosted_until'),
   boostCount: integer('boost_count').notNull().default(0),
 
+  // Deal listing controls (time-window + slot-based booking)
+  isDeal: boolean('is_deal').notNull().default(false),
+  dealType: varchar('deal_type', { length: 20 }), // normal | combo
+  dealStartAt: timestamp('deal_start_at'),
+  dealEndAt: timestamp('deal_end_at'),
+  dealRecurrence: varchar('deal_recurrence', { length: 20 }).notNull().default('none'),
+  dealRecurrenceUntil: timestamp('deal_recurrence_until'),
+  dealCycleQuantity: integer('deal_cycle_quantity'),
+  dealLastCycleKey: varchar('deal_last_cycle_key', { length: 40 }),
+  maxDealBookings: integer('max_deal_bookings'),
+  dealBookingsUsed: integer('deal_bookings_used').notNull().default(0),
+  comboItems: text('combo_items'), // JSON array of combo/freebie items
+  dealTerms: text('deal_terms'),
+  voucherEnabled: boolean('voucher_enabled').notNull().default(true),
+
   durationDays: integer('duration_days'),
   expiresAt: timestamp('expires_at'),
 
@@ -638,6 +844,29 @@ export const listings = pgTable('listings', {
   updatedAt: timestamp('updated_at')
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
+});
+
+export const dealBookings = pgTable('deal_bookings', {
+  id: varchar('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  listingId: varchar('listing_id')
+    .notNull()
+    .references(() => listings.id, { onDelete: 'cascade' }),
+  dealCycleKey: varchar('deal_cycle_key', { length: 40 }),
+  buyerId: varchar('buyer_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  sellerId: varchar('seller_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  status: varchar('status', { length: 20 }).notNull().default('booked'), // booked | redeemed | cancelled | expired
+  voucherCode: varchar('voucher_code', { length: 64 }).notNull().unique(),
+  voucherPayload: text('voucher_payload'), // stringified object for voucher rendering
+  bookedAt: timestamp('booked_at').notNull().defaultNow(),
+  redeemedAt: timestamp('redeemed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
 /**
@@ -751,7 +980,18 @@ export const insertListingSchema = createInsertSchema(listings)
       .union([z.string(), z.array(z.string())])
       .optional()
       .nullable(),
+    comboItems: z
+      .union([z.string(), z.array(z.string())])
+      .optional()
+      .nullable(),
   });
+
+export const insertDealBookingSchema = createInsertSchema(dealBookings).omit({
+  id: true,
+  bookedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
 
 export const insertChatConversationSchema = createInsertSchema(chatConversations).omit({
   id: true,
@@ -849,6 +1089,8 @@ export type InsertUserDeletionReview = typeof userDeletionReviews.$inferInsert;
 
 export type Listing = typeof listings.$inferSelect;
 export type InsertListing = z.infer<typeof insertListingSchema>;
+export type DealBooking = typeof dealBookings.$inferSelect;
+export type InsertDealBooking = z.infer<typeof insertDealBookingSchema>;
 export type ChatConversation = typeof chatConversations.$inferSelect;
 export type InsertChatConversation = z.infer<typeof insertChatConversationSchema>;
 export type ChatMessage = typeof chatMessages.$inferSelect;

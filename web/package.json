@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "tsc -b && vite build && node scripts/generate-seo-assets.mjs",
     "type-check": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint .",
@@ -19,6 +19,8 @@
     "@fontsource-variable/geist": "^5.2.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query-persist-client": "^5.90.21",
+    "@tanstack/query-sync-storage-persister": "^5.90.21",
     "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

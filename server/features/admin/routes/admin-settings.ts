@@ -13,6 +13,7 @@ import {
   formatSettingsForDisplay,
   clearSettingsCache,
 } from '../services/admin-settings';
+import { loadMasterDataSnapshot, syncMasterDataTables } from '../services/master-data';
 import type { AdminSettings } from '../models/admin-settings';
 
 export function registerAdminSettingsRoutes(app: Express) {
@@ -22,7 +23,10 @@ export function registerAdminSettingsRoutes(app: Express) {
    */
   app.get('/api/admin/settings', async (req: Request, res: Response) => {
     try {
-      const settings = await getAdminSettings();
+      const [settings, masterData] = await Promise.all([
+        getAdminSettings(),
+        loadMasterDataSnapshot(),
+      ]);
 
       return res.json({
         success: true,
@@ -61,6 +65,9 @@ export function registerAdminSettingsRoutes(app: Express) {
           enableDynamicPricing: settings.enableDynamicPricing,
           dynamicPricingAlgorithm: settings.dynamicPricingAlgorithm,
           geoRadiusKm: settings.geoRadiusKm,
+          listingCategoryGroups: masterData.listingCategoryGroups,
+          listingPriceUnits: masterData.listingPriceUnits,
+          attributesByKey: masterData.attributesByKey,
           inactiveUserReviewDays: settings.inactiveUserReviewDays,
           forceUpdateEnabled: settings.forceUpdateEnabled,
           minSupportedVersion: settings.minSupportedVersion,
@@ -142,6 +149,9 @@ export function registerAdminSettingsRoutes(app: Express) {
           enableDynamicPricing,
           dynamicPricingAlgorithm,
           geoRadiusKm,
+          listingCategoryGroups,
+          listingPriceUnits,
+          attributesByKey,
           inactiveUserReviewDays,
           forceUpdateEnabled,
           minSupportedVersion,
@@ -190,6 +200,30 @@ export function registerAdminSettingsRoutes(app: Express) {
           return res.status(400).json({ error: 'Geo radius must be between 1 and 500 km' });
         }
         if (
+          listingCategoryGroups !== undefined &&
+          listingCategoryGroups !== null &&
+          !Array.isArray(listingCategoryGroups)
+        ) {
+          return res.status(400).json({ error: 'listingCategoryGroups must be an array' });
+        }
+        if (
+          listingPriceUnits !== undefined &&
+          listingPriceUnits !== null &&
+          (!Array.isArray(listingPriceUnits) ||
+            listingPriceUnits.some((item) => typeof item !== 'string' || !item.trim()))
+        ) {
+          return res
+            .status(400)
+            .json({ error: 'listingPriceUnits must be an array of non-empty strings' });
+        }
+        if (
+          attributesByKey !== undefined &&
+          attributesByKey !== null &&
+          (typeof attributesByKey !== 'object' || Array.isArray(attributesByKey))
+        ) {
+          return res.status(400).json({ error: 'attributesByKey must be an object map' });
+        }
+        if (
           inactiveUserReviewDays !== undefined &&
           (!Number.isFinite(Number(inactiveUserReviewDays)) || Number(inactiveUserReviewDays) < 1)
         ) {
@@ -225,6 +259,25 @@ export function registerAdminSettingsRoutes(app: Express) {
             .status(400)
             .json({ error: 'Minimum iOS build number must be a positive number' });
         }
+
+        const currentMasterData = await loadMasterDataSnapshot();
+        const nextMasterData = {
+          listingCategoryGroups:
+            listingCategoryGroups !== undefined
+              ? Array.isArray(listingCategoryGroups)
+                ? listingCategoryGroups
+                : []
+              : currentMasterData.listingCategoryGroups,
+          listingPriceUnits:
+            listingPriceUnits !== undefined
+              ? listingPriceUnits.map((item: unknown) => String(item || '').trim()).filter(Boolean)
+              : currentMasterData.listingPriceUnits,
+          attributesByKey:
+            attributesByKey !== undefined
+              ? (attributesByKey as Record<string, unknown>)
+              : currentMasterData.attributesByKey,
+        };
+        await syncMasterDataTables(nextMasterData as Parameters<typeof syncMasterDataTables>[0]);
 
         // Build update object
         const updates: Partial<AdminSettings> = {};
@@ -281,6 +334,12 @@ export function registerAdminSettingsRoutes(app: Express) {
         if (dynamicPricingAlgorithm !== undefined)
           updates.dynamicPricingAlgorithm = dynamicPricingAlgorithm;
         if (geoRadiusKm !== undefined) updates.geoRadiusKm = geoRadiusKm;
+        if (listingCategoryGroups !== undefined)
+          updates.listingCategoryGroups = nextMasterData.listingCategoryGroups as never;
+        if (listingPriceUnits !== undefined)
+          updates.listingPriceUnits = nextMasterData.listingPriceUnits as never;
+        if (attributesByKey !== undefined)
+          updates.attributesByKey = nextMasterData.attributesByKey as never;
         if (inactiveUserReviewDays !== undefined)
           updates.inactiveUserReviewDays = Number(inactiveUserReviewDays);
         if (forceUpdateEnabled !== undefined)

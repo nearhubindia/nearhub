@@ -27,11 +27,166 @@
       "priority": "0.9"
     },
     {
+      "path": "/home",
+      "title": "NearHub – Buy, Sell & Discover Local Deals Near You",
+      "description": "NearHub helps you buy, sell, and discover local deals near you with trusted local listings and services.",
+      "changefreq": "weekly",
+      "priority": "0.8"
+    },
+    {
+      "path": "/app",
+      "title": "NearHub – Buy, Sell & Discover Local Deals Near You",
+      "description": "NearHub helps you buy, sell, and discover local deals near you with trusted local listings and services.",
+      "changefreq": "weekly",
+      "priority": "0.8"
+    },
+    {
       "path": "/contact",
       "title": "Contact | NearHub",
       "description": "Get in touch with NearHub for support, partnerships, and local growth enquiries.",
       "changefreq": "monthly",
       "priority": "0.8"
+    },
+    {
+      "path": "/search",
+      "title": "Search Listings | NearHub",
+      "description": "Search local NearHub listings, services, products, and deals near you.",
+      "changefreq": "weekly",
+      "priority": "0.9"
+    },
+    {
+      "path": "/browse",
+      "title": "Search Listings | NearHub",
+      "description": "Search local NearHub listings, services, products, and deals near you.",
+      "changefreq": "weekly",
+      "priority": "0.8"
+    },
+    {
+      "path": "/deals",
+      "title": "Deals | NearHub",
+      "description": "Discover active, upcoming, and recently expired NearHub local deals.",
+      "changefreq": "daily",
+      "priority": "0.9"
+    },
+    {
+      "path": "/auth/register",
+      "title": "Sign In | NearHub",
+      "description": "Sign in or create a NearHub account to post listings, buy deals, and manage bookings.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.2"
+    },
+    {
+      "path": "/auth/verify-otp",
+      "title": "Verify OTP | NearHub",
+      "description": "Verify your NearHub login OTP.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.1"
+    },
+    {
+      "path": "/profile",
+      "title": "Profile | NearHub",
+      "description": "Manage your NearHub profile and account details.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.2"
+    },
+    {
+      "path": "/my-listings",
+      "title": "My Listings | NearHub",
+      "description": "Manage your NearHub listings and deal tracking.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.2"
+    },
+    {
+      "path": "/create-listing",
+      "title": "Create Listing | NearHub",
+      "description": "Create a NearHub listing or deal for local buyers.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.2"
+    },
+    {
+      "path": "/saved",
+      "title": "Saved Listings | NearHub",
+      "description": "View your saved NearHub listings.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.2"
+    },
+    {
+      "path": "/favourites",
+      "title": "Saved Listings | NearHub",
+      "description": "View your saved NearHub listings.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.2"
+    },
+    {
+      "path": "/favorites",
+      "title": "Saved Listings | NearHub",
+      "description": "View your saved NearHub listings.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.2"
+    },
+    {
+      "path": "/orders",
+      "title": "Bookings | NearHub",
+      "description": "View your purchased NearHub deal bookings and voucher status.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.3"
+    },
+    {
+      "path": "/bookings",
+      "title": "Bookings | NearHub",
+      "description": "View your purchased NearHub deal bookings and voucher status.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.3"
+    },
+    {
+      "path": "/deal-inbox",
+      "title": "Deals Purchased | NearHub",
+      "description": "Track purchased deals and voucher encashment status for your NearHub listings.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.3"
+    },
+    {
+      "path": "/messages",
+      "title": "Messages | NearHub",
+      "description": "View your NearHub buyer and seller messages.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.2"
+    },
+    {
+      "path": "/subscriptions",
+      "title": "Subscriptions | NearHub",
+      "description": "Manage your NearHub subscription plan and listing credits.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.2"
+    },
+    {
+      "path": "/invoices",
+      "title": "Invoices | NearHub",
+      "description": "View your NearHub invoices and billing records.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.2"
+    },
+    {
+      "path": "/settings",
+      "title": "Settings | NearHub",
+      "description": "Manage your NearHub account settings.",
+      "robots": "noindex,nofollow",
+      "changefreq": "monthly",
+      "priority": "0.2"
     },
     {
       "path": "/privacy-policy",

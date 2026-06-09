@@ -13,11 +13,14 @@ export type AppUser = {
   address?: string;
   gstin?: string;
   location?: unknown;
+  latitude?: number | null;
+  longitude?: number | null;
   isVerified?: boolean;
   preferences?: {
     notifications?: boolean;
     emailNotifications?: boolean;
     autoLocalizeListings?: boolean;
+    searchRadiusKm?: number;
   };
 };
 
@@ -192,11 +195,14 @@ export function upsertUserFromAuth(input: {
     address: existing?.address || '',
     gstin: existing?.gstin || '',
     location: existing?.location || null,
+    latitude: existing?.latitude ?? null,
+    longitude: existing?.longitude ?? null,
     isVerified: existing?.isVerified ?? true,
     preferences: existing?.preferences || {
       notifications: true,
       emailNotifications: true,
       autoLocalizeListings: true,
+      searchRadiusKm: 50,
     },
   });
 }

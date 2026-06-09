@@ -256,7 +256,7 @@ export default function Contact(): ReactElement {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1e5da8] to-[#ff9933] px-8 py-4 font-bold text-white shadow-[0_14px_34px_-18px_rgba(30,93,168,0.8)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#1e5da8] to-[#ff9933] px-4 py-2.5 text-sm font-bold text-white shadow-[0_14px_34px_-18px_rgba(30,93,168,0.8)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSubmitting ? (
                   <>

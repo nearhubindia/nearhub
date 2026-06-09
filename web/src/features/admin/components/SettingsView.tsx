@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getApiUrl } from '@/lib/config';
 import { getAdminToken } from '@/features/admin/constants/admin-constants';
-
 export default function SettingsView() {
   const [verifiedBadgeEnabled, setVerifiedBadgeEnabled] = useState(true);
   const [priorityListingEnabled, setPriorityListingEnabled] = useState(true);
@@ -269,9 +268,9 @@ export default function SettingsView() {
               </h3>
 
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-bold text-slate-900 mb-2">
-                    Platform Name
+              <div>
+                <label className="block text-sm font-bold text-slate-900 mb-2">
+                  Platform Name
                   </label>
                   <input
                     type="text"

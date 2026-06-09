@@ -1,16 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { CircleDollarSign, FileText, MapPin, Plus, Sparkles, Tag, X } from 'lucide-react';
+import { useState } from 'react';
+import { FileText, Plus, Sparkles, X } from 'lucide-react';
 import {
-  ADMIN_CATEGORY_GROUPS,
-  getDefaultAdminMainCategory,
+  AdminListingBasicFields,
+  AdminListingCategoryFields,
+  AdminListingLocationFields,
+  AdminListingPriceFields,
+} from '@/features/admin/components/AdminListingFormFields';
+import { AdminListingModalFrame } from '@/features/admin/components/AdminListingModalFrame';
+import {
   getDefaultAdminSubCategory,
   getMainCategoryForSubCategory,
-  getSubCategoriesForMainCategory,
-  shouldRequireConditionForCategory,
 } from '@/features/admin/constants/listing-taxonomy';
 import { useCreateListing } from '@/features/admin/hooks';
-import { validators } from '@/features/admin/utils';
-import { getApiUrl } from '@/lib/config';
+import {
+  useAdminListingCategoryOptions,
+  useCoordinateLocationAutofill,
+  validateAdminListingDetails,
+} from '@/features/admin/hooks/useAdminListingFormHelpers';
+import { uploadListingImages, uploadListingVideos } from '@/features/admin/utils/listing-media-upload';
 
 interface CreateListingModalProps {
   onClose: () => void;
@@ -42,313 +49,22 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     sponsored: false,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [isResolvingLocation, setIsResolvingLocation] = useState(false);
-  const [locationResolveError, setLocationResolveError] = useState<string>('');
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [mediaError, setMediaError] = useState('');
-  const [lastAutoFilledLocation, setLastAutoFilledLocation] = useState('');
-  const [lastAutoFilledPincode, setLastAutoFilledPincode] = useState('');
-  const resolveRequestIdRef = useRef(0);
-
-  const mainCategories = useMemo(
-    () => ADMIN_CATEGORY_GROUPS.map((group) => group.mainCategory),
-    []
+  const {
+    mainCategories,
+    subCategories,
+    showConditionField,
+    conditions,
+    handleMainCategoryChange,
+    handleSubCategoryChange,
+  } = useAdminListingCategoryOptions(formData, setFormData, {
+    ensureMainCategoryFallback: true,
+  });
+  const { isResolvingLocation, locationResolveError } = useCoordinateLocationAutofill(
+    formData,
+    setFormData
   );
-  const subCategories = useMemo(
-    () => getSubCategoriesForMainCategory(formData.mainCategory),
-    [formData.mainCategory]
-  );
-  const showConditionField = useMemo(
-    () => shouldRequireConditionForCategory(formData.mainCategory, formData.subCategory),
-    [formData.mainCategory, formData.subCategory]
-  );
-  const conditions = ['new', 'like_new', 'good', 'fair', 'poor'];
-  const apiUrl = getApiUrl();
-
-  const getImageMimeType = (file: File): string => {
-    if (file.type === 'image/png') return 'image/png';
-    if (file.type === 'image/webp') return 'image/webp';
-    return 'image/jpeg';
-  };
-
-  const compressImageFile = async (file: File): Promise<File> => {
-    const imageUrl = URL.createObjectURL(file);
-    try {
-      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error('Failed to load image for compression'));
-        img.src = imageUrl;
-      });
-
-      const MAX_DIMENSION = 1920;
-      const ratio = Math.min(1, MAX_DIMENSION / Math.max(image.width, image.height));
-      const targetWidth = Math.max(1, Math.round(image.width * ratio));
-      const targetHeight = Math.max(1, Math.round(image.height * ratio));
-
-      const canvas = document.createElement('canvas');
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-      const context = canvas.getContext('2d');
-      if (!context) {
-        throw new Error('Failed to initialize image compression context');
-      }
-
-      context.drawImage(image, 0, 0, targetWidth, targetHeight);
-      const mimeType = getImageMimeType(file);
-      const quality = mimeType === 'image/jpeg' || mimeType === 'image/webp' ? 0.82 : undefined;
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(
-          (value) => (value ? resolve(value) : reject(new Error('Image compression failed'))),
-          mimeType,
-          quality
-        );
-      });
-
-      return new File([blob], file.name, { type: mimeType });
-    } finally {
-      URL.revokeObjectURL(imageUrl);
-    }
-  };
-
-  const requestPresignedUpload = async (params: {
-    mediaType: 'image' | 'video';
-    fileName: string;
-    contentType: string;
-    fileSizeBytes: number;
-  }): Promise<{ uploadUrl: string; publicUrl: string }> => {
-    const response = await fetch(`${apiUrl}/api/media/presign-upload`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
-    });
-
-    const payload = (await response.json().catch(() => null)) as {
-      success?: boolean;
-      error?: string;
-      data?: { uploadUrl?: string; publicUrl?: string };
-    } | null;
-
-    if (!response.ok || !payload?.success || !payload.data?.uploadUrl || !payload.data?.publicUrl) {
-      throw new Error(payload?.error || 'Failed to create media upload URL');
-    }
-
-    return {
-      uploadUrl: payload.data.uploadUrl,
-      publicUrl: payload.data.publicUrl,
-    };
-  };
-
-  const uploadFileToCloudflare = async (
-    file: File,
-    mediaType: 'image' | 'video'
-  ): Promise<string> => {
-    const contentType = file.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
-    const signed = await requestPresignedUpload({
-      mediaType,
-      fileName: file.name,
-      contentType,
-      fileSizeBytes: file.size,
-    });
-
-    let uploadResponse: Response;
-    try {
-      uploadResponse = await fetch(signed.uploadUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': contentType,
-        },
-        body: file,
-      });
-    } catch (error) {
-      // Some R2 bucket CORS rules do not allow Content-Type on presigned PUT preflight.
-      if (!(error instanceof TypeError)) {
-        throw error;
-      }
-      uploadResponse = await fetch(signed.uploadUrl, {
-        method: 'PUT',
-        body: file,
-      });
-    }
-
-    if (!uploadResponse.ok) {
-      throw new Error(`Media upload failed (${uploadResponse.status})`);
-    }
-
-    return signed.publicUrl;
-  };
-
-  const parseCoordinate = (
-    rawValue: string,
-    fieldName: 'latitude' | 'longitude',
-    min: number,
-    max: number
-  ): number | null => {
-    const trimmed = rawValue.trim();
-    if (!trimmed) return null;
-    const numeric = Number.parseFloat(trimmed);
-    if (!Number.isFinite(numeric) || numeric < min || numeric > max) {
-      throw new Error(`${fieldName} must be between ${min} and ${max}`);
-    }
-    return numeric;
-  };
-
-  useEffect(() => {
-    const latitudeRaw = formData.latitude.trim();
-    const longitudeRaw = formData.longitude.trim();
-
-    if (!latitudeRaw || !longitudeRaw) {
-      setIsResolvingLocation(false);
-      setLocationResolveError('');
-      return;
-    }
-
-    const latitude = Number.parseFloat(latitudeRaw);
-    const longitude = Number.parseFloat(longitudeRaw);
-    if (
-      !Number.isFinite(latitude) ||
-      !Number.isFinite(longitude) ||
-      latitude < -90 ||
-      latitude > 90 ||
-      longitude < -180 ||
-      longitude > 180
-    ) {
-      setIsResolvingLocation(false);
-      setLocationResolveError('');
-      return;
-    }
-
-    const timeoutId = window.setTimeout(async () => {
-      const requestId = resolveRequestIdRef.current + 1;
-      resolveRequestIdRef.current = requestId;
-      setIsResolvingLocation(true);
-      setLocationResolveError('');
-
-      try {
-        const apiUrl = getApiUrl();
-        let resolvedLocation = '';
-        let resolvedPincode = '';
-
-        try {
-          const reverseResponse = await fetch(
-            `${apiUrl}/api/location/reverse-geocode?latitude=${encodeURIComponent(latitudeRaw)}&longitude=${encodeURIComponent(longitudeRaw)}`
-          );
-          if (!reverseResponse.ok) {
-            throw new Error('Reverse geocode failed');
-          }
-
-          const reversePayload = (await reverseResponse.json()) as {
-            success?: boolean;
-            data?: {
-              locationName?: string;
-              city?: string;
-              state?: string;
-              pincode?: string;
-            };
-          };
-
-          if (reversePayload.success && reversePayload.data) {
-            resolvedLocation = String(
-              reversePayload.data.locationName ||
-                reversePayload.data.city ||
-                reversePayload.data.state ||
-                ''
-            ).trim();
-            resolvedPincode = String(reversePayload.data.pincode || '').trim();
-          }
-        } catch {
-          // Fall through to nearby lookup
-        }
-
-        if (!resolvedLocation || !resolvedPincode) {
-          const nearbyResponse = await fetch(
-            `${apiUrl}/api/location/nearby?latitude=${encodeURIComponent(latitudeRaw)}&longitude=${encodeURIComponent(longitudeRaw)}&radius=50`
-          );
-          if (nearbyResponse.ok) {
-            const nearbyPayload = (await nearbyResponse.json()) as Array<{
-              locationName?: string;
-              city?: string;
-              state?: string;
-              pincode?: string;
-            }>;
-            const nearest = Array.isArray(nearbyPayload) ? nearbyPayload[0] : null;
-            if (nearest) {
-              if (!resolvedLocation) {
-                resolvedLocation = String(
-                  nearest.locationName || nearest.city || nearest.state || ''
-                ).trim();
-              }
-              if (!resolvedPincode) {
-                resolvedPincode = String(nearest.pincode || '').trim();
-              }
-            }
-          }
-        }
-
-        if (resolveRequestIdRef.current !== requestId) {
-          return;
-        }
-
-        if (!resolvedLocation && !resolvedPincode) {
-          throw new Error('No internal location match found');
-        }
-
-        let nextAutoLocation = '';
-        let nextAutoPincode = '';
-
-        setFormData((prev) => {
-          const next = { ...prev };
-          const canAutoReplaceLocation =
-            !prev.location.trim() || prev.location.trim() === lastAutoFilledLocation;
-          const canAutoReplacePincode =
-            !prev.pincode.trim() || prev.pincode.trim() === lastAutoFilledPincode;
-
-          if (resolvedLocation && canAutoReplaceLocation) {
-            next.location = resolvedLocation;
-            nextAutoLocation = resolvedLocation;
-          }
-          if (resolvedPincode && canAutoReplacePincode) {
-            next.pincode = resolvedPincode;
-            nextAutoPincode = resolvedPincode;
-          }
-          return next;
-        });
-
-        if (nextAutoLocation) {
-          setLastAutoFilledLocation(nextAutoLocation);
-        }
-        if (nextAutoPincode) {
-          setLastAutoFilledPincode(nextAutoPincode);
-        }
-      } catch {
-        if (resolveRequestIdRef.current === requestId) {
-          setLocationResolveError('Unable to auto-resolve location for these coordinates');
-        }
-      } finally {
-        if (resolveRequestIdRef.current === requestId) {
-          setIsResolvingLocation(false);
-        }
-      }
-    }, 450);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [formData.latitude, formData.longitude, lastAutoFilledLocation, lastAutoFilledPincode]);
-
-  useEffect(() => {
-    if (subCategories.includes(formData.subCategory)) {
-      return;
-    }
-
-    const fallbackSubCategory = subCategories[0] || getDefaultAdminSubCategory();
-    setFormData((prev) => ({
-      ...prev,
-      subCategory: fallbackSubCategory,
-      category: fallbackSubCategory,
-      mainCategory: prev.mainCategory || getDefaultAdminMainCategory(),
-    }));
-  }, [formData.subCategory, subCategories]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const files = Array.from(e.target.files || []);
@@ -357,12 +73,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     setMediaError('');
     setIsUploadingMedia(true);
     try {
-      const uploadedUrls: string[] = [];
-      for (const file of files) {
-        const compressedFile = await compressImageFile(file);
-        const uploadedUrl = await uploadFileToCloudflare(compressedFile, 'image');
-        uploadedUrls.push(uploadedUrl);
-      }
+      const uploadedUrls = await uploadListingImages(files);
 
       setFormData((prev) => ({
         ...prev,
@@ -388,14 +99,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     setMediaError('');
     setIsUploadingMedia(true);
     try {
-      const uploadedUrls: string[] = [];
-      for (const file of files) {
-        if (file.type !== 'video/mp4') {
-          throw new Error('Only MP4 videos are supported');
-        }
-        const uploadedUrl = await uploadFileToCloudflare(file, 'video');
-        uploadedUrls.push(uploadedUrl);
-      }
+      const uploadedUrls = await uploadListingVideos(files);
 
       setFormData((prev) => ({
         ...prev,
@@ -438,46 +142,9 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
       return;
     }
 
-    // Validate form
-    const errors = validators.validateListingForm({
-      title: formData.title,
-      description: formData.description,
-      price: formData.price,
-      location: formData.location,
-    });
-
-    if (errors.length > 0) {
-      const errorMap = errors.reduce((acc, err) => ({ ...acc, [err.field]: err.message }), {});
-      setFormErrors(errorMap);
-      return;
-    }
-
-    const pincode = formData.pincode.trim();
-    if (pincode && !/^\d{6}$/.test(pincode)) {
-      setFormErrors({ pincode: 'Pincode must be a 6-digit number' });
-      return;
-    }
-
-    let latitude: number | null = null;
-    let longitude: number | null = null;
-    try {
-      latitude = parseCoordinate(formData.latitude, 'latitude', -90, 90);
-      longitude = parseCoordinate(formData.longitude, 'longitude', -180, 180);
-    } catch (error) {
-      setFormErrors({
-        latitude:
-          error instanceof Error ? error.message : 'Invalid coordinates. Check latitude/longitude.',
-      });
-      return;
-    }
-
-    const hasLatitude = latitude !== null;
-    const hasLongitude = longitude !== null;
-    if (hasLatitude !== hasLongitude) {
-      setFormErrors({
-        latitude: 'Both latitude and longitude are required together',
-        longitude: 'Both latitude and longitude are required together',
-      });
+    const validation = validateAdminListingDetails(formData);
+    if (!validation.ok) {
+      setFormErrors(validation.errors);
       return;
     }
 
@@ -512,12 +179,12 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
               : 'image',
       };
 
-      if (pincode) {
-        payload.pincode = pincode;
+      if (validation.pincode) {
+        payload.pincode = validation.pincode;
       }
-      if (latitude !== null && longitude !== null) {
-        payload.latitude = latitude;
-        payload.longitude = longitude;
+      if (validation.latitude !== null && validation.longitude !== null) {
+        payload.latitude = validation.latitude;
+        payload.longitude = validation.longitude;
       }
 
       if (formData.offerPrice && Number(formData.offerPrice) > 0) {
@@ -537,17 +204,10 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
   const labelClass = 'mb-2 block text-sm font-semibold tracking-wide text-slate-700';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
-      <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-[0_24px_80px_-24px_rgba(2,6,23,0.65)]">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close modal"
-          className="absolute right-4 top-4 z-20 rounded-full bg-white/90 p-2 text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-900"
-        >
-          <X size={16} />
-        </button>
-
+    <AdminListingModalFrame
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      header={
         <div className="relative overflow-hidden border-b border-cyan-200 bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-6 text-white sm:px-8">
           <div className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/15 blur-2xl" />
           <p className="relative mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide">
@@ -562,9 +222,33 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
             Fill in the details to create a new listing.
           </p>
         </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="max-h-[72vh] space-y-6 overflow-y-auto p-6 sm:p-8">
+      }
+      footer={
+        <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-5 sm:flex-row sm:p-6">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={createListing.isPending}
+            className="w-full rounded-xl border border-slate-300 bg-white px-6 py-3 font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={
+              createListing.isPending ||
+              !formData.title ||
+              !formData.price ||
+              !formData.location ||
+              !formData.userId.trim()
+            }
+            className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-200 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
+          >
+            {createListing.isPending ? 'Creating...' : 'Create Listing'}
+          </button>
+        </div>
+      }
+    >
             {formErrors.submit && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
                 {formErrors.submit}
@@ -582,229 +266,51 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
               </h3>
 
               <div className="space-y-4">
-                <div>
-                  <label className={labelClass}>Title *</label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    placeholder="Enter listing title"
-                    className={inputClass}
-                    required
-                  />
-                </div>
+                <AdminListingBasicFields
+                  formData={formData}
+                  setFormData={setFormData}
+                  inputClass={inputClass}
+                  labelClass={labelClass}
+                  titleRequired
+                  titlePlaceholder="Enter listing title"
+                  descriptionPlaceholder="Enter listing description (optional)"
+                />
 
-                <div>
-                  <label className={labelClass}>Description</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Enter listing description (optional)"
-                    rows={4}
-                    className={inputClass}
-                  />
-                </div>
+                <AdminListingPriceFields
+                  formData={formData}
+                  setFormData={setFormData}
+                  inputClass={inputClass}
+                  labelClass={labelClass}
+                  required
+                  showSavings
+                />
+
+                <AdminListingCategoryFields
+                  formData={formData}
+                  setFormData={setFormData}
+                  inputClass={inputClass}
+                  labelClass={labelClass}
+                  mainCategories={mainCategories}
+                  subCategories={subCategories}
+                  conditions={conditions}
+                  showConditionField={showConditionField}
+                  handleMainCategoryChange={handleMainCategoryChange}
+                  handleSubCategoryChange={handleSubCategoryChange}
+                  required
+                />
+
+                <AdminListingLocationFields
+                  formData={formData}
+                  setFormData={setFormData}
+                  inputClass={inputClass}
+                  labelClass={labelClass}
+                  formErrors={formErrors}
+                  isResolvingLocation={isResolvingLocation}
+                  locationResolveError={locationResolveError}
+                  required
+                />
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <label className={`${labelClass} flex items-center gap-2`}>
-                      <CircleDollarSign size={14} /> Price (₹) *
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      placeholder="0"
-                      min="0"
-                      className={inputClass}
-                      required
-                    />
-                    <p className="mt-1 text-xs text-slate-500">Price in INR</p>
-                  </div>
-
-                  <div>
-                    <label className={`${labelClass} flex items-center gap-2`}>
-                      <Tag size={14} /> Offer Price (₹)
-                      <span className="text-xs font-normal text-slate-500">Optional</span>
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.offerPrice}
-                      onChange={(e) => setFormData({ ...formData, offerPrice: e.target.value })}
-                      placeholder="Discounted price"
-                      min="0"
-                      className={inputClass}
-                    />
-                    {formData.offerPrice &&
-                      parseFloat(formData.offerPrice) > 0 &&
-                      parseFloat(formData.offerPrice) >= parseFloat(formData.price || '0') && (
-                        <p className="mt-1 text-xs font-medium text-rose-600">
-                          Offer price must be less than listed price.
-                        </p>
-                      )}
-                    {formData.offerPrice &&
-                      parseFloat(formData.offerPrice) > 0 &&
-                      parseFloat(formData.offerPrice) < parseFloat(formData.price || '0') && (
-                        <p className="mt-1 text-xs font-medium text-emerald-600">
-                          Saving ₹
-                          {(
-                            parseFloat(formData.price || '0') - parseFloat(formData.offerPrice)
-                          ).toLocaleString()}
-                        </p>
-                      )}
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>Main Category *</label>
-                    <select
-                      value={formData.mainCategory}
-                      onChange={(e) => {
-                        const nextMainCategory = e.target.value;
-                        const nextSubCategories = getSubCategoriesForMainCategory(nextMainCategory);
-                        const nextSubCategory =
-                          nextSubCategories[0] || getDefaultAdminSubCategory();
-                        setFormData({
-                          ...formData,
-                          mainCategory: nextMainCategory,
-                          subCategory: nextSubCategory,
-                          category: nextSubCategory,
-                        });
-                      }}
-                      className={inputClass}
-                      required
-                    >
-                      {mainCategories.map((main) => (
-                        <option key={main} value={main}>
-                          {main}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>Subcategory *</label>
-                    <select
-                      value={formData.subCategory}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          subCategory: e.target.value,
-                          category: e.target.value,
-                        })
-                      }
-                      className={inputClass}
-                      required
-                    >
-                      {subCategories.map((sub) => (
-                        <option key={sub} value={sub}>
-                          {sub}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {showConditionField && (
-                    <div>
-                      <label className={labelClass}>Condition *</label>
-                      <select
-                        value={formData.condition}
-                        onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
-                        className={inputClass}
-                        required
-                      >
-                        {conditions.map((cond) => (
-                          <option key={cond} value={cond}>
-                            {cond.replace('_', ' ').toUpperCase()}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  <div className="md:col-span-2">
-                    <label className={`${labelClass} flex items-center gap-2`}>
-                      <MapPin size={14} /> Location *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.location}
-                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                      placeholder="City, State"
-                      className={inputClass}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>
-                      Pincode <span className="text-xs font-normal text-slate-500">Optional</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.pincode}
-                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-                      placeholder="6-digit pincode"
-                      className={inputClass}
-                      inputMode="numeric"
-                    />
-                    {formErrors.pincode && (
-                      <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.pincode}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>
-                      Latitude <span className="text-xs font-normal text-slate-500">Optional</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.latitude}
-                      onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
-                      placeholder="e.g. 17.3850"
-                      className={inputClass}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>
-                      Longitude <span className="text-xs font-normal text-slate-500">Optional</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.longitude}
-                      onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
-                      placeholder="e.g. 78.4867"
-                      className={inputClass}
-                    />
-                    {(formErrors.latitude || formErrors.longitude) && (
-                      <p className="mt-1 text-xs font-medium text-rose-600">
-                        {formErrors.latitude || formErrors.longitude}
-                      </p>
-                    )}
-                    {!formErrors.latitude && !formErrors.longitude && isResolvingLocation && (
-                      <p className="mt-1 text-xs text-cyan-700">
-                        Resolving location from coordinates...
-                      </p>
-                    )}
-                    {!formErrors.latitude && !formErrors.longitude && locationResolveError && (
-                      <p className="mt-1 text-xs text-slate-500">{locationResolveError}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className={labelClass}>
-                      Contact Number{' '}
-                      <span className="text-xs font-normal text-slate-500">Optional</span>
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.contactPhone}
-                      onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
-                      placeholder="e.g. 9876543210"
-                      className={inputClass}
-                    />
-                  </div>
-
                   <div className="md:col-span-2">
                     <label className={labelClass}>Seller ID / Username / Phone *</label>
                     <input
@@ -958,33 +464,6 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                 </div>
               </label>
             </div>
-          </div>
-
-          <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-5 sm:flex-row sm:p-6">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={createListing.isPending}
-              className="w-full rounded-xl border border-slate-300 bg-white px-6 py-3 font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={
-                createListing.isPending ||
-                !formData.title ||
-                !formData.price ||
-                !formData.location ||
-                !formData.userId.trim()
-              }
-              className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-200 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
-            >
-              {createListing.isPending ? 'Creating...' : 'Create Listing'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    </AdminListingModalFrame>
   );
 }

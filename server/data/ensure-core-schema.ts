@@ -41,6 +41,44 @@ async function applyCoreSchemaPatches(): Promise<void> {
       created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_deal boolean NOT NULL DEFAULT false`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_type varchar(20)`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_start_at timestamp`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_end_at timestamp`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_recurrence varchar(20) NOT NULL DEFAULT 'none'`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_recurrence_until timestamp`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_cycle_quantity integer`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_last_cycle_key varchar(40)`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS max_deal_bookings integer`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_bookings_used integer NOT NULL DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS combo_items text`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_terms text`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS voucher_enabled boolean NOT NULL DEFAULT true`);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS deal_bookings (
+      id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+      listing_id varchar NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+      deal_cycle_key varchar(40),
+      buyer_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      seller_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status varchar(20) NOT NULL DEFAULT 'booked',
+      voucher_code varchar(64) NOT NULL UNIQUE,
+      voucher_payload text,
+      booked_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      redeemed_at timestamp,
+      created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.execute(sql`ALTER TABLE deal_bookings ADD COLUMN IF NOT EXISTS deal_cycle_key varchar(40)`);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS deal_bookings_buyer_idx
+      ON deal_bookings (buyer_id, created_at DESC)
+  `);
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS deal_bookings_listing_idx
+      ON deal_bookings (listing_id, created_at DESC)
+  `);
   await db.execute(sql`
     CREATE UNIQUE INDEX IF NOT EXISTS listing_likes_listing_user_unique
       ON listing_likes (listing_id, user_id)
@@ -87,6 +125,9 @@ async function applyCoreSchemaPatches(): Promise<void> {
   );
   await db.execute(
     sql`ALTER TABLE ai_voiceover_jobs ADD COLUMN IF NOT EXISTS description_text text`
+  );
+  await db.execute(
+    sql`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS listing_price_units jsonb`
   );
 
   // Keep display_name useful when legacy rows only had username.

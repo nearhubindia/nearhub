@@ -17,6 +17,7 @@ import {
 } from '../../users/services/user-profiles';
 import { resolveUserIdFromRequest } from '../../users/services/user-lifecycle';
 import { users } from '../../users/models/users';
+import { firstStringField } from '../../../shared/utils/json-fields';
 
 type ParticipantRole = 'buyer' | 'seller';
 
@@ -39,33 +40,6 @@ function toNonNegativeInt(value: unknown, fallback = 0): number {
   const parsed = Number.parseInt(String(value ?? ''), 10);
   if (!Number.isFinite(parsed) || parsed < 0) return fallback;
   return parsed;
-}
-
-function parseFirstImage(value: unknown): string {
-  if (!value) return '';
-
-  if (Array.isArray(value)) {
-    const first = value.find((item) => typeof item === 'string' && item.trim().length > 0);
-    return typeof first === 'string' ? first : '';
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return '';
-
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) {
-        const first = parsed.find((item) => typeof item === 'string' && item.trim().length > 0);
-        return typeof first === 'string' ? first : '';
-      }
-      return '';
-    } catch {
-      return trimmed;
-    }
-  }
-
-  return '';
 }
 
 function participantLabel(userId: string, role: 'buyer' | 'seller'): string {
@@ -247,7 +221,7 @@ export function registerMessageRoutes(app: Express) {
           conversationId: row.conversationId,
           listingId: row.listingId,
           listingTitle: row.listingTitle,
-          listingImage: parseFirstImage(row.listingImages),
+          listingImage: firstStringField(row.listingImages),
           otherUserId,
           otherUserLabel,
           otherUserName: otherUserLabel,
@@ -314,7 +288,7 @@ export function registerMessageRoutes(app: Express) {
           conversationId: conversation.id,
           listingId: conversation.listingId,
           listingTitle: listing?.title || 'Listing',
-          listingImage: parseFirstImage(listing?.images),
+          listingImage: firstStringField(listing?.images),
           otherUserId,
           otherUserLabel,
           otherUserName: otherUserLabel,
