@@ -490,6 +490,8 @@ export default function CreateListingPage(): ReactElement {
     () => activeSubscriptionOptions.find((item) => item.id === activeSubscriptionId) || null,
     [activeSubscriptionId, activeSubscriptionOptions]
   );
+  const postingSubscriptionOption =
+    selectedSubscriptionOption || selectableSubscriptionOptions[0] || null;
   const maxImageUploads =
     mode === 'deal'
       ? dealType === 'combo'
@@ -579,18 +581,18 @@ export default function CreateListingPage(): ReactElement {
   ]);
   const subscriptionStatusLabel = isLoadingSubscriptionStatus
     ? 'Checking status...'
-    : selectedSubscriptionOption
-      ? `${selectedSubscriptionOption.tierName} Active`
+    : postingSubscriptionOption
+      ? `${postingSubscriptionOption.tierName} Active`
       : activeSubscriptionOptions.length > 0
         ? 'Active subscriptions exhausted'
         : starterCredits?.isActive && starterCredits.listingsRemaining > 0
           ? 'Starter Pack Active'
           : 'No Posting Credits';
-  const subscriptionStatusHint = selectedSubscriptionOption
-    ? selectedSubscriptionOption.isUnlimited
+  const subscriptionStatusHint = postingSubscriptionOption
+    ? postingSubscriptionOption.isUnlimited
       ? 'This subscription can create unlimited listings.'
-      : `${selectedSubscriptionOption.listingsRemaining} listing slot${
-          selectedSubscriptionOption.listingsRemaining === 1 ? '' : 's'
+      : `${postingSubscriptionOption.listingsRemaining} listing slot${
+          postingSubscriptionOption.listingsRemaining === 1 ? '' : 's'
         } remaining on this subscription.`
     : activeSubscriptionOptions.length > 0
       ? 'Your active subscriptions are out of listing slots. Pick another plan or use starter credits.'
@@ -599,21 +601,21 @@ export default function CreateListingPage(): ReactElement {
         : 'Buy a plan or apply a valid coupon to publish.';
   const listingsLeftText = isLoadingSubscriptionStatus
     ? '-'
-    : selectedSubscriptionOption
-      ? selectedSubscriptionOption.isUnlimited
+    : postingSubscriptionOption
+      ? postingSubscriptionOption.isUnlimited
         ? '∞'
-        : String(selectedSubscriptionOption.listingsRemaining)
+        : String(postingSubscriptionOption.listingsRemaining)
       : String(starterCredits?.listingsRemaining ?? 0);
   const boostsLeftText = isLoadingSubscriptionStatus
     ? '-'
-    : selectedSubscriptionOption
-      ? String(selectedSubscriptionOption.boostsRemaining)
+    : postingSubscriptionOption
+      ? String(postingSubscriptionOption.boostsRemaining)
       : String(starterCredits?.boostsRemaining ?? 0);
   const needsPostingCredits = !(mode === 'deal' && Boolean(sourceListingId));
   const hasPostingCredits = !needsPostingCredits
     ? true
     : Boolean(
-        selectedSubscriptionOption?.canCreateListing ||
+        postingSubscriptionOption?.canCreateListing ||
         (starterCredits?.isActive && starterCredits.listingsRemaining > 0)
       );
   const emiBaseAmount = parsePrice(mode === 'deal' ? offerPrice || price : offerPrice || price);
@@ -1328,7 +1330,7 @@ export default function CreateListingPage(): ReactElement {
       if (
         needsPostingCredits &&
         activeSubscriptionId &&
-        (!selectedSubscriptionOption || !selectedSubscriptionOption.canCreateListing)
+        (!postingSubscriptionOption || !postingSubscriptionOption.canCreateListing)
       ) {
         setMessage(
           'The selected subscription has no listing slots left. Please choose another plan or rely on starter credits.'
@@ -1403,12 +1405,16 @@ export default function CreateListingPage(): ReactElement {
           images: images.slice(0, maxImageUploads),
           videos: videos.slice(0, MAX_VIDEO_UPLOADS),
           userSubscriptionId:
-            needsPostingCredits && selectedSubscriptionOption?.canCreateListing
-              ? activeSubscriptionId
+            needsPostingCredits && postingSubscriptionOption?.canCreateListing
+              ? postingSubscriptionOption.id
               : undefined,
           subscriptionTierId:
-            needsPostingCredits && selectedSubscriptionOption?.canCreateListing
-              ? activeSubscriptionTierId
+            needsPostingCredits && postingSubscriptionOption?.canCreateListing
+              ? String(
+                  postingSubscriptionOption.subscriptionTierId ||
+                    postingSubscriptionOption.tierId ||
+                    ''
+                ).trim()
               : undefined,
           attributes: Object.keys(attributesPayload).length > 0 ? attributesPayload : undefined,
           isDeal,
