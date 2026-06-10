@@ -2095,6 +2095,7 @@ export default function CreateListingPage(): ReactElement {
                           normalizedFieldType === 'number' || normalizedFieldType === 'price'
                             ? 'numeric'
                             : 'text';
+                        const isChecked = value === true || value === 'true';
                         return (
                           <label key={attribute.name} htmlFor={fieldId} className="block">
                             <span className="mb-2 block text-xs font-normal text-slate-500">
@@ -2107,16 +2108,17 @@ export default function CreateListingPage(): ReactElement {
                                 onClick={() =>
                                   setAttributeValues((current) => ({
                                     ...current,
-                                    [attribute.name]: !Boolean(current[attribute.name]),
+                                    [attribute.name]:
+                                      !(current[attribute.name] === true || current[attribute.name] === 'true'),
                                   }))
                                 }
                                 className={`flex h-10 w-full items-center justify-between rounded-xl border px-4 text-left text-sm transition ${
-                                  Boolean(value)
+                                  isChecked
                                     ? 'border-[#1f63b2] bg-[#eef6ff] text-slate-900'
                                     : 'border-slate-200 bg-white text-slate-700'
                                 }`}
                               >
-                                <span>{Boolean(value) ? 'Yes' : 'No'}</span>
+                                <span>{isChecked ? 'Yes' : 'No'}</span>
                                 <span className="text-xs text-slate-400">
                                   {attribute.unit || attribute.fieldType}
                                 </span>

@@ -1,5 +1,25 @@
 import { QueryClient, hydrate, dehydrate } from '@tanstack/react-query';
 
+type PersistedQuery = {
+  queryKey?: unknown;
+  options?: {
+    meta?: {
+      persist?: boolean;
+    };
+  };
+  state?: {
+    data?: unknown;
+    dataUpdatedAt?: number;
+    meta?: {
+      persist?: boolean;
+    };
+  };
+};
+
+type DehydratedState = {
+  queries?: PersistedQuery[];
+};
+
 /**
  * Centralized ReactQuery configuration for the web application
  * Manages caching, refetch timing, and error handling globally
@@ -42,7 +62,7 @@ export function enableQueryPersistence(): void {
     // ignore
   }
 
-  const shouldDehydrateQuery = (query: any) => {
+  const shouldDehydrateQuery = (query: PersistedQuery): boolean => {
     try {
       if (query.options?.meta?.persist) return true;
       const k = Array.isArray(query.queryKey) ? query.queryKey[0] : query.queryKey;
@@ -57,7 +77,7 @@ export function enableQueryPersistence(): void {
   const MAX_QUERY_BYTES = 50_000; // ~50 KB per query
   const MAX_TOTAL_BYTES = 300_000; // ~300 KB total persisted payload
 
-  function estimateQuerySize(query: any): number {
+  function estimateQuerySize(query: PersistedQuery): number {
     try {
       // Only serialize the most relevant parts to estimate size
       const candidate = {
@@ -73,24 +93,28 @@ export function enableQueryPersistence(): void {
     }
   }
 
-  function pruneDehydratedState(state: any): any {
+  function pruneDehydratedState(state: DehydratedState): DehydratedState {
     try {
       if (!state || !Array.isArray(state.queries)) return state;
 
       // Keep mandatory queries first (whitelist or meta.persist)
       const mandatoryKeys = new Set(['header-push-notifications', 'header-user-profile', 'nearhub-home-feed']);
 
-      const candidates = state.queries.map((q: any) => ({ q, key: Array.isArray(q.queryKey) ? q.queryKey[0] : q.queryKey, size: estimateQuerySize({ queryKey: q.queryKey, state: q.state }) }));
+      const candidates = state.queries.map((q) => ({
+        q,
+        key: Array.isArray(q.queryKey) ? q.queryKey[0] : q.queryKey,
+        size: estimateQuerySize({ queryKey: q.queryKey, state: q.state }),
+      }));
 
       // Sort so mandatory and smaller entries preferred
-      candidates.sort((a: any, b: any) => {
+      candidates.sort((a, b) => {
         const aMandatory = mandatoryKeys.has(String(a.key)) || a.q?.state?.meta?.persist;
         const bMandatory = mandatoryKeys.has(String(b.key)) || b.q?.state?.meta?.persist;
         if (aMandatory !== bMandatory) return aMandatory ? -1 : 1;
         return a.size - b.size;
       });
 
-      const newQueries: any[] = [];
+      const newQueries: PersistedQuery[] = [];
       let total = 0;
       for (const c of candidates) {
         if (c.size > MAX_QUERY_BYTES) continue; // skip too-large queries
@@ -110,17 +134,20 @@ export function enableQueryPersistence(): void {
     try {
       // Dynamically import the official persister packages separately so bundlers
       // won't statically fail if the packages are not installed.
-      // @ts-ignore
-      const dynamicImport: (s: string) => Promise<any> = new Function('s', 'return import(s)') as any;
-      let persistMod: any = null;
-      let syncPersisterMod: any = null;
+      const dynamicImport = new Function('s', 'return import(s)') as (specifier: string) => Promise<unknown>;
+      let persistMod: { persistQueryClient?: (args: unknown) => void } | null = null;
+      let syncPersisterMod: { createSyncStoragePersister?: (options: { storage: Storage; key: string }) => unknown } | null = null;
       try {
-        persistMod = await dynamicImport('@tanstack/react-query-persist-client');
+        persistMod = (await dynamicImport('@tanstack/react-query-persist-client')) as {
+          persistQueryClient?: (args: unknown) => void;
+        };
       } catch {
         persistMod = null;
       }
       try {
-        syncPersisterMod = await dynamicImport('@tanstack/query-sync-storage-persister');
+        syncPersisterMod = (await dynamicImport('@tanstack/query-sync-storage-persister')) as {
+          createSyncStoragePersister?: (options: { storage: Storage; key: string }) => unknown;
+        };
       } catch {
         syncPersisterMod = null;
       }

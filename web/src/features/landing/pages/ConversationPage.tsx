@@ -95,8 +95,8 @@ export default function ConversationPage(): ReactElement {
         queryClient.invalidateQueries({ queryKey: ['conversation-messages', conversationId, userId] }),
         queryClient.invalidateQueries({ queryKey: ['message-threads', userId] }),
       ]);
-    } catch (error: any) {
-      setSendError(error?.message || 'Failed to send message');
+    } catch (error: unknown) {
+      setSendError(error instanceof Error ? error.message : 'Failed to send message');
     } finally {
       setSending(false);
     }
