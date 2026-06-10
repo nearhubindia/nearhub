@@ -14,12 +14,7 @@ import {
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { DealStatsGrid } from '../components/DealStatsGrid';
 import { DealVoucherCard } from '../components/DealVoucherCard';
-import {
-  apiUrl,
-  openVoucherPdf,
-  readStoredUser,
-  type DealBooking,
-} from '../lib/deal-bookings';
+import { apiUrl, openVoucherPdf, readStoredUser, type DealBooking } from '../lib/deal-bookings';
 
 export default function MyOrdersPage(): ReactElement {
   const user = readStoredUser();
@@ -61,9 +56,12 @@ export default function MyOrdersPage(): ReactElement {
   const orders = ordersQuery.data || [];
   const stats = {
     total: orders.length,
-    active: orders.filter((order) => String(order.status || 'booked').toLowerCase() === 'booked').length,
-    encashed: orders.filter((order) => String(order.status || '').toLowerCase() === 'redeemed').length,
-    expired: orders.filter((order) => String(order.status || '').toLowerCase() === 'expired').length,
+    active: orders.filter((order) => String(order.status || 'booked').toLowerCase() === 'booked')
+      .length,
+    encashed: orders.filter((order) => String(order.status || '').toLowerCase() === 'redeemed')
+      .length,
+    expired: orders.filter((order) => String(order.status || '').toLowerCase() === 'expired')
+      .length,
   };
   const statCards = [
     {
@@ -133,7 +131,9 @@ export default function MyOrdersPage(): ReactElement {
                 <div className="mx-auto mt-3 h-2 w-14 rounded-full bg-[#c7dfff]" />
                 <div className="mx-auto mt-3 h-2 w-16 rounded-full bg-[#c7dfff]" />
               </div>
-              <span className="absolute bottom-10 left-10 text-2xl font-normal text-[#a7c9ff]">*</span>
+              <span className="absolute bottom-10 left-10 text-2xl font-normal text-[#a7c9ff]">
+                *
+              </span>
               <span className="absolute right-2 top-20 text-2xl font-normal text-[#a7c9ff]">*</span>
             </div>
           </div>
@@ -148,49 +148,49 @@ export default function MyOrdersPage(): ReactElement {
         ) : null}
 
         <section className="mt-9 rounded-[24px] border border-[#d9e7f8] bg-white/86 p-6 shadow-[0_24px_70px_-48px_rgba(30,93,168,0.88)] sm:p-8">
-            <div className="mb-6 flex items-center justify-between gap-3">
-              <h2 className="inline-flex items-center gap-3 text-2xl font-normal text-[#061b44]">
-                <ReceiptText size={26} /> Booked Deal Products
-              </h2>
-              <span className="rounded-full border border-[#b9d6ff] bg-white px-6 py-2 text-sm font-normal text-[#0759e6]">
-                {orders.length} bookings
-              </span>
-            </div>
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <h2 className="inline-flex items-center gap-3 text-2xl font-normal text-[#061b44]">
+              <ReceiptText size={26} /> Booked Deal Products
+            </h2>
+            <span className="rounded-full border border-[#b9d6ff] bg-white px-6 py-2 text-sm font-normal text-[#0759e6]">
+              {orders.length} bookings
+            </span>
+          </div>
 
-            {ordersQuery.isLoading ? (
-              <p className="rounded-2xl border border-[#d9e7f8] bg-white px-4 py-6 text-sm font-normal text-[#5d718f]">
-                Loading bookings...
-              </p>
-            ) : null}
-            {ordersQuery.isError ? (
-              <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-5 text-sm font-normal text-rose-700">
-                Failed to load bookings.
-              </p>
-            ) : null}
-            {!ordersQuery.isLoading && orders.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[#c7d9f0] bg-white px-5 py-10 text-center">
-                <Package className="mx-auto text-slate-400" size={32} />
-                <p className="mt-3 text-sm font-normal text-slate-700">No deal bookings yet.</p>
-              </div>
-            ) : null}
-
-            <div className="space-y-5">
-              {orders.map((order) => (
-                <DealVoucherCard
-                  key={order.id}
-                  booking={order}
-                  dateLabel="Booked"
-                  voucherLoadingId={voucherLoadingId}
-                  onOpenVoucher={(bookingId) => void openVoucher(bookingId)}
-                />
-              ))}
+          {ordersQuery.isLoading ? (
+            <p className="rounded-2xl border border-[#d9e7f8] bg-white px-4 py-6 text-sm font-normal text-[#5d718f]">
+              Loading bookings...
+            </p>
+          ) : null}
+          {ordersQuery.isError ? (
+            <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-5 text-sm font-normal text-rose-700">
+              Failed to load bookings.
+            </p>
+          ) : null}
+          {!ordersQuery.isLoading && orders.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#c7d9f0] bg-white px-5 py-10 text-center">
+              <Package className="mx-auto text-slate-400" size={32} />
+              <p className="mt-3 text-sm font-normal text-slate-700">No deal bookings yet.</p>
             </div>
-            {!ordersQuery.isLoading && orders.length > 0 ? (
-              <p className="mt-7 text-center text-sm font-normal text-[#5d718f]">
-                Showing all booked deals
-              </p>
-            ) : null}
-          </section>
+          ) : null}
+
+          <div className="space-y-5">
+            {orders.map((order) => (
+              <DealVoucherCard
+                key={order.id}
+                booking={order}
+                dateLabel="Booked"
+                voucherLoadingId={voucherLoadingId}
+                onOpenVoucher={(bookingId) => void openVoucher(bookingId)}
+              />
+            ))}
+          </div>
+          {!ordersQuery.isLoading && orders.length > 0 ? (
+            <p className="mt-7 text-center text-sm font-normal text-[#5d718f]">
+              Showing all booked deals
+            </p>
+          ) : null}
+        </section>
       </main>
       <LandingFooter />
     </div>

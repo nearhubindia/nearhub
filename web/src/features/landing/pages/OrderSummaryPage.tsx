@@ -40,7 +40,8 @@ function readStoredUser(): StoredUser | null {
 }
 
 function parseMedia(value: unknown): string[] {
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string' && !!item);
+  if (Array.isArray(value))
+    return value.filter((item): item is string => typeof item === 'string' && !!item);
   if (typeof value !== 'string') return [];
   try {
     const parsed = JSON.parse(value);
@@ -117,7 +118,8 @@ export default function OrderSummaryPage(): ReactElement {
   }, [listing?.offerPrice, listing?.price]);
   const dealStart = new Date(String(listing?.dealStartAt || '')).getTime();
   const dealEnd = new Date(String(listing?.dealEndAt || '')).getTime();
-  const isWindowValid = Number.isFinite(dealStart) && Number.isFinite(dealEnd) && dealEnd > dealStart;
+  const isWindowValid =
+    Number.isFinite(dealStart) && Number.isFinite(dealEnd) && dealEnd > dealStart;
   const isDealActive =
     Boolean(listing?.isDeal) &&
     Boolean(listing?.isActive) &&
@@ -202,7 +204,9 @@ export default function OrderSummaryPage(): ReactElement {
         </div>
 
         {listingQuery.isLoading ? <p className="text-slate-600">Loading order...</p> : null}
-        {listingQuery.isError ? <p className="text-rose-600">Failed to load order summary.</p> : null}
+        {listingQuery.isError ? (
+          <p className="text-rose-600">Failed to load order summary.</p>
+        ) : null}
 
         {listing ? (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.75fr)]">
@@ -210,7 +214,11 @@ export default function OrderSummaryPage(): ReactElement {
               <div className="flex flex-col gap-4 sm:flex-row">
                 <div className="h-28 w-full shrink-0 overflow-hidden rounded-2xl bg-slate-100 sm:w-28">
                   {listing.images?.[0] ? (
-                    <img src={listing.images[0]} alt={listing.title} className="h-full w-full object-cover" />
+                    <img
+                      src={listing.images[0]}
+                      alt={listing.title}
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-slate-400">
                       <Package size={28} />
@@ -218,12 +226,16 @@ export default function OrderSummaryPage(): ReactElement {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold uppercase tracking-wide text-[#1e5da8]">{listing.category || 'Deal'}</p>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[#1e5da8]">
+                    {listing.category || 'Deal'}
+                  </p>
                   <h2 className="mt-1 text-xl font-black text-slate-900">{listing.title}</h2>
                   <p className="mt-2 inline-flex items-center gap-1 text-sm text-slate-600">
                     <MapPin size={14} /> {listing.location || 'Nearby'}
                   </p>
-                  <p className="mt-2 text-sm text-slate-600">Condition: {listing.condition || 'Good'}</p>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Condition: {listing.condition || 'Good'}
+                  </p>
                 </div>
               </div>
 
@@ -231,7 +243,9 @@ export default function OrderSummaryPage(): ReactElement {
                 <p className="text-sm font-black text-slate-900">Seller</p>
                 <p className="mt-1 inline-flex items-center gap-2 text-sm text-slate-700">
                   {listing.sellerName || 'Seller'}
-                  {listing.sellerVerified ? <ShieldCheck size={15} className="text-emerald-600" /> : null}
+                  {listing.sellerVerified ? (
+                    <ShieldCheck size={15} className="text-emerald-600" />
+                  ) : null}
                 </p>
               </div>
 
@@ -242,7 +256,9 @@ export default function OrderSummaryPage(): ReactElement {
                     ? `${new Date(dealStart).toLocaleString('en-IN')} - ${new Date(dealEnd).toLocaleString('en-IN')}`
                     : 'Deal window is not configured'}
                 </p>
-                <p className="mt-1 text-sm text-amber-800">Slots: {used}/{slots || 'NA'}</p>
+                <p className="mt-1 text-sm text-amber-800">
+                  Slots: {used}/{slots || 'NA'}
+                </p>
               </div>
             </section>
 
@@ -253,16 +269,21 @@ export default function OrderSummaryPage(): ReactElement {
                   <span className="text-slate-600">Item price</span>
                   <span className="font-bold text-slate-900">{formatPrice(listing.price)}</span>
                 </div>
-                {Number(listing.offerPrice || 0) > 0 && Number(listing.offerPrice) < Number(listing.price || 0) ? (
+                {Number(listing.offerPrice || 0) > 0 &&
+                Number(listing.offerPrice) < Number(listing.price || 0) ? (
                   <div className="flex items-center justify-between text-emerald-700">
                     <span>Deal discount</span>
-                    <span>-{formatPrice(Number(listing.price || 0) - Number(listing.offerPrice || 0))}</span>
+                    <span>
+                      -{formatPrice(Number(listing.price || 0) - Number(listing.offerPrice || 0))}
+                    </span>
                   </div>
                 ) : null}
                 <div className="border-t border-slate-200 pt-3">
                   <div className="flex items-center justify-between">
                     <span className="text-base font-black text-slate-900">Total</span>
-                    <span className="text-2xl font-black text-[#113965]">{formatPrice(finalPrice)}</span>
+                    <span className="text-2xl font-black text-[#113965]">
+                      {formatPrice(finalPrice)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -299,7 +320,10 @@ export default function OrderSummaryPage(): ReactElement {
                     <CheckCircle2 size={16} /> Voucher Ready
                   </p>
                   <div className="mt-3 flex flex-wrap gap-3">
-                    <Link to="/bookings" className="text-sm font-bold text-[#1e5da8] hover:underline">
+                    <Link
+                      to="/bookings"
+                      className="text-sm font-bold text-[#1e5da8] hover:underline"
+                    >
                       View Bookings
                     </Link>
                     {voucherLinks.viewUrl ? (

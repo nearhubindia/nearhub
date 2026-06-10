@@ -210,232 +210,226 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
         </div>
       }
     >
-            {formErrors.submit && (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
-                {formErrors.submit}
+      {formErrors.submit && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
+          {formErrors.submit}
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+        <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
+          <FileText size={16} /> Basic Information
+        </h3>
+
+        <div className="space-y-4">
+          <AdminListingBasicFields
+            formData={formData}
+            setFormData={setFormData}
+            inputClass={inputClass}
+            labelClass={labelClass}
+            titleAction={
+              <button
+                type="button"
+                onClick={generateTitleWithAI}
+                disabled={isGeneratingTitle || !formData.description}
+                className="rounded-full bg-fuchsia-100 px-3 py-1 text-xs font-bold text-fuchsia-700 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isGeneratingTitle ? 'Generating...' : 'AI Generate'}
+              </button>
+            }
+            descriptionAction={
+              <button
+                type="button"
+                onClick={generateDescriptionWithAI}
+                disabled={isGeneratingDescription || !formData.title}
+                className="rounded-full bg-fuchsia-100 px-3 py-1 text-xs font-bold text-fuchsia-700 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isGeneratingDescription ? 'Generating...' : 'AI Generate'}
+              </button>
+            }
+          />
+
+          <AdminListingPriceFields
+            formData={formData}
+            setFormData={setFormData}
+            inputClass={inputClass}
+            labelClass={labelClass}
+          />
+
+          <AdminListingCategoryFields
+            formData={formData}
+            setFormData={setFormData}
+            inputClass={inputClass}
+            labelClass={labelClass}
+            mainCategories={mainCategories}
+            subCategories={subCategories}
+            conditions={conditions}
+            showConditionField={showConditionField}
+            handleMainCategoryChange={handleMainCategoryChange}
+            handleSubCategoryChange={handleSubCategoryChange}
+            aiSuggestButton={
+              <button
+                type="button"
+                onClick={suggestCategoryWithAI}
+                disabled={isSuggestingCategory || !formData.title}
+                className="rounded-full bg-fuchsia-100 px-3 py-1 text-xs font-bold text-fuchsia-700 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSuggestingCategory ? 'Suggesting...' : 'AI Suggest'}
+              </button>
+            }
+          />
+
+          <AdminListingLocationFields
+            formData={formData}
+            setFormData={setFormData}
+            inputClass={inputClass}
+            labelClass={labelClass}
+            formErrors={formErrors}
+            isResolvingLocation={isResolvingLocation}
+            locationResolveError={locationResolveError}
+            statusField={
+              <div>
+                <label className={labelClass}>Status</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      status: e.target.value as 'active' | 'sold' | 'pending',
+                    })
+                  }
+                  className={inputClass}
+                >
+                  <option value="active">Active</option>
+                  <option value="pending">Pending</option>
+                  <option value="sold">Sold</option>
+                </select>
               </div>
-            )}
+            }
+          />
+        </div>
+      </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-              <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
-                <FileText size={16} /> Basic Information
-              </h3>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+        <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
+          <Sparkles size={16} /> Enhancement Features
+        </h3>
 
-              <div className="space-y-4">
-                <AdminListingBasicFields
-                  formData={formData}
-                  setFormData={setFormData}
-                  inputClass={inputClass}
-                  labelClass={labelClass}
-                  titleAction={
-                    <button
-                      type="button"
-                      onClick={generateTitleWithAI}
-                      disabled={isGeneratingTitle || !formData.description}
-                      className="rounded-full bg-fuchsia-100 px-3 py-1 text-xs font-bold text-fuchsia-700 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isGeneratingTitle ? 'Generating...' : 'AI Generate'}
-                    </button>
-                  }
-                  descriptionAction={
-                    <button
-                      type="button"
-                      onClick={generateDescriptionWithAI}
-                      disabled={isGeneratingDescription || !formData.title}
-                      className="rounded-full bg-fuchsia-100 px-3 py-1 text-xs font-bold text-fuchsia-700 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isGeneratingDescription ? 'Generating...' : 'AI Generate'}
-                    </button>
-                  }
-                />
-
-                <AdminListingPriceFields
-                  formData={formData}
-                  setFormData={setFormData}
-                  inputClass={inputClass}
-                  labelClass={labelClass}
-                />
-
-                <AdminListingCategoryFields
-                  formData={formData}
-                  setFormData={setFormData}
-                  inputClass={inputClass}
-                  labelClass={labelClass}
-                  mainCategories={mainCategories}
-                  subCategories={subCategories}
-                  conditions={conditions}
-                  showConditionField={showConditionField}
-                  handleMainCategoryChange={handleMainCategoryChange}
-                  handleSubCategoryChange={handleSubCategoryChange}
-                  aiSuggestButton={
-                    <button
-                      type="button"
-                      onClick={suggestCategoryWithAI}
-                      disabled={isSuggestingCategory || !formData.title}
-                      className="rounded-full bg-fuchsia-100 px-3 py-1 text-xs font-bold text-fuchsia-700 transition hover:bg-fuchsia-200 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isSuggestingCategory ? 'Suggesting...' : 'AI Suggest'}
-                    </button>
-                  }
-                />
-
-                <AdminListingLocationFields
-                  formData={formData}
-                  setFormData={setFormData}
-                  inputClass={inputClass}
-                  labelClass={labelClass}
-                  formErrors={formErrors}
-                  isResolvingLocation={isResolvingLocation}
-                  locationResolveError={locationResolveError}
-                  statusField={
-                    <div>
-                      <label className={labelClass}>Status</label>
-                      <select
-                        value={formData.status}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            status: e.target.value as 'active' | 'sold' | 'pending',
-                          })
-                        }
-                        className={inputClass}
-                      >
-                        <option value="active">Active</option>
-                        <option value="pending">Pending</option>
-                        <option value="sold">Sold</option>
-                      </select>
-                    </div>
-                  }
-                />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <input
+              type="checkbox"
+              checked={sponsored}
+              onChange={() => setSponsored((prev) => !prev)}
+              className="h-5 w-5 rounded"
+            />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 font-bold text-slate-900">
+                <Star size={18} className="text-amber-500" />
+                Sponsored Tag
               </div>
+              <p className="mt-1 text-xs text-slate-600">Separate from featured boost ranking</p>
             </div>
+          </label>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-              <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
-                <Sparkles size={16} /> Enhancement Features
-              </h3>
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <input
-                    type="checkbox"
-                    checked={sponsored}
-                    onChange={() => setSponsored((prev) => !prev)}
-                    className="h-5 w-5 rounded"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 font-bold text-slate-900">
-                      <Star size={18} className="text-amber-500" />
-                      Sponsored Tag
-                    </div>
-                    <p className="mt-1 text-xs text-slate-600">
-                      Separate from featured boost ranking
-                    </p>
-                  </div>
-                </label>
-
-                <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
-                  <input
-                    type="checkbox"
-                    checked={enhancements.featured}
-                    onChange={() => handleEnhancementChange('featured')}
-                    className="h-5 w-5 rounded"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 font-bold text-slate-900">
-                      <Star size={18} className="text-amber-500" />
-                      Featured Listing
-                    </div>
-                    <p className="mt-1 text-xs text-slate-600">
-                      Highlight listing with featured ranking
-                    </p>
-                  </div>
-                </label>
-
-                <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
-                  <input
-                    type="checkbox"
-                    checked={enhancements.priority}
-                    onChange={() => handleEnhancementChange('priority')}
-                    className="h-5 w-5 rounded"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 font-bold text-slate-900">
-                      <Zap size={18} className="text-blue-500" />
-                      Priority Listing
-                    </div>
-                    <p className="mt-1 text-xs text-slate-600">Show higher in search results</p>
-                  </div>
-                </label>
-
-                <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
-                  <input
-                    type="checkbox"
-                    checked={enhancements.verified}
-                    onChange={() => handleEnhancementChange('verified')}
-                    className="h-5 w-5 rounded"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 font-bold text-slate-900">
-                      <Check size={18} className="text-green-500" />
-                      Verified Badge
-                    </div>
-                    <p className="mt-1 text-xs text-slate-600">Show verified seller/item badge</p>
-                  </div>
-                </label>
-
-                <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4 md:col-span-2">
-                  <input
-                    type="checkbox"
-                    checked={enhancements.topSearch}
-                    onChange={() => handleEnhancementChange('topSearch')}
-                    className="h-5 w-5 rounded"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 font-bold text-slate-900">
-                      <Target size={18} className="text-red-500" />
-                      Top Search Placement
-                    </div>
-                    <p className="mt-1 text-xs text-slate-600">
-                      Appear at top of relevant searches
-                    </p>
-                  </div>
-                </label>
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
+            <input
+              type="checkbox"
+              checked={enhancements.featured}
+              onChange={() => handleEnhancementChange('featured')}
+              className="h-5 w-5 rounded"
+            />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 font-bold text-slate-900">
+                <Star size={18} className="text-amber-500" />
+                Featured Listing
               </div>
+              <p className="mt-1 text-xs text-slate-600">Highlight listing with featured ranking</p>
+            </div>
+          </label>
 
-              {(sponsored || Object.values(enhancements).some((v) => v)) && (
-                <div className="mt-4 rounded-xl border border-teal-200 bg-teal-50 p-4">
-                  <p className="mb-2 text-sm font-bold text-teal-900">Active Enhancements:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {sponsored && (
-                      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
-                        Sponsored
-                      </span>
-                    )}
-                    {enhancements.featured && (
-                      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
-                        Featured
-                      </span>
-                    )}
-                    {enhancements.priority && (
-                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">
-                        Priority
-                      </span>
-                    )}
-                    {enhancements.verified && (
-                      <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
-                        Verified
-                      </span>
-                    )}
-                    {enhancements.topSearch && (
-                      <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">
-                        Top Search
-                      </span>
-                    )}
-                  </div>
-                </div>
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
+            <input
+              type="checkbox"
+              checked={enhancements.priority}
+              onChange={() => handleEnhancementChange('priority')}
+              className="h-5 w-5 rounded"
+            />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 font-bold text-slate-900">
+                <Zap size={18} className="text-blue-500" />
+                Priority Listing
+              </div>
+              <p className="mt-1 text-xs text-slate-600">Show higher in search results</p>
+            </div>
+          </label>
+
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
+            <input
+              type="checkbox"
+              checked={enhancements.verified}
+              onChange={() => handleEnhancementChange('verified')}
+              className="h-5 w-5 rounded"
+            />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 font-bold text-slate-900">
+                <Check size={18} className="text-green-500" />
+                Verified Badge
+              </div>
+              <p className="mt-1 text-xs text-slate-600">Show verified seller/item badge</p>
+            </div>
+          </label>
+
+          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4 md:col-span-2">
+            <input
+              type="checkbox"
+              checked={enhancements.topSearch}
+              onChange={() => handleEnhancementChange('topSearch')}
+              className="h-5 w-5 rounded"
+            />
+            <div className="flex-1">
+              <div className="flex items-center gap-2 font-bold text-slate-900">
+                <Target size={18} className="text-red-500" />
+                Top Search Placement
+              </div>
+              <p className="mt-1 text-xs text-slate-600">Appear at top of relevant searches</p>
+            </div>
+          </label>
+        </div>
+
+        {(sponsored || Object.values(enhancements).some((v) => v)) && (
+          <div className="mt-4 rounded-xl border border-teal-200 bg-teal-50 p-4">
+            <p className="mb-2 text-sm font-bold text-teal-900">Active Enhancements:</p>
+            <div className="flex flex-wrap gap-2">
+              {sponsored && (
+                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
+                  Sponsored
+                </span>
+              )}
+              {enhancements.featured && (
+                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
+                  Featured
+                </span>
+              )}
+              {enhancements.priority && (
+                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">
+                  Priority
+                </span>
+              )}
+              {enhancements.verified && (
+                <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+                  Verified
+                </span>
+              )}
+              {enhancements.topSearch && (
+                <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">
+                  Top Search
+                </span>
               )}
             </div>
+          </div>
+        )}
+      </div>
     </AdminListingModalFrame>
   );
 }

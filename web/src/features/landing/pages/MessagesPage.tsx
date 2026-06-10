@@ -66,13 +66,18 @@ export default function MessagesPage(): ReactElement {
         headers,
       });
       const payload = (await response.json()) as ThreadResponse;
-      if (!response.ok || !payload.success) throw new Error(payload.error || 'Failed to load messages');
+      if (!response.ok || !payload.success)
+        throw new Error(payload.error || 'Failed to load messages');
       return payload.data || [];
     },
   });
 
   const threads = useMemo(
-    () => [...(threadsQuery.data || [])].sort((a, b) => new Date(b.lastTimestamp || 0).getTime() - new Date(a.lastTimestamp || 0).getTime()),
+    () =>
+      [...(threadsQuery.data || [])].sort(
+        (a, b) =>
+          new Date(b.lastTimestamp || 0).getTime() - new Date(a.lastTimestamp || 0).getTime()
+      ),
     [threadsQuery.data]
   );
 
@@ -85,11 +90,11 @@ export default function MessagesPage(): ReactElement {
         <section className="rounded-3xl border border-[#1e5da8]/15 bg-white p-6 shadow-[0_24px_60px_-42px_rgba(30,93,168,0.68)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-2xl font-bold text-[#113965]">Messages</h1>
-            <Link to="/deals" className="text-sm font-semibold text-[#1e5da8] hover:underline">Back to Deals</Link>
+            <Link to="/deals" className="text-sm font-semibold text-[#1e5da8] hover:underline">
+              Back to Deals
+            </Link>
           </div>
-          <p className="mt-2 text-sm text-slate-600">
-            {threads.length} conversation(s)
-          </p>
+          <p className="mt-2 text-sm text-slate-600">{threads.length} conversation(s)</p>
         </section>
 
         <div className="mt-5 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
@@ -101,30 +106,60 @@ export default function MessagesPage(): ReactElement {
             {threadsQuery.isError ? <p className="text-red-600">Failed to load messages.</p> : null}
 
             {threads.map((thread) => (
-              <article key={thread.conversationId} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <article
+                key={thread.conversationId}
+                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
                 <div className="flex items-start gap-3">
                   <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                     {thread.listingImage ? (
-                      <img src={thread.listingImage} alt={thread.listingTitle || 'Listing'} className="h-full w-full object-cover" loading="lazy" />
+                      <img
+                        src={thread.listingImage}
+                        alt={thread.listingTitle || 'Listing'}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-slate-400"><MessageCircle size={18} /></div>
+                      <div className="flex h-full w-full items-center justify-center text-slate-400">
+                        <MessageCircle size={18} />
+                      </div>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
-                      <h2 className="line-clamp-1 text-base font-semibold text-slate-900">{thread.listingTitle || 'Listing'}</h2>
-                      <p className="whitespace-nowrap text-xs text-slate-500">{formatTimeAgo(thread.lastTimestamp)}</p>
+                      <h2 className="line-clamp-1 text-base font-semibold text-slate-900">
+                        {thread.listingTitle || 'Listing'}
+                      </h2>
+                      <p className="whitespace-nowrap text-xs text-slate-500">
+                        {formatTimeAgo(thread.lastTimestamp)}
+                      </p>
                     </div>
-                    <p className="mt-0.5 text-sm font-medium text-[#1e5da8]">{thread.otherUserLabel || thread.otherUserName || 'User'}</p>
-                    <p className="mt-1 line-clamp-1 text-sm text-slate-600">{thread.lastMessage || 'No messages yet'}</p>
+                    <p className="mt-0.5 text-sm font-medium text-[#1e5da8]">
+                      {thread.otherUserLabel || thread.otherUserName || 'User'}
+                    </p>
+                    <p className="mt-1 line-clamp-1 text-sm text-slate-600">
+                      {thread.lastMessage || 'No messages yet'}
+                    </p>
 
                     <div className="mt-2 flex items-center justify-between">
-                      <p className="inline-flex items-center gap-1 text-xs text-slate-500"><Clock3 size={12} /> {thread.lastTimestamp ? new Date(thread.lastTimestamp).toLocaleString('en-IN') : 'Just now'}</p>
+                      <p className="inline-flex items-center gap-1 text-xs text-slate-500">
+                        <Clock3 size={12} />{' '}
+                        {thread.lastTimestamp
+                          ? new Date(thread.lastTimestamp).toLocaleString('en-IN')
+                          : 'Just now'}
+                      </p>
                       <div className="flex items-center gap-3">
                         {thread.unreadCount && thread.unreadCount > 0 ? (
-                          <span className="rounded-full bg-[#1e5da8] px-2 py-0.5 text-xs font-semibold text-white">{thread.unreadCount > 99 ? '99+' : thread.unreadCount}</span>
+                          <span className="rounded-full bg-[#1e5da8] px-2 py-0.5 text-xs font-semibold text-white">
+                            {thread.unreadCount > 99 ? '99+' : thread.unreadCount}
+                          </span>
                         ) : null}
-                        <Link to={`/messages/${thread.conversationId}`} className="text-xs font-semibold text-[#ff7b00] hover:underline">Open Chat</Link>
+                        <Link
+                          to={`/messages/${thread.conversationId}`}
+                          className="text-xs font-semibold text-[#ff7b00] hover:underline"
+                        >
+                          Open Chat
+                        </Link>
                       </div>
                     </div>
                   </div>
@@ -138,8 +173,6 @@ export default function MessagesPage(): ReactElement {
               </div>
             ) : null}
           </section>
-
-          
         </div>
       </main>
       <LandingFooter />

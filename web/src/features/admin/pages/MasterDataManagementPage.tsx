@@ -156,7 +156,9 @@ export default function MasterDataManagementPage() {
 
   const filteredUnits = useMemo(() => {
     const term = unitQuery.trim().toLowerCase();
-    return term ? listingPriceUnits.filter((unit) => unit.toLowerCase().includes(term)) : listingPriceUnits;
+    return term
+      ? listingPriceUnits.filter((unit) => unit.toLowerCase().includes(term))
+      : listingPriceUnits;
   }, [listingPriceUnits, unitQuery]);
 
   const filteredAttributes = useMemo(() => {
@@ -250,7 +252,9 @@ export default function MasterDataManagementPage() {
       if (!name) return;
       setListingCategoryGroups((groups) =>
         editingContext?.type === 'category'
-          ? groups.map((group, index) => (index === editingContext.index ? { ...group, mainCategory: name } : group))
+          ? groups.map((group, index) =>
+              index === editingContext.index ? { ...group, mainCategory: name } : group
+            )
           : [...groups, { mainCategory: name, subcategories: ['Other'] }]
       );
     }
@@ -373,7 +377,9 @@ export default function MasterDataManagementPage() {
                 <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
                   <div>
                     <h2 className="text-sm font-semibold text-slate-900">Categories</h2>
-                    <p className="text-xs text-slate-500">{pillCount(listingCategoryGroups.length)} total</p>
+                    <p className="text-xs text-slate-500">
+                      {pillCount(listingCategoryGroups.length)} total
+                    </p>
                   </div>
                   <button
                     type="button"
@@ -412,15 +418,21 @@ export default function MasterDataManagementPage() {
                           onClick={() => setSelectedCategoryIndex(index)}
                           className="flex min-w-0 flex-1 items-center gap-3 text-left"
                         >
-                          <span className={`flex h-11 w-11 items-center justify-center rounded-xl border ${colorByIndex(index)}`}>
+                          <span
+                            className={`flex h-11 w-11 items-center justify-center rounded-xl border ${colorByIndex(index)}`}
+                          >
                             <Tag size={16} />
                           </span>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="truncate text-sm font-semibold text-slate-900">{group.mainCategory}</p>
+                              <p className="truncate text-sm font-semibold text-slate-900">
+                                {group.mainCategory}
+                              </p>
                               <ArrowRight size={14} className="shrink-0 text-slate-400" />
                             </div>
-                            <p className="text-xs text-slate-500">{group.subcategories.length} sub categories</p>
+                            <p className="text-xs text-slate-500">
+                              {group.subcategories.length} sub categories
+                            </p>
                           </div>
                           <span className="ml-2 min-w-8 text-right text-xs text-slate-500">
                             {pillCount(group.subcategories.length)}
@@ -514,12 +526,16 @@ export default function MasterDataManagementPage() {
                           onClick={() => setSelectedSubcategoryIndex(index)}
                           className="flex min-w-0 flex-1 items-center gap-3 text-left"
                         >
-                          <span className={`flex h-11 w-11 items-center justify-center rounded-xl border ${colorByIndex(index + 1)}`}>
+                          <span
+                            className={`flex h-11 w-11 items-center justify-center rounded-xl border ${colorByIndex(index + 1)}`}
+                          >
                             <Tag size={16} />
                           </span>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="truncate text-sm font-semibold text-slate-900">{subcategory}</p>
+                              <p className="truncate text-sm font-semibold text-slate-900">
+                                {subcategory}
+                              </p>
                               <ArrowRight size={14} className="shrink-0 text-slate-400" />
                             </div>
                             <p className="text-xs text-slate-500">Sub category</p>
@@ -530,7 +546,9 @@ export default function MasterDataManagementPage() {
                           <button
                             type="button"
                             onClick={() =>
-                              setSubcategoryMenuIndex((current) => (current === index ? null : index))
+                              setSubcategoryMenuIndex((current) =>
+                                current === index ? null : index
+                              )
                             }
                             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                           >
@@ -580,7 +598,9 @@ export default function MasterDataManagementPage() {
                 <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
                   <div>
                     <h2 className="text-sm font-semibold text-slate-900">Units</h2>
-                    <p className="text-xs text-slate-500">{pillCount(listingPriceUnits.length)} total</p>
+                    <p className="text-xs text-slate-500">
+                      {pillCount(listingPriceUnits.length)} total
+                    </p>
                   </div>
                   <button
                     type="button"
@@ -605,29 +625,33 @@ export default function MasterDataManagementPage() {
                   {filteredUnits.map((unit) => {
                     const index = listingPriceUnits.indexOf(unit);
                     return (
-                    <div
-                      key={`${unit}-${index}`}
-                      className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${colorByIndex(index)}`}>
-                          {unit.split(' ')[0] || 'Unit'}
-                        </span>
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">{unit}</p>
-                          <p className="text-xs text-slate-500">Listing unit</p>
+                      <div
+                        key={`${unit}-${index}`}
+                        className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold ${colorByIndex(index)}`}
+                          >
+                            {unit.split(' ')[0] || 'Unit'}
+                          </span>
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">{unit}</p>
+                            <p className="text-xs text-slate-500">Listing unit</p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setUnitMenuIndex((current) => (current === index ? null : index))}
-                          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                        >
-                          <MoreVertical size={16} />
-                        </button>
-                        {unitMenuIndex === index
-                          ? renderMenu([
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setUnitMenuIndex((current) => (current === index ? null : index))
+                            }
+                            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+                          {unitMenuIndex === index
+                            ? renderMenu([
                                 {
                                   label: 'Edit',
                                   onClick: () => {
@@ -647,8 +671,8 @@ export default function MasterDataManagementPage() {
                                 },
                               ])
                             : null}
+                        </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
@@ -690,7 +714,9 @@ export default function MasterDataManagementPage() {
                         className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
                       />
                     </div>
-                    <span className="text-xs text-slate-500">{filteredAttributes.length} results</span>
+                    <span className="text-xs text-slate-500">
+                      {filteredAttributes.length} results
+                    </span>
                   </div>
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -709,49 +735,53 @@ export default function MasterDataManagementPage() {
                         filteredAttributes.map((attribute) => {
                           const index = selectedAttributes.indexOf(attribute);
                           return (
-                          <tr key={`${attribute.name}-${index}`} className="hover:bg-slate-50">
-                            <td className="px-4 py-3 text-slate-500">{index + 1}</td>
-                            <td className="px-4 py-3 font-medium text-slate-900">{attribute.name}</td>
-                            <td className="px-4 py-3">
-                              <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-600">
-                                {attribute.fieldType}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-slate-600">{attribute.unit || '-'}</td>
-                            <td className="px-4 py-3">
-                              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
-                                {attribute.required ? 'Yes' : 'No'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
-                                {attribute.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => openEditModal('attribute', index)}
-                                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setAttributesByKey((current) => ({
-                                      ...current,
-                                      [selectedAttributeKey]: (current[selectedAttributeKey] || []).filter((_, itemIndex) => itemIndex !== index),
-                                    }))
-                                  }
-                                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
+                            <tr key={`${attribute.name}-${index}`} className="hover:bg-slate-50">
+                              <td className="px-4 py-3 text-slate-500">{index + 1}</td>
+                              <td className="px-4 py-3 font-medium text-slate-900">
+                                {attribute.name}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-600">
+                                  {attribute.fieldType}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">{attribute.unit || '-'}</td>
+                              <td className="px-4 py-3">
+                                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
+                                  {attribute.required ? 'Yes' : 'No'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
+                                  {attribute.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditModal('attribute', index)}
+                                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setAttributesByKey((current) => ({
+                                        ...current,
+                                        [selectedAttributeKey]: (
+                                          current[selectedAttributeKey] || []
+                                        ).filter((_, itemIndex) => itemIndex !== index),
+                                      }))
+                                    }
+                                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
                           );
                         })
                       ) : (
@@ -767,9 +797,12 @@ export default function MasterDataManagementPage() {
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
                   <div className="mx-auto mb-4 h-24 w-24 rounded-full bg-blue-100" />
-                  <p className="text-sm font-semibold text-slate-900">{selectedSubcategory || 'Cars'}</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {selectedSubcategory || 'Cars'}
+                  </p>
                   <p className="text-xs text-slate-500">
-                    {selectedCategory?.mainCategory || 'Vehicles'} &gt; {selectedSubcategory || 'Cars'}
+                    {selectedCategory?.mainCategory || 'Vehicles'} &gt;{' '}
+                    {selectedSubcategory || 'Cars'}
                   </p>
                   <p className="mt-3 text-xs text-slate-500">Total Attributes</p>
                   <p className="text-4xl font-bold text-blue-600">{selectedAttributes.length}</p>
@@ -916,7 +949,11 @@ export default function MasterDataManagementPage() {
                 onClick={submitModal}
                 className="rounded-xl bg-[#2563eb] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1d4ed8]"
               >
-                {editingContext ? 'Save Changes' : modalType === 'attribute' ? 'Add Attribute' : 'Add'}
+                {editingContext
+                  ? 'Save Changes'
+                  : modalType === 'attribute'
+                    ? 'Add Attribute'
+                    : 'Add'}
               </button>
             </div>
           </div>

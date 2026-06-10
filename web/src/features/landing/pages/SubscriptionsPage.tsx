@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { BadgeIndianRupee, CalendarDays, MapPin, Rocket, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import {
+  BadgeIndianRupee,
+  CalendarDays,
+  MapPin,
+  Rocket,
+  ShieldCheck,
+  Sparkles,
+  Zap,
+} from 'lucide-react';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 
@@ -188,7 +196,9 @@ function getPlanPrice(tier: SubscriptionTier): number {
 function loadRazorpayScript(): Promise<boolean> {
   if (window.Razorpay) return Promise.resolve(true);
   return new Promise((resolve) => {
-    const existing = document.querySelector<HTMLScriptElement>('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[src="https://checkout.razorpay.com/v1/checkout.js"]'
+    );
     if (existing) {
       existing.addEventListener('load', () => resolve(true), { once: true });
       existing.addEventListener('error', () => resolve(false), { once: true });
@@ -257,7 +267,8 @@ export default function SubscriptionsPage(): ReactElement {
         headers: { 'Content-Type': 'application/json' },
       });
       const payload = (await response.json()) as SubscriptionTiersResponse;
-      if (!response.ok || !payload.success) throw new Error(payload.error || 'Failed to load plans');
+      if (!response.ok || !payload.success)
+        throw new Error(payload.error || 'Failed to load plans');
       return payload;
     },
   });
@@ -281,7 +292,8 @@ export default function SubscriptionsPage(): ReactElement {
   );
   const starterCredits = subscriptionsQuery.data?.starterCredits;
   const availablePlans = useMemo(
-    () => (tiersQuery.data?.tiers || []).filter((tier) => String(tier.type || 'bundle') !== 'boost'),
+    () =>
+      (tiersQuery.data?.tiers || []).filter((tier) => String(tier.type || 'bundle') !== 'boost'),
     [tiersQuery.data?.tiers]
   );
 
@@ -308,7 +320,8 @@ export default function SubscriptionsPage(): ReactElement {
       const key = `${sub.tier.name || 'Plan'}-${sub.tier.durationDays || 30}-${sub.tier.maxListings ?? 0}`;
       const tierPrice = Number(sub.tier.offerPrice || sub.tier.price || 0);
       const maxListings = Number(sub.tier.maxListings || 0);
-      const available = maxListings === -1 ? -1 : Math.max(0, maxListings - Number(sub.listingsUsed || 0));
+      const available =
+        maxListings === -1 ? -1 : Math.max(0, maxListings - Number(sub.listingsUsed || 0));
       const boostEntitlement = Number(sub.tier.boostCredits || 0);
       const boostsRemaining = Number(sub.boostsRemaining || 0);
       const expiry = new Date(sub.expiresAt);
@@ -381,8 +394,12 @@ export default function SubscriptionsPage(): ReactElement {
       activeSubscriptionGroups.flatMap((group) => group.subscriptions.map((sub) => sub.id))
     );
 
-    setSelectedActiveSubscriptionId((current) => (current && visibleIds.has(current) ? current : firstVisibleId));
-    setDefaultActiveSubscriptionId((current) => (current && visibleIds.has(current) ? current : firstVisibleId));
+    setSelectedActiveSubscriptionId((current) =>
+      current && visibleIds.has(current) ? current : firstVisibleId
+    );
+    setDefaultActiveSubscriptionId((current) =>
+      current && visibleIds.has(current) ? current : firstVisibleId
+    );
   }, [activeSubscriptionGroups]);
 
   useEffect(() => {
@@ -503,7 +520,9 @@ export default function SubscriptionsPage(): ReactElement {
 
       const razorpayLoaded = await loadRazorpayScript();
       if (!razorpayLoaded || !window.Razorpay) {
-        setCheckoutMessage('Unable to load Razorpay checkout. Please check internet connection and try again.');
+        setCheckoutMessage(
+          'Unable to load Razorpay checkout. Please check internet connection and try again.'
+        );
         return;
       }
 
@@ -521,30 +540,39 @@ export default function SubscriptionsPage(): ReactElement {
           handler: (paymentResponse) => {
             void (async () => {
               try {
-                const verifyResponse = await fetch(`${getApiUrl()}/api/subscriptions/verify-payment`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'x-user-id': userId,
-                    'x-user-phone': userPhone,
-                  },
-                  body: JSON.stringify({
-                    subscriptionId: created.id,
-                    couponCode: couponCode || undefined,
-                    razorpay_order_id: paymentResponse.razorpay_order_id,
-                    razorpay_payment_id: paymentResponse.razorpay_payment_id,
-                    razorpay_signature: paymentResponse.razorpay_signature,
-                  }),
-                });
-                const verified = (await verifyResponse.json().catch(() => ({}))) as VerifyPaymentResponse;
+                const verifyResponse = await fetch(
+                  `${getApiUrl()}/api/subscriptions/verify-payment`,
+                  {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'x-user-id': userId,
+                      'x-user-phone': userPhone,
+                    },
+                    body: JSON.stringify({
+                      subscriptionId: created.id,
+                      couponCode: couponCode || undefined,
+                      razorpay_order_id: paymentResponse.razorpay_order_id,
+                      razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                      razorpay_signature: paymentResponse.razorpay_signature,
+                    }),
+                  }
+                );
+                const verified = (await verifyResponse
+                  .json()
+                  .catch(() => ({}))) as VerifyPaymentResponse;
                 if (!verifyResponse.ok || !verified.success) {
                   throw new Error(verified.error || 'Payment verification failed');
                 }
-                setCheckoutMessage(verified.message || 'Payment verified. Plan activated successfully.');
+                setCheckoutMessage(
+                  verified.message || 'Payment verified. Plan activated successfully.'
+                );
                 await subscriptionsQuery.refetch();
               } catch (verifyError) {
                 setCheckoutMessage(
-                  verifyError instanceof Error ? verifyError.message : 'Payment verification failed.'
+                  verifyError instanceof Error
+                    ? verifyError.message
+                    : 'Payment verification failed.'
                 );
               } finally {
                 resolve();
@@ -553,7 +581,9 @@ export default function SubscriptionsPage(): ReactElement {
           },
           modal: {
             ondismiss: () => {
-              setCheckoutMessage('Payment was not completed. The subscription will stay pending until payment is verified.');
+              setCheckoutMessage(
+                'Payment was not completed. The subscription will stay pending until payment is verified.'
+              );
               resolve();
             },
           },
@@ -561,7 +591,9 @@ export default function SubscriptionsPage(): ReactElement {
         razorpay.open();
       });
     } catch (error) {
-      setCheckoutMessage(error instanceof Error ? error.message : 'Failed to proceed with this plan.');
+      setCheckoutMessage(
+        error instanceof Error ? error.message : 'Failed to proceed with this plan.'
+      );
     } finally {
       setCheckoutTierId('');
     }
@@ -616,10 +648,15 @@ export default function SubscriptionsPage(): ReactElement {
               </span>
             </div>
             <p className="mt-2 text-sm text-slate-600">
-              {locationStatus === 'ready' && (locationHint?.city || locationHint?.state || locationHint?.pincode)
-                ? `Showing your current location as ${
-                    [locationHint?.city, locationHint?.state, locationHint?.pincode].filter(isMeaningfulText).join(', ')
-                  }.`
+              {locationStatus === 'ready' &&
+              (locationHint?.city || locationHint?.state || locationHint?.pincode)
+                ? `Showing your current location as ${[
+                    locationHint?.city,
+                    locationHint?.state,
+                    locationHint?.pincode,
+                  ]
+                    .filter(isMeaningfulText)
+                    .join(', ')}.`
                 : 'Location is optional here, but it helps us mirror the app experience and future pricing hints.'}
             </p>
           </div>
@@ -641,8 +678,12 @@ export default function SubscriptionsPage(): ReactElement {
         </section>
 
         <section className="mt-5 space-y-3">
-          {subscriptionsQuery.isLoading ? <p className="text-slate-600">Loading subscriptions...</p> : null}
-          {subscriptionsQuery.isError ? <p className="text-red-600">Failed to load subscriptions.</p> : null}
+          {subscriptionsQuery.isLoading ? (
+            <p className="text-slate-600">Loading subscriptions...</p>
+          ) : null}
+          {subscriptionsQuery.isError ? (
+            <p className="text-red-600">Failed to load subscriptions.</p>
+          ) : null}
 
           {starterCredits?.isActive ? (
             <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
@@ -651,7 +692,9 @@ export default function SubscriptionsPage(): ReactElement {
                   <h2 className="inline-flex items-center gap-2 text-base font-semibold text-slate-900">
                     <Rocket size={16} /> Starter Credits
                   </h2>
-                  <p className="mt-1 text-xs text-slate-500">Included credits for new or existing accounts.</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Included credits for new or existing accounts.
+                  </p>
                 </div>
                 <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold uppercase text-emerald-700">
                   active
@@ -659,8 +702,12 @@ export default function SubscriptionsPage(): ReactElement {
               </div>
 
               <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
-                <p>Listings: {starterCredits.listingsRemaining}/{starterCredits.listingsTotal} left</p>
-                <p>Boosts: {starterCredits.boostsRemaining}/{starterCredits.boostsTotal} left</p>
+                <p>
+                  Listings: {starterCredits.listingsRemaining}/{starterCredits.listingsTotal} left
+                </p>
+                <p>
+                  Boosts: {starterCredits.boostsRemaining}/{starterCredits.boostsTotal} left
+                </p>
               </div>
             </article>
           ) : null}
@@ -687,13 +734,17 @@ export default function SubscriptionsPage(): ReactElement {
                 {activeSubscriptionGroups.map((group) => {
                   const selectedId = selectedActiveSubscriptionId || defaultActiveSubscriptionId;
                   const isSelected = group.subscriptions.some((sub) => sub.id === selectedId);
-                  const isDefault = group.subscriptions.some((sub) => sub.id === defaultActiveSubscriptionId);
+                  const isDefault = group.subscriptions.some(
+                    (sub) => sub.id === defaultActiveSubscriptionId
+                  );
 
                   return (
                     <button
                       key={group.key}
                       type="button"
-                      onClick={() => setSelectedActiveSubscriptionId(group.subscriptions[0]?.id || '')}
+                      onClick={() =>
+                        setSelectedActiveSubscriptionId(group.subscriptions[0]?.id || '')
+                      }
                       className={`rounded-2xl border p-4 text-left transition ${
                         isSelected
                           ? 'border-[#1e5da8] bg-[#eef5ff] shadow-[0_14px_36px_-28px_rgba(30,93,168,0.65)]'
@@ -704,7 +755,8 @@ export default function SubscriptionsPage(): ReactElement {
                         <div>
                           <p className="text-base font-semibold text-slate-900">{group.tierName}</p>
                           <p className="mt-1 text-xs text-slate-500">
-                            {group.durationDays} days · {group.count} active subscription{group.count === 1 ? '' : 's'}
+                            {group.durationDays} days · {group.count} active subscription
+                            {group.count === 1 ? '' : 's'}
                           </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
@@ -726,10 +778,14 @@ export default function SubscriptionsPage(): ReactElement {
                           <BadgeIndianRupee size={14} /> {formatCurrency(group.tierPrice)}
                         </p>
                         <p className="inline-flex items-center gap-2">
-                          <CalendarDays size={14} /> Expires in {group.shortestExpiryDays} day{group.shortestExpiryDays === 1 ? '' : 's'}
+                          <CalendarDays size={14} /> Expires in {group.shortestExpiryDays} day
+                          {group.shortestExpiryDays === 1 ? '' : 's'}
                         </p>
                         <p>
-                          Listings: {group.hasUnlimited ? 'Unlimited' : `${group.totalUsed}/${group.totalLimit}`}
+                          Listings:{' '}
+                          {group.hasUnlimited
+                            ? 'Unlimited'
+                            : `${group.totalUsed}/${group.totalLimit}`}
                         </p>
                         <p>Boosts left: {group.totalBoostsRemaining}</p>
                       </div>
@@ -737,7 +793,9 @@ export default function SubscriptionsPage(): ReactElement {
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                         <span className="inline-flex items-center gap-1">
                           <Sparkles size={12} className="text-[#1e5da8]" />
-                          {group.hasUnlimited ? 'Unlimited listing allowance' : 'Fixed listing allowance'}
+                          {group.hasUnlimited
+                            ? 'Unlimited listing allowance'
+                            : 'Fixed listing allowance'}
                         </span>
                         <span className="inline-flex items-center gap-1">
                           <Zap size={12} className="text-amber-500" />
@@ -754,34 +812,55 @@ export default function SubscriptionsPage(): ReactElement {
           ) : null}
 
           {subscriptions.map((item) => (
-            <article key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article
+              key={item.id}
+              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h2 className="text-base font-semibold text-slate-900">{item.title}</h2>
                   <p className="mt-1 text-xs text-slate-500">Subscription ID: {item.id}</p>
                 </div>
-                <span className={`rounded-full px-2 py-1 text-xs font-semibold uppercase ${item.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
+                <span
+                  className={`rounded-full px-2 py-1 text-xs font-semibold uppercase ${item.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}
+                >
                   {item.status}
                 </span>
               </div>
 
               <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
-                <p className="inline-flex items-center gap-2"><BadgeIndianRupee size={14} /> {formatCurrency(item.price)}</p>
-                <p className="inline-flex items-center gap-2"><CalendarDays size={14} /> {item.durationDays} days</p>
+                <p className="inline-flex items-center gap-2">
+                  <BadgeIndianRupee size={14} /> {formatCurrency(item.price)}
+                </p>
+                <p className="inline-flex items-center gap-2">
+                  <CalendarDays size={14} /> {item.durationDays} days
+                </p>
                 <p>Start: {formatDate(item.startDate)}</p>
                 <p>Expiry: {formatDate(item.expiresAt)}</p>
-                <p>Listings: {item.maxListings === -1 ? 'Unlimited' : `${item.listingsUsed}/${item.maxListings}`}</p>
+                <p>
+                  Listings:{' '}
+                  {item.maxListings === -1
+                    ? 'Unlimited'
+                    : `${item.listingsUsed}/${item.maxListings}`}
+                </p>
                 <p>Boosts left: {item.boostsRemaining}</p>
               </div>
 
               <div className="mt-3 flex items-center justify-between">
                 <p className="text-xs text-slate-500">Payment: {item.paymentId || 'NA'}</p>
-                <Link to="/create-listing" className="text-sm font-semibold text-[#ff7b00] hover:underline">Create Listing</Link>
+                <Link
+                  to="/create-listing"
+                  className="text-sm font-semibold text-[#ff7b00] hover:underline"
+                >
+                  Create Listing
+                </Link>
               </div>
             </article>
           ))}
 
-          {!subscriptionsQuery.isLoading && subscriptions.length === 0 && !starterCredits?.isActive ? (
+          {!subscriptionsQuery.isLoading &&
+          subscriptions.length === 0 &&
+          !starterCredits?.isActive ? (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 p-8 text-center text-slate-600">
               No subscriptions found yet.
             </div>
@@ -791,7 +870,9 @@ export default function SubscriptionsPage(): ReactElement {
         <section className="mt-8">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-xl font-bold text-[#113965]">Available Plans</h2>
-            {tiersQuery.isLoading ? <p className="text-sm text-slate-500">Loading plans...</p> : null}
+            {tiersQuery.isLoading ? (
+              <p className="text-sm text-slate-500">Loading plans...</p>
+            ) : null}
           </div>
 
           {checkoutMessage ? (
@@ -812,14 +893,20 @@ export default function SubscriptionsPage(): ReactElement {
               const finalPrice = getPlanPrice(tier);
               const couponCode = couponByTierId[tier.id] || '';
               const isCheckingOut = checkoutTierId === tier.id;
-              const selectedActivePlan = selectedActiveSubscriptionSummary?.tier?.name || 'No active plan selected';
+              const selectedActivePlan =
+                selectedActiveSubscriptionSummary?.tier?.name || 'No active plan selected';
 
               return (
-                <article key={tier.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <article
+                  key={tier.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="text-lg font-black text-slate-900">{tier.name}</h3>
-                      <p className="mt-1 text-sm font-semibold text-slate-500">{tier.durationDays} days</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-500">
+                        {tier.durationDays} days
+                      </p>
                     </div>
                     {tier.highlight ? (
                       <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black uppercase text-amber-700">
@@ -829,14 +916,20 @@ export default function SubscriptionsPage(): ReactElement {
                   </div>
 
                   <div className="mt-4 flex items-end gap-2">
-                    <p className="text-3xl font-black text-[#113965]">{formatCurrency(finalPrice)}</p>
+                    <p className="text-3xl font-black text-[#113965]">
+                      {formatCurrency(finalPrice)}
+                    </p>
                     {finalPrice < regularPrice ? (
-                      <p className="pb-1 text-sm font-semibold text-slate-400 line-through">{formatCurrency(regularPrice)}</p>
+                      <p className="pb-1 text-sm font-semibold text-slate-400 line-through">
+                        {formatCurrency(regularPrice)}
+                      </p>
                     ) : null}
                   </div>
 
                   <div className="mt-4 grid gap-2 text-sm text-slate-700">
-                    <p>Listings: {Number(tier.maxListings) === -1 ? 'Unlimited' : tier.maxListings}</p>
+                    <p>
+                      Listings: {Number(tier.maxListings) === -1 ? 'Unlimited' : tier.maxListings}
+                    </p>
                     <p>Boost credits: {Number(tier.boostCredits || 0)}</p>
                     {(tier.features || []).slice(0, 4).map((feature) => (
                       <p key={feature}>{feature}</p>
@@ -844,14 +937,18 @@ export default function SubscriptionsPage(): ReactElement {
                   </div>
 
                   <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                    Focused active plan: <span className="font-semibold text-slate-800">{selectedActivePlan}</span>
+                    Focused active plan:{' '}
+                    <span className="font-semibold text-slate-800">{selectedActivePlan}</span>
                   </div>
 
                   <div className="mt-5 space-y-3">
                     <input
                       value={couponCode}
                       onChange={(event) =>
-                        setCouponByTierId((prev) => ({ ...prev, [tier.id]: event.target.value.toUpperCase() }))
+                        setCouponByTierId((prev) => ({
+                          ...prev,
+                          [tier.id]: event.target.value.toUpperCase(),
+                        }))
                       }
                       placeholder="Coupon code"
                       className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-[#1e5da8]"
@@ -865,7 +962,11 @@ export default function SubscriptionsPage(): ReactElement {
                       disabled={Boolean(checkoutTierId)}
                       className="h-10 w-full rounded-lg bg-[#1f63b2] text-xs font-black text-white disabled:opacity-60"
                     >
-                      {isCheckingOut ? 'Processing...' : couponCode.trim() ? 'Apply Coupon & Proceed' : 'Proceed Plan'}
+                      {isCheckingOut
+                        ? 'Processing...'
+                        : couponCode.trim()
+                          ? 'Apply Coupon & Proceed'
+                          : 'Proceed Plan'}
                     </button>
                   </div>
                 </article>

@@ -71,13 +71,11 @@ function readPersistedHeaderState(key: string): {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as
-      | {
-          query?: string;
-          location?: string;
-          geo?: { latitude: number; longitude: number } | null;
-        }
-      | null;
+    const parsed = JSON.parse(raw) as {
+      query?: string;
+      location?: string;
+      geo?: { latitude: number; longitude: number } | null;
+    } | null;
     if (!parsed) return null;
     return parsed;
   } catch {
@@ -134,7 +132,9 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
       : null;
   });
   const [isLocating, setIsLocating] = useState(false);
-  const [suggestions, setSuggestions] = useState<Array<{ display: string; lat?: number; lon?: number }>>([]);
+  const [suggestions, setSuggestions] = useState<
+    Array<{ display: string; lat?: number; lon?: number }>
+  >([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [locationQuery, setLocationQuery] = useState(() => {
     const restored = persistedHeaderState?.location || '';
@@ -214,8 +214,13 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
     queryKey: ['header-user-profile', userId],
     enabled: Boolean(userId),
     queryFn: async () => {
-      const response = await fetch(`${getApiUrl()}/api/users/profile`, { headers: notificationHeaders });
-      const payload = (await response.json().catch(() => ({}))) as StoredWebUser & { success?: boolean; error?: string };
+      const response = await fetch(`${getApiUrl()}/api/users/profile`, {
+        headers: notificationHeaders,
+      });
+      const payload = (await response.json().catch(() => ({}))) as StoredWebUser & {
+        success?: boolean;
+        error?: string;
+      };
       if (!response.ok) {
         throw new Error(payload.error || 'Failed to load profile');
       }
@@ -283,7 +288,11 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
       const raw = localStorage.getItem(HEADER_PERSIST_KEY);
       if (raw) {
         try {
-          const parsed = JSON.parse(raw) as { query?: string; location?: string; geo?: { latitude: number; longitude: number } | null } | null;
+          const parsed = JSON.parse(raw) as {
+            query?: string;
+            location?: string;
+            geo?: { latitude: number; longitude: number } | null;
+          } | null;
           if (parsed) {
             if (typeof parsed.query === 'string') setQuery(parsed.query);
             if (typeof parsed.location === 'string') {
@@ -296,7 +305,11 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
               }
               setShowSuggestions(false);
             }
-            if (parsed.geo && typeof parsed.geo.latitude === 'number' && typeof parsed.geo.longitude === 'number') {
+            if (
+              parsed.geo &&
+              typeof parsed.geo.latitude === 'number' &&
+              typeof parsed.geo.longitude === 'number'
+            ) {
               setGeoCoords({ latitude: parsed.geo.latitude, longitude: parsed.geo.longitude });
             } else {
               setGeoCoords(null);
@@ -431,7 +444,13 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
           );
           const payload = (await response.json().catch(() => ({}))) as {
             success?: boolean;
-            data?: { locationName?: string; locality?: string; city?: string; state?: string; pincode?: string };
+            data?: {
+              locationName?: string;
+              locality?: string;
+              city?: string;
+              state?: string;
+              pincode?: string;
+            };
           };
           const resolvedLocation = payload.data
             ? `${payload.data.locationName || payload.data.locality || payload.data.city || ''}`
@@ -462,7 +481,9 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
     () =>
       [...(notificationsQuery.data || [])]
         .filter((item) => item.category !== 'message' && item.category !== 'deal_purchase')
-        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()),
+        .sort(
+          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        ),
     [notificationsQuery.data]
   );
   const unreadNotificationCount = pushNotifications.filter((item) => !item.isRead).length;
@@ -478,14 +499,19 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
     if (!userId) return;
     setNotificationMessage('');
     try {
-      const response = await fetch(`${getApiUrl()}/api/notifications/${encodeURIComponent(notificationId)}/read`, {
-        method: 'POST',
-        headers: notificationHeaders,
-        body: JSON.stringify({ userId }),
-      });
+      const response = await fetch(
+        `${getApiUrl()}/api/notifications/${encodeURIComponent(notificationId)}/read`,
+        {
+          method: 'POST',
+          headers: notificationHeaders,
+          body: JSON.stringify({ userId }),
+        }
+      );
       const payload = await response.json();
       if (!response.ok || !payload.success) {
-        setNotificationMessage(payload.message || payload.error || 'Failed to mark notification read');
+        setNotificationMessage(
+          payload.message || payload.error || 'Failed to mark notification read'
+        );
         return;
       }
       await queryClient.invalidateQueries({ queryKey: ['header-push-notifications', userId] });
@@ -515,7 +541,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
 
         <form onSubmit={submitSearch} className="hidden flex-1 items-center gap-4 md:flex">
           <div className="relative flex items-center">
-            <MapPin size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#08295e]" />
+            <MapPin
+              size={14}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#08295e]"
+            />
             <input
               ref={locationInputRef}
               value={location}
@@ -550,7 +579,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
               <Pin size={14} className="text-[#0759e6]" />
             </button>
             {showSuggestions && suggestions.length > 0 ? (
-              <div ref={suggestionsRef} className="absolute left-0 top-[110%] z-50 w-56 rounded-md border border-slate-200 bg-white shadow-lg">
+              <div
+                ref={suggestionsRef}
+                className="absolute left-0 top-[110%] z-50 w-56 rounded-md border border-slate-200 bg-white shadow-lg"
+              >
                 {suggestions.map((s, idx) => (
                   <button
                     key={idx}
@@ -559,7 +591,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                       setLocation(s.display);
                       setLocationQuery(s.display);
                       setShowSuggestions(false);
-                      const nextGeo = s.lat && s.lon ? { latitude: Number(s.lat), longitude: Number(s.lon) } : null;
+                      const nextGeo =
+                        s.lat && s.lon
+                          ? { latitude: Number(s.lat), longitude: Number(s.lon) }
+                          : null;
                       setGeoCoords(nextGeo);
                       persistHeaderState({ query, location: s.display, geo: nextGeo });
                     }}
@@ -572,8 +607,11 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
             ) : null}
           </div>
 
-            <div className="relative flex-1">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#08295e]" />
+          <div className="relative flex-1">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#08295e]"
+            />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -586,7 +624,6 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
               placeholder="Search listings, brands, products near you..."
               className="h-12 w-full rounded-full border border-slate-200 bg-white px-10 text-sm font-normal text-slate-800 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.55)] outline-none transition focus:border-[#0759e6] focus:ring-2 focus:ring-[#0759e6]/15"
             />
-            
           </div>
         </form>
 
@@ -661,7 +698,9 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                       const content = (
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-black text-slate-950">{notification.title}</p>
+                            <p className="text-sm font-black text-slate-950">
+                              {notification.title}
+                            </p>
                             {!notification.isRead ? (
                               <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#0759e6]" />
                             ) : null}
@@ -679,7 +718,9 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                         <article
                           key={notification.id}
                           className={`rounded-md border p-3 ${
-                            notification.isRead ? 'border-slate-200 bg-white' : 'border-[#0759e6]/25 bg-blue-50/45'
+                            notification.isRead
+                              ? 'border-slate-200 bg-white'
+                              : 'border-[#0759e6]/25 bg-blue-50/45'
                           }`}
                         >
                           {notification.actionUrl ? (
@@ -738,7 +779,11 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                     <div className="flex items-center gap-3 px-4 py-4">
                       <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-slate-100 text-sm font-black text-[#0759e6] ring-1 ring-slate-200">
                         {userAvatarUrl ? (
-                          <img src={userAvatarUrl} alt={userLabel} className="h-full w-full object-cover" />
+                          <img
+                            src={userAvatarUrl}
+                            alt={userLabel}
+                            className="h-full w-full object-cover"
+                          />
                         ) : (
                           userInitial
                         )}
@@ -765,7 +810,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                               <Icon size={16} />
                             </span>
                             <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                            <ChevronRight size={17} className="text-slate-400 transition group-hover:text-[#0759e6]" />
+                            <ChevronRight
+                              size={17}
+                              className="text-slate-400 transition group-hover:text-[#0759e6]"
+                            />
                           </Link>
                         );
                       })}
@@ -780,7 +828,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                         <LogOut size={16} />
                       </span>
                       <span className="min-w-0 flex-1 truncate">Logout</span>
-                      <ChevronRight size={17} className="text-red-300 transition group-hover:text-red-600" />
+                      <ChevronRight
+                        size={17}
+                        className="text-red-300 transition group-hover:text-red-600"
+                      />
                     </button>
                   </>
                 ) : (
@@ -813,17 +864,33 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
 
       {isMenuOpen ? (
         <div className="border-t border-slate-200 bg-white px-4 py-3 md:hidden">
-            <Container className="flex flex-col gap-2 text-sm font-semibold">
-            <Link to={appendSearch('/')} className="rounded-md px-3 py-2 text-slate-800" onClick={() => setIsMenuOpen(false)}>
+          <Container className="flex flex-col gap-2 text-sm font-semibold">
+            <Link
+              to={appendSearch('/')}
+              className="rounded-md px-3 py-2 text-slate-800"
+              onClick={() => setIsMenuOpen(false)}
+            >
               Home
             </Link>
-            <Link to={appendSearch('/search')} className="rounded-md px-3 py-2 text-slate-800" onClick={() => setIsMenuOpen(false)}>
+            <Link
+              to={appendSearch('/search')}
+              className="rounded-md px-3 py-2 text-slate-800"
+              onClick={() => setIsMenuOpen(false)}
+            >
               Search
             </Link>
-            <Link to={appendSearch('/deals')} className="rounded-md px-3 py-2 text-slate-800" onClick={() => setIsMenuOpen(false)}>
+            <Link
+              to={appendSearch('/deals')}
+              className="rounded-md px-3 py-2 text-slate-800"
+              onClick={() => setIsMenuOpen(false)}
+            >
               Deals
             </Link>
-            <Link to={appendSearch('/contact')} className="rounded-md px-3 py-2 text-slate-800" onClick={() => setIsMenuOpen(false)}>
+            <Link
+              to={appendSearch('/contact')}
+              className="rounded-md px-3 py-2 text-slate-800"
+              onClick={() => setIsMenuOpen(false)}
+            >
               Contact
             </Link>
             <Link
@@ -847,7 +914,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                   className="flex items-center justify-between rounded-md px-3 py-2 text-left text-slate-800"
                   onClick={() => setIsNotificationsOpen((prev) => !prev)}
                 >
-                    <span className="inline-flex items-center gap-2">
+                  <span className="inline-flex items-center gap-2">
                     <Bell size={16} /> Notifications
                   </span>
                   {unreadNotificationCount > 0 ? (
@@ -859,16 +926,23 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                 {isNotificationsOpen ? (
                   <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
                     {notificationsQuery.isLoading ? (
-                      <p className="text-sm font-semibold text-slate-600">Loading notifications...</p>
+                      <p className="text-sm font-semibold text-slate-600">
+                        Loading notifications...
+                      </p>
                     ) : null}
                     {!notificationsQuery.isLoading && pushNotifications.length === 0 ? (
                       <p className="text-sm font-semibold text-slate-600">No notifications yet.</p>
                     ) : null}
                     <div className="space-y-2">
                       {pushNotifications.slice(0, 5).map((notification) => (
-                        <div key={`mobile-${notification.id}`} className="rounded-md bg-white p-3 text-sm shadow-sm">
+                        <div
+                          key={`mobile-${notification.id}`}
+                          className="rounded-md bg-white p-3 text-sm shadow-sm"
+                        >
                           <p className="font-black text-slate-950">{notification.title}</p>
-                          <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">{notification.message}</p>
+                          <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
+                            {notification.message}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -889,8 +963,8 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                       {item.label}
                     </Link>
                   ))
-                : null}
-              </Container>
+              : null}
+          </Container>
         </div>
       ) : null}
     </header>

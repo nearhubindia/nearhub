@@ -68,7 +68,9 @@ export function getEffectiveDealWindow(
     };
   }
 
-  const repeatUntilMs = parseRawDateTime(input.dealRecurrenceUntil ?? input.deal_recurrence_until ?? null);
+  const repeatUntilMs = parseRawDateTime(
+    input.dealRecurrenceUntil ?? input.deal_recurrence_until ?? null
+  );
   if (!repeatUntilMs || repeatUntilMs < firstStartMs) return null;
 
   let start = new Date(firstStartMs);
@@ -136,7 +138,9 @@ export function formatDealStatus(input: DealTimingInput, nowMs: number): string 
   if (!window) return '';
   const { startMs, endMs, isRecurring } = window;
   if (nowMs < startMs) {
-    return isRecurring ? `Next deal ${formatDealStartMessage(startMs, nowMs).replace('Deal ', '')}` : formatDealStartMessage(startMs, nowMs);
+    return isRecurring
+      ? `Next deal ${formatDealStartMessage(startMs, nowMs).replace('Deal ', '')}`
+      : formatDealStartMessage(startMs, nowMs);
   }
   if (nowMs > endMs) {
     return 'Deal expired';

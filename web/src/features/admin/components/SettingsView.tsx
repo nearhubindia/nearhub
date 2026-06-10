@@ -268,9 +268,9 @@ export default function SettingsView() {
               </h3>
 
               <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-bold text-slate-900 mb-2">
-                  Platform Name
+                <div>
+                  <label className="block text-sm font-bold text-slate-900 mb-2">
+                    Platform Name
                   </label>
                   <input
                     type="text"

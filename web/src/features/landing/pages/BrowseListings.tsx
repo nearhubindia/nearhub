@@ -81,7 +81,11 @@ const categories: BrowseCategory[] = [
 function formatPrice(value: string | number | undefined): string {
   const n = typeof value === 'string' ? Number(value) : value;
   if (!Number.isFinite(n)) return 'Price on request';
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n as number);
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(n as number);
 }
 
 function getDealStatus(listing: Listing): string {
@@ -97,13 +101,17 @@ function parsePrice(value: string | number | undefined): number {
 }
 
 function getPostDealPriceMode(listing: Listing): string {
-  return String(listing.postDealPriceMode || listing.post_deal_price_mode || 'original').toLowerCase();
+  return String(
+    listing.postDealPriceMode || listing.post_deal_price_mode || 'original'
+  ).toLowerCase();
 }
 
 function getDisplayPriceValue(listing: Listing): string | number | undefined {
   const offer = parsePrice(listing.offerPrice);
   const base = parsePrice(listing.price);
-  const postDealDiscount = parsePrice(listing.postDealDiscountPrice ?? listing.post_deal_discount_price);
+  const postDealDiscount = parsePrice(
+    listing.postDealDiscountPrice ?? listing.post_deal_discount_price
+  );
   if (!offer || !base || offer >= base) return listing.price;
   const isDeal = Boolean(listing.isDeal ?? listing.is_deal);
   if (!isDeal) return listing.offerPrice;
@@ -122,7 +130,8 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
   const latitude = searchParams.get('latitude') ?? '';
   const longitude = searchParams.get('longitude') ?? '';
   const storedRadiusKm = Number(storedUser?.preferences?.searchRadiusKm ?? 50);
-  const effectiveRadiusKm = Number.isFinite(storedRadiusKm) && storedRadiusKm > 0 ? storedRadiusKm : 50;
+  const effectiveRadiusKm =
+    Number.isFinite(storedRadiusKm) && storedRadiusKm > 0 ? storedRadiusKm : 50;
   const [category, setCategory] = useState(() => searchParams.get('category') ?? 'All');
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
@@ -191,37 +200,31 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
     return `${getApiUrl()}${searchPath}?${params.toString()}`;
   }, [category, effectiveRadiusKm, latitude, longitude, location, query]);
 
-  
-
   const listingsQuery = useQuery({
-    queryKey: [
-      'public-listings',
-      query,
-      category,
-      location,
-      latitude,
-      longitude,
-      dealsOnly,
-    ],
+    queryKey: ['public-listings', query, category, location, latitude, longitude, dealsOnly],
     queryFn: async () => {
       const response = await fetch(endpoint);
       if (!response.ok) {
         throw new Error('Failed to load listings');
       }
       const data = (await response.json()) as ListingsResponse;
-      const normalized = (data.data || data.results || []).map((item: Listing) => ({
-        ...item,
-        isDeal: Boolean(item.isDeal ?? item.is_deal),
-        dealStartAt: item.dealStartAt || item.deal_start_at,
-        dealEndAt: item.dealEndAt || item.deal_end_at,
-        dealType: String(item.dealType || item.deal_type || '').toLowerCase(),
-        postDealPriceMode: String(item.postDealPriceMode || item.post_deal_price_mode || 'original').toLowerCase(),
-        postDealDiscountPrice: item.postDealDiscountPrice ?? item.post_deal_discount_price,
-      })).filter((item) => {
-        const status = String(item.status || 'active').toLowerCase();
-        const isActive = item.isActive ?? item.is_active ?? true;
-        return Boolean(isActive) && status === 'active';
-      });
+      const normalized = (data.data || data.results || [])
+        .map((item: Listing) => ({
+          ...item,
+          isDeal: Boolean(item.isDeal ?? item.is_deal),
+          dealStartAt: item.dealStartAt || item.deal_start_at,
+          dealEndAt: item.dealEndAt || item.deal_end_at,
+          dealType: String(item.dealType || item.deal_type || '').toLowerCase(),
+          postDealPriceMode: String(
+            item.postDealPriceMode || item.post_deal_price_mode || 'original'
+          ).toLowerCase(),
+          postDealDiscountPrice: item.postDealDiscountPrice ?? item.post_deal_discount_price,
+        }))
+        .filter((item) => {
+          const status = String(item.status || 'active').toLowerCase();
+          const isActive = item.isActive ?? item.is_active ?? true;
+          return Boolean(isActive) && status === 'active';
+        });
       return dealsOnly ? normalized.filter((item) => item.isDeal) : normalized;
     },
   });
@@ -277,28 +280,37 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
               </button>
             ))}
           </div>
-
-          
-
         </section>
 
         <section className="mt-6">
           {listingsQuery.isLoading ? <p className="text-slate-600">Loading listings...</p> : null}
-          {listingsQuery.isError ? <p className="text-red-600">Could not load listings right now.</p> : null}
+          {listingsQuery.isError ? (
+            <p className="text-red-600">Could not load listings right now.</p>
+          ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {(listingsQuery.data || []).map((listing) => {
-              const isComboDeal = String(listing.dealType || listing.deal_type || '').toLowerCase() === 'combo';
+              const isComboDeal =
+                String(listing.dealType || listing.deal_type || '').toLowerCase() === 'combo';
               const primaryImage = listing.images?.[0];
               const secondaryImage = listing.images?.[1];
               return (
-                <article key={listing.id} className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                  <div className={`relative aspect-[4/3] bg-slate-100 ${isComboDeal ? 'combo-float' : ''}`}>
+                <article
+                  key={listing.id}
+                  className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <div
+                    className={`relative aspect-[4/3] bg-slate-100 ${isComboDeal ? 'combo-float' : ''}`}
+                  >
                     <div className={`h-full w-full ${isComboDeal ? 'combo-float-card' : ''}`}>
                       {isComboDeal && secondaryImage ? (
                         <div className="combo-image-stack">
                           <img
-                            src={brokenImages[listing.id] ? FALLBACK_IMAGE : normalizeImageUrl(secondaryImage)}
+                            src={
+                              brokenImages[listing.id]
+                                ? FALLBACK_IMAGE
+                                : normalizeImageUrl(secondaryImage)
+                            }
                             alt={listing.title}
                             className="combo-image-layer combo-image-bottom"
                             loading="lazy"
@@ -310,7 +322,11 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                             }
                           />
                           <img
-                            src={brokenImages[listing.id] ? FALLBACK_IMAGE : normalizeImageUrl(primaryImage)}
+                            src={
+                              brokenImages[listing.id]
+                                ? FALLBACK_IMAGE
+                                : normalizeImageUrl(primaryImage)
+                            }
                             alt={listing.title}
                             className="combo-image-layer combo-image-top"
                             loading="lazy"
@@ -324,7 +340,11 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                         </div>
                       ) : listing.images?.[0] ? (
                         <img
-                          src={brokenImages[listing.id] ? FALLBACK_IMAGE : normalizeImageUrl(listing.images[0])}
+                          src={
+                            brokenImages[listing.id]
+                              ? FALLBACK_IMAGE
+                              : normalizeImageUrl(listing.images[0])
+                          }
                           alt={listing.title}
                           className="h-full w-full object-cover"
                           loading="lazy"
@@ -352,7 +372,9 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                     <button
                       type="button"
                       onClick={() => toggleSaved(listing)}
-                      aria-label={savedIds.has(listing.id) ? 'Remove from favourites' : 'Add to favourites'}
+                      aria-label={
+                        savedIds.has(listing.id) ? 'Remove from favourites' : 'Add to favourites'
+                      }
                       className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow-sm transition hover:bg-white hover:text-rose-600"
                     >
                       <Heart
@@ -361,35 +383,49 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                       />
                     </button>
                   </div>
-                <div className="p-3">
-                  <h2 className="line-clamp-1 text-sm font-black text-slate-900">{listing.title}</h2>
-                  <p className="mt-1 line-clamp-2 text-xs font-medium leading-5 text-slate-600">{listing.description || 'No description available'}</p>
-                  <div className="mt-3 flex items-center justify-between text-xs">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#1e5da8]/10 px-2 py-1 font-semibold text-[#1e5da8]">
-                      <Tag size={12} />
-                      {listing.category || 'General'}
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-slate-500">
-                      <MapPin size={12} />
-                      {listing.location || 'Nearby'}
-                    </span>
-                  </div>
-                  {listing.isDeal ?? listing.is_deal ? (
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className={`text-xs font-semibold ${getDealStatus(listing) === 'Closed' ? 'text-rose-600' : 'text-emerald-700'}`}>
-                        {getDealStatus(listing)}
+                  <div className="p-3">
+                    <h2 className="line-clamp-1 text-sm font-black text-slate-900">
+                      {listing.title}
+                    </h2>
+                    <p className="mt-1 line-clamp-2 text-xs font-medium leading-5 text-slate-600">
+                      {listing.description || 'No description available'}
+                    </p>
+                    <div className="mt-3 flex items-center justify-between text-xs">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#1e5da8]/10 px-2 py-1 font-semibold text-[#1e5da8]">
+                        <Tag size={12} />
+                        {listing.category || 'General'}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-slate-500">
+                        <MapPin size={12} />
+                        {listing.location || 'Nearby'}
                       </span>
                     </div>
-                  ) : null}
-                  <div className="mt-3 flex items-center justify-between">
-                    <p className="text-sm font-black text-[#0f4b8a]">{formatPrice(getDisplayPriceValue(listing))}</p>
-                    <div className="flex items-center gap-3">
-                      <Link to={`/listing/${listing.id}`} className="text-xs font-black text-[#ff7b00] hover:underline">Open</Link>
+                    {(listing.isDeal ?? listing.is_deal) ? (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span
+                          className={`text-xs font-semibold ${getDealStatus(listing) === 'Closed' ? 'text-rose-600' : 'text-emerald-700'}`}
+                        >
+                          {getDealStatus(listing)}
+                        </span>
+                      </div>
+                    ) : null}
+                    <div className="mt-3 flex items-center justify-between">
+                      <p className="text-sm font-black text-[#0f4b8a]">
+                        {formatPrice(getDisplayPriceValue(listing))}
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          to={`/listing/${listing.id}`}
+                          className="text-xs font-black text-[#ff7b00] hover:underline"
+                        >
+                          Open
+                        </Link>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </article>
-            )})}
+                </article>
+              );
+            })}
           </div>
 
           {!listingsQuery.isLoading && (listingsQuery.data || []).length === 0 ? (

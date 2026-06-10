@@ -47,7 +47,9 @@ const RevenuePage = lazy(() => import('./features/admin/pages/RevenuePage'));
 const ReportsPage = lazy(() => import('./features/admin/pages/ReportsPage'));
 const TransactionsPage = lazy(() => import('./features/admin/pages/TransactionsPage'));
 const SettingsPage = lazy(() => import('./features/admin/pages/SettingsPage'));
-const MasterDataManagementPage = lazy(() => import('./features/admin/pages/MasterDataManagementPage'));
+const MasterDataManagementPage = lazy(
+  () => import('./features/admin/pages/MasterDataManagementPage')
+);
 const ContactSubmissionsPage = lazy(() => import('./features/admin/pages/ContactSubmissionsPage'));
 const ErrorLogsPage = lazy(() => import('./features/admin/pages/ErrorLogsPage'));
 const AdminLogin = lazy(() => import('./features/admin/pages/AdminLogin'));
@@ -146,11 +148,11 @@ function App() {
                 <Route path="banners" element={<BannersPage />} />
                 <Route path="push" element={<PushNotificationsPage />} />
                 <Route path="in-app" element={<InAppNotificationsPage />} />
-              <Route path="revenue" element={<RevenuePage />} />
-              <Route path="transactions" element={<TransactionsPage />} />
-              <Route path="reports" element={<ReportsPage />} />
-              <Route path="master-data" element={<MasterDataManagementPage />} />
-              <Route path="contact-submissions" element={<ContactSubmissionsPage />} />
+                <Route path="revenue" element={<RevenuePage />} />
+                <Route path="transactions" element={<TransactionsPage />} />
+                <Route path="reports" element={<ReportsPage />} />
+                <Route path="master-data" element={<MasterDataManagementPage />} />
+                <Route path="contact-submissions" element={<ContactSubmissionsPage />} />
                 <Route path="error-logs" element={<ErrorLogsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>

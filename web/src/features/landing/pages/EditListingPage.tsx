@@ -97,13 +97,17 @@ function readStoredUser(): StoredUser | null {
 }
 
 function parseMedia(value: unknown): string[] {
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()));
+  if (Array.isArray(value))
+    return value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()));
   if (typeof value !== 'string') return [];
   const trimmed = value.trim();
   if (!trimmed) return [];
   try {
     const parsed = JSON.parse(trimmed);
-    if (Array.isArray(parsed)) return parsed.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()));
+    if (Array.isArray(parsed))
+      return parsed.filter(
+        (item): item is string => typeof item === 'string' && Boolean(item.trim())
+      );
   } catch {
     // fall through to newline/comma parsing
   }
@@ -118,7 +122,8 @@ function parseTextList(value: unknown): string[] {
   if (typeof value !== 'string') return [];
   try {
     const parsed = JSON.parse(value);
-    if (Array.isArray(parsed)) return parsed.map((item) => String(item || '').trim()).filter(Boolean);
+    if (Array.isArray(parsed))
+      return parsed.map((item) => String(item || '').trim()).filter(Boolean);
   } catch {
     // fall through
   }
@@ -203,7 +208,10 @@ export default function EditListingPage(): ReactElement {
     () => ({ 'Content-Type': 'application/json', 'x-user-id': userId, 'x-user-phone': userPhone }),
     [userId, userPhone]
   );
-  const subCategories = useMemo(() => getSubCategoriesForMainCategory(mainCategory), [mainCategory]);
+  const subCategories = useMemo(
+    () => getSubCategoriesForMainCategory(mainCategory),
+    [mainCategory]
+  );
   const shouldRequireCondition = shouldRequireConditionForCategory(mainCategory, subCategory);
 
   useEffect(() => {
@@ -217,7 +225,9 @@ export default function EditListingPage(): ReactElement {
       setIsLoading(true);
       setMessage('');
       try {
-        const response = await fetch(`${getApiUrl()}/api/listings/${encodeURIComponent(id)}`, { headers });
+        const response = await fetch(`${getApiUrl()}/api/listings/${encodeURIComponent(id)}`, {
+          headers,
+        });
         const payload = (await response.json().catch(() => ({}))) as ListingPayload;
         const listing = payload.listing || payload.data;
         if (!response.ok || !payload.success || !listing) {
@@ -226,8 +236,16 @@ export default function EditListingPage(): ReactElement {
         }
         if (ignore) return;
 
-        const nextMain = String(listing.mainCategory || listing.main_category || defaultMainCategory);
-        const nextSub = String(listing.subCategory || listing.sub_category || listing.category || getSubCategoriesForMainCategory(nextMain)[0] || defaultSubCategory);
+        const nextMain = String(
+          listing.mainCategory || listing.main_category || defaultMainCategory
+        );
+        const nextSub = String(
+          listing.subCategory ||
+            listing.sub_category ||
+            listing.category ||
+            getSubCategoriesForMainCategory(nextMain)[0] ||
+            defaultSubCategory
+        );
         const nextDeal = Boolean(listing.isDeal ?? listing.is_deal);
         const dealEnd = toInputDateTime(String(listing.dealEndAt || listing.deal_end_at || ''));
 
@@ -241,20 +259,40 @@ export default function EditListingPage(): ReactElement {
         setPriceUnit(String(listing.priceUnit || 'per unit'));
         setCondition(String(listing.condition || 'Good'));
         setLocation(String(listing.address || listing.location || ''));
-        setPincode(String(listing.pincode || listing.pinCode || listing.postalCode || '').replace(/[^0-9]/g, '').slice(0, 6));
+        setPincode(
+          String(listing.pincode || listing.pinCode || listing.postalCode || '')
+            .replace(/[^0-9]/g, '')
+            .slice(0, 6)
+        );
         setStatus(String(listing.status || 'active'));
-        setContactPhone(String(listing.contactPhone || listing.sellerPhone || userPhone || '').replace(/[^0-9]/g, '').slice(0, 10));
+        setContactPhone(
+          String(listing.contactPhone || listing.sellerPhone || userPhone || '')
+            .replace(/[^0-9]/g, '')
+            .slice(0, 10)
+        );
         setImagesText(parseMedia(listing.images).join('\n'));
         setVideosText(parseMedia(listing.videos).join('\n'));
-        setDealType(String(listing.dealType || listing.deal_type || 'normal').toLowerCase() === 'combo' ? 'combo' : 'normal');
+        setDealType(
+          String(listing.dealType || listing.deal_type || 'normal').toLowerCase() === 'combo'
+            ? 'combo'
+            : 'normal'
+        );
         setDealEndDate(dealEnd.date);
         setDealEndTime(dealEnd.time);
-        setStock(String(listing.maxDealBookings ?? listing.max_deal_bookings ?? '').replace(/[^0-9]/g, ''));
-        setPostDealPriceMode(String(listing.postDealPriceMode || listing.post_deal_price_mode || 'original'));
-        setPostDealDiscountPrice(sanitizePriceInput(listing.postDealDiscountPrice ?? listing.post_deal_discount_price));
+        setStock(
+          String(listing.maxDealBookings ?? listing.max_deal_bookings ?? '').replace(/[^0-9]/g, '')
+        );
+        setPostDealPriceMode(
+          String(listing.postDealPriceMode || listing.post_deal_price_mode || 'original')
+        );
+        setPostDealDiscountPrice(
+          sanitizePriceInput(listing.postDealDiscountPrice ?? listing.post_deal_discount_price)
+        );
         setEmiAvailable(Boolean(listing.emiAvailable ?? listing.emi_available));
         setWarrantyText(String(listing.warrantyText || listing.warranty_text || ''));
-        setExtraFeaturesText(parseTextList(listing.dealExtraFeatures || listing.deal_extra_features).join('\n'));
+        setExtraFeaturesText(
+          parseTextList(listing.dealExtraFeatures || listing.deal_extra_features).join('\n')
+        );
       } catch {
         if (!ignore) setMessage('Failed to load listing.');
       } finally {
@@ -324,7 +362,10 @@ export default function EditListingPage(): ReactElement {
     try {
       const images = parseMedia(imagesText);
       const videos = parseMedia(videosText);
-      const dealEndAt = isDeal && dealEndDate && dealEndTime ? new Date(`${dealEndDate}T${dealEndTime}`).toISOString() : undefined;
+      const dealEndAt =
+        isDeal && dealEndDate && dealEndTime
+          ? new Date(`${dealEndDate}T${dealEndTime}`).toISOString()
+          : undefined;
       const body: Record<string, unknown> = {
         title: title.trim(),
         description: description.trim(),
@@ -346,7 +387,10 @@ export default function EditListingPage(): ReactElement {
         dealEndAt,
         maxDealBookings: isDeal ? Number(stock) : undefined,
         postDealPriceMode: isDeal ? postDealPriceMode : undefined,
-        postDealDiscountPrice: isDeal && postDealPriceMode === 'discount' && postDealDiscountPrice ? Number(postDealDiscountPrice) : undefined,
+        postDealDiscountPrice:
+          isDeal && postDealPriceMode === 'discount' && postDealDiscountPrice
+            ? Number(postDealDiscountPrice)
+            : undefined,
         emiAvailable,
         warrantyText: warrantyText.trim() || undefined,
         dealExtraFeatures: parseTextList(extraFeaturesText),
@@ -380,15 +424,24 @@ export default function EditListingPage(): ReactElement {
       <main className="mx-auto max-w-5xl px-4 pb-24 pt-24 sm:px-6">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-black uppercase tracking-wide text-[#1f63b2]">Seller Listing Editor</p>
+            <p className="text-xs font-black uppercase tracking-wide text-[#1f63b2]">
+              Seller Listing Editor
+            </p>
             <h1 className="mt-1 text-2xl font-black text-slate-950">Edit Product</h1>
           </div>
-          <Link to="/my-listings" className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-xs font-black text-[#1f63b2] shadow-sm">
+          <Link
+            to="/my-listings"
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-xs font-black text-[#1f63b2] shadow-sm"
+          >
             <ArrowLeft size={16} /> Back to My Listings
           </Link>
         </div>
 
-        {isLoading ? <p className="rounded-xl bg-white p-5 text-sm font-bold text-slate-600">Loading listing...</p> : null}
+        {isLoading ? (
+          <p className="rounded-xl bg-white p-5 text-sm font-bold text-slate-600">
+            Loading listing...
+          </p>
+        ) : null}
 
         {!isLoading ? (
           <div className="space-y-5">
@@ -396,11 +449,21 @@ export default function EditListingPage(): ReactElement {
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block md:col-span-2">
                   <span className="mb-2 block text-sm font-black text-slate-700">Title *</span>
-                  <input value={title} onChange={(event) => setTitle(event.target.value.slice(0, 120))} className={textInputClass()} />
+                  <input
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value.slice(0, 120))}
+                    className={textInputClass()}
+                  />
                 </label>
                 <label className="block">
-                  <span className="mb-2 block text-sm font-black text-slate-700">Main Category *</span>
-                  <select value={mainCategory} onChange={(event) => selectMainCategory(event.target.value)} className={textInputClass()}>
+                  <span className="mb-2 block text-sm font-black text-slate-700">
+                    Main Category *
+                  </span>
+                  <select
+                    value={mainCategory}
+                    onChange={(event) => selectMainCategory(event.target.value)}
+                    className={textInputClass()}
+                  >
                     {ADMIN_CATEGORY_GROUPS.map((group) => (
                       <option key={group.mainCategory} value={group.mainCategory}>
                         {group.mainCategory}
@@ -409,8 +472,14 @@ export default function EditListingPage(): ReactElement {
                   </select>
                 </label>
                 <label className="block">
-                  <span className="mb-2 block text-sm font-black text-slate-700">Subcategory *</span>
-                  <select value={subCategory} onChange={(event) => setSubCategory(event.target.value)} className={textInputClass()}>
+                  <span className="mb-2 block text-sm font-black text-slate-700">
+                    Subcategory *
+                  </span>
+                  <select
+                    value={subCategory}
+                    onChange={(event) => setSubCategory(event.target.value)}
+                    className={textInputClass()}
+                  >
                     {subCategories.map((item) => (
                       <option key={item} value={item}>
                         {item}
@@ -420,8 +489,14 @@ export default function EditListingPage(): ReactElement {
                 </label>
                 {shouldRequireCondition ? (
                   <label className="block">
-                    <span className="mb-2 block text-sm font-black text-slate-700">Condition *</span>
-                    <select value={condition} onChange={(event) => setCondition(event.target.value)} className={textInputClass()}>
+                    <span className="mb-2 block text-sm font-black text-slate-700">
+                      Condition *
+                    </span>
+                    <select
+                      value={condition}
+                      onChange={(event) => setCondition(event.target.value)}
+                      className={textInputClass()}
+                    >
                       {['New', 'Like New', 'Good', 'Fair', 'Poor'].map((item) => (
                         <option key={item} value={item}>
                           {item}
@@ -432,7 +507,11 @@ export default function EditListingPage(): ReactElement {
                 ) : null}
                 <label className="block">
                   <span className="mb-2 block text-sm font-black text-slate-700">Status</span>
-                  <select value={status} onChange={(event) => setStatus(event.target.value)} className={textInputClass()}>
+                  <select
+                    value={status}
+                    onChange={(event) => setStatus(event.target.value)}
+                    className={textInputClass()}
+                  >
                     {['active', 'pending', 'sold'].map((item) => (
                       <option key={item} value={item}>
                         {item}
@@ -446,23 +525,47 @@ export default function EditListingPage(): ReactElement {
             <Section title="Price">
               <div className="grid gap-4 md:grid-cols-3">
                 <label className="block">
-                  <span className="mb-2 block text-sm font-black text-slate-700">Original Price *</span>
+                  <span className="mb-2 block text-sm font-black text-slate-700">
+                    Original Price *
+                  </span>
                   <span className="relative block">
-                    <IndianRupee className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input value={price} onChange={(event) => setPrice(sanitizePriceInput(event.target.value))} inputMode="decimal" className={textInputClass('pl-11')} />
+                    <IndianRupee
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                      size={16}
+                    />
+                    <input
+                      value={price}
+                      onChange={(event) => setPrice(sanitizePriceInput(event.target.value))}
+                      inputMode="decimal"
+                      className={textInputClass('pl-11')}
+                    />
                   </span>
                 </label>
                 <label className="block">
-                  <span className="mb-2 block text-sm font-black text-slate-700">{isDeal ? 'Deal Price *' : 'Offer Price'}</span>
+                  <span className="mb-2 block text-sm font-black text-slate-700">
+                    {isDeal ? 'Deal Price *' : 'Offer Price'}
+                  </span>
                   <span className="relative block">
-                    <IndianRupee className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input value={offerPrice} onChange={(event) => setOfferPrice(sanitizePriceInput(event.target.value))} inputMode="decimal" className={textInputClass('pl-11')} />
+                    <IndianRupee
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                      size={16}
+                    />
+                    <input
+                      value={offerPrice}
+                      onChange={(event) => setOfferPrice(sanitizePriceInput(event.target.value))}
+                      inputMode="decimal"
+                      className={textInputClass('pl-11')}
+                    />
                   </span>
                 </label>
                 {!isDeal ? (
                   <label className="block">
                     <span className="mb-2 block text-sm font-black text-slate-700">Price Unit</span>
-                    <select value={priceUnit} onChange={(event) => setPriceUnit(event.target.value)} className={textInputClass()}>
+                    <select
+                      value={priceUnit}
+                      onChange={(event) => setPriceUnit(event.target.value)}
+                      className={textInputClass()}
+                    >
                       <option value="per unit">per unit</option>
                       <option value="per piece">per piece</option>
                     </select>
@@ -472,8 +575,15 @@ export default function EditListingPage(): ReactElement {
             </Section>
 
             <Section title="Description">
-              <textarea value={description} onChange={(event) => setDescription(event.target.value.slice(0, 1500))} rows={7} className={textareaClass()} />
-              <p className="mt-2 text-right text-xs font-semibold text-slate-500">{description.length}/1500</p>
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value.slice(0, 1500))}
+                rows={7}
+                className={textareaClass()}
+              />
+              <p className="mt-2 text-right text-xs font-semibold text-slate-500">
+                {description.length}/1500
+              </p>
             </Section>
 
             <Section title="Location and Contact">
@@ -481,17 +591,40 @@ export default function EditListingPage(): ReactElement {
                 <label className="block">
                   <span className="mb-2 block text-sm font-black text-slate-700">Location *</span>
                   <span className="relative block">
-                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
-                    <input value={location} onChange={(event) => setLocation(event.target.value)} className={textInputClass('pl-11')} />
+                    <MapPin
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                      size={17}
+                    />
+                    <input
+                      value={location}
+                      onChange={(event) => setLocation(event.target.value)}
+                      className={textInputClass('pl-11')}
+                    />
                   </span>
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-sm font-black text-slate-700">Pincode *</span>
-                  <input value={pincode} onChange={(event) => setPincode(event.target.value.replace(/[^0-9]/g, '').slice(0, 6))} inputMode="numeric" className={textInputClass()} />
+                  <input
+                    value={pincode}
+                    onChange={(event) =>
+                      setPincode(event.target.value.replace(/[^0-9]/g, '').slice(0, 6))
+                    }
+                    inputMode="numeric"
+                    className={textInputClass()}
+                  />
                 </label>
                 <label className="block">
-                  <span className="mb-2 block text-sm font-black text-slate-700">Contact Phone</span>
-                  <input value={contactPhone} onChange={(event) => setContactPhone(event.target.value.replace(/[^0-9]/g, '').slice(0, 10))} inputMode="numeric" className={textInputClass()} />
+                  <span className="mb-2 block text-sm font-black text-slate-700">
+                    Contact Phone
+                  </span>
+                  <input
+                    value={contactPhone}
+                    onChange={(event) =>
+                      setContactPhone(event.target.value.replace(/[^0-9]/g, '').slice(0, 10))
+                    }
+                    inputMode="numeric"
+                    className={textInputClass()}
+                  />
                 </label>
               </div>
             </Section>
@@ -500,14 +633,28 @@ export default function EditListingPage(): ReactElement {
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block">
                   <span className="mb-2 block text-sm font-black text-slate-700">Image URLs</span>
-                  <textarea value={imagesText} onChange={(event) => setImagesText(event.target.value)} rows={6} placeholder="One image URL per line" className={textareaClass()} />
+                  <textarea
+                    value={imagesText}
+                    onChange={(event) => setImagesText(event.target.value)}
+                    rows={6}
+                    placeholder="One image URL per line"
+                    className={textareaClass()}
+                  />
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-sm font-black text-slate-700">Video URLs</span>
-                  <textarea value={videosText} onChange={(event) => setVideosText(event.target.value)} rows={6} placeholder="One video URL per line" className={textareaClass()} />
+                  <textarea
+                    value={videosText}
+                    onChange={(event) => setVideosText(event.target.value)}
+                    rows={6}
+                    placeholder="One video URL per line"
+                    className={textareaClass()}
+                  />
                 </label>
               </div>
-              <p className="mt-2 text-xs font-semibold text-slate-500">Use the existing uploaded media URLs, one per line.</p>
+              <p className="mt-2 text-xs font-semibold text-slate-500">
+                Use the existing uploaded media URLs, one per line.
+              </p>
             </Section>
 
             {isDeal ? (
@@ -515,34 +662,74 @@ export default function EditListingPage(): ReactElement {
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="block">
                     <span className="mb-2 block text-sm font-black text-slate-700">Deal Type</span>
-                    <select value={dealType} onChange={(event) => setDealType(event.target.value)} className={textInputClass()}>
+                    <select
+                      value={dealType}
+                      onChange={(event) => setDealType(event.target.value)}
+                      className={textInputClass()}
+                    >
                       <option value="normal">Deals</option>
                       <option value="combo">Combo Deal</option>
                     </select>
                   </label>
                   <label className="block">
-                    <span className="mb-2 block text-sm font-black text-slate-700">Stock Available *</span>
-                    <input value={stock} onChange={(event) => setStock(event.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" className={textInputClass()} />
+                    <span className="mb-2 block text-sm font-black text-slate-700">
+                      Stock Available *
+                    </span>
+                    <input
+                      value={stock}
+                      onChange={(event) => setStock(event.target.value.replace(/[^0-9]/g, ''))}
+                      inputMode="numeric"
+                      className={textInputClass()}
+                    />
                   </label>
                   <label className="block">
-                    <span className="mb-2 block text-sm font-black text-slate-700">Deal End Date *</span>
-                    <input value={dealEndDate} onChange={(event) => setDealEndDate(event.target.value)} type="date" className={textInputClass()} />
+                    <span className="mb-2 block text-sm font-black text-slate-700">
+                      Deal End Date *
+                    </span>
+                    <input
+                      value={dealEndDate}
+                      onChange={(event) => setDealEndDate(event.target.value)}
+                      type="date"
+                      className={textInputClass()}
+                    />
                   </label>
                   <label className="block">
-                    <span className="mb-2 block text-sm font-black text-slate-700">Deal End Time *</span>
-                    <input value={dealEndTime} onChange={(event) => setDealEndTime(event.target.value)} type="time" className={textInputClass()} />
+                    <span className="mb-2 block text-sm font-black text-slate-700">
+                      Deal End Time *
+                    </span>
+                    <input
+                      value={dealEndTime}
+                      onChange={(event) => setDealEndTime(event.target.value)}
+                      type="time"
+                      className={textInputClass()}
+                    />
                   </label>
                   <label className="block">
-                    <span className="mb-2 block text-sm font-black text-slate-700">After Deal Ends</span>
-                    <select value={postDealPriceMode} onChange={(event) => setPostDealPriceMode(event.target.value)} className={textInputClass()}>
+                    <span className="mb-2 block text-sm font-black text-slate-700">
+                      After Deal Ends
+                    </span>
+                    <select
+                      value={postDealPriceMode}
+                      onChange={(event) => setPostDealPriceMode(event.target.value)}
+                      className={textInputClass()}
+                    >
                       <option value="original">Sell at original price</option>
                       <option value="discount">Sell at discount price</option>
                     </select>
                   </label>
                   {postDealPriceMode === 'discount' ? (
                     <label className="block">
-                      <span className="mb-2 block text-sm font-black text-slate-700">After-Deal Discount Price</span>
-                      <input value={postDealDiscountPrice} onChange={(event) => setPostDealDiscountPrice(sanitizePriceInput(event.target.value))} inputMode="decimal" className={textInputClass()} />
+                      <span className="mb-2 block text-sm font-black text-slate-700">
+                        After-Deal Discount Price
+                      </span>
+                      <input
+                        value={postDealDiscountPrice}
+                        onChange={(event) =>
+                          setPostDealDiscountPrice(sanitizePriceInput(event.target.value))
+                        }
+                        inputMode="decimal"
+                        className={textInputClass()}
+                      />
                     </label>
                   ) : null}
                 </div>
@@ -551,23 +738,44 @@ export default function EditListingPage(): ReactElement {
 
             <Section title="Buyer Options">
               <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-sm font-black text-slate-800">
-                <input type="checkbox" checked={emiAvailable} onChange={(event) => setEmiAvailable(event.target.checked)} className="h-5 w-5 accent-[#1f63b2]" />
+                <input
+                  type="checkbox"
+                  checked={emiAvailable}
+                  onChange={(event) => setEmiAvailable(event.target.checked)}
+                  className="h-5 w-5 accent-[#1f63b2]"
+                />
                 EMI available
               </label>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="block">
-                  <span className="mb-2 block text-sm font-black text-slate-700">Warranty / Guarantee</span>
-                  <input value={warrantyText} onChange={(event) => setWarrantyText(event.target.value.slice(0, 160))} className={textInputClass()} />
+                  <span className="mb-2 block text-sm font-black text-slate-700">
+                    Warranty / Guarantee
+                  </span>
+                  <input
+                    value={warrantyText}
+                    onChange={(event) => setWarrantyText(event.target.value.slice(0, 160))}
+                    className={textInputClass()}
+                  />
                 </label>
                 <label className="block">
-                  <span className="mb-2 block text-sm font-black text-slate-700">Extra Features</span>
-                  <textarea value={extraFeaturesText} onChange={(event) => setExtraFeaturesText(event.target.value)} rows={4} placeholder="One feature per line" className={textareaClass()} />
+                  <span className="mb-2 block text-sm font-black text-slate-700">
+                    Extra Features
+                  </span>
+                  <textarea
+                    value={extraFeaturesText}
+                    onChange={(event) => setExtraFeaturesText(event.target.value)}
+                    rows={4}
+                    placeholder="One feature per line"
+                    className={textareaClass()}
+                  />
                 </label>
               </div>
             </Section>
 
             {message ? (
-              <p className={`rounded-xl px-4 py-3 text-sm font-bold ${message.includes('successfully') ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+              <p
+                className={`rounded-xl px-4 py-3 text-sm font-bold ${message.includes('successfully') ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}
+              >
                 {message}
               </p>
             ) : null}

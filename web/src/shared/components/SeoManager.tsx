@@ -111,7 +111,8 @@ function resolveMeta(pathname: string): RouteMeta {
   if (normalizedPath.startsWith('/edit-listing/')) {
     return {
       title: `Edit Listing | ${SITE_BRAND_NAME}`,
-      description: 'Update your NearHub listing details, photos, category, location, and deal settings.',
+      description:
+        'Update your NearHub listing details, photos, category, location, and deal settings.',
       robots: 'noindex,nofollow',
     };
   }

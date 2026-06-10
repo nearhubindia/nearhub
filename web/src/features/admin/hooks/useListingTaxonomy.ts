@@ -33,23 +33,20 @@ function isValidAttribute(value: unknown): value is ListingAttributeDefinition {
     typeof entry.fieldType === 'string' &&
     typeof entry.unit === 'string' &&
     typeof entry.required === 'boolean' &&
-    (entry.status === undefined ||
-      entry.status === null ||
-      typeof entry.status === 'string')
+    (entry.status === undefined || entry.status === null || typeof entry.status === 'string')
   );
 }
 
 function normalizeAttributesByKey(value: unknown): Record<string, ListingAttributeDefinition[]> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return DEFAULT_ATTRIBUTES_BY_KEY;
-  return Object.entries(value as Record<string, unknown>).reduce<Record<string, ListingAttributeDefinition[]>>(
-    (acc, [key, rawValue]) => {
-      if (!Array.isArray(rawValue)) return acc;
-      const next = rawValue.filter(isValidAttribute);
-      if (next.length > 0) acc[key] = next;
-      return acc;
-    },
-    {}
-  );
+  return Object.entries(value as Record<string, unknown>).reduce<
+    Record<string, ListingAttributeDefinition[]>
+  >((acc, [key, rawValue]) => {
+    if (!Array.isArray(rawValue)) return acc;
+    const next = rawValue.filter(isValidAttribute);
+    if (next.length > 0) acc[key] = next;
+    return acc;
+  }, {});
 }
 
 export function useListingTaxonomy() {

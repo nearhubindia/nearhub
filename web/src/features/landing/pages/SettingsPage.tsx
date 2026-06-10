@@ -41,7 +41,9 @@ function ToggleRow({
         onClick={() => onChange(!value)}
         className={`h-7 w-12 rounded-full p-1 transition ${value ? 'bg-[#1e5da8]' : 'bg-slate-300'}`}
       >
-        <span className={`block h-5 w-5 rounded-full bg-white transition ${value ? 'translate-x-5' : ''}`} />
+        <span
+          className={`block h-5 w-5 rounded-full bg-white transition ${value ? 'translate-x-5' : ''}`}
+        />
       </button>
     </div>
   );
@@ -51,9 +53,15 @@ export default function SettingsPage(): ReactElement {
   const navigate = useNavigate();
   const user = readStoredUser();
 
-  const [notifications, setNotifications] = useState(Boolean(user?.preferences?.notifications ?? true));
-  const [emailNotifications, setEmailNotifications] = useState(Boolean(user?.preferences?.emailNotifications ?? true));
-  const [autoLocalize, setAutoLocalize] = useState(Boolean(user?.preferences?.autoLocalizeListings ?? true));
+  const [notifications, setNotifications] = useState(
+    Boolean(user?.preferences?.notifications ?? true)
+  );
+  const [emailNotifications, setEmailNotifications] = useState(
+    Boolean(user?.preferences?.emailNotifications ?? true)
+  );
+  const [autoLocalize, setAutoLocalize] = useState(
+    Boolean(user?.preferences?.autoLocalizeListings ?? true)
+  );
 
   if (!user?.id) return <Navigate to="/auth/register" replace />;
 
@@ -83,24 +91,55 @@ export default function SettingsPage(): ReactElement {
         <section className="rounded-3xl border border-[#1e5da8]/15 bg-white p-6 shadow-[0_24px_60px_-42px_rgba(30,93,168,0.68)]">
           <div className="flex items-center justify-between gap-3">
             <h1 className="text-2xl font-bold text-[#113965]">Settings</h1>
-            <Link to="/browse" className="text-sm font-semibold text-[#1e5da8] hover:underline">Back to Browse</Link>
+            <Link to="/browse" className="text-sm font-semibold text-[#1e5da8] hover:underline">
+              Back to Browse
+            </Link>
           </div>
-          <p className="mt-2 text-sm text-slate-600">{user.name || 'User'} • +91 {user.phone || '-'}</p>
+          <p className="mt-2 text-sm text-slate-600">
+            {user.name || 'User'} • +91 {user.phone || '-'}
+          </p>
         </section>
 
         <section className="mt-5">
           <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Account</h2>
           <div className="space-y-2">
-            <Link to="/profile" className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><User size={15} /> My Profile</Link>
-            <Link to="/my-listings" className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><MapPinned size={15} /> My Listings</Link>
-            <Link to="/saved" className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><Heart size={15} /> Favourites</Link>
-            <Link to="/subscriptions" className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><CreditCard size={15} /> Subscriptions</Link>
-            <Link to="/invoices" className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><FileText size={15} /> Invoices</Link>
+            <Link
+              to="/profile"
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <User size={15} /> My Profile
+            </Link>
+            <Link
+              to="/my-listings"
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <MapPinned size={15} /> My Listings
+            </Link>
+            <Link
+              to="/saved"
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <Heart size={15} /> Favourites
+            </Link>
+            <Link
+              to="/subscriptions"
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <CreditCard size={15} /> Subscriptions
+            </Link>
+            <Link
+              to="/invoices"
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <FileText size={15} /> Invoices
+            </Link>
           </div>
         </section>
 
         <section className="mt-5">
-          <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Preferences</h2>
+          <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+            Preferences
+          </h2>
           <div className="space-y-2">
             <ToggleRow
               icon={<Bell size={16} />}

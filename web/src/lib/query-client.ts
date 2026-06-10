@@ -98,7 +98,11 @@ export function enableQueryPersistence(): void {
       if (!state || !Array.isArray(state.queries)) return state;
 
       // Keep mandatory queries first (whitelist or meta.persist)
-      const mandatoryKeys = new Set(['header-push-notifications', 'header-user-profile', 'nearhub-home-feed']);
+      const mandatoryKeys = new Set([
+        'header-push-notifications',
+        'header-user-profile',
+        'nearhub-home-feed',
+      ]);
 
       const candidates = state.queries.map((q) => ({
         q,
@@ -134,9 +138,13 @@ export function enableQueryPersistence(): void {
     try {
       // Dynamically import the official persister packages separately so bundlers
       // won't statically fail if the packages are not installed.
-      const dynamicImport = new Function('s', 'return import(s)') as (specifier: string) => Promise<unknown>;
+      const dynamicImport = new Function('s', 'return import(s)') as (
+        specifier: string
+      ) => Promise<unknown>;
       let persistMod: { persistQueryClient?: (args: unknown) => void } | null = null;
-      let syncPersisterMod: { createSyncStoragePersister?: (options: { storage: Storage; key: string }) => unknown } | null = null;
+      let syncPersisterMod: {
+        createSyncStoragePersister?: (options: { storage: Storage; key: string }) => unknown;
+      } | null = null;
       try {
         persistMod = (await dynamicImport('@tanstack/react-query-persist-client')) as {
           persistQueryClient?: (args: unknown) => void;
@@ -152,10 +160,18 @@ export function enableQueryPersistence(): void {
         syncPersisterMod = null;
       }
 
-      if (persistMod && persistMod.persistQueryClient && syncPersisterMod && syncPersisterMod.createSyncStoragePersister) {
+      if (
+        persistMod &&
+        persistMod.persistQueryClient &&
+        syncPersisterMod &&
+        syncPersisterMod.createSyncStoragePersister
+      ) {
         const { persistQueryClient } = persistMod;
         const { createSyncStoragePersister } = syncPersisterMod;
-        const persister = createSyncStoragePersister({ storage: window.localStorage, key: PERSIST_KEY });
+        const persister = createSyncStoragePersister({
+          storage: window.localStorage,
+          key: PERSIST_KEY,
+        });
         persistQueryClient({
           queryClient,
           persister,

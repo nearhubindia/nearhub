@@ -43,7 +43,9 @@ export function DealVoucherCard({
     <article className={`rounded-2xl border ${cardBorder} bg-white px-6 py-6 ${cardShadow}`}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
-          <p className={`inline-flex items-center gap-3 text-sm ${labelWeight} uppercase tracking-wide ${voucherTone}`}>
+          <p
+            className={`inline-flex items-center gap-3 text-sm ${labelWeight} uppercase tracking-wide ${voucherTone}`}
+          >
             <Ticket size={18} /> Voucher {booking.voucherCode}
           </p>
           <div className="mt-6 flex items-center gap-4">
@@ -59,7 +61,9 @@ export function DealVoucherCard({
             {formatDateTime(booking.bookedAt || booking.createdAt || voucher.bookedAt)}
           </p>
         </div>
-        <span className={`w-fit rounded-full border px-5 py-2 text-sm ${labelWeight} ${statusClass(booking.status || 'booked')}`}>
+        <span
+          className={`w-fit rounded-full border px-5 py-2 text-sm ${labelWeight} ${statusClass(booking.status || 'booked')}`}
+        >
           {statusLabel(booking.status || 'booked')}
         </span>
       </div>
@@ -73,7 +77,9 @@ export function DealVoucherCard({
           </span>
           <p>
             <span className={`block ${labelWeight} text-[#061b44]`}>Deal starts</span>
-            <span className={`mt-1 block ${bodyWeight}`}>{formatDateTime(voucher.dealStartAt)}</span>
+            <span className={`mt-1 block ${bodyWeight}`}>
+              {formatDateTime(voucher.dealStartAt)}
+            </span>
           </p>
         </div>
         <div className="flex gap-3">

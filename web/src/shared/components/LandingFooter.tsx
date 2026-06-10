@@ -36,7 +36,10 @@ function FooterColumn({ title, links }: { title: string; links: string[][] }): R
       <ul className="mt-4 space-y-2.5">
         {links.map(([label, to]) => (
           <li key={label}>
-            <Link to={to} className="text-sm font-medium text-blue-100/85 transition hover:text-[#ffb04a]">
+            <Link
+              to={to}
+              className="text-sm font-medium text-blue-100/85 transition hover:text-[#ffb04a]"
+            >
               {label}
             </Link>
           </li>

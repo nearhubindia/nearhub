@@ -17,7 +17,10 @@ import {
   useCoordinateLocationAutofill,
   validateAdminListingDetails,
 } from '@/features/admin/hooks/useAdminListingFormHelpers';
-import { uploadListingImages, uploadListingVideos } from '@/features/admin/utils/listing-media-upload';
+import {
+  uploadListingImages,
+  uploadListingVideos,
+} from '@/features/admin/utils/listing-media-upload';
 
 interface CreateListingModalProps {
   onClose: () => void;
@@ -249,221 +252,217 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
         </div>
       }
     >
-            {formErrors.submit && (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
-                {formErrors.submit}
-              </div>
-            )}
-            {mediaError && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
-                {mediaError}
-              </div>
-            )}
+      {formErrors.submit && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
+          {formErrors.submit}
+        </div>
+      )}
+      {mediaError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+          {mediaError}
+        </div>
+      )}
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-              <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
-                <FileText size={16} /> Basic Information
-              </h3>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+        <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
+          <FileText size={16} /> Basic Information
+        </h3>
 
-              <div className="space-y-4">
-                <AdminListingBasicFields
-                  formData={formData}
-                  setFormData={setFormData}
-                  inputClass={inputClass}
-                  labelClass={labelClass}
-                  titleRequired
-                  titlePlaceholder="Enter listing title"
-                  descriptionPlaceholder="Enter listing description (optional)"
-                />
+        <div className="space-y-4">
+          <AdminListingBasicFields
+            formData={formData}
+            setFormData={setFormData}
+            inputClass={inputClass}
+            labelClass={labelClass}
+            titleRequired
+            titlePlaceholder="Enter listing title"
+            descriptionPlaceholder="Enter listing description (optional)"
+          />
 
-                <AdminListingPriceFields
-                  formData={formData}
-                  setFormData={setFormData}
-                  inputClass={inputClass}
-                  labelClass={labelClass}
-                  required
-                  showSavings
-                />
+          <AdminListingPriceFields
+            formData={formData}
+            setFormData={setFormData}
+            inputClass={inputClass}
+            labelClass={labelClass}
+            required
+            showSavings
+          />
 
-                <AdminListingCategoryFields
-                  formData={formData}
-                  setFormData={setFormData}
-                  inputClass={inputClass}
-                  labelClass={labelClass}
-                  mainCategories={mainCategories}
-                  subCategories={subCategories}
-                  conditions={conditions}
-                  showConditionField={showConditionField}
-                  handleMainCategoryChange={handleMainCategoryChange}
-                  handleSubCategoryChange={handleSubCategoryChange}
-                  required
-                />
+          <AdminListingCategoryFields
+            formData={formData}
+            setFormData={setFormData}
+            inputClass={inputClass}
+            labelClass={labelClass}
+            mainCategories={mainCategories}
+            subCategories={subCategories}
+            conditions={conditions}
+            showConditionField={showConditionField}
+            handleMainCategoryChange={handleMainCategoryChange}
+            handleSubCategoryChange={handleSubCategoryChange}
+            required
+          />
 
-                <AdminListingLocationFields
-                  formData={formData}
-                  setFormData={setFormData}
-                  inputClass={inputClass}
-                  labelClass={labelClass}
-                  formErrors={formErrors}
-                  isResolvingLocation={isResolvingLocation}
-                  locationResolveError={locationResolveError}
-                  required
-                />
+          <AdminListingLocationFields
+            formData={formData}
+            setFormData={setFormData}
+            inputClass={inputClass}
+            labelClass={labelClass}
+            formErrors={formErrors}
+            isResolvingLocation={isResolvingLocation}
+            locationResolveError={locationResolveError}
+            required
+          />
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <label className={labelClass}>Seller ID / Username / Phone *</label>
-                    <input
-                      type="text"
-                      value={formData.userId}
-                      onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-                      placeholder="Enter seller id, username, or mobile"
-                      className={inputClass}
-                      required
-                    />
-                    {formErrors.userId && (
-                      <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.userId}</p>
-                    )}
-                    <p className="mt-1 text-xs text-slate-500">
-                      The server resolves this to the actual seller account.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                <label className={labelClass}>Images</label>
-                <div className="rounded-xl border-2 border-dashed border-slate-300 p-5 transition hover:border-cyan-400 hover:bg-cyan-50/40">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    id="image-upload"
-                  />
-                  <label
-                    htmlFor="image-upload"
-                    className="flex cursor-pointer flex-col items-center justify-center"
-                  >
-                    <Plus className="mb-2 text-slate-400" size={30} />
-                    <p className="text-center text-sm text-slate-600">
-                      Click to upload images
-                      <span className="mt-1 block text-xs text-slate-500">
-                        Supports: JPG, PNG, WEBP (auto-optimized)
-                      </span>
-                    </p>
-                  </label>
-                </div>
-                {isUploadingMedia && (
-                  <p className="mt-2 text-xs text-cyan-700">Uploading media...</p>
-                )}
-
-                {formData.images && formData.images.length > 0 && (
-                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {formData.images.map((img: string, index: number) => (
-                      <div key={index} className="group relative">
-                        <img
-                          src={img}
-                          alt={`Preview ${index + 1}`}
-                          className="h-24 w-full rounded-lg border-2 border-slate-200 object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeImage(index)}
-                          className="absolute right-1 top-1 rounded-full bg-rose-500 p-1 text-white opacity-0 transition group-hover:opacity-100"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                <label className={labelClass}>Videos</label>
-                <div className="rounded-xl border-2 border-dashed border-slate-300 p-5 transition hover:border-cyan-400 hover:bg-cyan-50/40">
-                  <input
-                    type="file"
-                    accept="video/*"
-                    multiple
-                    onChange={handleVideoUpload}
-                    className="hidden"
-                    id="video-upload"
-                  />
-                  <label
-                    htmlFor="video-upload"
-                    className="flex cursor-pointer flex-col items-center justify-center"
-                  >
-                    <Plus className="mb-2 text-slate-400" size={30} />
-                    <p className="text-center text-sm text-slate-600">
-                      Click to upload videos
-                      <span className="mt-1 block text-xs text-slate-500">Supports: MP4 only</span>
-                    </p>
-                  </label>
-                </div>
-
-                {formData.videos && formData.videos.length > 0 && (
-                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {formData.videos.map((video: string, index: number) => (
-                      <div key={index} className="group relative">
-                        <video
-                          src={video}
-                          className="h-28 w-full rounded-lg border-2 border-slate-200 bg-slate-100 object-cover"
-                          controls
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeVideo(index)}
-                          className="absolute right-1 top-1 rounded-full bg-rose-500 p-1 text-white opacity-0 transition group-hover:opacity-100"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4">
-              <p className="text-sm text-cyan-900">
-                <strong>Info:</strong> Users need an active subscription or coupon code with free
-                listings to create listings.
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label className={labelClass}>Seller ID / Username / Phone *</label>
+              <input
+                type="text"
+                value={formData.userId}
+                onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+                placeholder="Enter seller id, username, or mobile"
+                className={inputClass}
+                required
+              />
+              {formErrors.userId && (
+                <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.userId}</p>
+              )}
+              <p className="mt-1 text-xs text-slate-500">
+                The server resolves this to the actual seller account.
               </p>
             </div>
+          </div>
+        </div>
+      </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                <input
-                  type="checkbox"
-                  checked={formData.sponsored}
-                  onChange={(e) => setFormData({ ...formData, sponsored: e.target.checked })}
-                  className="h-4 w-4 accent-amber-600"
-                />
-                <div>
-                  <p className="text-sm font-semibold text-amber-900">Sponsored Tag</p>
-                  <p className="text-xs text-amber-800">Show sponsored label in cards/details.</p>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <label className={labelClass}>Images</label>
+          <div className="rounded-xl border-2 border-dashed border-slate-300 p-5 transition hover:border-cyan-400 hover:bg-cyan-50/40">
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageUpload}
+              className="hidden"
+              id="image-upload"
+            />
+            <label
+              htmlFor="image-upload"
+              className="flex cursor-pointer flex-col items-center justify-center"
+            >
+              <Plus className="mb-2 text-slate-400" size={30} />
+              <p className="text-center text-sm text-slate-600">
+                Click to upload images
+                <span className="mt-1 block text-xs text-slate-500">
+                  Supports: JPG, PNG, WEBP (auto-optimized)
+                </span>
+              </p>
+            </label>
+          </div>
+          {isUploadingMedia && <p className="mt-2 text-xs text-cyan-700">Uploading media...</p>}
+
+          {formData.images && formData.images.length > 0 && (
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {formData.images.map((img: string, index: number) => (
+                <div key={index} className="group relative">
+                  <img
+                    src={img}
+                    alt={`Preview ${index + 1}`}
+                    className="h-24 w-full rounded-lg border-2 border-slate-200 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    className="absolute right-1 top-1 rounded-full bg-rose-500 p-1 text-white opacity-0 transition group-hover:opacity-100"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
-              </label>
-              <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                <input
-                  type="checkbox"
-                  checked={formData.featured}
-                  onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-                  className="h-4 w-4 accent-blue-600"
-                />
-                <div>
-                  <p className="text-sm font-semibold text-blue-900">Featured Listing</p>
-                  <p className="text-xs text-blue-800">
-                    Use featured ranking separately from sponsored.
-                  </p>
-                </div>
-              </label>
+              ))}
             </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <label className={labelClass}>Videos</label>
+          <div className="rounded-xl border-2 border-dashed border-slate-300 p-5 transition hover:border-cyan-400 hover:bg-cyan-50/40">
+            <input
+              type="file"
+              accept="video/*"
+              multiple
+              onChange={handleVideoUpload}
+              className="hidden"
+              id="video-upload"
+            />
+            <label
+              htmlFor="video-upload"
+              className="flex cursor-pointer flex-col items-center justify-center"
+            >
+              <Plus className="mb-2 text-slate-400" size={30} />
+              <p className="text-center text-sm text-slate-600">
+                Click to upload videos
+                <span className="mt-1 block text-xs text-slate-500">Supports: MP4 only</span>
+              </p>
+            </label>
+          </div>
+
+          {formData.videos && formData.videos.length > 0 && (
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {formData.videos.map((video: string, index: number) => (
+                <div key={index} className="group relative">
+                  <video
+                    src={video}
+                    className="h-28 w-full rounded-lg border-2 border-slate-200 bg-slate-100 object-cover"
+                    controls
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeVideo(index)}
+                    className="absolute right-1 top-1 rounded-full bg-rose-500 p-1 text-white opacity-0 transition group-hover:opacity-100"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4">
+        <p className="text-sm text-cyan-900">
+          <strong>Info:</strong> Users need an active subscription or coupon code with free listings
+          to create listings.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <input
+            type="checkbox"
+            checked={formData.sponsored}
+            onChange={(e) => setFormData({ ...formData, sponsored: e.target.checked })}
+            className="h-4 w-4 accent-amber-600"
+          />
+          <div>
+            <p className="text-sm font-semibold text-amber-900">Sponsored Tag</p>
+            <p className="text-xs text-amber-800">Show sponsored label in cards/details.</p>
+          </div>
+        </label>
+        <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+          <input
+            type="checkbox"
+            checked={formData.featured}
+            onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
+            className="h-4 w-4 accent-blue-600"
+          />
+          <div>
+            <p className="text-sm font-semibold text-blue-900">Featured Listing</p>
+            <p className="text-xs text-blue-800">Use featured ranking separately from sponsored.</p>
+          </div>
+        </label>
+      </div>
     </AdminListingModalFrame>
   );
 }

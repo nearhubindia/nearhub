@@ -477,7 +477,8 @@ export default function CreateListingPage(): ReactElement {
       .filter((item) => item.isValid)
       .sort((a, b) => {
         if (a.isUnlimited !== b.isUnlimited) return a.isUnlimited ? -1 : 1;
-        if (a.listingsRemaining !== b.listingsRemaining) return b.listingsRemaining - a.listingsRemaining;
+        if (a.listingsRemaining !== b.listingsRemaining)
+          return b.listingsRemaining - a.listingsRemaining;
         return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
       });
   }, [subscriptionSummaries]);
@@ -613,7 +614,7 @@ export default function CreateListingPage(): ReactElement {
     ? true
     : Boolean(
         selectedSubscriptionOption?.canCreateListing ||
-          (starterCredits?.isActive && starterCredits.listingsRemaining > 0)
+        (starterCredits?.isActive && starterCredits.listingsRemaining > 0)
       );
   const emiBaseAmount = parsePrice(mode === 'deal' ? offerPrice || price : offerPrice || price);
   const calculateMonthlyEmi = (durationMonths: string): string => {
@@ -1405,9 +1406,10 @@ export default function CreateListingPage(): ReactElement {
             needsPostingCredits && selectedSubscriptionOption?.canCreateListing
               ? activeSubscriptionId
               : undefined,
-          subscriptionTierId: needsPostingCredits && selectedSubscriptionOption?.canCreateListing
-            ? activeSubscriptionTierId
-            : undefined,
+          subscriptionTierId:
+            needsPostingCredits && selectedSubscriptionOption?.canCreateListing
+              ? activeSubscriptionTierId
+              : undefined,
           attributes: Object.keys(attributesPayload).length > 0 ? attributesPayload : undefined,
           isDeal,
           dealType: isDeal ? dealType : undefined,
@@ -1538,9 +1540,7 @@ export default function CreateListingPage(): ReactElement {
       <section className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-sm font-normal font-inter text-slate-900">
-              Choose Subscription
-            </h2>
+            <h2 className="text-sm font-normal font-inter text-slate-900">Choose Subscription</h2>
             <p className="text-xs font-normal text-slate-500">
               Pick the active plan that should power this listing.
             </p>
@@ -1565,7 +1565,9 @@ export default function CreateListingPage(): ReactElement {
                   onClick={() => {
                     if (!option.canCreateListing || !option.id) return;
                     setActiveSubscriptionId(option.id);
-                    setActiveSubscriptionTierId(String(option.subscriptionTierId || option.tierId || '').trim());
+                    setActiveSubscriptionTierId(
+                      String(option.subscriptionTierId || option.tierId || '').trim()
+                    );
                     setActivePlanName(option.tierName);
                   }}
                   className={classNames(
@@ -1640,9 +1642,7 @@ export default function CreateListingPage(): ReactElement {
               <Star className="fill-amber-400" size={19} />
             </span>
             <div>
-              <h2 className="text-sm font-normal font-inter text-slate-900">
-                Subscription Status
-              </h2>
+              <h2 className="text-sm font-normal font-inter text-slate-900">Subscription Status</h2>
               <p className="text-sm font-normal text-slate-800">{subscriptionStatusLabel}</p>
               <p className="text-xs font-normal text-slate-500">{subscriptionStatusHint}</p>
             </div>
@@ -1942,7 +1942,9 @@ export default function CreateListingPage(): ReactElement {
             </button>
           </div>
         ) : null}
-        <label className="mt-5 block text-sm font-normal text-slate-900">Warranty / Guarantee</label>
+        <label className="mt-5 block text-sm font-normal text-slate-900">
+          Warranty / Guarantee
+        </label>
         <input
           value={warrantyText}
           onChange={(event) => setWarrantyText(event.target.value.slice(0, 160))}
@@ -2057,7 +2059,9 @@ export default function CreateListingPage(): ReactElement {
                     </select>
                   </label>
                   <label className="block">
-                    <span className="mb-2 block text-xs font-normal text-slate-500">Subcategory</span>
+                    <span className="mb-2 block text-xs font-normal text-slate-500">
+                      Subcategory
+                    </span>
                     <select
                       value={subCategory}
                       onChange={(event) => setSubCategory(event.target.value)}
@@ -2108,8 +2112,10 @@ export default function CreateListingPage(): ReactElement {
                                 onClick={() =>
                                   setAttributeValues((current) => ({
                                     ...current,
-                                    [attribute.name]:
-                                      !(current[attribute.name] === true || current[attribute.name] === 'true'),
+                                    [attribute.name]: !(
+                                      current[attribute.name] === true ||
+                                      current[attribute.name] === 'true'
+                                    ),
                                   }))
                                 }
                                 className={`flex h-10 w-full items-center justify-between rounded-xl border px-4 text-left text-sm transition ${

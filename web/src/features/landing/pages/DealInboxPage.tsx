@@ -14,12 +14,7 @@ import {
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { DealStatsGrid } from '../components/DealStatsGrid';
 import { DealVoucherCard } from '../components/DealVoucherCard';
-import {
-  apiUrl,
-  openVoucherPdf,
-  readStoredUser,
-  type DealBooking,
-} from '../lib/deal-bookings';
+import { apiUrl, openVoucherPdf, readStoredUser, type DealBooking } from '../lib/deal-bookings';
 
 type DealListing = {
   id: string;
@@ -68,7 +63,7 @@ export default function DealInboxPage(): ReactElement {
       if (scopedListingId) {
         const response = await fetch(
           apiUrl(`/api/deals/listing/${encodeURIComponent(scopedListingId)}/bookings`),
-          { headers: authHeaders },
+          { headers: authHeaders }
         );
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || !payload.success) {
@@ -78,15 +73,19 @@ export default function DealInboxPage(): ReactElement {
       }
 
       const listingsResponse = await fetch(
-        apiUrl(`/api/listings?limit=500&userId=${encodeURIComponent(userId)}&dealsOnly=1&includeExpiredDeals=1`),
-        { headers: authHeaders },
+        apiUrl(
+          `/api/listings?limit=500&userId=${encodeURIComponent(userId)}&dealsOnly=1&includeExpiredDeals=1`
+        ),
+        { headers: authHeaders }
       );
       const listingsPayload = (await listingsResponse.json().catch(() => ({}))) as ListingsResponse;
       if (!listingsResponse.ok || listingsPayload.success === false) {
-        throw new Error(sellerPayload.error || listingsPayload.error || 'Failed to load purchased deals');
+        throw new Error(
+          sellerPayload.error || listingsPayload.error || 'Failed to load purchased deals'
+        );
       }
-      const sellerDealListings = (listingsPayload.data || listingsPayload.results || []).filter((listing) =>
-        Boolean(listing.isDeal ?? listing.is_deal),
+      const sellerDealListings = (listingsPayload.data || listingsPayload.results || []).filter(
+        (listing) => Boolean(listing.isDeal ?? listing.is_deal)
       );
       if (sellerDealListings.length === 0) return [];
 
@@ -94,12 +93,12 @@ export default function DealInboxPage(): ReactElement {
         sellerDealListings.map(async (listing) => {
           const response = await fetch(
             apiUrl(`/api/deals/listing/${encodeURIComponent(listing.id)}/bookings`),
-            { headers: authHeaders },
+            { headers: authHeaders }
           );
           const payload = await response.json().catch(() => ({}));
           if (!response.ok || !payload.success) return [];
           return (payload.bookings || []) as DealBooking[];
-        }),
+        })
       );
 
       return bookingGroups
@@ -107,18 +106,21 @@ export default function DealInboxPage(): ReactElement {
         .sort(
           (a, b) =>
             new Date(b.bookedAt || b.createdAt || 0).getTime() -
-            new Date(a.bookedAt || a.createdAt || 0).getTime(),
+            new Date(a.bookedAt || a.createdAt || 0).getTime()
         );
     },
   });
 
   const markEncashedMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      const response = await fetch(apiUrl(`/api/deals/bookings/${encodeURIComponent(bookingId)}/status`), {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify({ status: 'encashed' }),
-      });
+      const response = await fetch(
+        apiUrl(`/api/deals/bookings/${encodeURIComponent(bookingId)}/status`),
+        {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({ status: 'encashed' }),
+        }
+      );
       const payload = await response.json();
       if (!response.ok || !payload.success) {
         throw new Error(payload.error || 'Failed to mark deal encashed');
@@ -146,9 +148,15 @@ export default function DealInboxPage(): ReactElement {
     : allDealBookings;
   const stats = {
     total: dealBookings.length,
-    encashed: dealBookings.filter((booking) => String(booking.status || '').toLowerCase() === 'redeemed').length,
-    pending: dealBookings.filter((booking) => String(booking.status || 'booked').toLowerCase() === 'booked').length,
-    expired: dealBookings.filter((booking) => String(booking.status || '').toLowerCase() === 'expired').length,
+    encashed: dealBookings.filter(
+      (booking) => String(booking.status || '').toLowerCase() === 'redeemed'
+    ).length,
+    pending: dealBookings.filter(
+      (booking) => String(booking.status || 'booked').toLowerCase() === 'booked'
+    ).length,
+    expired: dealBookings.filter(
+      (booking) => String(booking.status || '').toLowerCase() === 'expired'
+    ).length,
   };
   const statCards = [
     {
@@ -226,7 +234,9 @@ export default function DealInboxPage(): ReactElement {
                 <div className="mx-auto mt-3 h-2 w-14 rounded-full bg-[#c7dfff]" />
                 <div className="mx-auto mt-3 h-2 w-16 rounded-full bg-[#c7dfff]" />
               </div>
-              <span className="absolute bottom-10 left-10 text-2xl font-black text-[#a7c9ff]">*</span>
+              <span className="absolute bottom-10 left-10 text-2xl font-black text-[#a7c9ff]">
+                *
+              </span>
               <span className="absolute right-2 top-20 text-2xl font-black text-[#a7c9ff]">*</span>
             </div>
           </div>
@@ -276,7 +286,8 @@ export default function DealInboxPage(): ReactElement {
               const normalizedStatus = String(booking.status || 'booked').toLowerCase();
               const isEncashed = normalizedStatus === 'redeemed';
               const canMarkEncashed = normalizedStatus === 'booked';
-              const isUpdating = markEncashedMutation.isPending && markEncashedMutation.variables === booking.id;
+              const isUpdating =
+                markEncashedMutation.isPending && markEncashedMutation.variables === booking.id;
               return (
                 <DealVoucherCard
                   key={booking.id}
@@ -293,7 +304,8 @@ export default function DealInboxPage(): ReactElement {
                       disabled={!canMarkEncashed || isUpdating}
                       className="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 text-sm font-black text-emerald-700 transition hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-75"
                     >
-                      <CheckCircle2 size={15} /> {isEncashed ? 'Encashed' : isUpdating ? 'Marking...' : 'Mark Encashed'}
+                      <CheckCircle2 size={15} />{' '}
+                      {isEncashed ? 'Encashed' : isUpdating ? 'Marking...' : 'Mark Encashed'}
                     </button>
                   }
                 />

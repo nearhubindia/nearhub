@@ -366,7 +366,7 @@ export default function ListingDetailsPage(): ReactElement {
   const isBookDealDisabled = Boolean(userId && (!isDealActive || isDealSoldOut));
   const showDealTimer = dealStatus.startsWith('Ends in');
   const timerParts = showDealTimer ? countdownParts(dealEnd, nowMs) : [];
-  
+
   const dealOfferPrice = parsePrice(listing?.offerPrice);
   const originalPrice = parsePrice(listing?.price);
   const hasDealPrice = dealOfferPrice > 0 && originalPrice > dealOfferPrice;
@@ -435,9 +435,7 @@ export default function ListingDetailsPage(): ReactElement {
   const emiPlans = parseEmiPlans(listing?.emiPlans ?? listing?.emi_plans);
   const warrantyText = String(listing?.warrantyText || listing?.warranty_text || '').trim();
   const buyerFeatures = parseStringList(listing?.dealExtraFeatures ?? listing?.deal_extra_features);
-  const listingAttributes = Object.entries(
-    parseAttributes(listing?.attributes)
-  );
+  const listingAttributes = Object.entries(parseAttributes(listing?.attributes));
   const showBuyerOptions = emiAvailable || Boolean(warrantyText) || buyerFeatures.length > 0;
 
   const renderBuyerOptions = () =>

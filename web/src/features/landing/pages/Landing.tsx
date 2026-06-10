@@ -123,7 +123,11 @@ type ListingsResponse = {
 function formatPrice(value: string | number | undefined): string {
   const n = typeof value === 'string' ? Number(value) : value;
   if (!Number.isFinite(n as number)) return 'Price on request';
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n as number);
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(n as number);
 }
 
 function normalizeImageUrl(value: string | undefined): string {
@@ -301,7 +305,9 @@ export default function Landing(): ReactElement {
                   className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                 />
                 <div className="p-4">
-                  <p className="line-clamp-2 text-sm font-semibold text-[#113965]">{listing.title}</p>
+                  <p className="line-clamp-2 text-sm font-semibold text-[#113965]">
+                    {listing.title}
+                  </p>
                   <p className="mt-2 text-sm font-bold text-slate-950">
                     {formatPrice(listing.offerPrice || listing.price)}
                   </p>

@@ -52,7 +52,11 @@ function writeSavedIds(ids: string[]) {
 function formatPrice(value: string | number | undefined): string {
   const n = typeof value === 'string' ? Number(value) : value;
   if (!Number.isFinite(n)) return 'Price on request';
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n as number);
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(n as number);
 }
 
 export default function SavedPage(): ReactElement {
@@ -94,34 +98,66 @@ export default function SavedPage(): ReactElement {
         <section className="rounded-3xl border border-[#1e5da8]/15 bg-white p-6 shadow-[0_24px_60px_-42px_rgba(30,93,168,0.68)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-2xl font-bold text-[#113965]">Favourites</h1>
-            <Link to="/browse" className="text-sm font-semibold text-[#1e5da8] hover:underline">Back to Browse</Link>
+            <Link to="/browse" className="text-sm font-semibold text-[#1e5da8] hover:underline">
+              Back to Browse
+            </Link>
           </div>
           <p className="mt-2 text-sm text-slate-600">{savedListings.length} saved item(s)</p>
         </section>
 
         <section className="mt-5">
           {listingsQuery.isLoading ? <p className="text-slate-600">Loading favourites...</p> : null}
-          {listingsQuery.isError ? <p className="text-red-600">Failed to load favourites.</p> : null}
+          {listingsQuery.isError ? (
+            <p className="text-red-600">Failed to load favourites.</p>
+          ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
             {savedListings.map((item) => (
-              <article key={item.id} className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+              <article
+                key={item.id}
+                className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm"
+              >
                 <div className="aspect-[1.22] bg-slate-100">
                   {item.images?.[0] ? (
-                    <img src={item.images[0]} alt={item.title} className="h-full w-full object-cover" loading="lazy" />
+                    <img
+                      src={item.images[0]}
+                      alt={item.title}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
                   ) : (
-                    <img src={FALLBACK_IMAGE} alt="NearHub" className="h-full w-full object-contain p-5 opacity-80" loading="lazy" />
+                    <img
+                      src={FALLBACK_IMAGE}
+                      alt="NearHub"
+                      className="h-full w-full object-contain p-5 opacity-80"
+                      loading="lazy"
+                    />
                   )}
                 </div>
                 <div className="p-3">
-                  <h2 className="line-clamp-1 text-sm font-semibold text-slate-900">{item.title}</h2>
-                  <p className="mt-1 line-clamp-2 text-xs text-slate-600">{item.description || 'No description available'}</p>
-                  <div className="mt-2 flex items-center gap-1 text-xs text-slate-500"><MapPin size={12} /> {item.location || 'Nearby'}</div>
+                  <h2 className="line-clamp-1 text-sm font-semibold text-slate-900">
+                    {item.title}
+                  </h2>
+                  <p className="mt-1 line-clamp-2 text-xs text-slate-600">
+                    {item.description || 'No description available'}
+                  </p>
+                  <div className="mt-2 flex items-center gap-1 text-xs text-slate-500">
+                    <MapPin size={12} /> {item.location || 'Nearby'}
+                  </div>
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <p className="text-sm font-bold text-[#0f4b8a]">{formatPrice(item.price)}</p>
                     <div className="flex shrink-0 items-center gap-2">
-                      <Link to={`/listing/${item.id}`} className="text-xs font-semibold text-[#ff7b00] hover:underline">Open</Link>
-                      <button type="button" onClick={() => removeSaved(item.id)} className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:underline">
+                      <Link
+                        to={`/listing/${item.id}`}
+                        className="text-xs font-semibold text-[#ff7b00] hover:underline"
+                      >
+                        Open
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => removeSaved(item.id)}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:underline"
+                      >
                         <Heart size={14} /> Remove
                       </button>
                     </div>

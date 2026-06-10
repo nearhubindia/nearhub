@@ -58,7 +58,9 @@ export function parseListingCoordinate(
   return numeric;
 }
 
-export function validateAdminListingDetails(formData: ListingValidationForm): ListingValidationResult {
+export function validateAdminListingDetails(
+  formData: ListingValidationForm
+): ListingValidationResult {
   const listingErrors = validators.validateListingForm({
     title: formData.title,
     description: formData.description,
@@ -125,8 +127,7 @@ export function useAdminListingCategoryOptions<TForm extends CategoryForm>(
   const subCategories = useMemo(
     () =>
       categoryGroups.find((entry) => entry.mainCategory === formData.mainCategory)?.subcategories ||
-      categoryGroups[0]?.subcategories ||
-      ['Other'],
+      categoryGroups[0]?.subcategories || ['Other'],
     [categoryGroups, formData.mainCategory]
   );
   const showConditionField = useMemo(
@@ -332,7 +333,13 @@ export function useCoordinateLocationAutofill<TForm extends LocationForm>(
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [formData.latitude, formData.longitude, lastAutoFilledLocation, lastAutoFilledPincode, setFormData]);
+  }, [
+    formData.latitude,
+    formData.longitude,
+    lastAutoFilledLocation,
+    lastAutoFilledPincode,
+    setFormData,
+  ]);
 
   return {
     isResolvingLocation,

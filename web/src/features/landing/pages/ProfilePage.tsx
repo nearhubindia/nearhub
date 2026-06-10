@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactElement } from 'react';
-import { ArrowLeft, Box, Camera, CheckCircle, Hash, Mail, MapPin, Phone, Save, Star, User } from 'lucide-react';
+import {
+  ArrowLeft,
+  Box,
+  Camera,
+  CheckCircle,
+  Hash,
+  Mail,
+  MapPin,
+  Phone,
+  Save,
+  Star,
+  User,
+} from 'lucide-react';
 import { Navigate, Link } from 'react-router-dom';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
@@ -45,7 +57,17 @@ function hasCurrentLocation(latitude: number | null, longitude: number | null): 
   );
 }
 
-function completionPercent(values: { name: string; email: string; phone: string; address: string; gstin: string; bio: string; avatarUrl: string; latitude: number | null; longitude: number | null }): number {
+function completionPercent(values: {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  gstin: string;
+  bio: string;
+  avatarUrl: string;
+  latitude: number | null;
+  longitude: number | null;
+}): number {
   const weightedFields = [
     { complete: Boolean(values.name.trim()), weight: 20 },
     { complete: Boolean(values.phone.trim()), weight: 20 },
@@ -106,8 +128,19 @@ export default function ProfilePage(): ReactElement {
   const userId = String(storedUser?.id || '').trim();
   const userPhone = String(storedUser?.phone || '').trim();
   const isLoggedIn = Boolean(userId);
-  const profileCompletion = completionPercent({ name, email, phone: userPhone, address, gstin, bio, avatarUrl, latitude, longitude });
-  const completionHint = profileCompletion < 100 ? 'Complete your profile details to reach 100%' : 'Profile is complete';
+  const profileCompletion = completionPercent({
+    name,
+    email,
+    phone: userPhone,
+    address,
+    gstin,
+    bio,
+    avatarUrl,
+    latitude,
+    longitude,
+  });
+  const completionHint =
+    profileCompletion < 100 ? 'Complete your profile details to reach 100%' : 'Profile is complete';
   const displayName = name.trim() || 'User';
   const initial = displayName.charAt(0).toUpperCase();
 
@@ -137,7 +170,9 @@ export default function ProfilePage(): ReactElement {
       try {
         const [profileResponse, statsResponse] = await Promise.all([
           fetch(`${getApiUrl()}/api/users/profile`, { headers: authHeaders }),
-          fetch(`${getApiUrl()}/api/users/${encodeURIComponent(userId)}/stats`, { headers: authHeaders }),
+          fetch(`${getApiUrl()}/api/users/${encodeURIComponent(userId)}/stats`, {
+            headers: authHeaders,
+          }),
         ]);
 
         const profile = (await profileResponse.json().catch(() => ({}))) as ProfileResponse;
@@ -167,7 +202,9 @@ export default function ProfilePage(): ReactElement {
           const preferredRadius = Number(
             profile.preferences?.searchRadiusKm ?? storedUser?.preferences?.searchRadiusKm ?? 50
           );
-          setSearchRadiusKm(Number.isFinite(preferredRadius) && preferredRadius > 0 ? preferredRadius : 50);
+          setSearchRadiusKm(
+            Number.isFinite(preferredRadius) && preferredRadius > 0 ? preferredRadius : 50
+          );
         }
 
         if (statsResponse.ok) {
@@ -183,7 +220,16 @@ export default function ProfilePage(): ReactElement {
     };
 
     void loadProfile();
-  }, [authHeaders, storedUser?.address, storedUser?.avatarUrl, storedUser?.bio, storedUser?.email, storedUser?.gstin, storedUser?.name, userId]);
+  }, [
+    authHeaders,
+    storedUser?.address,
+    storedUser?.avatarUrl,
+    storedUser?.bio,
+    storedUser?.email,
+    storedUser?.gstin,
+    storedUser?.name,
+    userId,
+  ]);
 
   const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -242,20 +288,23 @@ export default function ProfilePage(): ReactElement {
     setIsSaving(true);
     setMessage('');
     try {
-      const response = await fetch(`${getApiUrl()}/api/users/${encodeURIComponent(userId)}/profile`, {
-        method: 'PUT',
-        headers: authHeaders,
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          bio: bio.trim(),
-          address: address.trim(),
-          gstin: gstin.trim(),
-          avatarUrl: avatarUrl.trim(),
-          latitude,
-          longitude,
-        }),
-      });
+      const response = await fetch(
+        `${getApiUrl()}/api/users/${encodeURIComponent(userId)}/profile`,
+        {
+          method: 'PUT',
+          headers: authHeaders,
+          body: JSON.stringify({
+            name: name.trim(),
+            email: email.trim(),
+            bio: bio.trim(),
+            address: address.trim(),
+            gstin: gstin.trim(),
+            avatarUrl: avatarUrl.trim(),
+            latitude,
+            longitude,
+          }),
+        }
+      );
       const data = (await response.json().catch(() => ({}))) as {
         success?: boolean;
         error?: string;
@@ -337,7 +386,9 @@ export default function ProfilePage(): ReactElement {
       <LandingHeader active="browse" />
       <main className="mx-auto w-full max-w-375 px-4 pb-14 pt-24 sm:px-6 lg:px-8">
         <div className="mb-8 flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-normal tracking-tight text-slate-950 sm:text-3xl">My Profile</h1>
+          <h1 className="text-2xl font-normal tracking-tight text-slate-950 sm:text-3xl">
+            My Profile
+          </h1>
           <Link
             to="/browse"
             className="inline-flex h-11 items-center gap-2 rounded-full border border-[#d9e6f4] bg-white px-5 text-sm font-normal text-[#1f63b2] shadow-sm transition hover:border-[#1f63b2]/40"
@@ -350,7 +401,9 @@ export default function ProfilePage(): ReactElement {
           <div className="relative h-28 bg-[#1E5DA8] sm:h-32">
             <div className="absolute inset-y-0 right-0 w-48 bg-[#1f5fa8] opacity-60 sm:w-72" />
             <div className="absolute right-8 top-1/2 hidden -translate-y-1/2 text-right text-white sm:block">
-              <p className="text-sm font-normal uppercase tracking-wide text-blue-100">Welcome Back</p>
+              <p className="text-sm font-normal uppercase tracking-wide text-blue-100">
+                Welcome Back
+              </p>
               <p className="mt-1 text-lg font-normal">Manage your seller profile</p>
             </div>
             <span className="absolute left-0 top-0 h-full w-2 bg-[#ff850f]" />
@@ -358,10 +411,20 @@ export default function ProfilePage(): ReactElement {
 
           <div className="grid gap-8 px-5 pb-8 sm:px-8 lg:grid-cols-[330px_minmax(0,1fr)] lg:px-12">
             <aside className="-mt-16 lg:-mt-20">
-              <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
               <div className="relative mx-auto h-32 w-32 sm:mx-0">
                 {avatarUrl ? (
-                  <img src={avatarUrl} alt={displayName} className="h-32 w-32 rounded-full border-4 border-white bg-[#113965] object-cover shadow-lg" />
+                  <img
+                    src={avatarUrl}
+                    alt={displayName}
+                    className="h-32 w-32 rounded-full border-4 border-white bg-[#113965] object-cover shadow-lg"
+                  />
                 ) : (
                   <div className="grid h-32 w-32 place-items-center rounded-full border-4 border-white bg-[#113965] text-4xl font-normal text-white shadow-lg">
                     {initial}
@@ -376,11 +439,15 @@ export default function ProfilePage(): ReactElement {
                 </button>
               </div>
 
-              <h2 className="mt-8 text-center text-2xl font-normal text-slate-950 sm:text-left">{displayName}</h2>
+              <h2 className="mt-8 text-center text-2xl font-normal text-slate-950 sm:text-left">
+                {displayName}
+              </h2>
 
               <div className="mt-7 rounded-[20px] bg-[#e7f0fa] p-5 shadow-inner">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-normal uppercase tracking-wide text-[#113965]">Profile Completion</p>
+                  <p className="text-xs font-normal uppercase tracking-wide text-[#113965]">
+                    Profile Completion
+                  </p>
                   <p className="text-sm font-normal text-[#113965]">{profileCompletion}%</p>
                 </div>
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
@@ -419,7 +486,9 @@ export default function ProfilePage(): ReactElement {
 
             <section className="pt-2 lg:pt-16">
               <h2 className="text-xl font-normal text-slate-950">Account details</h2>
-              {isLoading ? <p className="mt-4 text-sm font-semibold text-slate-500">Loading profile...</p> : null}
+              {isLoading ? (
+                <p className="mt-4 text-sm font-semibold text-slate-500">Loading profile...</p>
+              ) : null}
 
               <div className="mt-7 grid gap-5 md:grid-cols-2">
                 <Field label="Name" required icon={<User size={20} />}>
@@ -430,7 +499,7 @@ export default function ProfilePage(): ReactElement {
                     placeholder="User"
                   />
                 </Field>
-                <Field label="Email"  icon={<Mail size={20} />}>
+                <Field label="Email" icon={<Mail size={20} />}>
                   <input
                     value={email}
                     onChange={(event) => setEmail(event.target.value.slice(0, 120))}
@@ -440,7 +509,11 @@ export default function ProfilePage(): ReactElement {
                   />
                 </Field>
                 <Field label="Phone Number" required icon={<Phone size={20} />}>
-                  <input value={userPhone} readOnly className="h-full min-w-0 flex-1 bg-transparent text-sm font-normal outline-none" />
+                  <input
+                    value={userPhone}
+                    readOnly
+                    className="h-full min-w-0 flex-1 bg-transparent text-sm font-normal outline-none"
+                  />
                 </Field>
                 <Field label="GSTIN (For Invoices)" icon={<Hash size={20} />}>
                   <input
@@ -474,7 +547,9 @@ export default function ProfilePage(): ReactElement {
               <div className="mt-7 rounded-[20px] border border-[#d9e6f4] bg-[#f8fbff] p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-normal text-[#113965]">Current Location Coordinates</p>
+                    <p className="text-sm font-normal text-[#113965]">
+                      Current Location Coordinates
+                    </p>
                     <p className="mt-1 text-xs text-slate-500">
                       Used for radius-based targeting and nearby notifications.
                     </p>
@@ -528,7 +603,9 @@ export default function ProfilePage(): ReactElement {
               </Field>
 
               {message ? (
-                <p className={`mt-4 text-sm font-normal ${message.includes('successfully') ? 'text-emerald-600' : 'text-rose-600'}`}>
+                <p
+                  className={`mt-4 text-sm font-normal ${message.includes('successfully') ? 'text-emerald-600' : 'text-rose-600'}`}
+                >
                   {message}
                 </p>
               ) : null}

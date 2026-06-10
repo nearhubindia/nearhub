@@ -82,13 +82,15 @@ export default function InvoicesPage(): ReactElement {
         },
       });
       const payload = (await response.json()) as InvoicesResponse;
-      if (!response.ok || !payload.success) throw new Error(payload.error || 'Failed to load invoices');
+      if (!response.ok || !payload.success)
+        throw new Error(payload.error || 'Failed to load invoices');
       return payload.invoices || [];
     },
   });
 
   const invoices = useMemo(
-    () => (invoicesQuery.data || []).filter((item) => !hiddenInvoiceIds.includes(item.invoiceNumber)),
+    () =>
+      (invoicesQuery.data || []).filter((item) => !hiddenInvoiceIds.includes(item.invoiceNumber)),
     [hiddenInvoiceIds, invoicesQuery.data]
   );
 
@@ -107,7 +109,9 @@ export default function InvoicesPage(): ReactElement {
         <section className="rounded-3xl border border-[#1e5da8]/15 bg-white p-6 shadow-[0_24px_60px_-42px_rgba(30,93,168,0.68)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-2xl font-bold text-[#113965]">Invoices</h1>
-            <Link to="/browse" className="text-sm font-semibold text-[#1e5da8] hover:underline">Back to Browse</Link>
+            <Link to="/browse" className="text-sm font-semibold text-[#1e5da8] hover:underline">
+              Back to Browse
+            </Link>
           </div>
           <p className="mt-2 text-sm text-slate-600">{invoices.length} invoice(s)</p>
         </section>
@@ -117,34 +121,63 @@ export default function InvoicesPage(): ReactElement {
           {invoicesQuery.isError ? <p className="text-red-600">Failed to load invoices.</p> : null}
 
           {invoices.map((item) => (
-            <article key={item.invoiceNumber} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article
+              key={item.invoiceNumber}
+              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <h2 className="text-base font-semibold text-slate-900">Invoice #{item.invoiceNumber}</h2>
-                  <p className="mt-1 text-xs text-slate-500">{item.customerName || 'Customer'} • {item.sellerName || 'NearHub'}</p>
+                  <h2 className="text-base font-semibold text-slate-900">
+                    Invoice #{item.invoiceNumber}
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {item.customerName || 'Customer'} • {item.sellerName || 'NearHub'}
+                  </p>
                 </div>
-                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold uppercase text-slate-700">{item.status || 'issued'}</span>
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold uppercase text-slate-700">
+                  {item.status || 'issued'}
+                </span>
               </div>
 
               <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
-                <p>Total: <span className="font-semibold text-[#113965]">{formatCurrency(item.total)}</span></p>
-                <p>Date: {item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString('en-IN') : '-'}</p>
+                <p>
+                  Total:{' '}
+                  <span className="font-semibold text-[#113965]">{formatCurrency(item.total)}</span>
+                </p>
+                <p>
+                  Date:{' '}
+                  {item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString('en-IN') : '-'}
+                </p>
                 <p>Payment ID: {item.paymentId || 'NA'}</p>
                 <p>Order ID: {item.orderId || 'NA'}</p>
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-4">
                 {item.invoiceHtmlUrl ? (
-                  <a href={`${getApiUrl()}${item.invoiceHtmlUrl}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-[#1e5da8] hover:underline">
+                  <a
+                    href={`${getApiUrl()}${item.invoiceHtmlUrl}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-[#1e5da8] hover:underline"
+                  >
                     <FileText size={14} /> View
                   </a>
                 ) : null}
                 {item.invoiceDownloadUrl ? (
-                  <a href={`${getApiUrl()}${item.invoiceDownloadUrl}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-[#ff7b00] hover:underline">
+                  <a
+                    href={`${getApiUrl()}${item.invoiceDownloadUrl}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-[#ff7b00] hover:underline"
+                  >
                     <Download size={14} /> Download
                   </a>
                 ) : null}
-                <button type="button" onClick={() => hideInvoice(item.invoiceNumber)} className="text-sm font-semibold text-rose-600 hover:underline">
+                <button
+                  type="button"
+                  onClick={() => hideInvoice(item.invoiceNumber)}
+                  className="text-sm font-semibold text-rose-600 hover:underline"
+                >
                   Remove
                 </button>
               </div>

@@ -1,15 +1,6 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  ChevronRight,
-  Flame,
-  Gift,
-  Heart,
-  History,
-  MapPin,
-  PackagePlus,
-  Tag,
-} from 'lucide-react';
+import { ChevronRight, Flame, Gift, Heart, History, MapPin, PackagePlus, Tag } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { LandingFooter, LandingHeader, Container } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
@@ -69,8 +60,6 @@ type ListingsResponse = {
   data?: Listing[];
   results?: Listing[];
 };
-
-
 
 const SAVED_IDS_KEY = 'nearhub_web_saved_listing_ids';
 const FALLBACK_IMAGE = '/nearhub.png';
@@ -134,8 +123,6 @@ function parseComboItems(value: string[] | string | undefined): string[] | undef
     .filter(Boolean);
   return items.length > 0 ? items : undefined;
 }
-
-
 
 function formatCountdown(endAt: number | undefined, nowMs: number): string {
   return countdownParts(endAt, nowMs)
@@ -685,8 +672,6 @@ export default function UserHomePage(): ReactElement {
     localStorage.setItem(SAVED_IDS_KEY, JSON.stringify([...next]));
   };
 
-  
-
   return (
     <div className="min-h-screen bg-white text-slate-950">
       <LandingHeader active="home" />
@@ -714,7 +699,6 @@ export default function UserHomePage(): ReactElement {
         </section>
 
         <Container className="pb-8 font-inter font-normal pt-8">
-
           {listingsQuery.isLoading ? (
             <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-normal text-slate-600">
               Loading listings...

@@ -343,7 +343,8 @@ export default function MyListingsPage(): ReactElement {
   };
 
   const isBusy = markSoldMutation.isPending || deleteMutation.isPending || boostMutation.isPending;
-  const hasBoostCredits = boostSummaryQuery.isError || boostSummaryQuery.isLoading || totalBoostCredits > 0;
+  const hasBoostCredits =
+    boostSummaryQuery.isError || boostSummaryQuery.isLoading || totalBoostCredits > 0;
 
   return (
     <div className="min-h-screen bg-white text-slate-950">
@@ -401,7 +402,10 @@ export default function MyListingsPage(): ReactElement {
             </div>
             <div className="mt-3 grid gap-2 text-sm font-semibold text-emerald-800 sm:grid-cols-2">
               <p>Total boost credits: {boostSummaryQuery.isLoading ? '...' : totalBoostCredits}</p>
-              <p>Starter boosts remaining: {boostSummaryQuery.isLoading ? '...' : starterBoostCredits}</p>
+              <p>
+                Starter boosts remaining:{' '}
+                {boostSummaryQuery.isLoading ? '...' : starterBoostCredits}
+              </p>
             </div>
             {boostSummaryQuery.isError ? (
               <p className="mt-2 text-xs font-semibold text-rose-700">

@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState, type ReactElement } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Heart, Sparkles, Timer } from "lucide-react";
-import { LandingFooter, LandingHeader } from "@/shared/components";
-import { getApiUrl } from "@/lib/config";
-import { formatDealStatus, getEffectiveDealWindow } from "@/lib/deal-timer";
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { Heart, Sparkles, Timer } from 'lucide-react';
+import { LandingFooter, LandingHeader } from '@/shared/components';
+import { getApiUrl } from '@/lib/config';
+import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
 
 type DealListing = {
   id: string;
@@ -41,70 +41,59 @@ type ListingsResponse = {
   results?: DealListing[];
 };
 
-const SAVED_IDS_KEY = "nearhub_web_saved_listing_ids";
-const FALLBACK_IMAGE = "/nearhub.png";
+const SAVED_IDS_KEY = 'nearhub_web_saved_listing_ids';
+const FALLBACK_IMAGE = '/nearhub.png';
 
 function readSavedIds(): Set<string> {
   try {
-    const parsed = JSON.parse(localStorage.getItem(SAVED_IDS_KEY) || "[]");
-    return new Set(
-      Array.isArray(parsed)
-        ? parsed.filter((item) => typeof item === "string")
-        : [],
-    );
+    const parsed = JSON.parse(localStorage.getItem(SAVED_IDS_KEY) || '[]');
+    return new Set(Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : []);
   } catch {
     return new Set();
   }
 }
 
 function normalizeImageUrl(value: string | undefined): string {
-  const raw = String(value || "").trim();
+  const raw = String(value || '').trim();
   if (!raw) return FALLBACK_IMAGE;
-  if (
-    raw.startsWith("http://") ||
-    raw.startsWith("https://") ||
-    raw.startsWith("/")
-  )
-    return raw;
+  if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('/')) return raw;
   return FALLBACK_IMAGE;
 }
 
 function parsePrice(value: string | number | undefined): number {
-  const parsed = typeof value === "string" ? Number(value) : Number(value || 0);
+  const parsed = typeof value === 'string' ? Number(value) : Number(value || 0);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function formatPrice(value: string | number | undefined): string {
   const amount = parsePrice(value);
-  if (!amount) return "Price on request";
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
+  if (!amount) return 'Price on request';
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
     maximumFractionDigits: 0,
   }).format(amount);
 }
 
 function formatDistance(value: number | string | undefined): string {
-  const distance = typeof value === "string" ? Number(value) : value;
+  const distance = typeof value === 'string' ? Number(value) : value;
   if (Number.isFinite(distance) && Number(distance) >= 0) {
     const rounded =
-      Number(distance) < 10
-        ? Number(distance).toFixed(1)
-        : Math.round(Number(distance)).toString();
-    return `${rounded.replace(/\.0$/, "")} km away`;
+      Number(distance) < 10 ? Number(distance).toFixed(1) : Math.round(Number(distance)).toString();
+    return `${rounded.replace(/\.0$/, '')} km away`;
   }
-  return "1 km away";
+  return '1 km away';
 }
 
 function formatTimeLeft(item: DealListing, nowMs: number): string {
   const end = getEffectiveDealWindow(item, nowMs)?.endMs || 0;
   const diff = end - nowMs;
-  if (!Number.isFinite(end) || diff <= 0) return "Closed";
+  if (!Number.isFinite(end) || diff <= 0) return 'Closed';
   const days = Math.floor(diff / 86_400_000);
   const hours = Math.floor((diff % 86_400_000) / 3_600_000);
   const minutes = Math.floor((diff % 3_600_000) / 60_000);
   const seconds = Math.floor((diff % 60_000) / 1000);
-  const pad = (value: number) => String(value).padStart(2, "0");
+  const pad = (value: number) => String(value).padStart(2, '0');
   return days > 0
     ? `${pad(days)}d : ${pad(hours)}h : ${pad(minutes)}m : ${pad(seconds)}s`
     : `${pad(hours)}h : ${pad(minutes)}m : ${pad(seconds)}s`;
@@ -112,27 +101,27 @@ function formatTimeLeft(item: DealListing, nowMs: number): string {
 
 function getComboSubtitle(item: DealListing): string {
   const raw = item.comboItems;
-  if (Array.isArray(raw)) return raw.slice(0, 2).join(" + ");
-  if (typeof raw === "string") {
+  if (Array.isArray(raw)) return raw.slice(0, 2).join(' + ');
+  if (typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.slice(0, 2).join(" + ");
+      if (Array.isArray(parsed)) return parsed.slice(0, 2).join(' + ');
     } catch {
       return raw
         .split(/\r?\n|,/)
         .map((part) => part.trim())
         .filter(Boolean)
         .slice(0, 2)
-        .join(" + ");
+        .join(' + ');
     }
   }
-  return item.description || item.category || "Combo offer";
+  return item.description || item.category || 'Combo offer';
 }
 
 function getDealTypeLabel(item: DealListing): string {
-  return String(item.dealType || item.deal_type || "").toLowerCase() === "combo"
-    ? "Combo Deal"
-    : "Deal";
+  return String(item.dealType || item.deal_type || '').toLowerCase() === 'combo'
+    ? 'Combo Deal'
+    : 'Deal';
 }
 
 function isExpiredDeal(item: DealListing, nowMs: number): boolean {
@@ -172,7 +161,9 @@ function DealCard({
   return (
     <article className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <Link to={`/listing/${item.id}`} className="block">
-        <div className={`relative bg-slate-50 ${combo ? "h-44 overflow-hidden bg-white sm:h-40 xl:h-36" : "aspect-[1.22]"}`}>
+        <div
+          className={`relative bg-slate-50 ${combo ? 'h-44 overflow-hidden bg-white sm:h-40 xl:h-36' : 'aspect-[1.22]'}`}
+        >
           {combo ? (
             <>
               <div className="grid h-full grid-cols-2 gap-px bg-slate-200">
@@ -218,12 +209,9 @@ function DealCard({
           type="button"
           onClick={() => onToggleSaved(item.id)}
           className="absolute -top-[calc(100%+0.25rem)] right-3 rounded-full bg-white/90 p-1.5 text-slate-800 shadow-sm"
-          aria-label={saved ? "Remove from favourites" : "Save deal"}
+          aria-label={saved ? 'Remove from favourites' : 'Save deal'}
         >
-          <Heart
-            size={20}
-            className={saved ? "fill-rose-500 text-rose-500" : ""}
-          />
+          <Heart size={20} className={saved ? 'fill-rose-500 text-rose-500' : ''} />
         </button>
         <Link to={`/listing/${item.id}`} className="block">
           <h2 className="line-clamp-2 min-h-10 text-sm font-black leading-snug text-slate-950">
@@ -244,9 +232,7 @@ function DealCard({
               </span>
             ) : null}
           </div>
-          <p className="mt-2 text-xs font-semibold text-slate-800 sm:text-sm">
-            {distance}
-          </p>
+          <p className="mt-2 text-xs font-semibold text-slate-800 sm:text-sm">{distance}</p>
           {dealStatus.startsWith('Ends in') ? (
             <div className="mt-3 text-center">
               <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#0759e6]">
@@ -299,19 +285,22 @@ export default function DealsPage(): ReactElement {
   }, []);
 
   const dealsQuery = useQuery({
-    queryKey: ["deals-page-listings"],
+    queryKey: ['deals-page-listings'],
     queryFn: async () => {
       const response = await fetch(
-        `${getApiUrl()}/api/listings?limit=200&dealsOnly=1&dealsPage=1&includeExpiredDeals=1`,
+        `${getApiUrl()}/api/listings?limit=200&dealsOnly=1&dealsPage=1&includeExpiredDeals=1`
       );
       const payload = (await response.json()) as ListingsResponse;
-      if (!response.ok || payload.success === false)
-        throw new Error("Failed to load deals");
+      if (!response.ok || payload.success === false) throw new Error('Failed to load deals');
       return (payload.data || payload.results || []).filter((item) => {
-        const status = String(item.status || "active").toLowerCase();
+        const status = String(item.status || 'active').toLowerCase();
         const active = item.isActive ?? item.is_active ?? true;
-        const visibleStatus = status === "active" || status === "expired";
-        return Boolean(item.isDeal ?? item.is_deal) && visibleStatus && (Boolean(active) || status === "expired");
+        const visibleStatus = status === 'active' || status === 'expired';
+        return (
+          Boolean(item.isDeal ?? item.is_deal) &&
+          visibleStatus &&
+          (Boolean(active) || status === 'expired')
+        );
       });
     },
   });
@@ -330,25 +319,23 @@ export default function DealsPage(): ReactElement {
     if (!search) return deals;
     return deals.filter((item) =>
       [item.title, item.description, item.category, item.location]
-        .map((value) => String(value || "").toLowerCase())
-        .join(" ")
-        .includes(search),
+        .map((value) => String(value || '').toLowerCase())
+        .join(' ')
+        .includes(search)
     );
   }, [dealsQuery.data, query]);
 
   const activeDeals = filteredDeals.filter(
-    (item) => !isExpiredDeal(item, nowMs) && !isUpcomingDeal(item, nowMs),
+    (item) => !isExpiredDeal(item, nowMs) && !isUpcomingDeal(item, nowMs)
   );
   const upcomingDeals = filteredDeals.filter((item) => isUpcomingDeal(item, nowMs));
   const expiredDeals = filteredDeals.filter((item) => isExpiredDeal(item, nowMs));
 
   const allDeals = activeDeals.filter(
-    (item) =>
-      String(item.dealType || item.deal_type || "").toLowerCase() !== "combo",
+    (item) => String(item.dealType || item.deal_type || '').toLowerCase() !== 'combo'
   );
   const comboDeals = activeDeals.filter(
-    (item) =>
-      String(item.dealType || item.deal_type || "").toLowerCase() === "combo",
+    (item) => String(item.dealType || item.deal_type || '').toLowerCase() === 'combo'
   );
 
   return (
@@ -375,9 +362,7 @@ export default function DealsPage(): ReactElement {
         </section>
 
         {dealsQuery.isLoading ? (
-          <p className="mt-8 text-sm font-semibold text-slate-500">
-            Loading deals...
-          </p>
+          <p className="mt-8 text-sm font-semibold text-slate-500">Loading deals...</p>
         ) : null}
         {dealsQuery.isError ? (
           <p className="mt-8 text-sm font-semibold text-rose-600">
@@ -439,7 +424,7 @@ export default function DealsPage(): ReactElement {
                   saved={savedIds.has(item.id)}
                   onToggleSaved={toggleSaved}
                   nowMs={nowMs}
-                  combo={String(item.dealType || item.deal_type || "").toLowerCase() === "combo"}
+                  combo={String(item.dealType || item.deal_type || '').toLowerCase() === 'combo'}
                 />
               ))}
             </div>
@@ -473,7 +458,7 @@ export default function DealsPage(): ReactElement {
                   saved={savedIds.has(item.id)}
                   onToggleSaved={toggleSaved}
                   nowMs={nowMs}
-                  combo={String(item.dealType || item.deal_type || "").toLowerCase() === "combo"}
+                  combo={String(item.dealType || item.deal_type || '').toLowerCase() === 'combo'}
                 />
               ))}
             </div>
