@@ -9,9 +9,9 @@ import { loadListingAttributeValueMap, replaceListingAttributeValues } from './l
 import { eq, and, desc, or, gte, lt, isNull, inArray } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
-function coerceMediaToArray(value: unknown): unknown {
-  if (value == null) return value;
-  if (Array.isArray(value)) return value;
+function coerceMediaToArray(value: unknown): string[] {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value.map((item) => String(item));
 
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -19,7 +19,7 @@ function coerceMediaToArray(value: unknown): unknown {
 
     try {
       const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) return parsed.map((item) => String(item));
       if (parsed == null) return [];
       return [String(parsed)];
     } catch {
@@ -28,6 +28,10 @@ function coerceMediaToArray(value: unknown): unknown {
   }
 
   return [String(value)];
+}
+
+function coerceMediaToJson(value: unknown): string {
+  return JSON.stringify(coerceMediaToArray(value));
 }
 
 /**
@@ -52,16 +56,10 @@ export async function createListing(
       ? validated.mainCategory.trim()
       : normalizedSubCategory || null;
 
-  // Keep both representations to support mixed schemas in production:
-  // some DBs store media as text (JSON string), others as text[].
-  const imagesAsJson =
-    validated.images && typeof validated.images !== 'string'
-      ? JSON.stringify(validated.images)
-      : validated.images;
-  const videosAsJson =
-    validated.videos && typeof validated.videos !== 'string'
-      ? JSON.stringify(validated.videos)
-      : validated.videos;
+  // Images are stored as a Postgres text[] column in the active schema.
+  // Videos remain text(JSON) for backward compatibility.
+  const imagesAsArray = coerceMediaToArray(validated.images);
+  const videosAsJson = coerceMediaToJson(validated.videos);
 
   // Calculate expiration if duration is provided
   const expiresAt = validated.durationDays
@@ -82,7 +80,7 @@ export async function createListing(
   try {
     const result = await db
       .insert(listings)
-      .values(insertValues(imagesAsJson, videosAsJson))
+      .values(insertValues(imagesAsArray, videosAsJson))
       .returning();
     const created = result[0];
     if (created && attributes && Object.keys(attributes).length > 0) {
@@ -95,19 +93,19 @@ export async function createListing(
     }
     return created;
   } catch (error: any) {
-    // Fallback for deployments where media columns are arrays (text[]) instead of text JSON.
+    // Fallback for deployments where images are stored as JSON text instead of text[].
     const isMalformedArray =
       error?.code === '22P02' && String(error?.message || '').includes('malformed array literal');
     if (!isMalformedArray) {
       throw error;
     }
 
-    const imagesAsArray = coerceMediaToArray(validated.images);
-    const videosAsArray = coerceMediaToArray(validated.videos);
+    const imagesAsJson = coerceMediaToJson(validated.images);
+    const videosAsJson = coerceMediaToJson(validated.videos);
 
     const retry = await db
       .insert(listings)
-      .values(insertValues(imagesAsArray, videosAsArray))
+      .values(insertValues(imagesAsJson, videosAsJson))
       .returning();
     const created = retry[0];
     if (created && attributes && Object.keys(attributes).length > 0) {
@@ -355,15 +353,8 @@ export async function updateListing(
     normalizedUpdates.isActive = false;
   }
 
-  const images =
-    normalizedUpdates.images && typeof normalizedUpdates.images !== 'string'
-      ? JSON.stringify(normalizedUpdates.images)
-      : normalizedUpdates.images;
-
-  const videos =
-    normalizedUpdates.videos && typeof normalizedUpdates.videos !== 'string'
-      ? JSON.stringify(normalizedUpdates.videos)
-      : normalizedUpdates.videos;
+  const images = coerceMediaToArray(normalizedUpdates.images);
+  const videos = coerceMediaToJson(normalizedUpdates.videos);
 
   try {
     const result = await db
@@ -399,8 +390,8 @@ export async function updateListing(
       .update(listings)
       .set({
         ...normalizedUpdates,
-        images: coerceMediaToArray(normalizedUpdates.images),
-        videos: coerceMediaToArray(normalizedUpdates.videos),
+        images: coerceMediaToJson(normalizedUpdates.images),
+        videos: coerceMediaToJson(normalizedUpdates.videos),
         updatedAt: new Date(),
       } as any)
       .where(eq(listings.id, id))

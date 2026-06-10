@@ -35,6 +35,28 @@ describe('Listings API - Strict Tests', () => {
     } as any);
   }
 
+  it('creates a listing when no media is provided', async () => {
+    const ownerId = randomUUID();
+    await seedUser(ownerId);
+
+    const listing = await createListing({
+      sellerId: ownerId,
+      title: `Empty Media ${randomUUID().slice(0, 8)}`,
+      description: 'Strict test listing',
+      category: 'Electronics',
+      price: '1200',
+      condition: 'good',
+      location: 'Delhi',
+      status: 'active',
+      isActive: true,
+      images: [],
+      videos: [],
+    } as any);
+
+    expect(listing?.id).toBeTruthy();
+    expect(listing?.title).toContain('Empty Media');
+  });
+
   it('GET /api/listings returns 200 with list payload', async () => {
     const app = createTestApp();
     const res = await request(app).get('/api/listings');
