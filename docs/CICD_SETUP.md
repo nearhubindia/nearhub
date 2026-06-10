@@ -18,8 +18,9 @@ Set these in `GitHub -> Settings -> Secrets and variables -> Actions`.
 - `AWS_EC2_SSH_KEY` (private key content for `nearhub-debian-key-20260524-015812.pem`)
 - `AWS_APP_DIR` (current production: `/opt/nearhub-server`)
 - `AWS_ENV_FILE` (current production: `/etc/nearhub/server.env`)
-- `AWS_SERVICE_NAME` (optional; leave empty when using PM2)
-- `AWS_PM2_APP_NAME` (default: `nearhub-server`)
+- `AWS_COMPOSE_PROJECT_NAME` (default: `nearhub`)
+- `AWS_COMPOSE_FILE_NAME` (default: `docker-compose.prod.yml`)
+- `AWS_DOCKERFILE_NAME` (default: `Dockerfile.prod`)
 
 ### Web deploy (Cloudflare Pages)
 
@@ -47,19 +48,10 @@ sudo chown root:admin /etc/nearhub/server.env
 sudo chmod 640 /etc/nearhub/server.env
 ```
 
-3. Ensure Node.js is installed (same major as CI, currently Node 20).
-4. Ensure `redis-server` and `nginx` are installed and enabled.
-5. Ensure your PM2 process uses `/opt/nearhub-server/current/dist/index.js`.
-6. Ensure PM2 survives reboot:
-
-```bash
-sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u admin --hp /home/admin
-pm2 save
-```
-
-7. Ensure DB credentials in `/etc/nearhub/server.env` have permission to run migrations.
-8. Ensure `/etc/nearhub/rds-global-bundle.pem` exists for the RDS TLS connection and is readable by the deploy user.
-9. For Razorpay, keep both alias pairs populated in `/etc/nearhub/server.env`:
+3. Ensure Docker and the classic `docker-compose` binary are installed and enabled.
+4. Ensure DB credentials in `/etc/nearhub/server.env` have permission to run migrations.
+5. Ensure `/etc/nearhub/rds-global-bundle.pem` exists for the RDS TLS connection and is readable by the deploy user.
+6. For Razorpay, keep both alias pairs populated in `/etc/nearhub/server.env`:
    - `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`
    - `RAZORPAY_API_KEY` and `RAZORPAY_API_SECRET`
    The runtime accepts either pair, but setting both avoids mismatches across scripts and services.
@@ -69,16 +61,19 @@ pm2 save
 ### Server (artifact only, AWS EC2)
 
 - Trigger: push to `main` with `server/**` changes, or manual dispatch.
-- CI builds server artifact (`dist + package.json + migrations`).
+- CI builds server artifact (`dist + package.json + migrations + Docker Compose files`).
 - Artifact is copied to EC2 via SCP.
 - EC2 deploy step:
   - extracts into new timestamped release
   - validates `DEPLOYMENT_MANIFEST`
   - refuses deploy if `.git` metadata is present in release
   - links `release/.env` from `/etc/nearhub/server.env`
-  - runs `npm ci`, then `npm run db:migrate` (Drizzle), then `npm prune --omit=dev`
+  - builds the production Docker image from the release artifact
+  - starts Redis and the server with `docker compose`
+  - runs `npm run db:migrate` inside the server container
   - switches `current` symlink
-  - restarts systemd service if configured, or falls back to PM2 (`AWS_PM2_APP_NAME`)
+  - installs and enables `nearhub-stack.service` so the stack comes back after reboot
+  - validates the `/api/health` endpoint
 
 No `git pull` is done on EC2.
 

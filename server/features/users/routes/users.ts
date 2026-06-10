@@ -4,11 +4,12 @@
  */
 
 import type { Express, Request, Response } from 'express';
-import { eq } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
 import { getListingsByUser } from '../../listings/services/listings';
 import {
   getUserById,
   getUserByPhone,
+  getStableUserIdFromPhone,
   isMeaningfulDisplayName,
   normalizePhone,
   pickMeaningfulDisplayName,
@@ -37,6 +38,7 @@ export function registerUserRoutes(app: Express) {
 
   const syncDbUserProfile = async (
     userId: string,
+    phone: string | undefined,
     avatarUrl: string | undefined,
     profile: {
       name?: string;
@@ -51,7 +53,34 @@ export function registerUserRoutes(app: Express) {
       throw new Error('Invalid user id format');
     }
 
-    const dbUser = await getDbUser(userId);
+    const normalizedPhone = normalizePhone(phone || '');
+    const dbUser =
+      (await db.query.users.findFirst({
+        where: eq(users.id, userId),
+        columns: {
+          id: true,
+          displayName: true,
+          email: true,
+          address: true,
+          gstin: true,
+          avatarUrl: true,
+          mobile: true,
+        },
+      })) ||
+      (normalizedPhone
+        ? await db.query.users.findFirst({
+            where: or(eq(users.mobile, normalizedPhone), eq(users.username, normalizedPhone)),
+            columns: {
+              id: true,
+              displayName: true,
+              email: true,
+              address: true,
+              gstin: true,
+              avatarUrl: true,
+              mobile: true,
+            },
+          })
+        : null);
     const profileName =
       typeof profile.name === 'string' && profile.name.trim() ? profile.name.trim() : '';
     const profileAddress =
@@ -75,10 +104,10 @@ export function registerUserRoutes(app: Express) {
           email: profileEmail || dbUser.email || null,
           address: profileAddress || dbUser.address || null,
           gstin: profileGstin || dbUser.gstin || null,
-          latitude: profileLatitude ?? dbUser.latitude ?? null,
-          longitude: profileLongitude ?? dbUser.longitude ?? null,
+          latitude: profileLatitude,
+          longitude: profileLongitude,
           avatarUrl: normalizedAvatarUrl || dbUser.avatarUrl || null,
-          mobile: dbUser.mobile,
+          mobile: normalizedPhone || dbUser.mobile,
         })
         .where(eq(users.id, dbUser.id));
       return;
@@ -91,7 +120,7 @@ export function registerUserRoutes(app: Express) {
         username: userId,
         displayName: pickMeaningfulDisplayName(profileName) || null,
         password: 'otp-auth',
-        mobile: null,
+        mobile: normalizedPhone || null,
         email: profileEmail || null,
         address: profileAddress || null,
         gstin: profileGstin || null,
@@ -100,7 +129,19 @@ export function registerUserRoutes(app: Express) {
         avatarUrl: normalizedAvatarUrl || null,
         createdAt: new Date(),
       })
-      .onConflictDoNothing({ target: users.username });
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          displayName: pickMeaningfulDisplayName(profileName) || null,
+          email: profileEmail || null,
+          address: profileAddress || null,
+          gstin: profileGstin || null,
+          latitude: profileLatitude,
+          longitude: profileLongitude,
+          avatarUrl: normalizedAvatarUrl || null,
+          mobile: normalizedPhone || null,
+        },
+      });
   };
 
   const ensureUser = (userId: string): AppUser => {
@@ -146,7 +187,7 @@ export function registerUserRoutes(app: Express) {
       let dbUser = await getDbUser(userId);
       if (!dbUser) {
         const seedUser = getUserById(userId);
-        await syncDbUserProfile(userId, seedUser?.avatarUrl, {
+        await syncDbUserProfile(userId, seedUser?.phone, seedUser?.avatarUrl, {
           name: seedUser?.name,
           email: seedUser?.email,
           address: seedUser?.address,
@@ -340,15 +381,29 @@ export function registerUserRoutes(app: Express) {
         Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId
       ).trim();
       const requestUserId = String(getRequestUserId(req) || '').trim();
+      const requestPhone = normalizePhone(req.get('x-user-phone') || '');
+      const phoneUser = requestPhone ? getUserByPhone(requestPhone) : undefined;
+      const stablePhoneUserId = requestPhone ? getStableUserIdFromPhone(requestPhone) : '';
+      const dbPhoneUser = requestPhone
+        ? await db.query.users.findFirst({
+            where: or(eq(users.mobile, requestPhone), eq(users.username, requestPhone)),
+            columns: { id: true },
+          })
+        : null;
       if (!isUuid(userId)) {
         return res.status(400).json({ error: 'Invalid user id format' });
       }
-      if (!isUuid(requestUserId) || requestUserId !== userId) {
+      const isAuthorizedUser =
+        requestUserId === userId ||
+        phoneUser?.id === userId ||
+        stablePhoneUserId === userId ||
+        dbPhoneUser?.id === userId;
+      if (!isAuthorizedUser) {
         return res.status(403).json({ error: 'You can only update your own profile' });
       }
       const { name, email, bio, address, gstin, avatarUrl } = req.body;
-      const latitude = typeof req.body.latitude === 'number' ? req.body.latitude : null;
-      const longitude = typeof req.body.longitude === 'number' ? req.body.longitude : null;
+      const latitude = typeof req.body.latitude === 'number' && Number.isFinite(req.body.latitude) ? req.body.latitude : null;
+      const longitude = typeof req.body.longitude === 'number' && Number.isFinite(req.body.longitude) ? req.body.longitude : null;
 
       // Validate required fields
       if (!name || !name.trim()) {
@@ -357,8 +412,19 @@ export function registerUserRoutes(app: Express) {
 
       // Get existing user or create new one
       let user = ensureUser(String(userId));
-      const dbUser = await getDbUser(String(userId));
-      const persistedAvatar = String(dbUser?.avatarUrl || '').trim();
+      if (requestPhone && !user.phone) {
+        user = { ...user, phone: requestPhone };
+      }
+      let persistedAvatar = '';
+      try {
+        const dbUser = await db.query.users.findFirst({
+          where: eq(users.id, String(userId)),
+          columns: { avatarUrl: true },
+        });
+        persistedAvatar = String(dbUser?.avatarUrl || '').trim();
+      } catch (avatarLookupError) {
+        console.error('[Users] Failed to read persisted avatar:', avatarLookupError);
+      }
       const incomingAvatar = typeof avatarUrl === 'string' ? avatarUrl.trim() : '';
       const nextAvatar = incomingAvatar || persistedAvatar || user.avatarUrl || '';
 
@@ -377,14 +443,18 @@ export function registerUserRoutes(app: Express) {
       };
 
       upsertUser(user);
-      await syncDbUserProfile(String(userId), user.avatarUrl, {
-        name: user.name,
-        email: user.email,
-        address: user.address,
-        gstin: user.gstin,
-        latitude: user.latitude,
-        longitude: user.longitude,
-      });
+      try {
+        await syncDbUserProfile(String(userId), user.phone || requestPhone, user.avatarUrl, {
+          name: user.name,
+          email: user.email,
+          address: user.address,
+          gstin: user.gstin,
+          latitude: user.latitude,
+          longitude: user.longitude,
+        });
+      } catch (syncError) {
+        console.error('[Users] Failed to sync profile to DB:', syncError);
+      }
 
       return res.json({
         success: true,

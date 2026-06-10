@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactElement } from 'react';
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   Briefcase,
@@ -47,11 +47,15 @@ type UserSubscriptionSummary = {
   id?: string;
   subscriptionTierId?: string;
   status?: string;
+  expiresAt?: string;
   listingsUsed?: number;
+  boostsRemaining?: number;
   tier?: {
     id?: string;
     name?: string;
+    durationDays?: number;
     maxListings?: number;
+    boostCredits?: number;
   } | null;
 };
 
@@ -108,6 +112,24 @@ const MAX_VIDEO_UPLOADS = 2;
 const EMI_DURATION_OPTIONS = ['3', '6', '9', '12', '18', '24'];
 const defaultMainCategory = getDefaultAdminMainCategory();
 const defaultSubCategory = getSubCategoriesForMainCategory(defaultMainCategory)[0] || 'Other';
+
+function sanitizePriceInput(value: string | number | null | undefined): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+
+  const normalized = raw.replace(/,/g, '').replace(/[^\d.]/g, '');
+  if (!normalized) return '';
+
+  const [wholePart, ...fractionParts] = normalized.split('.');
+  const whole = (wholePart || '0').replace(/^0+(?=\d)/, '');
+  const fraction = fractionParts.join('');
+
+  if (!fractionParts.length || /^0*$/.test(fraction)) {
+    return whole;
+  }
+
+  return `${whole}.${fraction.slice(0, 2)}`;
+}
 
 function normalizeAttributeValue(
   fieldType: string,
@@ -224,6 +246,17 @@ async function fetchLocationFromCoordinates(
   const nearbyPayload = (await nearbyResponse.json().catch(() => [])) as LocationLookupResult[];
   const nearest = Array.isArray(nearbyPayload) ? nearbyPayload[0] : null;
   return nearest || null;
+}
+
+function formatDateLabel(value?: string): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 async function fetchLocationFromPincode(pincode: string): Promise<LocationLookupResult | null> {
@@ -384,6 +417,7 @@ export default function CreateListingPage(): ReactElement {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [isRecordingVideo, setIsRecordingVideo] = useState(false);
   const [starterCredits, setStarterCredits] = useState<StarterCreditsSummary | null>(null);
+  const [subscriptionSummaries, setSubscriptionSummaries] = useState<UserSubscriptionSummary[]>([]);
   const [activePlanName, setActivePlanName] = useState('');
   const [activeSubscriptionId, setActiveSubscriptionId] = useState('');
   const [activeSubscriptionTierId, setActiveSubscriptionTierId] = useState('');
@@ -409,6 +443,51 @@ export default function CreateListingPage(): ReactElement {
   const attributeDefinitions = useMemo(
     () => attributesByKey[getAttributeKey(mainCategory, subCategory)] || [],
     [attributesByKey, mainCategory, subCategory]
+  );
+  const activeSubscriptionOptions = useMemo(() => {
+    const now = Date.now();
+    return subscriptionSummaries
+      .map((item) => {
+        const maxListings = Number(item.tier?.maxListings || 0);
+        const listingsUsed = Number(item.listingsUsed || 0);
+        const listingsRemaining = maxListings === -1 ? -1 : Math.max(0, maxListings - listingsUsed);
+        const tierName = String(item.tier?.name || 'Subscription').trim();
+        const tierId = String(item.subscriptionTierId || item.tier?.id || '').trim();
+        const expiresAt = String(item.expiresAt || '').trim();
+        const expiresAtMs = new Date(expiresAt).getTime();
+        const isActive = String(item.status || '').toLowerCase() === 'active';
+        const isValid = isActive && Number.isFinite(expiresAtMs) && expiresAtMs > now;
+
+        return {
+          ...item,
+          tierId,
+          tierName,
+          expiresAt,
+          maxListings,
+          listingsUsed,
+          listingsRemaining,
+          isValid,
+          isUnlimited: maxListings === -1,
+          canCreateListing: maxListings === -1 || listingsRemaining > 0,
+          boostCredits: Number(item.tier?.boostCredits || 0),
+          boostsRemaining: Number(item.boostsRemaining || 0),
+          durationDays: Number(item.tier?.durationDays || 30),
+        };
+      })
+      .filter((item) => item.isValid)
+      .sort((a, b) => {
+        if (a.isUnlimited !== b.isUnlimited) return a.isUnlimited ? -1 : 1;
+        if (a.listingsRemaining !== b.listingsRemaining) return b.listingsRemaining - a.listingsRemaining;
+        return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
+      });
+  }, [subscriptionSummaries]);
+  const selectableSubscriptionOptions = useMemo(
+    () => activeSubscriptionOptions.filter((item) => item.canCreateListing),
+    [activeSubscriptionOptions]
+  );
+  const selectedSubscriptionOption = useMemo(
+    () => activeSubscriptionOptions.find((item) => item.id === activeSubscriptionId) || null,
+    [activeSubscriptionId, activeSubscriptionOptions]
   );
   const maxImageUploads =
     mode === 'deal'
@@ -499,22 +578,43 @@ export default function CreateListingPage(): ReactElement {
   ]);
   const subscriptionStatusLabel = isLoadingSubscriptionStatus
     ? 'Checking status...'
-    : activePlanName
-      ? `${activePlanName} Active`
+    : selectedSubscriptionOption
+      ? `${selectedSubscriptionOption.tierName} Active`
+      : activeSubscriptionOptions.length > 0
+        ? 'Active subscriptions exhausted'
+        : starterCredits?.isActive && starterCredits.listingsRemaining > 0
+          ? 'Starter Pack Active'
+          : 'No Posting Credits';
+  const subscriptionStatusHint = selectedSubscriptionOption
+    ? selectedSubscriptionOption.isUnlimited
+      ? 'This subscription can create unlimited listings.'
+      : `${selectedSubscriptionOption.listingsRemaining} listing slot${
+          selectedSubscriptionOption.listingsRemaining === 1 ? '' : 's'
+        } remaining on this subscription.`
+    : activeSubscriptionOptions.length > 0
+      ? 'Your active subscriptions are out of listing slots. Pick another plan or use starter credits.'
       : starterCredits?.isActive && starterCredits.listingsRemaining > 0
-        ? 'Starter Pack Active'
-        : 'No Posting Credits';
-  const subscriptionStatusHint = activePlanName
-    ? 'You can post ads with selected nodes.'
-    : starterCredits?.isActive && starterCredits.listingsRemaining > 0
-      ? 'You can post ads with starter credits.'
-      : 'Buy a plan or apply a valid coupon to publish.';
+        ? 'You can post ads with starter credits.'
+        : 'Buy a plan or apply a valid coupon to publish.';
   const listingsLeftText = isLoadingSubscriptionStatus
     ? '-'
-    : String(starterCredits?.listingsRemaining ?? 0);
+    : selectedSubscriptionOption
+      ? selectedSubscriptionOption.isUnlimited
+        ? '∞'
+        : String(selectedSubscriptionOption.listingsRemaining)
+      : String(starterCredits?.listingsRemaining ?? 0);
   const boostsLeftText = isLoadingSubscriptionStatus
     ? '-'
-    : String(starterCredits?.boostsRemaining ?? 0);
+    : selectedSubscriptionOption
+      ? String(selectedSubscriptionOption.boostsRemaining)
+      : String(starterCredits?.boostsRemaining ?? 0);
+  const needsPostingCredits = !(mode === 'deal' && Boolean(sourceListingId));
+  const hasPostingCredits = !needsPostingCredits
+    ? true
+    : Boolean(
+        selectedSubscriptionOption?.canCreateListing ||
+          (starterCredits?.isActive && starterCredits.listingsRemaining > 0)
+      );
   const emiBaseAmount = parsePrice(mode === 'deal' ? offerPrice || price : offerPrice || price);
   const calculateMonthlyEmi = (durationMonths: string): string => {
     const months = Number(durationMonths);
@@ -555,6 +655,7 @@ export default function CreateListingPage(): ReactElement {
         if (!response.ok || !payload.success)
           throw new Error(payload.error || 'Failed to load subscription status');
         if (ignore) return;
+        setSubscriptionSummaries(payload.data || []);
         const activePlan = (payload.data || []).find((item) => {
           if (item.status !== 'active') return false;
           const maxListings = Number(item.tier?.maxListings || 0);
@@ -584,6 +685,40 @@ export default function CreateListingPage(): ReactElement {
       ignore = true;
     };
   }, [userId, userPhone]);
+
+  useEffect(() => {
+    if (selectableSubscriptionOptions.length === 0) {
+      if (activeSubscriptionId || activeSubscriptionTierId || activePlanName) {
+        setActiveSubscriptionId('');
+        setActiveSubscriptionTierId('');
+        setActivePlanName('');
+      }
+      return;
+    }
+
+    const currentOption =
+      selectableSubscriptionOptions.find((item) => item.id === activeSubscriptionId) || null;
+    const nextOption = currentOption || selectableSubscriptionOptions[0];
+
+    if (nextOption.id && nextOption.id !== activeSubscriptionId) {
+      setActiveSubscriptionId(nextOption.id);
+    }
+
+    const nextTierId = String(nextOption.subscriptionTierId || nextOption.tierId || '').trim();
+    const nextPlanName = String(nextOption.tierName || '').trim();
+    if (nextTierId !== activeSubscriptionTierId) {
+      setActiveSubscriptionTierId(nextTierId);
+    }
+    if (nextPlanName !== activePlanName) {
+      setActivePlanName(nextPlanName);
+    }
+  }, [
+    activePlanName,
+    activeSubscriptionId,
+    activeSubscriptionTierId,
+    selectableSubscriptionOptions,
+    activeSubscriptionOptions,
+  ]);
 
   useEffect(() => {
     if (mode !== 'deal' || !sourceListingId) return;
@@ -618,10 +753,10 @@ export default function CreateListingPage(): ReactElement {
         );
         setPrice((value) =>
           shouldReplaceSource
-            ? String(source.price || '').replace(/[^0-9]/g, '')
-            : value || String(source.price || '').replace(/[^0-9]/g, '')
+            ? sanitizePriceInput(source.price)
+            : value || sanitizePriceInput(source.price)
         );
-        const sourceOfferPrice = String(source.offerPrice || '').replace(/[^0-9]/g, '');
+        const sourceOfferPrice = sanitizePriceInput(source.offerPrice);
         setListingOfferPrice(sourceOfferPrice);
         setOfferPrice((value) => (shouldReplaceSource ? '' : value));
         setCondition((value) =>
@@ -1189,6 +1324,18 @@ export default function CreateListingPage(): ReactElement {
             }, {})
           : {};
 
+      if (
+        needsPostingCredits &&
+        activeSubscriptionId &&
+        (!selectedSubscriptionOption || !selectedSubscriptionOption.canCreateListing)
+      ) {
+        setMessage(
+          'The selected subscription has no listing slots left. Please choose another plan or rely on starter credits.'
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
       if (isDeal && sourceListingId) {
         const response = await fetch(
           `${getApiUrl()}/api/listings/${encodeURIComponent(sourceListingId)}`,
@@ -1254,8 +1401,13 @@ export default function CreateListingPage(): ReactElement {
           contactPhone: userPhone || undefined,
           images: images.slice(0, maxImageUploads),
           videos: videos.slice(0, MAX_VIDEO_UPLOADS),
-          userSubscriptionId: activeSubscriptionId || undefined,
-          subscriptionTierId: activeSubscriptionTierId || undefined,
+          userSubscriptionId:
+            needsPostingCredits && selectedSubscriptionOption?.canCreateListing
+              ? activeSubscriptionId
+              : undefined,
+          subscriptionTierId: needsPostingCredits && selectedSubscriptionOption?.canCreateListing
+            ? activeSubscriptionTierId
+            : undefined,
           attributes: Object.keys(attributesPayload).length > 0 ? attributesPayload : undefined,
           isDeal,
           dealType: isDeal ? dealType : undefined,
@@ -1326,6 +1478,7 @@ export default function CreateListingPage(): ReactElement {
     onNext,
     onSubmit,
     submitLabel,
+    warningText,
   }: {
     current: number;
     total: number;
@@ -1333,8 +1486,14 @@ export default function CreateListingPage(): ReactElement {
     onNext: () => void;
     onSubmit: () => void;
     submitLabel: string;
+    warningText?: string;
   }) => (
     <div className="sticky bottom-3 z-20 rounded-[18px] border border-slate-200 bg-white/95 p-3 shadow-[0_18px_42px_-30px_rgba(15,23,42,0.85)] backdrop-blur">
+      {warningText ? (
+        <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-normal text-amber-800">
+          {warningText}
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button
           type="button"
@@ -1357,7 +1516,7 @@ export default function CreateListingPage(): ReactElement {
           <button
             type="button"
             onClick={onSubmit}
-            disabled={isSubmitting || isUploadingMedia}
+            disabled={isSubmitting || isUploadingMedia || !hasPostingCredits}
             className="h-11 rounded-xl bg-[#1f63b2] px-6 text-sm font-normal text-white shadow-[0_16px_30px_-20px_rgba(31,99,178,0.8)] disabled:opacity-60"
           >
             <span className="inline-flex items-center gap-2">
@@ -1369,8 +1528,111 @@ export default function CreateListingPage(): ReactElement {
     </div>
   );
 
+  const conditionWarningText =
+    mode === 'listing' && shouldRequireCondition && !condition.trim()
+      ? 'Condition is required for this category. Please choose one before publishing.'
+      : undefined;
+
   const renderListingStatusPanels = () => (
     <>
+      <section className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-normal font-inter text-slate-900">
+              Choose Subscription
+            </h2>
+            <p className="text-xs font-normal text-slate-500">
+              Pick the active plan that should power this listing.
+            </p>
+          </div>
+          <Link
+            to="/subscriptions"
+            className="inline-flex h-9 items-center rounded-full border border-amber-300 bg-amber-50 px-4 text-xs font-normal text-amber-800"
+          >
+            Manage plans
+          </Link>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {activeSubscriptionOptions.length > 0 ? (
+            activeSubscriptionOptions.map((option) => {
+              const selected = option.id === activeSubscriptionId;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  disabled={!option.canCreateListing}
+                  onClick={() => {
+                    if (!option.canCreateListing || !option.id) return;
+                    setActiveSubscriptionId(option.id);
+                    setActiveSubscriptionTierId(String(option.subscriptionTierId || option.tierId || '').trim());
+                    setActivePlanName(option.tierName);
+                  }}
+                  className={classNames(
+                    'rounded-2xl border p-4 text-left transition',
+                    selected
+                      ? 'border-amber-400 bg-amber-50 shadow-sm'
+                      : 'border-slate-200 bg-white hover:border-amber-200 hover:bg-amber-50/50',
+                    !option.canCreateListing && 'cursor-not-allowed opacity-60'
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-normal text-slate-900">{option.tierName}</p>
+                      <p className="mt-1 text-xs font-normal text-slate-500">
+                        Expires {formatDateLabel(option.expiresAt)} · {option.durationDays} days
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      {selected ? (
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-normal text-emerald-700">
+                          Selected
+                        </span>
+                      ) : null}
+                      {!option.canCreateListing ? (
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-normal text-slate-600">
+                          Exhausted
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs font-normal text-slate-600">
+                    <div className="rounded-xl bg-slate-50 px-3 py-2">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-400">Slots</p>
+                      <p className="mt-1 text-sm text-slate-900">
+                        {option.isUnlimited ? 'Unlimited' : option.listingsRemaining}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 px-3 py-2">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-400">Used</p>
+                      <p className="mt-1 text-sm text-slate-900">{option.listingsUsed}</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 px-3 py-2">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-400">Boosts</p>
+                      <p className="mt-1 text-sm text-slate-900">{option.boostsRemaining}</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-[11px] font-normal text-slate-500">
+                    This plan will be attached to the listing so the backend can validate quota.
+                  </p>
+                </button>
+              );
+            })
+          ) : (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 md:col-span-2">
+              No active subscription with listing slots is available right now.
+            </div>
+          )}
+        </div>
+
+        {starterCredits?.isActive ? (
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-normal text-emerald-800">
+            Starter credits are available as a fallback: {starterCredits.listingsRemaining} listings
+            and {starterCredits.boostsRemaining} boosts remaining.
+          </div>
+        ) : null}
+      </section>
+
       <section className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -1809,6 +2071,11 @@ export default function CreateListingPage(): ReactElement {
                     </select>
                   </label>
                 </div>
+                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-normal text-amber-800">
+                  {shouldRequireCondition
+                    ? 'Condition is required for this category. You will need to choose one before publishing.'
+                    : 'Condition is optional for this category, but you can still set it if it helps buyers.'}
+                </div>
 
                 {mode === 'listing' && attributeDefinitions.length > 0 ? (
                   <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1892,9 +2159,9 @@ export default function CreateListingPage(): ReactElement {
                   />
                   <input
                     value={price}
-                    onChange={(event) => setPrice(event.target.value.replace(/[^0-9]/g, ''))}
+                    onChange={(event) => setPrice(sanitizePriceInput(event.target.value))}
                     placeholder="0"
-                    inputMode="numeric"
+                    inputMode="decimal"
                     className={textInputClass('pl-11')}
                   />
                 </div>
@@ -1926,9 +2193,9 @@ export default function CreateListingPage(): ReactElement {
                   />
                   <input
                     value={offerPrice}
-                    onChange={(event) => setOfferPrice(event.target.value.replace(/[^0-9]/g, ''))}
+                    onChange={(event) => setOfferPrice(sanitizePriceInput(event.target.value))}
                     placeholder="0"
-                    inputMode="numeric"
+                    inputMode="decimal"
                     className={textInputClass('pl-11')}
                   />
                 </div>
@@ -1960,7 +2227,10 @@ export default function CreateListingPage(): ReactElement {
               </Section>
 
               {shouldRequireCondition ? (
-                <Section number={6} title="Condition">
+                <Section number={6} title="Condition (Required)">
+                  <p className="mb-3 text-xs font-normal text-slate-500">
+                    Pick the closest match before you can submit this listing.
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {['New', 'Like New', 'Good', 'Fair', 'Poor'].map((item) => (
                       <button
@@ -2109,6 +2379,7 @@ export default function CreateListingPage(): ReactElement {
               : isSubmitting
                 ? 'Posting...'
                 : 'Post Listing',
+            warningText: listingStep >= 2 ? conditionWarningText : undefined,
           })}
         </div>
       </div>
@@ -2233,6 +2504,7 @@ export default function CreateListingPage(): ReactElement {
                 onNext: () => setDealStep((step) => Math.min(2, step + 1)),
                 onSubmit: () => navigate(chooseListingUrl),
                 submitLabel: 'Choose Listing',
+                warningText: undefined,
               })}
             </>
           ) : (
@@ -2358,10 +2630,10 @@ export default function CreateListingPage(): ReactElement {
                         />
                         <input
                           value={price}
-                          onChange={(event) => setPrice(event.target.value.replace(/[^0-9]/g, ''))}
+                          onChange={(event) => setPrice(sanitizePriceInput(event.target.value))}
                           readOnly={Boolean(sourceListingId)}
                           placeholder="Enter original price"
-                          inputMode="numeric"
+                          inputMode="decimal"
                           className={textInputClass(
                             `pl-11 ${sourceListingId ? 'bg-slate-50 text-slate-500' : ''}`
                           )}
@@ -2377,11 +2649,11 @@ export default function CreateListingPage(): ReactElement {
                         <input
                           value={listingOfferPrice}
                           onChange={(event) =>
-                            setListingOfferPrice(event.target.value.replace(/[^0-9]/g, ''))
+                            setListingOfferPrice(sanitizePriceInput(event.target.value))
                           }
                           readOnly={Boolean(sourceListingId)}
                           placeholder={sourceListingId ? 'No offer price set' : 'Enter offer price'}
-                          inputMode="numeric"
+                          inputMode="decimal"
                           className={textInputClass(
                             `pl-11 ${sourceListingId ? 'bg-slate-50 text-slate-500' : ''}`
                           )}
@@ -2397,10 +2669,10 @@ export default function CreateListingPage(): ReactElement {
                         <input
                           value={offerPrice}
                           onChange={(event) =>
-                            setOfferPrice(event.target.value.replace(/[^0-9]/g, ''))
+                            setOfferPrice(sanitizePriceInput(event.target.value))
                           }
                           placeholder="Enter deal price"
-                          inputMode="numeric"
+                          inputMode="decimal"
                           className={textInputClass('pl-11')}
                         />
                       </div>
@@ -2540,10 +2812,10 @@ export default function CreateListingPage(): ReactElement {
                           <input
                             value={postDealDiscountPrice}
                             onChange={(event) =>
-                              setPostDealDiscountPrice(event.target.value.replace(/[^0-9]/g, ''))
+                              setPostDealDiscountPrice(sanitizePriceInput(event.target.value))
                             }
                             placeholder="Price shown after deal ends"
-                            inputMode="numeric"
+                            inputMode="decimal"
                             className={textInputClass('pl-11')}
                           />
                         </div>
@@ -2570,6 +2842,7 @@ export default function CreateListingPage(): ReactElement {
                   : isSubmitting
                     ? 'Publishing...'
                     : 'Publish Deal',
+                warningText: undefined,
               })}
               {dealStep === dealSteps.length ? (
                 <p className="text-center text-sm font-normal text-slate-500">

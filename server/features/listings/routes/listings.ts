@@ -33,6 +33,35 @@ function normalizeOwnerId(value: unknown): string {
   return value.trim().replace(/[\s-]/g, '').toLowerCase();
 }
 
+function normalizeOptionalDate(value: unknown): Date | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : undefined;
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date : undefined;
+  }
+
+  return undefined;
+}
+
+function normalizeOptionalNumber(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const amount = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(amount) ? amount : undefined;
+}
+
+function dropUndefinedValues<T extends Record<string, unknown>>(value: T): T {
+  for (const key of Object.keys(value)) {
+    if (value[key] === undefined) {
+      delete value[key];
+    }
+  }
+  return value;
+}
+
 function hasLocalDeviceUri(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   const uri = value.trim().toLowerCase();
@@ -524,6 +553,8 @@ export function registerListingRoutes(app: Express) {
         .trim()
         .toLowerCase();
       const category = String(req.query.category || '').trim();
+      const mainCategory = String(req.query.mainCategory || '').trim();
+      const subCategory = String(req.query.subCategory || req.query.subcategory || '').trim();
       const location = String(req.query.location || '')
         .trim()
         .toLowerCase();
@@ -536,6 +567,8 @@ export function registerListingRoutes(app: Express) {
         limit: Math.min(limit + offset + 200, 500),
         offset: 0,
         category: category || undefined,
+        mainCategory: mainCategory || undefined,
+        subCategory: subCategory || undefined,
       });
 
       const filtered = candidates.filter((listing) => {
@@ -556,6 +589,8 @@ export function registerListingRoutes(app: Express) {
         const haystack = [
           listing.title,
           listing.description,
+          listing.mainCategory,
+          listing.subCategory,
           listing.category,
           listing.location,
           listing.condition,
@@ -906,6 +941,30 @@ export function registerListingRoutes(app: Express) {
       if (sanitizedUpdates.status === 'pending') {
         sanitizedUpdates.isActive = false;
       }
+
+      sanitizedUpdates.price = normalizeOptionalNumber(sanitizedUpdates.price);
+      sanitizedUpdates.offerPrice = normalizeOptionalNumber(sanitizedUpdates.offerPrice);
+      sanitizedUpdates.latitude = normalizeOptionalNumber(sanitizedUpdates.latitude);
+      sanitizedUpdates.longitude = normalizeOptionalNumber(sanitizedUpdates.longitude);
+      sanitizedUpdates.dealStartAt = normalizeOptionalDate(sanitizedUpdates.dealStartAt);
+      sanitizedUpdates.dealEndAt = normalizeOptionalDate(sanitizedUpdates.dealEndAt);
+      sanitizedUpdates.dealRecurrenceUntil = normalizeOptionalDate(
+        sanitizedUpdates.dealRecurrenceUntil
+      );
+      sanitizedUpdates.dealCycleQuantity = normalizeOptionalNumber(
+        sanitizedUpdates.dealCycleQuantity
+      );
+      sanitizedUpdates.maxDealBookings = normalizeOptionalNumber(sanitizedUpdates.maxDealBookings);
+      sanitizedUpdates.dealBookingsUsed = normalizeOptionalNumber(sanitizedUpdates.dealBookingsUsed);
+      sanitizedUpdates.postDealDiscountPrice = normalizeOptionalNumber(
+        sanitizedUpdates.postDealDiscountPrice
+      );
+
+      if (Array.isArray(sanitizedUpdates.comboItems)) {
+        sanitizedUpdates.comboItems = JSON.stringify(sanitizedUpdates.comboItems);
+      }
+
+      dropUndefinedValues(sanitizedUpdates);
 
       const updated = await updateListing(listingId, sanitizedUpdates);
       if (!updated) {

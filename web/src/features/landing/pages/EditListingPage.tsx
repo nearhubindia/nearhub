@@ -68,6 +68,24 @@ type EditableListing = {
 const defaultMainCategory = getDefaultAdminMainCategory();
 const defaultSubCategory = getSubCategoriesForMainCategory(defaultMainCategory)[0] || 'Other';
 
+function sanitizePriceInput(value: string | number | null | undefined): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+
+  const normalized = raw.replace(/,/g, '').replace(/[^\d.]/g, '');
+  if (!normalized) return '';
+
+  const [wholePart, ...fractionParts] = normalized.split('.');
+  const whole = (wholePart || '0').replace(/^0+(?=\d)/, '');
+  const fraction = fractionParts.join('');
+
+  if (!fractionParts.length || /^0*$/.test(fraction)) {
+    return whole;
+  }
+
+  return `${whole}.${fraction.slice(0, 2)}`;
+}
+
 function readStoredUser(): StoredUser | null {
   try {
     const raw = localStorage.getItem('nearhub_web_user');
@@ -218,8 +236,8 @@ export default function EditListingPage(): ReactElement {
         setDescription(String(listing.description || ''));
         setMainCategory(nextMain);
         setSubCategory(nextSub);
-        setPrice(String(listing.price || '').replace(/[^0-9]/g, ''));
-        setOfferPrice(String(listing.offerPrice || '').replace(/[^0-9]/g, ''));
+        setPrice(sanitizePriceInput(listing.price));
+        setOfferPrice(sanitizePriceInput(listing.offerPrice));
         setPriceUnit(String(listing.priceUnit || 'per unit'));
         setCondition(String(listing.condition || 'Good'));
         setLocation(String(listing.address || listing.location || ''));
@@ -233,7 +251,7 @@ export default function EditListingPage(): ReactElement {
         setDealEndTime(dealEnd.time);
         setStock(String(listing.maxDealBookings ?? listing.max_deal_bookings ?? '').replace(/[^0-9]/g, ''));
         setPostDealPriceMode(String(listing.postDealPriceMode || listing.post_deal_price_mode || 'original'));
-        setPostDealDiscountPrice(String(listing.postDealDiscountPrice ?? listing.post_deal_discount_price ?? '').replace(/[^0-9]/g, ''));
+        setPostDealDiscountPrice(sanitizePriceInput(listing.postDealDiscountPrice ?? listing.post_deal_discount_price));
         setEmiAvailable(Boolean(listing.emiAvailable ?? listing.emi_available));
         setWarrantyText(String(listing.warrantyText || listing.warranty_text || ''));
         setExtraFeaturesText(parseTextList(listing.dealExtraFeatures || listing.deal_extra_features).join('\n'));
@@ -431,14 +449,14 @@ export default function EditListingPage(): ReactElement {
                   <span className="mb-2 block text-sm font-black text-slate-700">Original Price *</span>
                   <span className="relative block">
                     <IndianRupee className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input value={price} onChange={(event) => setPrice(event.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" className={textInputClass('pl-11')} />
+                    <input value={price} onChange={(event) => setPrice(sanitizePriceInput(event.target.value))} inputMode="decimal" className={textInputClass('pl-11')} />
                   </span>
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-sm font-black text-slate-700">{isDeal ? 'Deal Price *' : 'Offer Price'}</span>
                   <span className="relative block">
                     <IndianRupee className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input value={offerPrice} onChange={(event) => setOfferPrice(event.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" className={textInputClass('pl-11')} />
+                    <input value={offerPrice} onChange={(event) => setOfferPrice(sanitizePriceInput(event.target.value))} inputMode="decimal" className={textInputClass('pl-11')} />
                   </span>
                 </label>
                 {!isDeal ? (
@@ -524,7 +542,7 @@ export default function EditListingPage(): ReactElement {
                   {postDealPriceMode === 'discount' ? (
                     <label className="block">
                       <span className="mb-2 block text-sm font-black text-slate-700">After-Deal Discount Price</span>
-                      <input value={postDealDiscountPrice} onChange={(event) => setPostDealDiscountPrice(event.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric" className={textInputClass()} />
+                      <input value={postDealDiscountPrice} onChange={(event) => setPostDealDiscountPrice(sanitizePriceInput(event.target.value))} inputMode="decimal" className={textInputClass()} />
                     </label>
                   ) : null}
                 </div>

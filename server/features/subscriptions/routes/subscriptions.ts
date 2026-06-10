@@ -70,7 +70,7 @@ import {
 } from '../services/subscription-tiers';
 import {
   consumeStarterBoostCredit,
-  consumeStarterListingCredit,
+  consumeStarterListingCreditWithBackfill,
   getStarterCreditsSummary,
   releaseStarterListingCredit,
 } from '../services/starter-credits';
@@ -862,7 +862,7 @@ export function registerSubscriptionRoutes(app: Express) {
         // Check if user can create a listing (subscription limit check)
         // Skip check for admin accounts and coupon-based listings.
         // For starter-credit flow (no subscription ids provided), defer eligibility
-        // to consumeStarterListingCredit() below so users without active plans can still post.
+        // to the starter-credit helper below so users without active plans can still post.
         if (!ownerId.startsWith('admin') && !couponCode) {
           if (userSubscriptionId) {
             // NEW: Per-subscription quota check
@@ -1010,7 +1010,7 @@ export function registerSubscriptionRoutes(app: Express) {
           }
         } else {
           // No coupon and no subscription - consume starter credit if available.
-          const starterConsume = await consumeStarterListingCredit(ownerId);
+          const starterConsume = await consumeStarterListingCreditWithBackfill(ownerId);
           if (!starterConsume) {
             return res.status(403).json({
               error:

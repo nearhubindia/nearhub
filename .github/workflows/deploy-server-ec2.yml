@@ -1,4 +1,4 @@
-name: Deploy Server (AWS EC2, Artifact Only)
+name: Deploy Server (AWS EC2, Docker Compose)
 
 on:
   push:
@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - "server/**"
+      - "Dockerfile.prod"
+      - "docker-compose.prod.yml"
       - ".github/workflows/deploy-server-ec2.yml"
   workflow_dispatch:
 
@@ -51,9 +53,12 @@ jobs:
           cp -R migrations ../release/
           cp -R scripts ../release/
           cp drizzle.config.js ../release/
+          cp ../Dockerfile.prod ../release/
+          cp ../docker-compose.prod.yml ../release/
+          cp ../ops/systemd/nearhub-stack.service ../release/
           if [ -d data ]; then cp -R data ../release/; fi
           {
-            echo "mode=artifact_only"
+            echo "mode=artifact_docker"
             echo "commit_sha=${GITHUB_SHA}"
             echo "built_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           } > ../release/DEPLOYMENT_MANIFEST
@@ -124,8 +129,10 @@ jobs:
 
             APP_DIR="${{ secrets.AWS_APP_DIR }}"
             ENV_FILE="${{ secrets.AWS_ENV_FILE || '/etc/nearhub/server.env' }}"
-            SERVICE_NAME="${{ secrets.AWS_SERVICE_NAME }}"
-            PM2_APP_NAME="${{ secrets.AWS_PM2_APP_NAME || 'nearhub-server' }}"
+            COMPOSE_PROJECT_NAME="${{ secrets.AWS_COMPOSE_PROJECT_NAME || 'nearhub' }}"
+            COMPOSE_FILE_NAME="${{ secrets.AWS_COMPOSE_FILE_NAME || 'docker-compose.prod.yml' }}"
+            DOCKERFILE_NAME="${{ secrets.AWS_DOCKERFILE_NAME || 'Dockerfile.prod' }}"
+            SYSTEMD_UNIT_NAME="${{ secrets.AWS_SYSTEMD_UNIT_NAME || 'nearhub-stack.service' }}"
 
             mkdir -p "$APP_DIR/releases" "$APP_DIR/shared"
             RELEASE_DIR="$APP_DIR/releases/$(date +%Y%m%d%H%M%S)"
@@ -153,35 +160,36 @@ jobs:
               echo "[WARN] Missing $ENV_FILE. Runtime may fail without DATABASE_URL."
             fi
 
-            cd "$RELEASE_DIR"
-            npm ci
-            npm run db:migrate
-            npm prune --omit=dev
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "[ERROR] Docker is not installed on the EC2 host."
+              exit 1
+            fi
+
+            if ! command -v docker-compose >/dev/null 2>&1; then
+              echo "[ERROR] Docker Compose is not available on the EC2 host."
+              exit 1
+            fi
+
+            if [ ! -f "$RELEASE_DIR/$COMPOSE_FILE_NAME" ] || [ ! -f "$RELEASE_DIR/$DOCKERFILE_NAME" ]; then
+              echo "[ERROR] Production Docker files are missing from the release artifact."
+              exit 1
+            fi
+            if [ ! -f "$RELEASE_DIR/$SYSTEMD_UNIT_NAME" ]; then
+              echo "[ERROR] Systemd unit is missing from the release artifact."
+              exit 1
+            fi
+
+            sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$RELEASE_DIR/$COMPOSE_FILE_NAME" build server
+            sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d redis
+            sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$RELEASE_DIR/$COMPOSE_FILE_NAME" run --rm --no-deps server npm run db:migrate
+            sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d server
 
             rm -rf "$APP_DIR/current"
             ln -sfn "$RELEASE_DIR" "$APP_DIR/current"
 
-            if [ -n "$SERVICE_NAME" ]; then
-              UNIT_NAME="$SERVICE_NAME"
-              case "$UNIT_NAME" in
-                *.service) ;;
-                *) UNIT_NAME="${UNIT_NAME}.service" ;;
-              esac
+            sudo install -m 644 "$RELEASE_DIR/$SYSTEMD_UNIT_NAME" "/etc/systemd/system/$SYSTEMD_UNIT_NAME"
+            sudo systemctl daemon-reload
+            sudo systemctl enable --now "$SYSTEMD_UNIT_NAME"
 
-              if sudo systemctl cat "$UNIT_NAME" >/dev/null 2>&1; then
-                sudo systemctl restart "$UNIT_NAME"
-                sudo systemctl status "$UNIT_NAME" --no-pager -l | head -n 40 || true
-              else
-                echo "[WARN] Systemd unit '$UNIT_NAME' not found. Skipping restart."
-                SERVICE_NAME=""
-              fi
-            fi
-
-            if [ -z "$SERVICE_NAME" ] && command -v pm2 >/dev/null 2>&1; then
-              if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
-                pm2 restart "$PM2_APP_NAME" --update-env
-              else
-                pm2 start "$APP_DIR/current/dist/index.js" --name "$PM2_APP_NAME" --cwd "$APP_DIR/current" --time
-              fi
-              pm2 save
-            fi
+            sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$RELEASE_DIR/$COMPOSE_FILE_NAME" ps
+            curl -fsS http://127.0.0.1:5000/api/health

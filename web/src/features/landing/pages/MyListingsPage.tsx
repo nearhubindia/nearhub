@@ -11,6 +11,7 @@ import {
   Share2,
   Trash2,
   TrendingUp,
+  Zap,
   Tag,
 } from 'lucide-react';
 import { LandingHeader, LandingFooter } from '@/shared/components';
@@ -46,6 +47,21 @@ type UserListing = {
   planName?: string | null;
   planAmount?: number | string | null;
   planDurationDays?: number | string | null;
+};
+
+type BoostSummaryResponse = {
+  success?: boolean;
+  totalBoostCredits?: number;
+  starterCredits?: {
+    boostsRemaining?: number;
+    boostsTotal?: number;
+  };
+  bySubscription?: Array<{
+    subscriptionId?: string;
+    boostsRemaining?: number;
+    tierName?: string;
+  }>;
+  error?: string;
 };
 
 const FALLBACK_IMAGE = '/nearhub.png';
@@ -208,6 +224,18 @@ export default function MyListingsPage(): ReactElement {
       return payload.listings || [];
     },
   });
+  const boostSummaryQuery = useQuery({
+    queryKey: ['boost-summary', userId],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const response = await fetch(`${getApiUrl()}/api/subscriptions/boost/summary`, { headers });
+      const payload = (await response.json()) as BoostSummaryResponse;
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || 'Failed to load boost summary');
+      }
+      return payload;
+    },
+  });
 
   const refreshListings = async () => {
     await queryClient.invalidateQueries({ queryKey: ['my-listings', userId] });
@@ -277,7 +305,11 @@ export default function MyListingsPage(): ReactElement {
     },
     onSuccess: async () => {
       setMessage('Listing boosted for 24 hours.');
-      await Promise.all([refreshListings(), refreshPublicListingFeeds()]);
+      await Promise.all([
+        refreshListings(),
+        refreshPublicListingFeeds(),
+        queryClient.invalidateQueries({ queryKey: ['boost-summary', userId] }),
+      ]);
     },
     onError: (error) =>
       setMessage(error instanceof Error ? error.message : 'Failed to boost listing.'),
@@ -286,6 +318,9 @@ export default function MyListingsPage(): ReactElement {
   if (!userId) return <Navigate to="/auth/register" replace />;
 
   const listings = listingsQuery.data || [];
+  const boostSummary = boostSummaryQuery.data;
+  const totalBoostCredits = Number(boostSummary?.totalBoostCredits || 0);
+  const starterBoostCredits = Number(boostSummary?.starterCredits?.boostsRemaining || 0);
   const counts = {
     active: listings.filter((l) => l.status === 'active' && !isExpired(l.expiresAt)).length,
     pending: listings.filter((l) => l.status === 'pending').length,
@@ -308,6 +343,7 @@ export default function MyListingsPage(): ReactElement {
   };
 
   const isBusy = markSoldMutation.isPending || deleteMutation.isPending || boostMutation.isPending;
+  const hasBoostCredits = boostSummaryQuery.isError || boostSummaryQuery.isLoading || totalBoostCredits > 0;
 
   return (
     <div className="min-h-screen bg-white text-slate-950">
@@ -344,6 +380,34 @@ export default function MyListingsPage(): ReactElement {
                 <p className="text-xl font-black leading-none text-[#113965]">{item.value}</p>
               </button>
             ))}
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="inline-flex items-center gap-2 text-sm font-black text-emerald-800">
+                  <Zap size={16} /> Boost Credits
+                </p>
+                <p className="mt-1 text-xs font-semibold text-emerald-700/90">
+                  Starter boosts are used first, then your active subscription boosts.
+                </p>
+              </div>
+              <Link
+                to="/subscriptions"
+                className="inline-flex h-9 items-center rounded-full border border-emerald-200 bg-white px-4 text-xs font-black text-emerald-800"
+              >
+                View Subscriptions
+              </Link>
+            </div>
+            <div className="mt-3 grid gap-2 text-sm font-semibold text-emerald-800 sm:grid-cols-2">
+              <p>Total boost credits: {boostSummaryQuery.isLoading ? '...' : totalBoostCredits}</p>
+              <p>Starter boosts remaining: {boostSummaryQuery.isLoading ? '...' : starterBoostCredits}</p>
+            </div>
+            {boostSummaryQuery.isError ? (
+              <p className="mt-2 text-xs font-semibold text-rose-700">
+                Unable to load boost summary right now.
+              </p>
+            ) : null}
           </div>
         </section>
 
@@ -463,7 +527,7 @@ export default function MyListingsPage(): ReactElement {
                       <button
                         type="button"
                         onClick={() => boostMutation.mutate(item.id)}
-                        disabled={listingLocked || isBusy || badge !== 'active'}
+                        disabled={listingLocked || isBusy || badge !== 'active' || !hasBoostCredits}
                         className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-xs font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-55"
                       >
                         <TrendingUp size={17} /> Boost Listing
@@ -490,6 +554,11 @@ export default function MyListingsPage(): ReactElement {
                           <ReceiptText size={17} /> View Purchases
                         </button>
                       </div>
+                    ) : null}
+                    {!hasBoostCredits ? (
+                      <p className="mt-2 text-xs font-semibold text-amber-700">
+                        No boost credits remaining. Open subscriptions to purchase more boost packs.
+                      </p>
                     ) : null}
 
                     <div className="mt-2.5 grid grid-cols-2 gap-2">

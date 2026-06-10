@@ -574,12 +574,20 @@ export default function UserHomePage(): ReactElement {
   const listingsQuery = useQuery({
     queryKey: ['nearhub-home-feed'],
     queryFn: async () => {
-      const response = await fetch(
-        `${getApiUrl()}/api/listings?limit=80&homeFeedVersion=marketplace-v1`
-      );
-      if (!response.ok) throw new Error('Failed to load listings');
-      const payload = (await response.json()) as ListingsResponse;
-      return payload.data || payload.results || [];
+      const [listingsResponse, dealsResponse] = await Promise.all([
+        fetch(`${getApiUrl()}/api/listings?limit=80&homeFeedVersion=marketplace-v1`),
+        fetch(
+          `${getApiUrl()}/api/listings?limit=80&dealsOnly=1&includeExpiredDeals=1&homeFeedVersion=marketplace-v1`
+        ),
+      ]);
+      if (!listingsResponse.ok || !dealsResponse.ok) throw new Error('Failed to load listings');
+      const listingsPayload = (await listingsResponse.json()) as ListingsResponse;
+      const dealsPayload = (await dealsResponse.json()) as ListingsResponse;
+      const items = [
+        ...(listingsPayload.data || listingsPayload.results || []),
+        ...(dealsPayload.data || dealsPayload.results || []),
+      ];
+      return Array.from(new Map(items.map((item) => [item.id, item])).values());
     },
   });
 
@@ -684,11 +692,11 @@ export default function UserHomePage(): ReactElement {
       <LandingHeader active="home" />
       <main>
         <section className="w-full px-2 pt-[5.25rem] sm:px-4">
-          <div className="relative overflow-hidden rounded-md bg-[#020b3b] shadow-sm">
+          <div className="relative aspect-[3/1] w-full overflow-hidden rounded-md bg-[#020b3b] shadow-sm">
             <img
               src={HERO_BANNERS[activeBanner]}
               alt="NearHub AI-powered local marketplace"
-              className="h-[360px] w-full object-cover sm:h-[460px] lg:h-[640px]"
+              className="absolute inset-0 h-full w-full object-contain object-center"
               loading="eager"
             />
             <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">

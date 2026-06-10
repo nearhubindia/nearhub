@@ -5,6 +5,7 @@ import './data/env';
 
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import express from 'express';
@@ -462,15 +463,35 @@ function setupErrorHandler(app: express.Application) {
 
   setupErrorHandler(app);
 
-  const port = parseInt(process.env.PORT || '5000', 10);
+  const port = parseInt(process.env.PORT || process.env.SERVER_PORT || '5000', 10);
+  const host =
+    process.env.HOST ||
+    process.env.SERVER_HOST ||
+    (process.env.NODE_ENV === 'production' || os.platform() !== 'win32' ? '0.0.0.0' : '127.0.0.1');
+
+  server.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`[Server] Port ${port} is already in use on ${host}.`);
+      process.exit(1);
+    }
+
+    if (error.code === 'ENOTSUP') {
+      console.error(
+        `[Server] Could not listen on ${host}:${port}. Try setting HOST=127.0.0.1 or another local interface.`
+      );
+      process.exit(1);
+    }
+
+    throw error;
+  });
+
   server.listen(
     {
       port,
-      host: '0.0.0.0',
-      reusePort: true,
+      host,
     },
     () => {
-      debugServer(`express server serving on port ${port}`);
+      debugServer(`express server serving on ${host}:${port}`);
 
       // Initialize background workers after server starts
       initializeBackgroundWorkers();

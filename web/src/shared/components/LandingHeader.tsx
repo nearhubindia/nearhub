@@ -586,13 +586,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
               placeholder="Search listings, brands, products near you..."
               className="h-12 w-full rounded-full border border-slate-200 bg-white px-10 text-sm font-normal text-slate-800 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.55)] outline-none transition focus:border-[#0759e6] focus:ring-2 focus:ring-[#0759e6]/15"
             />
-            <button
-              type="submit"
-              className="absolute right-1 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-[linear-gradient(135deg,#2f74ff_0%,#1d4ed8_100%)] text-white shadow-lg transition hover:brightness-105"
-              aria-label="Search"
-            >
-              <Search size={16} />
-            </button>
+            
           </div>
         </form>
 

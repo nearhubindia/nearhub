@@ -9,8 +9,11 @@ EC2_HOST="${EC2_HOST:-65.2.151.47}"
 EC2_USER="${EC2_USER:-admin}"
 EC2_PORT="${EC2_PORT:-22}"
 EC2_KEY_PATH="${EC2_KEY_PATH:-$ROOT_DIR/nearhub-debian-key-20260524-015812.pem}"
-PM2_APP_NAME="${PM2_APP_NAME:-nearhub-server}"
 REQUIRE_CLEAN_GIT="${REQUIRE_CLEAN_GIT:-true}"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-nearhub}"
+COMPOSE_FILE_NAME="${COMPOSE_FILE_NAME:-docker-compose.prod.yml}"
+DOCKERFILE_NAME="${DOCKERFILE_NAME:-Dockerfile.prod}"
+SYSTEMD_UNIT_NAME="${SYSTEMD_UNIT_NAME:-nearhub-stack.service}"
 
 if [ ! -f "$EC2_KEY_PATH" ]; then
   echo "Missing EC2 key: $EC2_KEY_PATH" >&2
@@ -26,15 +29,27 @@ if [ "$REQUIRE_CLEAN_GIT" = "true" ]; then
 fi
 
 RELEASE_DIR="$(mktemp -d /tmp/nearhub-release.XXXXXX)"
+BUILD_DIR="$(mktemp -d /tmp/nearhub-server-build.XXXXXX)"
 ARCHIVE_PATH="/tmp/nearhub-server-release.tgz"
 
 cleanup() {
   rm -rf "$RELEASE_DIR"
+  rm -rf "$BUILD_DIR"
   rm -f "$ARCHIVE_PATH"
 }
 trap cleanup EXIT
 
-cd "$SERVER_DIR"
+tar -C "$SERVER_DIR" \
+  --exclude=node_modules \
+  --exclude=dist \
+  --exclude=coverage \
+  -cf - . | tar -C "$BUILD_DIR" -xf -
+
+cp "$ROOT_DIR/$DOCKERFILE_NAME" "$BUILD_DIR/"
+cp "$ROOT_DIR/$COMPOSE_FILE_NAME" "$BUILD_DIR/"
+cp "$ROOT_DIR/ops/systemd/$SYSTEMD_UNIT_NAME" "$BUILD_DIR/"
+
+cd "$BUILD_DIR"
 npm ci
 npm run type-check
 npm run build
@@ -42,11 +57,14 @@ npm run build
 cp package.json package-lock.json "$RELEASE_DIR/"
 cp -R dist migrations scripts "$RELEASE_DIR/"
 cp drizzle.config.js "$RELEASE_DIR/"
+cp "$DOCKERFILE_NAME" "$RELEASE_DIR/"
+cp "$COMPOSE_FILE_NAME" "$RELEASE_DIR/"
+cp "$SYSTEMD_UNIT_NAME" "$RELEASE_DIR/"
 if [ -d data ]; then
   cp -R data "$RELEASE_DIR/"
 fi
 {
-  echo "mode=manual_ec2_artifact"
+  echo "mode=manual_ec2_docker"
   echo "commit_sha=$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
   echo "built_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 } > "$RELEASE_DIR/DEPLOYMENT_MANIFEST"
@@ -65,23 +83,42 @@ tar -xzf /tmp/server-release.tgz -C "\$RELEASE_DIR"
 rm -f /tmp/server-release.tgz
 if [ -f "$ENV_FILE" ]; then
   ln -sfn "$ENV_FILE" "\$RELEASE_DIR/.env"
-  mkdir -p "\$RELEASE_DIR/server"
-  ln -sfn "$ENV_FILE" "\$RELEASE_DIR/server/.env"
 else
   echo "Missing required env file: $ENV_FILE" >&2
   exit 1
 fi
-cd "\$RELEASE_DIR"
-npm ci
-npm run db:migrate
-npm prune --omit=dev
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Missing Docker on EC2 host" >&2
+  exit 1
+fi
+
+if ! command -v docker-compose >/dev/null 2>&1; then
+  echo "Docker Compose is not available on EC2 host" >&2
+  exit 1
+fi
+
+if [ ! -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" ] || [ ! -f "\$RELEASE_DIR/$DOCKERFILE_NAME" ]; then
+  echo "Production Docker files are missing from the release artifact" >&2
+  exit 1
+fi
+if [ ! -f "\$RELEASE_DIR/$SYSTEMD_UNIT_NAME" ]; then
+  echo "Systemd unit is missing from the release artifact" >&2
+  exit 1
+fi
+
+sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" build server
+sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d redis
+sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" run --rm --no-deps server npm run db:migrate
+sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d server
+
 rm -rf "$APP_DIR/current"
 ln -sfn "\$RELEASE_DIR" "$APP_DIR/current"
-if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
-  pm2 restart "$PM2_APP_NAME" --update-env
-else
-  pm2 start "$APP_DIR/current/dist/index.js" --name "$PM2_APP_NAME" --cwd "$APP_DIR/current" --time
-fi
-pm2 save
+
+sudo install -m 644 "\$RELEASE_DIR/$SYSTEMD_UNIT_NAME" /etc/systemd/system/$SYSTEMD_UNIT_NAME
+sudo systemctl daemon-reload
+sudo systemctl enable --now $SYSTEMD_UNIT_NAME
+
+sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" ps
 curl -fsS http://127.0.0.1:5000/api/health
 EOF

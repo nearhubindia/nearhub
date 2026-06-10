@@ -36,17 +36,28 @@ function readStoredUser(): StoredUser | null {
   return readStoredWebUser();
 }
 
-function completionPercent(values: { name: string; email: string; phone: string; address: string; gstin: string; bio: string; avatarUrl: string }): number {
-  const checks = [
-    values.name.trim(),
-    values.email.trim(),
-    values.phone.trim(),
-    values.address.trim(),
-    values.gstin.trim(),
-    values.bio.trim(),
-    values.avatarUrl.trim(),
+function hasCurrentLocation(latitude: number | null, longitude: number | null): boolean {
+  return (
+    typeof latitude === 'number' &&
+    Number.isFinite(latitude) &&
+    typeof longitude === 'number' &&
+    Number.isFinite(longitude)
+  );
+}
+
+function completionPercent(values: { name: string; email: string; phone: string; address: string; gstin: string; bio: string; avatarUrl: string; latitude: number | null; longitude: number | null }): number {
+  const weightedFields = [
+    { complete: Boolean(values.name.trim()), weight: 20 },
+    { complete: Boolean(values.phone.trim()), weight: 20 },
+    { complete: Boolean(values.email.trim()), weight: 10 },
+    { complete: Boolean(values.address.trim()), weight: 10 },
+    { complete: Boolean(values.gstin.trim()), weight: 10 },
+    { complete: Boolean(values.bio.trim()), weight: 10 },
+    { complete: Boolean(values.avatarUrl.trim()), weight: 10 },
+    { complete: hasCurrentLocation(values.latitude, values.longitude), weight: 10 },
   ];
-  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+
+  return weightedFields.reduce((total, field) => total + (field.complete ? field.weight : 0), 0);
 }
 
 function Field({
@@ -95,8 +106,8 @@ export default function ProfilePage(): ReactElement {
   const userId = String(storedUser?.id || '').trim();
   const userPhone = String(storedUser?.phone || '').trim();
   const isLoggedIn = Boolean(userId);
-  const profileCompletion = completionPercent({ name, email, phone: userPhone, address, gstin, bio, avatarUrl });
-  const completionHint = profileCompletion < 100 ? 'Add a bio to reach 100%' : 'Profile is complete';
+  const profileCompletion = completionPercent({ name, email, phone: userPhone, address, gstin, bio, avatarUrl, latitude, longitude });
+  const completionHint = profileCompletion < 100 ? 'Complete your profile details to reach 100%' : 'Profile is complete';
   const displayName = name.trim() || 'User';
   const initial = displayName.charAt(0).toUpperCase();
 
@@ -192,6 +203,24 @@ export default function ProfilePage(): ReactElement {
     event.target.value = '';
   };
 
+  const updateLatitude = (value: string) => {
+    if (!value.trim()) {
+      setLatitude(null);
+      return;
+    }
+    const nextLatitude = Number(value);
+    if (Number.isFinite(nextLatitude)) setLatitude(nextLatitude);
+  };
+
+  const updateLongitude = (value: string) => {
+    if (!value.trim()) {
+      setLongitude(null);
+      return;
+    }
+    const nextLongitude = Number(value);
+    if (Number.isFinite(nextLongitude)) setLongitude(nextLongitude);
+  };
+
   const saveProfile = async () => {
     if (!userId) return;
     if (!name.trim()) {
@@ -200,6 +229,13 @@ export default function ProfilePage(): ReactElement {
     }
     if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim())) {
       setMessage('Please enter a valid email address');
+      return;
+    }
+    if (
+      (latitude !== null && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) ||
+      (longitude !== null && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180))
+    ) {
+      setMessage('Please enter valid location coordinates');
       return;
     }
 
@@ -220,9 +256,15 @@ export default function ProfilePage(): ReactElement {
           longitude,
         }),
       });
-      const data = (await response.json().catch(() => ({}))) as { success?: boolean; error?: string; user?: StoredUser };
+      const data = (await response.json().catch(() => ({}))) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+        user?: StoredUser;
+      };
       if (!response.ok || !data.success) {
-        setMessage(data.error || 'Failed to save profile');
+        const serverMessage = data.error || data.message || 'Failed to save profile';
+        setMessage(response.ok ? serverMessage : `${serverMessage} (${response.status})`);
         return;
       }
 
@@ -293,7 +335,7 @@ export default function ProfilePage(): ReactElement {
   return (
     <div className="min-h-screen bg-[#eef4fb] text-slate-950">
       <LandingHeader active="browse" />
-      <main className="mx-auto w-full max-w-[1500px] px-4 pb-14 pt-24 sm:px-6 lg:px-8">
+      <main className="mx-auto w-full max-w-375 px-4 pb-14 pt-24 sm:px-6 lg:px-8">
         <div className="mb-8 flex items-center justify-between gap-4">
           <h1 className="text-2xl font-normal tracking-tight text-slate-950 sm:text-3xl">My Profile</h1>
           <Link
@@ -451,7 +493,7 @@ export default function ProfilePage(): ReactElement {
                     <span className="mb-2 block text-xs text-[#113965]">Latitude</span>
                     <input
                       value={latitude ?? ''}
-                      onChange={(e) => setLatitude(e.target.value ? Number(e.target.value) : null)}
+                      onChange={(e) => updateLatitude(e.target.value)}
                       className="w-full rounded-xl border border-[#d9e6f4] bg-white px-4 py-2 text-sm outline-none"
                       placeholder="Latitude"
                     />
@@ -460,7 +502,7 @@ export default function ProfilePage(): ReactElement {
                     <span className="mb-2 block text-xs text-[#113965]">Longitude</span>
                     <input
                       value={longitude ?? ''}
-                      onChange={(e) => setLongitude(e.target.value ? Number(e.target.value) : null)}
+                      onChange={(e) => updateLongitude(e.target.value)}
                       className="w-full rounded-xl border border-[#d9e6f4] bg-white px-4 py-2 text-sm outline-none"
                       placeholder="Longitude"
                     />

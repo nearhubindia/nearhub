@@ -1,7 +1,7 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { BadgeIndianRupee, CalendarDays, Rocket } from 'lucide-react';
+import { BadgeIndianRupee, CalendarDays, MapPin, Rocket, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 
@@ -135,6 +135,30 @@ type DisplaySubscription = {
   paymentId?: string | null;
 };
 
+type ActiveSubscriptionGroup = {
+  key: string;
+  tierId: string;
+  tierName: string;
+  tierPrice: number;
+  durationDays: number;
+  count: number;
+  totalUsed: number;
+  totalAvailable: number;
+  totalLimit: number;
+  shortestExpiryDays: number;
+  latestExpiryAt: Date;
+  hasUnlimited: boolean;
+  boostEntitlement: number;
+  totalBoostsRemaining: number;
+  subscriptions: UserSubscription[];
+};
+
+type LocationHint = {
+  city?: string;
+  state?: string;
+  pincode?: string;
+};
+
 function readStoredUser(): StoredUser | null {
   try {
     const raw = localStorage.getItem('nearhub_web_user');
@@ -180,6 +204,21 @@ function loadRazorpayScript(): Promise<boolean> {
   });
 }
 
+function formatDate(value?: string | null): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function isMeaningfulText(value: unknown): boolean {
+  return typeof value === 'string' && Boolean(value.trim());
+}
+
 export default function SubscriptionsPage(): ReactElement {
   const user = readStoredUser();
   const userId = String(user?.id || '').trim();
@@ -187,6 +226,12 @@ export default function SubscriptionsPage(): ReactElement {
   const [couponByTierId, setCouponByTierId] = useState<Record<string, string>>({});
   const [checkoutTierId, setCheckoutTierId] = useState('');
   const [checkoutMessage, setCheckoutMessage] = useState('');
+  const [selectedActiveSubscriptionId, setSelectedActiveSubscriptionId] = useState('');
+  const [defaultActiveSubscriptionId, setDefaultActiveSubscriptionId] = useState('');
+  const [locationHint, setLocationHint] = useState<LocationHint | null>(null);
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(
+    'idle'
+  );
 
   const subscriptionsQuery = useQuery({
     queryKey: ['user-subscriptions', userId],
@@ -246,8 +291,153 @@ export default function SubscriptionsPage(): ReactElement {
     const totalValue = subscriptions.reduce((sum, s) => sum + Number(s.price || 0), 0);
     return { active, expired, total: subscriptions.length, totalValue };
   }, [subscriptions]);
+  const rawSubscriptions = subscriptionsQuery.data?.data || [];
+
+  const activeSubscriptionGroups = useMemo((): ActiveSubscriptionGroup[] => {
+    const activeSubscriptions = rawSubscriptions.filter(
+      (item) => item.status === 'active' && new Date(item.expiresAt) > new Date()
+    );
+    if (!activeSubscriptions.length) return [];
+
+    const groups = new Map<string, ActiveSubscriptionGroup>();
+    const now = Date.now();
+
+    activeSubscriptions.forEach((sub) => {
+      if (!sub.tier) return;
+
+      const key = `${sub.tier.name || 'Plan'}-${sub.tier.durationDays || 30}-${sub.tier.maxListings ?? 0}`;
+      const tierPrice = Number(sub.tier.offerPrice || sub.tier.price || 0);
+      const maxListings = Number(sub.tier.maxListings || 0);
+      const available = maxListings === -1 ? -1 : Math.max(0, maxListings - Number(sub.listingsUsed || 0));
+      const boostEntitlement = Number(sub.tier.boostCredits || 0);
+      const boostsRemaining = Number(sub.boostsRemaining || 0);
+      const expiry = new Date(sub.expiresAt);
+      const daysLeft = Math.max(0, Math.ceil((expiry.getTime() - now) / (1000 * 60 * 60 * 24)));
+
+      const existing = groups.get(key);
+      if (!existing) {
+        groups.set(key, {
+          key,
+          tierId: sub.tier.name || key,
+          tierName: sub.tier.name || 'Subscription Plan',
+          tierPrice,
+          durationDays: Number(sub.tier.durationDays || 30),
+          count: 1,
+          totalUsed: Number(sub.listingsUsed || 0),
+          totalAvailable: available,
+          totalLimit: maxListings === -1 ? -1 : maxListings,
+          shortestExpiryDays: daysLeft,
+          latestExpiryAt: expiry,
+          hasUnlimited: maxListings === -1,
+          boostEntitlement,
+          totalBoostsRemaining: boostsRemaining,
+          subscriptions: [sub],
+        });
+        return;
+      }
+
+      existing.count += 1;
+      existing.totalUsed += Number(sub.listingsUsed || 0);
+      existing.shortestExpiryDays = Math.min(existing.shortestExpiryDays, daysLeft);
+      existing.latestExpiryAt = expiry > existing.latestExpiryAt ? expiry : existing.latestExpiryAt;
+      existing.totalBoostsRemaining += boostsRemaining;
+      existing.subscriptions.push(sub);
+
+      if (existing.hasUnlimited || maxListings === -1) {
+        existing.hasUnlimited = true;
+        existing.totalAvailable = -1;
+        existing.totalLimit = -1;
+      } else {
+        existing.totalAvailable += available;
+        existing.totalLimit += maxListings;
+      }
+    });
+
+    return Array.from(groups.values()).sort((a, b) => {
+      if (a.tierPrice !== b.tierPrice) return a.tierPrice - b.tierPrice;
+      if (a.durationDays !== b.durationDays) return a.durationDays - b.durationDays;
+      return a.tierName.localeCompare(b.tierName);
+    });
+  }, [rawSubscriptions]);
+
+  const selectedActiveSubscription = useMemo(() => {
+    if (!selectedActiveSubscriptionId) return null;
+    return (
+      rawSubscriptions.find((item) => item.id === selectedActiveSubscriptionId) ||
+      rawSubscriptions.find((item) => item.id === defaultActiveSubscriptionId) ||
+      null
+    );
+  }, [defaultActiveSubscriptionId, rawSubscriptions, selectedActiveSubscriptionId]);
+
+  useEffect(() => {
+    if (!activeSubscriptionGroups.length) {
+      setSelectedActiveSubscriptionId('');
+      setDefaultActiveSubscriptionId('');
+      return;
+    }
+
+    const firstVisibleId = activeSubscriptionGroups[0]?.subscriptions[0]?.id || '';
+    const visibleIds = new Set(
+      activeSubscriptionGroups.flatMap((group) => group.subscriptions.map((sub) => sub.id))
+    );
+
+    setSelectedActiveSubscriptionId((current) => (current && visibleIds.has(current) ? current : firstVisibleId));
+    setDefaultActiveSubscriptionId((current) => (current && visibleIds.has(current) ? current : firstVisibleId));
+  }, [activeSubscriptionGroups]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveLocation = async () => {
+      if (!navigator.geolocation) {
+        setLocationStatus('error');
+        return;
+      }
+
+      setLocationStatus('loading');
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+            const response = await fetch(
+              `${getApiUrl()}/api/location/reverse-geocode?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`
+            );
+            const payload = await response.json().catch(() => ({}));
+            if (cancelled) return;
+
+            const data = payload?.data || {};
+            const city = String(data.city || '').trim();
+            const state = String(data.state || '').trim();
+            const pincode = String(data.pincode || '').trim();
+            if (city || state || pincode) {
+              setLocationHint({ city, state, pincode });
+              setLocationStatus('ready');
+              return;
+            }
+
+            setLocationStatus('error');
+          } catch {
+            if (!cancelled) setLocationStatus('error');
+          }
+        },
+        () => {
+          if (!cancelled) setLocationStatus('error');
+        },
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 10 * 60 * 1000 }
+      );
+    };
+
+    void resolveLocation();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!userId) return <Navigate to="/auth/register" replace />;
+
+  const selectedActiveSubscriptionSummary =
+    selectedActiveSubscription || activeSubscriptionGroups[0]?.subscriptions[0] || null;
 
   const proceedWithPlan = async (tier: SubscriptionTier): Promise<void> => {
     const tierId = String(tier.id || '').trim();
@@ -383,8 +573,15 @@ export default function SubscriptionsPage(): ReactElement {
       <main className="w-full px-3 pb-14 pt-28 sm:px-4 lg:px-5">
         <section className="rounded-3xl border border-[#1e5da8]/15 bg-white p-6 shadow-[0_24px_60px_-42px_rgba(30,93,168,0.68)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-2xl font-bold text-[#113965]">Subscriptions</h1>
-            <Link to="/browse" className="text-sm font-semibold text-[#1e5da8] hover:underline">Back to Browse</Link>
+            <div>
+              <h1 className="text-2xl font-bold text-[#113965]">Subscriptions</h1>
+              <p className="mt-1 text-sm text-slate-600">
+                Manage your plans, starter credits, and checkout from one place.
+              </p>
+            </div>
+            <Link to="/browse" className="text-sm font-semibold text-[#1e5da8] hover:underline">
+              Back to Browse
+            </Link>
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -400,6 +597,46 @@ export default function SubscriptionsPage(): ReactElement {
               <p className="text-xs text-slate-500">Total Spent</p>
               <p className="text-xl font-bold text-[#113965]">{formatCurrency(stats.totalValue)}</p>
             </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-gradient-to-r from-[#eef5ff] to-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <MapPin size={16} className="text-[#1e5da8]" />
+                <p className="text-sm font-semibold text-[#113965]">Location Context</p>
+              </div>
+              <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-slate-500">
+                {locationStatus === 'loading'
+                  ? 'Detecting...'
+                  : locationStatus === 'ready'
+                    ? 'Detected'
+                    : locationStatus === 'error'
+                      ? 'Unavailable'
+                      : 'Idle'}
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-slate-600">
+              {locationStatus === 'ready' && (locationHint?.city || locationHint?.state || locationHint?.pincode)
+                ? `Showing your current location as ${
+                    [locationHint?.city, locationHint?.state, locationHint?.pincode].filter(isMeaningfulText).join(', ')
+                  }.`
+                : 'Location is optional here, but it helps us mirror the app experience and future pricing hints.'}
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <Link
+              to="/create-listing"
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-[#1f63b2] px-4 text-sm font-semibold text-white shadow-[0_14px_28px_-20px_rgba(31,99,178,0.8)]"
+            >
+              Create Listing
+            </Link>
+            <Link
+              to="/my-listings"
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700"
+            >
+              Open My Listings
+            </Link>
           </div>
         </section>
 
@@ -428,6 +665,94 @@ export default function SubscriptionsPage(): ReactElement {
             </article>
           ) : null}
 
+          {activeSubscriptionGroups.length > 0 ? (
+            <article className="rounded-2xl border border-[#1e5da8]/15 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h2 className="inline-flex items-center gap-2 text-base font-semibold text-slate-900">
+                    <ShieldCheck size={16} className="text-emerald-600" /> Active Plan Picker
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Choose which active subscription you want to keep in focus.
+                  </p>
+                </div>
+                {selectedActiveSubscriptionSummary ? (
+                  <span className="rounded-full bg-[#eef5ff] px-2 py-1 text-xs font-semibold text-[#1e5da8]">
+                    Selected: {selectedActiveSubscriptionSummary.tier?.name || 'Plan'}
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                {activeSubscriptionGroups.map((group) => {
+                  const selectedId = selectedActiveSubscriptionId || defaultActiveSubscriptionId;
+                  const isSelected = group.subscriptions.some((sub) => sub.id === selectedId);
+                  const isDefault = group.subscriptions.some((sub) => sub.id === defaultActiveSubscriptionId);
+
+                  return (
+                    <button
+                      key={group.key}
+                      type="button"
+                      onClick={() => setSelectedActiveSubscriptionId(group.subscriptions[0]?.id || '')}
+                      className={`rounded-2xl border p-4 text-left transition ${
+                        isSelected
+                          ? 'border-[#1e5da8] bg-[#eef5ff] shadow-[0_14px_36px_-28px_rgba(30,93,168,0.65)]'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-base font-semibold text-slate-900">{group.tierName}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {group.durationDays} days · {group.count} active subscription{group.count === 1 ? '' : 's'}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {isDefault ? (
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                              Default
+                            </span>
+                          ) : null}
+                          {isSelected ? (
+                            <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-700">
+                              Selected
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                        <p className="inline-flex items-center gap-2">
+                          <BadgeIndianRupee size={14} /> {formatCurrency(group.tierPrice)}
+                        </p>
+                        <p className="inline-flex items-center gap-2">
+                          <CalendarDays size={14} /> Expires in {group.shortestExpiryDays} day{group.shortestExpiryDays === 1 ? '' : 's'}
+                        </p>
+                        <p>
+                          Listings: {group.hasUnlimited ? 'Unlimited' : `${group.totalUsed}/${group.totalLimit}`}
+                        </p>
+                        <p>Boosts left: {group.totalBoostsRemaining}</p>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                        <span className="inline-flex items-center gap-1">
+                          <Sparkles size={12} className="text-[#1e5da8]" />
+                          {group.hasUnlimited ? 'Unlimited listing allowance' : 'Fixed listing allowance'}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Zap size={12} className="text-amber-500" />
+                          {group.boostEntitlement > 0
+                            ? `${group.boostEntitlement} boost credit${group.boostEntitlement === 1 ? '' : 's'} in plan`
+                            : 'No boost credits in this plan'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </article>
+          ) : null}
+
           {subscriptions.map((item) => (
             <article key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -443,8 +768,8 @@ export default function SubscriptionsPage(): ReactElement {
               <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
                 <p className="inline-flex items-center gap-2"><BadgeIndianRupee size={14} /> {formatCurrency(item.price)}</p>
                 <p className="inline-flex items-center gap-2"><CalendarDays size={14} /> {item.durationDays} days</p>
-                <p>Start: {item.startDate ? new Date(item.startDate).toLocaleDateString('en-IN') : '-'}</p>
-                <p>Expiry: {item.expiresAt ? new Date(item.expiresAt).toLocaleDateString('en-IN') : '-'}</p>
+                <p>Start: {formatDate(item.startDate)}</p>
+                <p>Expiry: {formatDate(item.expiresAt)}</p>
                 <p>Listings: {item.maxListings === -1 ? 'Unlimited' : `${item.listingsUsed}/${item.maxListings}`}</p>
                 <p>Boosts left: {item.boostsRemaining}</p>
               </div>
@@ -487,6 +812,7 @@ export default function SubscriptionsPage(): ReactElement {
               const finalPrice = getPlanPrice(tier);
               const couponCode = couponByTierId[tier.id] || '';
               const isCheckingOut = checkoutTierId === tier.id;
+              const selectedActivePlan = selectedActiveSubscriptionSummary?.tier?.name || 'No active plan selected';
 
               return (
                 <article key={tier.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -517,6 +843,10 @@ export default function SubscriptionsPage(): ReactElement {
                     ))}
                   </div>
 
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    Focused active plan: <span className="font-semibold text-slate-800">{selectedActivePlan}</span>
+                  </div>
+
                   <div className="mt-5 space-y-3">
                     <input
                       value={couponCode}
@@ -526,6 +856,9 @@ export default function SubscriptionsPage(): ReactElement {
                       placeholder="Coupon code"
                       className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-[#1e5da8]"
                     />
+                    <p className="text-xs text-slate-500">
+                      Coupon is applied to this specific plan before checkout.
+                    </p>
                     <button
                       type="button"
                       onClick={() => void proceedWithPlan(tier)}

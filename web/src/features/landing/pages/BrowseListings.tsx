@@ -61,13 +61,21 @@ type BrowseListingsProps = {
   dealsOnly?: boolean;
 };
 
-const categories = [
+type BrowseCategory = {
+  label: string;
+  mainCategory?: string;
+  subCategory?: string;
+};
+
+const categories: BrowseCategory[] = [
   { label: 'All' },
-  { label: 'Electronics', subCategory: 'Electronics' },
-  { label: 'Furniture', subCategory: 'Furniture' },
-  { label: 'Vehicles', subCategory: 'Vehicles' },
+  { label: 'Electronics', mainCategory: 'Electronics & Appliances' },
+  { label: 'Furniture', mainCategory: 'Home, Property & Living' },
+  { label: 'Vehicles', mainCategory: 'Vehicles' },
   { label: 'Fashion', mainCategory: 'Fashion & Lifestyle' },
-  { label: 'Services', subCategory: 'Services' },
+  { label: 'Services', mainCategory: 'Jobs & Services' },
+  { label: 'Food & Travel', mainCategory: 'Food, Travel & Events' },
+  { label: 'Others', mainCategory: 'Community, Pets & Others' },
 ];
 
 function formatPrice(value: string | number | undefined): string {
@@ -171,6 +179,7 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
     const selectedCategory = categories.find((item) => item.label === category);
     if (selectedCategory?.mainCategory) params.set('mainCategory', selectedCategory.mainCategory);
     if (selectedCategory?.subCategory) params.set('subCategory', selectedCategory.subCategory);
+    if (!selectedCategory && category !== 'All') params.set('category', category);
     if (location.trim()) params.set('location', location.trim());
     if (latitude && longitude) {
       params.set('latitude', latitude);

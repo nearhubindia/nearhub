@@ -11,6 +11,8 @@ async function applyCoreSchemaPatches(): Promise<void> {
   await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS address text`);
   await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS gstin text`);
   await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url text`);
+  await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS latitude real`);
+  await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS longitude real`);
   await db.execute(
     sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified boolean NOT NULL DEFAULT false`
   );

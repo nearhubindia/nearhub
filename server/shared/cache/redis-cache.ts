@@ -23,6 +23,7 @@ export interface CacheStats {
 export class RedisCache {
   private client: RedisClientType | null = null;
   private isConnected = false;
+  private hasLoggedConnectionError = false;
   private stats: CacheStats = {
     hits: 0,
     misses: 0,
@@ -42,24 +43,51 @@ export class RedisCache {
     port: number = parseInt(process.env.REDIS_PORT || '6379'),
     password?: string
   ): Promise<void> {
+    const redisEnabled = String(process.env.REDIS_ENABLED || '')
+      .trim()
+      .toLowerCase();
+    const hasExplicitRedisConfig = Boolean(
+      process.env.REDIS_URL ||
+        process.env.REDIS_HOST ||
+        process.env.REDIS_PORT ||
+        process.env.REDIS_PASSWORD
+    );
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (redisEnabled === 'false' || redisEnabled === '0') {
+      console.log('[Redis] Disabled by REDIS_ENABLED');
+      return;
+    }
+
+    if (!isProduction && redisEnabled !== 'true' && redisEnabled !== '1' && !hasExplicitRedisConfig) {
+      console.log('[Redis] Skipped in development (set REDIS_ENABLED=true to enable)');
+      return;
+    }
+
     try {
       this.client = createClient({
-        host,
-        port,
-        password,
+        ...(process.env.REDIS_URL ? { url: process.env.REDIS_URL } : {}),
+        ...(password || process.env.REDIS_PASSWORD ? { password: password || process.env.REDIS_PASSWORD } : {}),
         socket: {
+          host,
+          port,
           reconnectStrategy: (retries: number) => {
-            if (retries > 10) {
-              console.error('[Redis] Max reconnection attempts reached');
-              return new Error('Max Redis reconnection attempts');
+            if (!isProduction || retries > 2) {
+              return false;
             }
-            return Math.min(retries * 50, 500);
+            return Math.min(retries * 100, 500);
           },
         },
       } as any);
 
       this.client.on('error', (err: unknown) => {
-        console.error('[Redis] Error:', err);
+        if (!this.hasLoggedConnectionError) {
+          const error = err as { code?: string; message?: string };
+          console.warn(
+            `[Redis] Unavailable${error?.code ? ` (${error.code})` : ''}; continuing without cache.`
+          );
+          this.hasLoggedConnectionError = true;
+        }
         this.stats.errors++;
       });
 
@@ -76,9 +104,14 @@ export class RedisCache {
       await this.client.connect();
       this.isConnected = true;
     } catch (error) {
-      console.error('[Redis] Connection failed:', error);
+      if (!this.hasLoggedConnectionError) {
+        const connectionError = error as { code?: string; message?: string };
+        console.warn(
+          `[Redis] Connection unavailable${connectionError?.code ? ` (${connectionError.code})` : ''}; continuing without cache.`
+        );
+        this.hasLoggedConnectionError = true;
+      }
       this.isConnected = false;
-      throw error;
     }
   }
 

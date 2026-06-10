@@ -5,9 +5,9 @@
   "main": "index.ts",
   "type": "module",
   "scripts": {
-    "dev": "NODE_ENV=development tsx index.ts",
+    "dev": "node --import tsx -e \"process.env.NODE_ENV='development'; await import('./index.ts')\"",
     "build": "esbuild index.ts --platform=node --packages=external --bundle --format=esm --sourcemap --outdir=dist && node scripts/ensure-sourcemap-file.mjs dist/index.js.map index.js && mkdir -p dist/templates && cp -r templates/* dist/templates/",
-    "prod": "NODE_ENV=production node dist/index.js",
+    "prod": "node -e \"process.env.NODE_ENV='production'; import('./dist/index.js')\"",
     "test": "jest --detectOpenHandles",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

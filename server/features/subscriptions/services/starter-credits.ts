@@ -92,7 +92,14 @@ export async function getStarterCreditsSummary(userId: string): Promise<StarterC
     .from(userStarterCredits)
     .where(eq(userStarterCredits.userId, userId))
     .limit(1);
-  return toSummary((row[0] as any) || null);
+  if (row.length > 0) {
+    return toSummary((row[0] as any) || null);
+  }
+
+  // Backfill starter credits for legacy users who existed before the starter-credit
+  // table was introduced. This keeps the create-listing flow working without requiring
+  // a manual migration for every account.
+  return await grantStarterCreditsIfEligible(userId, { grantedBy: 'system' });
 }
 
 export async function consumeStarterListingCredit(
@@ -121,6 +128,16 @@ export async function consumeStarterListingCredit(
   return {
     listingsRemaining: Math.max(0, Number(row.listingsTotal || 0) - Number(row.listingsUsed || 0)),
   };
+}
+
+export async function consumeStarterListingCreditWithBackfill(
+  userId: string
+): Promise<{ listingsRemaining: number } | null> {
+  const consumed = await consumeStarterListingCredit(userId);
+  if (consumed) return consumed;
+
+  await grantStarterCreditsIfEligible(userId, { grantedBy: 'system' });
+  return await consumeStarterListingCredit(userId);
 }
 
 export async function releaseStarterListingCredit(userId: string): Promise<void> {

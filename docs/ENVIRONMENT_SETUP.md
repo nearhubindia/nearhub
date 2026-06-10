@@ -125,7 +125,7 @@ VITE_CURRENCY_CODE=INR
 NODE_ENV=development
 SERVER_PORT=5000
 SERVER_HOST=localhost
-DATABASE_URL=postgresql://postgres:password@localhost:5432/nearhub
+DATABASE_URL=postgresql://postgres:Synvide%40123@localhost:5432/nearhub
 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
 BSNL_DLT_ENABLED=false
 MSG91_ENABLED=true
@@ -135,6 +135,30 @@ DEFAULT_GEO_RADIUS_KM=10
 ADMIN_JWT_SECRET=your_very_secure_admin_jwt_secret_key
 LISTING_EXPIRATION_DAYS=60
 ```
+
+### Docker Local Development
+
+If you want to run only the backend server and Redis in Docker while keeping PostgreSQL on your host machine:
+
+```bash
+# Start the server + Redis stack
+docker compose up --build
+```
+
+On Linux, the compose stack uses host networking for the server container, so it can reach your host Postgres at `localhost`. Use a PostgreSQL connection string like this in `server/.env.local` or as an exported shell variable:
+
+```dotenv
+DATABASE_URL=postgresql://postgres:Synvide%40123@localhost:5432/nearhub
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6380
+REDIS_ENABLED=true
+```
+
+Notes:
+
+- This setup is Linux-specific because it relies on host networking for the server container.
+- Redis is still containerized, but its port is published on the host so the server can reach it at `127.0.0.1:6380`.
+- For production, point `DATABASE_URL` to your RDS endpoint instead of the host machine.
 
 ## Important Notes
 
@@ -166,6 +190,8 @@ When deploying to production:
    ADMIN_JWT_SECRET=<generate-secure-random-string>
    DATABASE_URL=<production-database-url>
    ```
+
+   If the backend is containerized in production, `DATABASE_URL` should point to your RDS instance and Redis should point to your managed Redis endpoint or container network name.
 
 3. **Enable HTTPS**:
    - Set `VITE_API_URL=https://api.example.com` in web
