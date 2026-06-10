@@ -1,24 +1,24 @@
 import { QueryClient, hydrate, dehydrate } from '@tanstack/react-query';
+import type { DehydratedState as TanstackDehydratedState } from '@tanstack/query-core';
 
-type PersistedQuery = {
+type PersistedQueryCandidate = {
   queryKey?: unknown;
   options?: {
     meta?: {
       persist?: boolean;
     };
   };
+};
+
+type PersistedQuery = {
+  queryKey?: unknown;
+  queryHash?: string;
   state?: {
     data?: unknown;
     dataUpdatedAt?: number;
-    meta?: {
-      persist?: boolean;
-    };
   };
 };
-
-type DehydratedState = {
-  queries?: PersistedQuery[];
-};
+type DehydratedState = TanstackDehydratedState;
 
 /**
  * Centralized ReactQuery configuration for the web application
@@ -62,7 +62,7 @@ export function enableQueryPersistence(): void {
     // ignore
   }
 
-  const shouldDehydrateQuery = (query: PersistedQuery): boolean => {
+  const shouldDehydrateQuery = (query: PersistedQueryCandidate): boolean => {
     try {
       if (query.options?.meta?.persist) return true;
       const k = Array.isArray(query.queryKey) ? query.queryKey[0] : query.queryKey;
@@ -103,18 +103,18 @@ export function enableQueryPersistence(): void {
       const candidates = state.queries.map((q) => ({
         q,
         key: Array.isArray(q.queryKey) ? q.queryKey[0] : q.queryKey,
-        size: estimateQuerySize({ queryKey: q.queryKey, state: q.state }),
+        size: estimateQuerySize({ queryKey: q.queryKey, queryHash: q.queryHash, state: q.state }),
       }));
 
       // Sort so mandatory and smaller entries preferred
       candidates.sort((a, b) => {
-        const aMandatory = mandatoryKeys.has(String(a.key)) || a.q?.state?.meta?.persist;
-        const bMandatory = mandatoryKeys.has(String(b.key)) || b.q?.state?.meta?.persist;
+        const aMandatory = mandatoryKeys.has(String(a.key));
+        const bMandatory = mandatoryKeys.has(String(b.key));
         if (aMandatory !== bMandatory) return aMandatory ? -1 : 1;
         return a.size - b.size;
       });
 
-      const newQueries: PersistedQuery[] = [];
+      const newQueries: DehydratedState['queries'] = [];
       let total = 0;
       for (const c of candidates) {
         if (c.size > MAX_QUERY_BYTES) continue; // skip too-large queries
