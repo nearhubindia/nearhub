@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { getPrimaryListingImage } from '@/features/landing/lib/listing-images';
 
 type StoredUser = { id?: string; phone?: string };
 
@@ -436,7 +437,7 @@ export default function MyListingsPage(): ReactElement {
               const originalPrice = parsePrice(item.price);
               const displayPrice = item.offerPrice ? parsePrice(item.offerPrice) : originalPrice;
               const showOriginal = displayPrice > 0 && originalPrice > displayPrice;
-              const image = item.images?.[0] || FALLBACK_IMAGE;
+              const image = getPrimaryListingImage(item);
               const views = Number(item.viewCount || 0);
               const likes = Number(item.likeCount ?? item.saveCount ?? 0);
               const shares = Number(item.shareCount || 0);
@@ -456,7 +457,7 @@ export default function MyListingsPage(): ReactElement {
                     <img
                       src={image}
                       alt={item.title}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover object-center"
                       loading="lazy"
                       onError={(event) => {
                         event.currentTarget.src = FALLBACK_IMAGE;

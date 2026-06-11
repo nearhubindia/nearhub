@@ -192,7 +192,7 @@ function DealCard({
             <img
               src={image}
               alt={item.title}
-              className="h-full w-full object-cover"
+              className="h-full w-full object-cover object-center"
               loading="lazy"
               onError={(event) => {
                 event.currentTarget.src = FALLBACK_IMAGE;

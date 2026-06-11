@@ -18,6 +18,7 @@ import {
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { formatDealStatus } from '@/lib/deal-timer';
+import { getListingImages } from '@/features/landing/lib/listing-images';
 
 type StoredUser = { id?: string; phone?: string; name?: string };
 type LocationLookupResult = {
@@ -309,9 +310,10 @@ export default function ListingDetailsPage(): ReactElement {
       if (!response.ok || !payload.success)
         throw new Error(payload.error || 'Failed to load listing');
       const raw = payload.listing || payload.data;
+      const images = getListingImages(raw);
       return {
         ...raw,
-        images: parseMedia(raw?.images),
+        images,
         videos: parseMedia(raw?.videos),
         attributes: parseAttributes(raw?.attributes),
         status: String(raw?.status || ''),
@@ -764,7 +766,7 @@ export default function ListingDetailsPage(): ReactElement {
                         <img
                           src={image}
                           alt={`${listing.title} ${index + 1}`}
-                          className="h-full w-full object-cover"
+                          className="h-full w-full object-cover object-center"
                         />
                       </button>
                     ))}

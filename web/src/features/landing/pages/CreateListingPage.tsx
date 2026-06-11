@@ -22,6 +22,7 @@ import {
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { createListing } from '../api/listings';
+import { getListingImages } from '@/features/landing/lib/listing-images';
 import {
   getAttributeKey,
   getDefaultAdminMainCategory,
@@ -87,6 +88,12 @@ type SourceListingResponse = {
     pincode?: string | number;
     images?: string[];
     videos?: string[];
+    image?: string;
+    imageUrl?: string;
+    productImage?: string;
+    productImageUrl?: string;
+    thumbnail?: string;
+    thumbnailUrl?: string;
   };
 };
 
@@ -542,7 +549,7 @@ export default function CreateListingPage(): ReactElement {
   useEffect(() => {
     if (mode !== 'deal') return;
     if (sourceListingId) {
-      setDealStep(3);
+      setDealStep(2);
     } else {
       setDealStep((step) => Math.min(step, 2));
     }
@@ -792,12 +799,13 @@ export default function CreateListingPage(): ReactElement {
         } else if (source.category) {
           setSubCategory(String(source.category));
         }
+        const sourceImages = getListingImages(source);
         setImages((items) =>
           shouldReplaceSource
-            ? (source.images || []).slice(0, maxImageUploads)
+            ? sourceImages.slice(0, maxImageUploads)
             : items.length
               ? items
-              : (source.images || []).slice(0, maxImageUploads)
+              : sourceImages.slice(0, maxImageUploads)
         );
         setVideos((items) =>
           shouldReplaceSource
@@ -1716,7 +1724,11 @@ export default function CreateListingPage(): ReactElement {
             key={`${image}-${index}`}
             className="relative aspect-square overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
           >
-            <img src={image} alt={`Uploaded ${index + 1}`} className="h-full w-full object-cover" />
+            <img
+              src={image}
+              alt={`Uploaded ${index + 1}`}
+              className="h-full w-full object-cover object-center"
+            />
             {mode === 'deal' ? (
               <span className="absolute left-2 top-2 rounded-md bg-[#1f63b2] px-2 py-1 text-[10px] font-normal uppercase text-white shadow-sm">
                 {dealTypeLabel}

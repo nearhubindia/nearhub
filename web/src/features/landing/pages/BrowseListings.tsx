@@ -340,7 +340,7 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                         <img
                           src={brokenImages[listing.id] ? FALLBACK_IMAGE : primaryImage}
                           alt={listing.title}
-                          className="h-full w-full object-cover"
+                          className="h-full w-full object-cover object-center"
                           loading="lazy"
                           onError={() =>
                             setBrokenImages((prev) => ({
