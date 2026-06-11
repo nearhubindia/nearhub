@@ -358,9 +358,7 @@ function ProductCard({
           >
             <Heart
               size={16}
-              className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${
-                saved ? 'fill-red-500 text-red-500' : ''
-              }`}
+              className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${saved ? 'fill-red-500 text-red-500' : ''}`}
             />
           </button>
         </div>

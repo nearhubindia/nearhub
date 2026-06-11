@@ -161,7 +161,9 @@ function DealCard({
       <Link to={`/listing/${item.id}`} className="block">
         <div
           className={`relative bg-slate-50 ${
-            combo ? 'h-32 overflow-hidden bg-white sm:h-40 xl:h-36' : 'aspect-[1.05] sm:aspect-[1.22]'
+            combo
+              ? 'h-32 overflow-hidden bg-white sm:h-40 xl:h-36'
+              : 'aspect-[1.05] sm:aspect-[1.22]'
           }`}
         >
           {combo ? (
