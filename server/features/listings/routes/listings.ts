@@ -343,6 +343,9 @@ function toPublicListing(
   const likeCount = Number(options?.likeCountMap?.get(listingId) || 0);
   const images = parseJsonArrayField(listing?.images);
   const videos = parseJsonArrayField(listing?.videos);
+  const publicImages = sanitizeMediaForPublic(req, listingId, 'images', images);
+  const publicVideos = sanitizeMediaForPublic(req, listingId, 'videos', videos);
+  const primaryImage = typeof publicImages[0] === 'string' ? publicImages[0] : '';
 
   return {
     ...rest,
@@ -357,8 +360,10 @@ function toPublicListing(
     chatCount,
     likeCount,
     saveCount: likeCount,
-    images: sanitizeMediaForPublic(req, listingId, 'images', images),
-    videos: sanitizeMediaForPublic(req, listingId, 'videos', videos),
+    image: primaryImage,
+    imageUrl: primaryImage,
+    images: publicImages,
+    videos: publicVideos,
   };
 }
 
@@ -969,6 +974,14 @@ export function registerListingRoutes(app: Express) {
       const updated = await updateListing(listingId, sanitizedUpdates);
       if (!updated) {
         return res.status(404).json({ success: false, error: 'Failed to update listing' });
+      }
+      if (redisCache.isOnline()) {
+        await Promise.all([
+          redisCache.invalidatePattern('listings:v1:*'),
+          redisCache.invalidatePattern('search:*'),
+        ]).catch((cacheError) =>
+          console.error('[Listings] Failed to invalidate listing caches:', cacheError)
+        );
       }
 
       // If seller resubmits a rejected listing, or edits an approved listing, notify admins again.

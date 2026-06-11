@@ -671,7 +671,7 @@ export default function ListingDetailsPage(): ReactElement {
             <p className="text-xs uppercase tracking-[0.22em] text-[#1f63b2]">
               {isDeal ? 'Deal Details' : 'Listing Details'}
             </p>
-            <h1 className="mt-2 text-3xl leading-tight tracking-normal text-slate-950 sm:text-4xl lg:text-5xl">
+            <h1 className="mt-2 text-3xl leading-tight tracking-normal text-slate-950 sm:text-4xl lg:text-4xl">
               {listing?.title || 'Listing details'}
             </h1>
             {listing ? (
@@ -699,8 +699,8 @@ export default function ListingDetailsPage(): ReactElement {
         ) : null}
 
         {listing ? (
-          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,0.94fr)_minmax(420px,0.9fr)]">
-            <section className="space-y-4 lg:sticky lg:top-24">
+          <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,0.94fr)_minmax(420px,0.9fr)]">
+            <section className="min-w-0 space-y-4 lg:sticky lg:top-24">
               <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm">
                 <div className="relative overflow-hidden rounded-[18px] bg-[#eef4fb]">
                   {isDeal ? (
@@ -776,7 +776,7 @@ export default function ListingDetailsPage(): ReactElement {
               ) : null}
             </section>
 
-            <section className="space-y-4">
+            <section className="min-w-0 space-y-4">
               <div className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e8f2ff] px-3 py-1.5 text-[11px] uppercase text-[#1f63b2]">
@@ -839,13 +839,13 @@ export default function ListingDetailsPage(): ReactElement {
 
               {isDeal ? (
                 <div className="rounded-[22px] border border-[#b8d4f4] bg-[#eef6ff] p-5 shadow-sm">
-                  <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-start">
-                    <div>
+                  <div className="grid min-w-0 gap-4 xl:grid-cols-[1fr_auto] xl:items-start">
+                    <div className="min-w-0">
                       <p className="flex items-center gap-2 text-sm uppercase text-slate-900">
                         <span className="h-3 w-3 rounded-full bg-[#1f63b2]" />
                         {showDealTimer ? 'Deal Ends In' : 'Deal Status'}
                       </p>
-                      <p className="mt-1 max-w-sm text-xs text-slate-600">
+                      <p className="mt-1 max-w-full break-words text-xs text-slate-600 sm:max-w-sm">
                         Window:{' '}
                         {isDealWindowValid
                           ? `${formatDealWindow(dealStart)} - ${formatDealWindow(dealEnd)}`
@@ -853,7 +853,7 @@ export default function ListingDetailsPage(): ReactElement {
                       </p>
                     </div>
                     {showDealTimer ? (
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
                         {timerParts.map((part) => (
                           <span
                             key={part.label}
@@ -891,7 +891,7 @@ export default function ListingDetailsPage(): ReactElement {
 
               {renderBuyerOptions()}
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2">
                 {contactQuery.data ? (
                   <a
                     href={`tel:${contactQuery.data}`}

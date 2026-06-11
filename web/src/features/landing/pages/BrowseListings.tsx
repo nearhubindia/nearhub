@@ -6,6 +6,10 @@ import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
+import {
+  FALLBACK_LISTING_IMAGE,
+  getListingImages,
+} from '@/features/landing/lib/listing-images';
 
 type Listing = {
   id: string;
@@ -15,6 +19,8 @@ type Listing = {
   location?: string;
   price?: string | number;
   offerPrice?: string | number;
+  image?: string;
+  imageUrl?: string;
   images?: string[];
   createdAt?: string;
   status?: string;
@@ -38,18 +44,9 @@ type Listing = {
   post_deal_discount_price?: string | number;
 };
 
-const FALLBACK_IMAGE = '/nearhub.png';
+const FALLBACK_IMAGE = FALLBACK_LISTING_IMAGE;
 const SAVED_IDS_KEY = 'nearhub_web_saved_listing_ids';
 const SAVED_LISTINGS_KEY = 'nearhub_web_saved_listing_snapshots';
-
-function normalizeImageUrl(value: string | undefined): string {
-  const raw = String(value || '').trim();
-  if (!raw) return FALLBACK_IMAGE;
-  if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('/')) {
-    return raw;
-  }
-  return FALLBACK_IMAGE;
-}
 
 type ListingsResponse = {
   success: boolean;
@@ -288,19 +285,20 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
             <p className="text-red-600">Could not load listings right now.</p>
           ) : null}
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4">
             {(listingsQuery.data || []).map((listing) => {
               const isComboDeal =
                 String(listing.dealType || listing.deal_type || '').toLowerCase() === 'combo';
-              const primaryImage = listing.images?.[0];
-              const secondaryImage = listing.images?.[1];
+              const listingImages = getListingImages(listing);
+              const primaryImage = listingImages[0];
+              const secondaryImage = listingImages[1];
               return (
                 <article
                   key={listing.id}
                   className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <div
-                    className={`relative aspect-[4/3] bg-slate-100 ${isComboDeal ? 'combo-float' : ''}`}
+                    className={`relative aspect-[1.05] bg-slate-100 sm:aspect-[4/3] ${isComboDeal ? 'combo-float' : ''}`}
                   >
                     <div className={`h-full w-full ${isComboDeal ? 'combo-float-card' : ''}`}>
                       {isComboDeal && secondaryImage ? (
@@ -309,7 +307,7 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                             src={
                               brokenImages[listing.id]
                                 ? FALLBACK_IMAGE
-                                : normalizeImageUrl(secondaryImage)
+                                : secondaryImage || FALLBACK_IMAGE
                             }
                             alt={listing.title}
                             className="combo-image-layer combo-image-bottom"
@@ -325,7 +323,7 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                             src={
                               brokenImages[listing.id]
                                 ? FALLBACK_IMAGE
-                                : normalizeImageUrl(primaryImage)
+                                : primaryImage || FALLBACK_IMAGE
                             }
                             alt={listing.title}
                             className="combo-image-layer combo-image-top"
@@ -338,13 +336,9 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                             }
                           />
                         </div>
-                      ) : listing.images?.[0] ? (
+                      ) : primaryImage ? (
                         <img
-                          src={
-                            brokenImages[listing.id]
-                              ? FALLBACK_IMAGE
-                              : normalizeImageUrl(listing.images[0])
-                          }
+                          src={brokenImages[listing.id] ? FALLBACK_IMAGE : primaryImage}
                           alt={listing.title}
                           className="h-full w-full object-cover"
                           loading="lazy"
@@ -365,7 +359,7 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                       )}
                     </div>
                     {isComboDeal ? (
-                      <span className="absolute left-3 top-3 rounded-full bg-[#ff7b00] px-2.5 py-1 text-[11px] font-black text-white shadow-sm">
+                      <span className="absolute left-1.5 top-1.5 rounded-full bg-[#ff7b00] px-1.5 py-0.5 text-[10px] font-black text-white shadow-sm sm:left-3 sm:top-3 sm:px-2.5 sm:py-1 sm:text-[11px]">
                         Combo Deal
                       </span>
                     ) : null}
@@ -375,29 +369,31 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                       aria-label={
                         savedIds.has(listing.id) ? 'Remove from favourites' : 'Add to favourites'
                       }
-                      className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow-sm transition hover:bg-white hover:text-rose-600"
+                      className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-slate-600 shadow-sm transition hover:bg-white hover:text-rose-600 sm:right-3 sm:top-3 sm:h-9 sm:w-9"
                     >
                       <Heart
                         size={18}
-                        className={savedIds.has(listing.id) ? 'fill-rose-500 text-rose-500' : ''}
+                        className={`h-4 w-4 sm:h-[18px] sm:w-[18px] ${
+                          savedIds.has(listing.id) ? 'fill-rose-500 text-rose-500' : ''
+                        }`}
                       />
                     </button>
                   </div>
-                  <div className="p-3">
-                    <h2 className="line-clamp-1 text-sm font-black text-slate-900">
+                  <div className="p-2 sm:p-3">
+                    <h2 className="line-clamp-1 text-xs font-black text-slate-900 sm:text-sm">
                       {listing.title}
                     </h2>
-                    <p className="mt-1 line-clamp-2 text-xs font-medium leading-5 text-slate-600">
+                    <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-slate-600 sm:text-xs sm:leading-5">
                       {listing.description || 'No description available'}
                     </p>
-                    <div className="mt-3 flex items-center justify-between text-xs">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-[#1e5da8]/10 px-2 py-1 font-semibold text-[#1e5da8]">
-                        <Tag size={12} />
-                        {listing.category || 'General'}
+                    <div className="mt-2 flex items-center justify-between gap-1 text-[10px] sm:mt-3 sm:text-xs">
+                      <span className="inline-flex min-w-0 items-center gap-1 rounded-full bg-[#1e5da8]/10 px-1.5 py-0.5 font-semibold text-[#1e5da8] sm:px-2 sm:py-1">
+                        <Tag size={12} className="h-2.5 w-2.5 shrink-0 sm:h-3 sm:w-3" />
+                        <span className="truncate">{listing.category || 'General'}</span>
                       </span>
-                      <span className="inline-flex items-center gap-1 text-slate-500">
-                        <MapPin size={12} />
-                        {listing.location || 'Nearby'}
+                      <span className="inline-flex min-w-0 items-center gap-1 text-slate-500">
+                        <MapPin size={12} className="h-2.5 w-2.5 shrink-0 sm:h-3 sm:w-3" />
+                        <span className="truncate">{listing.location || 'Nearby'}</span>
                       </span>
                     </div>
                     {(listing.isDeal ?? listing.is_deal) ? (
@@ -409,8 +405,8 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                         </span>
                       </div>
                     ) : null}
-                    <div className="mt-3 flex items-center justify-between">
-                      <p className="text-sm font-black text-[#0f4b8a]">
+                    <div className="mt-2 flex items-center justify-between sm:mt-3">
+                      <p className="text-xs font-black text-[#0f4b8a] sm:text-sm">
                         {formatPrice(getDisplayPriceValue(listing))}
                       </p>
                       <div className="flex items-center gap-3">

@@ -98,7 +98,7 @@ function Field({
       <span className="mb-2 block text-sm font-normal text-[#113965]">
         {label} {required ? <span className="text-orange-500">*</span> : null}
       </span>
-      <span className="flex h-14 items-center gap-3 rounded-[18px] border border-[#d9e6f4] bg-white px-4 text-slate-900 shadow-sm transition focus-within:border-[#1f63b2] focus-within:ring-4 focus-within:ring-[#1f63b2]/10">
+      <span className="flex h-14 min-w-0 items-center gap-3 rounded-[18px] border border-[#d9e6f4] bg-white px-4 text-slate-900 shadow-sm transition focus-within:border-[#1f63b2] focus-within:ring-4 focus-within:ring-[#1f63b2]/10">
         <span className="shrink-0 text-[#8eb2db]">{icon}</span>
         {children}
       </span>
@@ -484,7 +484,7 @@ export default function ProfilePage(): ReactElement {
               </div>
             </aside>
 
-            <section className="pt-2 lg:pt-16">
+            <section className="min-w-0 pt-2 lg:pt-16">
               <h2 className="text-xl font-normal text-slate-950">Account details</h2>
               {isLoading ? (
                 <p className="mt-4 text-sm font-semibold text-slate-500">Loading profile...</p>
@@ -544,9 +544,9 @@ export default function ProfilePage(): ReactElement {
                 />
               </label>
 
-              <div className="mt-7 rounded-[20px] border border-[#d9e6f4] bg-[#f8fbff] p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
+              <div className="mt-7 min-w-0 rounded-[20px] border border-[#d9e6f4] bg-[#f8fbff] p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
+                  <div className="min-w-0">
                     <p className="text-sm font-normal text-[#113965]">
                       Current Location Coordinates
                     </p>
@@ -558,7 +558,7 @@ export default function ProfilePage(): ReactElement {
                     type="button"
                     onClick={detectCurrentLocation}
                     disabled={isDetectingLocation}
-                    className="rounded-full bg-[#1f63b2] px-4 py-2 text-xs font-normal text-white disabled:opacity-60"
+                    className="max-w-full rounded-full bg-[#1f63b2] px-4 py-2 text-xs font-normal text-white disabled:opacity-60"
                   >
                     {isDetectingLocation ? 'Detecting...' : 'Detect Current Location'}
                   </button>
@@ -586,7 +586,7 @@ export default function ProfilePage(): ReactElement {
               </div>
 
               <Field label="Listing Radius (km)" icon={<MapPin size={20} />}>
-                <div className="flex w-full items-center gap-3">
+                <div className="flex min-w-0 w-full items-center gap-3">
                   <input
                     type="range"
                     min={5}
@@ -594,7 +594,7 @@ export default function ProfilePage(): ReactElement {
                     step={5}
                     value={searchRadiusKm}
                     onChange={(event) => setSearchRadiusKm(Number(event.target.value))}
-                    className="h-2 w-full cursor-pointer accent-[#1f63b2]"
+                    className="h-2 min-w-0 flex-1 cursor-pointer accent-[#1f63b2]"
                   />
                   <span className="min-w-16 text-right text-sm font-normal text-[#113965]">
                     {searchRadiusKm} km
@@ -614,7 +614,7 @@ export default function ProfilePage(): ReactElement {
                 type="button"
                 onClick={() => void saveProfile()}
                 disabled={isSaving || isLoading}
-                className="mt-8 mx-auto flex h-10 w-150 items-center justify-center gap-3 rounded-[18px] bg-[#2368b4] text-base font-normal text-white shadow-[0_20px_34px_-22px_rgba(17,57,101,0.95)] transition hover:bg-[#1f5fa8] disabled:opacity-60"
+                className="mt-8 mx-auto flex h-10 w-full max-w-full items-center justify-center gap-3 rounded-[18px] bg-[#2368b4] px-4 text-base font-normal text-white shadow-[0_20px_34px_-22px_rgba(17,57,101,0.95)] transition hover:bg-[#1f5fa8] disabled:opacity-60 sm:w-[150px]"
               >
                 <Save size={20} /> {isSaving ? 'Saving...' : 'Save Changes'}
               </button>

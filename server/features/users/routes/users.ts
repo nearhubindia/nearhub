@@ -509,17 +509,24 @@ export function registerUserRoutes(app: Express) {
       );
 
       return res.json({
-        listings: userListings.map((listing) => ({
-          ...listing,
-          userId: listing.sellerId,
-          price: Number(listing.price),
-          offerPrice:
-            listing.offerPrice !== undefined && listing.offerPrice !== null
-              ? Number(listing.offerPrice)
-              : undefined,
-          images: parseJsonArrayField(listing.images),
-          videos: parseJsonArrayField(listing.videos),
-        })),
+        listings: userListings.map((listing) => {
+          const images = parseJsonArrayField(listing.images);
+          const videos = parseJsonArrayField(listing.videos);
+          const primaryImage = typeof images[0] === 'string' ? images[0] : '';
+          return {
+            ...listing,
+            userId: listing.sellerId,
+            price: Number(listing.price),
+            offerPrice:
+              listing.offerPrice !== undefined && listing.offerPrice !== null
+                ? Number(listing.offerPrice)
+                : undefined,
+            image: primaryImage,
+            imageUrl: primaryImage,
+            images,
+            videos,
+          };
+        }),
         total: userListings.length,
       });
     } catch (error) {

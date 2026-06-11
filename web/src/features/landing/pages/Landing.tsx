@@ -18,6 +18,7 @@ import { useQuery } from '@tanstack/react-query';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { BRAND_SIGNATURE } from '@/shared/brand';
+import { getPrimaryListingImage } from '@/features/landing/lib/listing-images';
 
 const capabilityCards = [
   {
@@ -109,6 +110,8 @@ type Listing = {
   location?: string;
   price?: string | number;
   offerPrice?: string | number;
+  image?: string;
+  imageUrl?: string;
   images?: string[];
   isDeal?: boolean;
   is_deal?: boolean;
@@ -128,13 +131,6 @@ function formatPrice(value: string | number | undefined): string {
     currency: 'INR',
     maximumFractionDigits: 0,
   }).format(n as number);
-}
-
-function normalizeImageUrl(value: string | undefined): string {
-  const raw = String(value || '').trim();
-  if (!raw) return '/nearhub.png';
-  if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('/')) return raw;
-  return '/nearhub.png';
 }
 
 export default function Landing(): ReactElement {
@@ -300,7 +296,7 @@ export default function Landing(): ReactElement {
                 className="group overflow-hidden rounded-2xl border border-[#1e5da8]/12 bg-white shadow-[0_18px_42px_-30px_rgba(30,93,168,0.55)] transition hover:-translate-y-0.5 hover:shadow-[0_28px_54px_-34px_rgba(30,93,168,0.7)]"
               >
                 <img
-                  src={normalizeImageUrl(listing.images?.[0])}
+                  src={getPrimaryListingImage(listing)}
                   alt={listing.title}
                   className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
                 />

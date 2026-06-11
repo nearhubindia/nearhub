@@ -353,18 +353,29 @@ export async function updateListing(
     normalizedUpdates.isActive = false;
   }
 
-  const images = coerceMediaToArray(normalizedUpdates.images);
-  const videos = coerceMediaToJson(normalizedUpdates.videos);
+  const hasImagesUpdate = Object.prototype.hasOwnProperty.call(normalizedUpdates, 'images');
+  const hasVideosUpdate = Object.prototype.hasOwnProperty.call(normalizedUpdates, 'videos');
+  const updateValues = {
+    ...normalizedUpdates,
+    updatedAt: new Date(),
+  } as Record<string, unknown>;
+
+  if (hasImagesUpdate) {
+    updateValues.images = coerceMediaToArray(normalizedUpdates.images);
+  } else {
+    delete updateValues.images;
+  }
+
+  if (hasVideosUpdate) {
+    updateValues.videos = coerceMediaToJson(normalizedUpdates.videos);
+  } else {
+    delete updateValues.videos;
+  }
 
   try {
     const result = await db
       .update(listings)
-      .set({
-        ...normalizedUpdates,
-        images,
-        videos,
-        updatedAt: new Date(),
-      } as any)
+      .set(updateValues as any)
       .where(eq(listings.id, id))
       .returning();
 
@@ -389,9 +400,9 @@ export async function updateListing(
     const result = await db
       .update(listings)
       .set({
-        ...normalizedUpdates,
-        images: coerceMediaToJson(normalizedUpdates.images),
-        videos: coerceMediaToJson(normalizedUpdates.videos),
+        ...updateValues,
+        ...(hasImagesUpdate ? { images: coerceMediaToJson(normalizedUpdates.images) } : {}),
+        ...(hasVideosUpdate ? { videos: coerceMediaToJson(normalizedUpdates.videos) } : {}),
         updatedAt: new Date(),
       } as any)
       .where(eq(listings.id, id))

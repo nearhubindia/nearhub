@@ -1,10 +1,22 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, Flame, Gift, Heart, History, MapPin, PackagePlus, Tag } from 'lucide-react';
+import {
+  ChevronRight,
+  Flame,
+  Gift,
+  Heart,
+  History,
+  LocateFixed,
+  MapPin,
+  PackagePlus,
+  Search,
+  Tag,
+} from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { LandingFooter, LandingHeader, Container } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
+import { FALLBACK_LISTING_IMAGE, getListingImages } from '@/features/landing/lib/listing-images';
 
 type Listing = {
   id: string;
@@ -14,6 +26,8 @@ type Listing = {
   location?: string;
   price?: string | number;
   offerPrice?: string | number;
+  image?: string;
+  imageUrl?: string;
   postDealPriceMode?: string;
   post_deal_price_mode?: string;
   postDealDiscountPrice?: string | number;
@@ -62,7 +76,7 @@ type ListingsResponse = {
 };
 
 const SAVED_IDS_KEY = 'nearhub_web_saved_listing_ids';
-const FALLBACK_IMAGE = '/nearhub.png';
+const FALLBACK_IMAGE = FALLBACK_LISTING_IMAGE;
 const HERO_BANNERS = ['/banner1.png', '/banner2.png'];
 const EMPTY_LISTINGS: Listing[] = [];
 
@@ -73,13 +87,6 @@ function readSavedIds(): Set<string> {
   } catch {
     return new Set();
   }
-}
-
-function normalizeImageUrl(value?: string): string {
-  const raw = String(value || '').trim();
-  if (!raw) return FALLBACK_IMAGE;
-  if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('/')) return raw;
-  return FALLBACK_IMAGE;
 }
 
 function parsePrice(value: string | number | undefined): number | undefined {
@@ -215,8 +222,7 @@ function getDisplayPrices(
 
 function mapListing(item: Listing, nowMs: number): ProductCardData {
   const { displayPrice, originalPrice } = getDisplayPrices(item, nowMs);
-  const images =
-    item.images?.map(normalizeImageUrl).filter((image) => image !== FALLBACK_IMAGE) || [];
+  const images = getListingImages(item);
 
   return {
     id: item.id,
@@ -285,7 +291,11 @@ function ProductCard({
       }`}
     >
       <Link to={`/listing/${encodeURIComponent(product.id)}`} className="block">
-        <div className={`relative bg-slate-100 ${combo ? 'aspect-[1.72]' : 'aspect-[1.14]'}`}>
+        <div
+          className={`relative bg-slate-100 ${
+            combo ? 'aspect-[1.72]' : 'aspect-[1.02] sm:aspect-[1.14]'
+          }`}
+        >
           {combo ? (
             <div className="grid h-full grid-cols-2 gap-px bg-slate-200">
               {comboImages.map((image, index) => (
@@ -314,13 +324,13 @@ function ProductCard({
             />
           )}
           {sale ? (
-            <span className="absolute left-2 top-2 rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white shadow-sm">
+            <span className="absolute left-1.5 top-1.5 rounded-md bg-red-600 px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm sm:left-2 sm:top-2 sm:px-2 sm:py-1 sm:text-xs">
               {sale}
             </span>
           ) : null}
           {product.badge && !showCountdown ? (
             <span
-              className={`absolute top-2 rounded-md bg-emerald-500 px-2 py-1 text-xs font-medium text-white shadow-sm ${sale ? 'right-2' : 'left-2'}`}
+              className={`absolute top-1.5 rounded-md bg-emerald-500 px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm sm:top-2 sm:px-2 sm:py-1 sm:text-xs ${sale ? 'right-1.5 sm:right-2' : 'left-1.5 sm:left-2'}`}
             >
               {product.badge}
             </span>
@@ -332,37 +342,44 @@ function ProductCard({
           ) : null}
         </div>
       </Link>
-      <div className="p-3">
-        <div className="flex min-h-10 items-start justify-between gap-2">
+      <div className="p-2 sm:p-3">
+        <div className="flex min-h-8 items-start justify-between gap-1.5 sm:min-h-10 sm:gap-2">
           <Link
             to={`/listing/${encodeURIComponent(product.id)}`}
-            className="line-clamp-2 text-sm font-normal leading-snug text-slate-950 hover:text-[#0858d8]"
+            className="line-clamp-2 text-xs font-normal leading-snug text-slate-950 hover:text-[#0858d8] sm:text-sm"
           >
             {comboTitle}
           </Link>
           <button
             type="button"
             onClick={() => onToggleSaved(product.id)}
-            className="shrink-0 rounded-full p-1 text-slate-500 transition hover:bg-slate-100 hover:text-red-600"
+            className="shrink-0 rounded-full p-0.5 text-slate-500 transition hover:bg-slate-100 hover:text-red-600 sm:p-1"
             aria-label={saved ? 'Remove from favourites' : 'Save listing'}
           >
-            <Heart size={16} className={saved ? 'fill-red-500 text-red-500' : ''} />
+            <Heart
+              size={16}
+              className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${
+                saved ? 'fill-red-500 text-red-500' : ''
+              }`}
+            />
           </button>
         </div>
         {combo ? (
           <p className="mt-1 line-clamp-1 text-xs font-normal text-slate-500">{product.title}</p>
         ) : null}
-        <div className="mt-2 flex flex-wrap items-baseline gap-2">
-          <span className="text-base font-medium text-[#0759e6]">{formatPrice(product.price)}</span>
+        <div className="mt-1.5 flex flex-wrap items-baseline gap-1.5 sm:mt-2 sm:gap-2">
+          <span className="text-sm font-medium text-[#0759e6] sm:text-base">
+            {formatPrice(product.price)}
+          </span>
           {product.originalPrice ? (
-            <span className="text-xs font-normal text-slate-400 line-through">
+            <span className="text-[10px] font-normal text-slate-400 line-through sm:text-xs">
               {formatPrice(product.originalPrice)}
             </span>
           ) : null}
         </div>
-        <div className="mt-2 flex items-center gap-1 text-xs font-normal text-slate-600">
-          <MapPin size={12} />
-          <span>{product.distance}</span>
+        <div className="mt-1.5 flex items-center gap-1 text-[10px] font-normal text-slate-600 sm:mt-2 sm:text-xs">
+          <MapPin size={12} className="h-[11px] w-[11px] sm:h-3 sm:w-3" />
+          <span className="truncate">{product.distance}</span>
         </div>
         {showCountdown && product.dealStatus ? (
           product.dealStatus.startsWith('Ends in') ? (
@@ -676,7 +693,48 @@ export default function UserHomePage(): ReactElement {
     <div className="min-h-screen bg-white text-slate-950">
       <LandingHeader active="home" />
       <main>
-        <section className="w-full px-2 pt-[5.25rem] sm:px-4">
+        <section className="w-full px-2 pt-[5.25rem] sm:hidden">
+          <form
+            action="/search"
+            className="rounded-md border border-slate-200 bg-white p-3 shadow-[0_6px_22px_rgba(15,23,42,0.12)]"
+          >
+            <label className="flex h-9 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-400 shadow-sm">
+              <MapPin size={14} className="shrink-0 text-slate-400" />
+              <input
+                name="location"
+                type="search"
+                placeholder="Location (city, area)"
+                className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus:outline-none"
+              />
+            </label>
+            <div className="mt-3 flex items-center gap-2">
+              <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-400 shadow-sm">
+                <Search size={14} className="shrink-0 text-slate-400" />
+                <input
+                  name="q"
+                  type="search"
+                  placeholder="Search listings nearby"
+                  className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus:outline-none"
+                />
+              </label>
+              <button
+                type="button"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-[#0759e6] shadow-sm"
+                aria-label="Use current location"
+              >
+                <LocateFixed size={16} />
+              </button>
+            </div>
+            <button
+              type="submit"
+              className="mt-3 flex h-10 w-full items-center justify-center rounded-full bg-[#0759e6] px-4 text-xs font-bold text-white shadow-sm"
+            >
+              Search Near Me
+            </button>
+          </form>
+        </section>
+
+        <section className="w-full px-2 pt-3 sm:px-4 sm:pt-[5.25rem]">
           <div className="relative aspect-[3/1] w-full overflow-hidden rounded-md bg-[#020b3b] shadow-sm">
             <img
               src={HERO_BANNERS[activeBanner]}
@@ -718,7 +776,7 @@ export default function UserHomePage(): ReactElement {
               to="/search"
             />
             {trending.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
                 {trending.map((product) => (
                   <ProductCard
                     key={product.id}
@@ -741,7 +799,7 @@ export default function UserHomePage(): ReactElement {
               to="/deals"
             />
             {todaysDeals.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
                 {todaysDeals.map((product) => (
                   <ProductCard
                     key={`deal-${product.id}`}
@@ -766,7 +824,7 @@ export default function UserHomePage(): ReactElement {
               to="/deals"
             />
             {upcomingDeals.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
                 {upcomingDeals.map((product) => (
                   <ProductCard
                     key={`upcoming-${product.id}`}
@@ -809,7 +867,7 @@ export default function UserHomePage(): ReactElement {
               to="/deals"
             />
             {expiredDeals.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
                 {expiredDeals.map((product) => (
                   <ProductCard
                     key={`expired-${product.id}`}
@@ -850,7 +908,7 @@ export default function UserHomePage(): ReactElement {
               ))}
             </div>
             {visibleCategoryProducts.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                 {visibleCategoryProducts.map((product) => (
                   <ProductCard
                     key={`category-${product.id}`}

@@ -5,6 +5,11 @@ import { Heart, Sparkles, Timer } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
+import {
+  FALLBACK_LISTING_IMAGE,
+  getListingImages,
+  getPrimaryListingImage,
+} from '@/features/landing/lib/listing-images';
 
 type DealListing = {
   id: string;
@@ -14,6 +19,8 @@ type DealListing = {
   location?: string;
   price?: string | number;
   offerPrice?: string | number;
+  image?: string;
+  imageUrl?: string;
   images?: string[];
   status?: string;
   isActive?: boolean;
@@ -42,7 +49,7 @@ type ListingsResponse = {
 };
 
 const SAVED_IDS_KEY = 'nearhub_web_saved_listing_ids';
-const FALLBACK_IMAGE = '/nearhub.png';
+const FALLBACK_IMAGE = FALLBACK_LISTING_IMAGE;
 
 function readSavedIds(): Set<string> {
   try {
@@ -51,13 +58,6 @@ function readSavedIds(): Set<string> {
   } catch {
     return new Set();
   }
-}
-
-function normalizeImageUrl(value: string | undefined): string {
-  const raw = String(value || '').trim();
-  if (!raw) return FALLBACK_IMAGE;
-  if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('/')) return raw;
-  return FALLBACK_IMAGE;
 }
 
 function parsePrice(value: string | number | undefined): number {
@@ -150,11 +150,9 @@ function DealCard({
   const offer = parsePrice(item.offerPrice);
   const hasOffer = offer > 0 && price > 0 && offer < price;
   const displayPrice = hasOffer ? item.offerPrice : item.price;
-  const image = normalizeImageUrl(item.images?.[0]);
-  const comboImages = [
-    normalizeImageUrl(item.images?.[0]),
-    normalizeImageUrl(item.images?.[1] || item.images?.[0]),
-  ];
+  const images = getListingImages(item);
+  const image = getPrimaryListingImage(item);
+  const comboImages = [images[0] || FALLBACK_IMAGE, images[1] || images[0] || FALLBACK_IMAGE];
   const dealStatus = formatDealStatus(item, nowMs);
   const distance = formatDistance(item.distanceKm ?? item.distance_km);
 
@@ -162,7 +160,9 @@ function DealCard({
     <article className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <Link to={`/listing/${item.id}`} className="block">
         <div
-          className={`relative bg-slate-50 ${combo ? 'h-44 overflow-hidden bg-white sm:h-40 xl:h-36' : 'aspect-[1.22]'}`}
+          className={`relative bg-slate-50 ${
+            combo ? 'h-32 overflow-hidden bg-white sm:h-40 xl:h-36' : 'aspect-[1.05] sm:aspect-[1.22]'
+          }`}
         >
           {combo ? (
             <>
@@ -184,7 +184,7 @@ function DealCard({
                   </div>
                 ))}
               </div>
-              <span className="absolute left-1/2 top-1/2 grid h-10 w-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[3px] border-white bg-red-600 text-2xl font-black leading-none text-white shadow-lg">
+              <span className="absolute left-1/2 top-1/2 grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[3px] border-white bg-red-600 text-xl font-black leading-none text-white shadow-lg sm:h-10 sm:w-10 sm:text-2xl">
                 +
               </span>
             </>
@@ -199,52 +199,57 @@ function DealCard({
               }}
             />
           )}
-          <span className="absolute left-3 top-3 rounded-full bg-[#181c33] px-2.5 py-1 text-xs font-bold text-white">
+          <span className="absolute left-1.5 top-1.5 rounded-full bg-[#181c33] px-1.5 py-0.5 text-[10px] font-bold text-white sm:left-3 sm:top-3 sm:px-2.5 sm:py-1 sm:text-xs">
             {getDealTypeLabel(item)}
           </span>
         </div>
       </Link>
-      <div className="relative p-3">
+      <div className="relative p-2 sm:p-3">
         <button
           type="button"
           onClick={() => onToggleSaved(item.id)}
-          className="absolute -top-[calc(100%+0.25rem)] right-3 rounded-full bg-white/90 p-1.5 text-slate-800 shadow-sm"
+          className="absolute -top-[calc(100%+0.25rem)] right-2 rounded-full bg-white/90 p-1 text-slate-800 shadow-sm sm:right-3 sm:p-1.5"
           aria-label={saved ? 'Remove from favourites' : 'Save deal'}
         >
-          <Heart size={20} className={saved ? 'fill-rose-500 text-rose-500' : ''} />
+          <Heart
+            size={20}
+            className={`h-4 w-4 sm:h-5 sm:w-5 ${saved ? 'fill-rose-500 text-rose-500' : ''}`}
+          />
         </button>
         <Link to={`/listing/${item.id}`} className="block">
-          <h2 className="line-clamp-2 min-h-10 text-sm font-black leading-snug text-slate-950">
+          <h2 className="line-clamp-2 min-h-8 text-xs font-black leading-snug text-slate-950 sm:min-h-10 sm:text-sm">
             {item.title}
           </h2>
           {combo ? (
-            <p className="mt-1 line-clamp-2 min-h-9 text-xs leading-snug text-slate-500 sm:text-sm">
+            <p className="mt-1 line-clamp-2 min-h-8 text-[11px] leading-snug text-slate-500 sm:min-h-9 sm:text-sm">
               {getComboSubtitle(item)}
             </p>
           ) : null}
-          <div className="mt-2 flex flex-wrap items-baseline gap-2">
-            <span className="text-sm font-black text-slate-950 sm:text-base">
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-1.5 sm:mt-2 sm:gap-2">
+            <span className="text-xs font-black text-slate-950 sm:text-base">
               {formatPrice(displayPrice)}
             </span>
             {hasOffer ? (
-              <span className="text-xs font-semibold text-slate-400 line-through sm:text-sm">
+              <span className="text-[10px] font-semibold text-slate-400 line-through sm:text-sm">
                 {formatPrice(item.price)}
               </span>
             ) : null}
           </div>
-          <p className="mt-2 text-xs font-semibold text-slate-800 sm:text-sm">{distance}</p>
+          <p className="mt-1.5 text-[10px] font-semibold text-slate-800 sm:mt-2 sm:text-sm">
+            {distance}
+          </p>
           {dealStatus.startsWith('Ends in') ? (
-            <div className="mt-3 text-center">
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#0759e6]">
+            <div className="mt-2 text-center sm:mt-3">
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#0759e6] sm:text-[11px] sm:tracking-[0.24em]">
                 Deals Ends in
               </p>
-              <div className="mt-3 flex items-center justify-center gap-2">
+              <div className="mt-2 flex items-center justify-center gap-1 sm:mt-3 sm:gap-2">
                 {formatTimeLeft(item, nowMs)
                   .split(' : ')
                   .map((value, index) => (
                     <span
                       key={index}
-                      className="min-w-[42px] rounded-2xl bg-white px-2 py-2 text-center text-sm font-black text-[#dc1633] shadow-sm ring-1 ring-[#f8d9dd]"
+                      className="min-w-[30px] rounded-lg bg-white px-1.5 py-1.5 text-center text-[11px] font-black text-[#dc1633] shadow-sm ring-1 ring-[#f8d9dd] sm:min-w-[42px] sm:rounded-2xl sm:px-2 sm:py-2 sm:text-sm"
                     >
                       {value}
                     </span>
@@ -372,7 +377,7 @@ export default function DealsPage(): ReactElement {
 
         <section className="mt-7">
           <h2 className="text-2xl font-black">All Deals</h2>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
             {allDeals.map((item) => (
               <DealCard
                 key={item.id}
@@ -387,7 +392,7 @@ export default function DealsPage(): ReactElement {
 
         <section className="mt-9">
           <h2 className="text-2xl font-black">Combo Deals</h2>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
             {comboDeals.map((item) => (
               <DealCard
                 key={item.id}
@@ -416,7 +421,7 @@ export default function DealsPage(): ReactElement {
             ) : null}
           </div>
           {upcomingDeals.length > 0 ? (
-            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
               {upcomingDeals.map((item) => (
                 <DealCard
                   key={`upcoming-${item.id}`}
@@ -450,7 +455,7 @@ export default function DealsPage(): ReactElement {
             ) : null}
           </div>
           {expiredDeals.length > 0 ? (
-            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
               {expiredDeals.map((item) => (
                 <DealCard
                   key={`expired-${item.id}`}

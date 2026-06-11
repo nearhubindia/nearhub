@@ -368,6 +368,9 @@ function toPublicListing(
   const sellerMeta = sellerMetaMap?.get(sellerId);
   const chatCount = Number(chatCountMap?.get(listingId) || 0);
   const likeCount = Number(likeCountMap?.get(listingId) || 0);
+  const images = parseMediaField(listing?.images);
+  const videos = parseMediaField(listing?.videos);
+  const primaryImage = images[0] || '';
 
   return {
     ...rest,
@@ -381,8 +384,10 @@ function toPublicListing(
     chatCount,
     likeCount,
     saveCount: likeCount,
-    images: parseMediaField(listing?.images),
-    videos: parseMediaField(listing?.videos),
+    image: primaryImage,
+    imageUrl: primaryImage,
+    images,
+    videos,
   };
 }
 
