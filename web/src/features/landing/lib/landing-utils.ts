@@ -38,6 +38,9 @@ export function formatPriceInr(value: number | string | undefined): string {
 export function formatDistanceKm(value: number | string | undefined): string {
   const distance = typeof value === 'string' ? Number(value) : value;
   if (Number.isFinite(distance) && Number(distance) >= 0) {
+    if (Number(distance) < 0.1) {
+      return 'At your location';
+    }
     const rounded =
       Number(distance) < 1
         ? Number(distance).toFixed(2)
