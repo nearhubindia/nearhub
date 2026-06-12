@@ -19,6 +19,8 @@ import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { BRAND_SIGNATURE } from '@/shared/brand';
 import { getPrimaryListingImage } from '@/features/landing/lib/listing-images';
+import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
+import { formatPriceInr } from '@/features/landing/lib/landing-utils';
 
 const capabilityCards = [
   {
@@ -123,21 +125,12 @@ type ListingsResponse = {
   results?: Listing[];
 };
 
-function formatPrice(value: string | number | undefined): string {
-  const n = typeof value === 'string' ? Number(value) : value;
-  if (!Number.isFinite(n as number)) return 'Price on request';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(n as number);
-}
-
 export default function Landing(): ReactElement {
   const [searchParams] = useSearchParams();
   const location = searchParams.get('location') ?? '';
-  const latitude = searchParams.get('latitude') ?? '';
-  const longitude = searchParams.get('longitude') ?? '';
+  const storedGeoCoords = readStoredWebGeoCoords();
+  const latitude = searchParams.get('latitude') ?? String(storedGeoCoords?.latitude ?? '');
+  const longitude = searchParams.get('longitude') ?? String(storedGeoCoords?.longitude ?? '');
   const radius = searchParams.get('radius') ?? '50';
   const query = searchParams.get('q') ?? '';
 
@@ -305,7 +298,7 @@ export default function Landing(): ReactElement {
                     {listing.title}
                   </p>
                   <p className="mt-2 text-sm font-bold text-slate-950">
-                    {formatPrice(listing.offerPrice || listing.price)}
+                    {formatPriceInr(listing.offerPrice || listing.price)}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">{listing.location || 'Nearby'}</p>
                 </div>

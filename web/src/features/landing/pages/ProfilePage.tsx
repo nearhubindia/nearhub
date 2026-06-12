@@ -44,10 +44,6 @@ type StatsResponse = {
   };
 };
 
-function readStoredUser(): StoredUser | null {
-  return readStoredWebUser();
-}
-
 function hasCurrentLocation(latitude: number | null, longitude: number | null): boolean {
   return (
     typeof latitude === 'number' &&
@@ -108,7 +104,9 @@ function Field({
 
 export default function ProfilePage(): ReactElement {
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
-  const [storedUser, setStoredUser] = useState<StoredUser | null>(() => readStoredUser());
+  const [storedUser, setStoredUser] = useState<StoredUser | null>(
+    () => readStoredWebUser() as StoredUser | null
+  );
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
@@ -154,7 +152,7 @@ export default function ProfilePage(): ReactElement {
   );
 
   useEffect(() => {
-    const user = readStoredUser();
+    const user = readStoredWebUser() as StoredUser | null;
     setStoredUser(user);
   }, []);
 

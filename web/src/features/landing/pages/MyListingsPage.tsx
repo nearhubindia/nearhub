@@ -16,7 +16,9 @@ import {
 } from 'lucide-react';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { getPrimaryListingImage } from '@/features/landing/lib/listing-images';
+import { formatPriceInr, parsePositiveNumber } from '@/features/landing/lib/landing-utils';
 
 type StoredUser = { id?: string; phone?: string };
 
@@ -67,31 +69,6 @@ type BoostSummaryResponse = {
 
 const FALLBACK_IMAGE = '/nearhub.png';
 
-function readStoredUser(): StoredUser | null {
-  try {
-    const raw = localStorage.getItem('nearhub_web_user');
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredUser;
-  } catch {
-    return null;
-  }
-}
-
-function parsePrice(value: unknown): number {
-  const amount = typeof value === 'string' ? Number(value) : Number(value || 0);
-  return Number.isFinite(amount) && amount > 0 ? amount : 0;
-}
-
-function formatPrice(price: unknown): string {
-  const n = parsePrice(price);
-  if (!n) return 'Price on request';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(n);
-}
-
 function formatDate(value?: string): string {
   if (!value) return 'No expiry';
   const date = new Date(value);
@@ -112,9 +89,9 @@ function getPlanName(item: UserListing): string {
 }
 
 function getPlanAmount(item: UserListing): string {
-  const amount = parsePrice(item.planAmount);
+  const amount = parsePositiveNumber(item.planAmount) || 0;
   if (!item.isPaid || amount <= 0) return 'Free';
-  return formatPrice(amount);
+  return formatPriceInr(amount);
 }
 
 function timeAgo(value?: string): string {
@@ -196,7 +173,7 @@ export default function MyListingsPage(): ReactElement {
     'all' | 'active' | 'pending' | 'rejected' | 'sold' | 'expired'
   >('all');
   const [message, setMessage] = useState('');
-  const storedUser = readStoredUser();
+  const storedUser = readStoredWebUser() as StoredUser | null;
   const userId = String(storedUser?.id || '').trim();
   const userPhone = String(storedUser?.phone || '').trim();
   const requestedDealType =
@@ -434,8 +411,10 @@ export default function MyListingsPage(): ReactElement {
             {filtered.map((item) => {
               const dealLabel = getDealLabel(item);
               const badge = statusLabel(item);
-              const originalPrice = parsePrice(item.price);
-              const displayPrice = item.offerPrice ? parsePrice(item.offerPrice) : originalPrice;
+              const originalPrice = parsePositiveNumber(item.price) || 0;
+              const displayPrice = item.offerPrice
+                ? parsePositiveNumber(item.offerPrice) || 0
+                : originalPrice;
               const showOriginal = displayPrice > 0 && originalPrice > displayPrice;
               const image = getPrimaryListingImage(item);
               const views = Number(item.viewCount || 0);
@@ -482,11 +461,11 @@ export default function MyListingsPage(): ReactElement {
 
                     <div className="mt-3 flex flex-wrap items-baseline gap-2">
                       <span className="text-xl font-black leading-none text-[#11152b]">
-                        {formatPrice(displayPrice || item.price)}
+                        {formatPriceInr(displayPrice || item.price)}
                       </span>
                       {showOriginal ? (
                         <span className="text-sm font-bold text-slate-400 line-through">
-                          {formatPrice(originalPrice)}
+                          {formatPriceInr(originalPrice)}
                         </span>
                       ) : null}
                     </div>

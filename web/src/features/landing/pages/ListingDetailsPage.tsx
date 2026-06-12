@@ -17,8 +17,23 @@ import {
 } from 'lucide-react';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { formatDealStatus } from '@/lib/deal-timer';
 import { getListingImages } from '@/features/landing/lib/listing-images';
+import {
+  parseAttributeMap,
+  parseEmiPlanList,
+  parseMediaList,
+  parseTextList,
+} from '@/features/landing/lib/listing-parsers';
+import {
+  SAVED_LISTING_IDS_KEY,
+  countdownPartsFromMs,
+  formatPriceInr,
+  parsePositiveNumber,
+  readStoredStringSet,
+  writeStoredStringSet,
+} from '@/features/landing/lib/landing-utils';
 
 type StoredUser = { id?: string; phone?: string; name?: string };
 type LocationLookupResult = {
@@ -33,7 +48,6 @@ type EmiPlan = {
   monthlyAmount?: string | number;
 };
 
-const SAVED_IDS_KEY = 'nearhub_web_saved_listing_ids';
 const SAVED_LISTINGS_KEY = 'nearhub_web_saved_listing_snapshots';
 
 function isCoordinateLabel(value: string): boolean {
@@ -119,150 +133,6 @@ type Listing = {
   deal_bookings_used?: number;
 };
 
-function readStoredUser(): StoredUser | null {
-  try {
-    const raw = localStorage.getItem('nearhub_web_user');
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredUser;
-  } catch {
-    return null;
-  }
-}
-
-function readSavedIds(): Set<string> {
-  try {
-    const raw = localStorage.getItem(SAVED_IDS_KEY);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    return new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function parseMedia(value: unknown): string[] {
-  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string' && !!v);
-  if (typeof value !== 'string') return [];
-  const trimmed = value.trim();
-  if (!trimmed) return [];
-  try {
-    const parsed = JSON.parse(trimmed);
-    return Array.isArray(parsed)
-      ? parsed.filter((v): v is string => typeof v === 'string' && !!v)
-      : [trimmed];
-  } catch {
-    return [trimmed];
-  }
-}
-
-function parseStringList(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
-  if (typeof value !== 'string') return [];
-  const trimmed = value.trim();
-  if (!trimmed) return [];
-  try {
-    const parsed = JSON.parse(trimmed);
-    return Array.isArray(parsed)
-      ? parsed.map((item) => String(item || '').trim()).filter(Boolean)
-      : [];
-  } catch {
-    return trimmed
-      .split(/\r?\n|,/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-}
-
-function parseAttributes(value: unknown): Record<string, string | number | boolean> {
-  if (!value) return {};
-  if (typeof value === 'object' && !Array.isArray(value)) {
-    return Object.entries(value as Record<string, unknown>).reduce<
-      Record<string, string | number | boolean>
-    >((acc, [key, raw]) => {
-      if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
-        acc[key] = raw;
-      } else if (raw != null) {
-        acc[key] = String(raw);
-      }
-      return acc;
-    }, {});
-  }
-  if (typeof value !== 'string') return {};
-  const trimmed = value.trim();
-  if (!trimmed) return {};
-  try {
-    const parsed = JSON.parse(trimmed);
-    return parseAttributes(parsed);
-  } catch {
-    return {};
-  }
-}
-
-function parseEmiPlans(value: unknown): Array<{ durationMonths: number; monthlyAmount: number }> {
-  const rawPlans = (() => {
-    if (Array.isArray(value)) return value;
-    if (typeof value !== 'string' || !value.trim()) return [];
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  })();
-
-  return rawPlans
-    .map((plan) => ({
-      durationMonths: Number((plan as EmiPlan)?.durationMonths || 0),
-      monthlyAmount: Number((plan as EmiPlan)?.monthlyAmount || 0),
-    }))
-    .filter(
-      (plan) =>
-        Number.isFinite(plan.durationMonths) &&
-        plan.durationMonths > 0 &&
-        Number.isFinite(plan.monthlyAmount) &&
-        plan.monthlyAmount > 0
-    );
-}
-
-function formatPrice(value: string | number | undefined): string {
-  const n = typeof value === 'string' ? Number(value) : value;
-  if (!Number.isFinite(n)) return 'Price on request';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(n as number);
-}
-
-function parsePrice(value: string | number | undefined): number {
-  const n = typeof value === 'string' ? Number(value) : Number(value || 0);
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
-
-function formatCountdown(endAt: number, nowMs: number): string {
-  if (!Number.isFinite(endAt)) return '00 : 00 : 00 : 00';
-  const diff = Math.max(0, endAt - nowMs);
-  const days = Math.floor(diff / 86_400_000);
-  const hours = Math.floor((diff % 86_400_000) / 3_600_000);
-  const minutes = Math.floor((diff % 3_600_000) / 60_000);
-  const seconds = Math.floor((diff % 60_000) / 1000);
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${pad(days)} : ${pad(hours)} : ${pad(minutes)} : ${pad(seconds)}`;
-}
-
-function countdownParts(endAt: number, nowMs: number): Array<{ value: string; label: string }> {
-  const [days = '00', hours = '00', minutes = '00', seconds = '00'] = formatCountdown(
-    endAt,
-    nowMs
-  ).split(' : ');
-  return [
-    { value: days, label: 'DAYS' },
-    { value: hours, label: 'HOURS' },
-    { value: minutes, label: 'MINS' },
-    { value: seconds, label: 'SECS' },
-  ];
-}
-
 function formatDealWindow(value: number): string {
   if (!Number.isFinite(value)) return '';
   return new Date(value).toLocaleString('en-IN', {
@@ -277,20 +147,111 @@ function ListingSearchStrip(): ReactElement {
   return <div className="border-b border-slate-100 bg-white"></div>;
 }
 
+function ListingGallery({
+  listing,
+  isSaved,
+  onToggleSaved,
+  onShareDeal,
+  shareStatus,
+}: {
+  listing: Listing;
+  isSaved: boolean;
+  onToggleSaved: () => void;
+  onShareDeal: () => Promise<void>;
+  shareStatus: string;
+}): ReactElement {
+  const [mainImageFailed, setMainImageFailed] = useState(false);
+  const [mainImageIndex, setMainImageIndex] = useState(0);
+  const heroImage = listing.images?.[mainImageIndex] || listing.images?.[0] || '';
+
+  return (
+    <section className="overflow-hidden rounded-[28px] border border-[#d7e4f2] bg-white p-4 shadow-[0_26px_70px_-52px_rgba(17,57,101,0.85)] sm:p-5">
+      <div className="relative overflow-hidden rounded-[22px] bg-slate-50">
+        <div className="absolute left-4 top-4 z-10 rounded-full bg-[#1f63b2] px-3 py-1.5 text-[11px] uppercase text-white shadow-sm">
+          Deal
+        </div>
+        <div className="absolute right-4 top-4 z-10 flex gap-2">
+          <button
+            type="button"
+            onClick={onToggleSaved}
+            className={`grid h-10 w-10 place-items-center rounded-full bg-white shadow-sm transition ${
+              isSaved ? 'text-rose-500' : 'text-slate-700 hover:text-rose-500'
+            }`}
+            aria-label={isSaved ? 'Remove from favourites' : 'Save'}
+            aria-pressed={isSaved}
+          >
+            <Heart size={18} className={isSaved ? 'fill-rose-500' : ''} />
+          </button>
+          <button
+            type="button"
+            onClick={() => void onShareDeal()}
+            className="grid h-10 w-10 place-items-center rounded-full bg-white text-slate-700 shadow-sm transition hover:text-[#1f63b2]"
+            aria-label="Share"
+          >
+            <Share2 size={18} />
+          </button>
+        </div>
+        <div className="flex aspect-[4/3] min-h-[320px] items-center justify-center sm:min-h-[440px]">
+          {heroImage && !mainImageFailed ? (
+            <img
+              src={heroImage}
+              alt={listing.title}
+              className="h-full w-full object-contain object-center"
+              onError={() => setMainImageFailed(true)}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">
+              No media available
+            </div>
+          )}
+        </div>
+      </div>
+
+      {listing.images && listing.images.length > 1 ? (
+        <div className="mt-3 grid grid-cols-4 gap-3">
+          {listing.images.slice(0, 4).map((image, index) => (
+            <button
+              key={`${image}-${index}`}
+              type="button"
+              onClick={() => {
+                setMainImageIndex(index);
+                setMainImageFailed(false);
+              }}
+              className={`aspect-square overflow-hidden rounded-[14px] border bg-white transition ${
+                mainImageIndex === index
+                  ? 'border-[#1f63b2] ring-2 ring-[#1f63b2]/15'
+                  : 'border-slate-200 hover:border-[#9bb9dd]'
+              }`}
+            >
+              <img
+                src={image}
+                alt={`${listing.title} ${index + 1}`}
+                className="h-full w-full object-cover object-center"
+              />
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {shareStatus ? <p className="mt-3 text-center text-xs text-slate-600">{shareStatus}</p> : null}
+    </section>
+  );
+}
+
 export default function ListingDetailsPage(): ReactElement {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [mainImageFailed, setMainImageFailed] = useState(false);
-  const [mainImageIndex, setMainImageIndex] = useState(0);
   const [bookingMessage, setBookingMessage] = useState('');
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [savedIds, setSavedIds] = useState<Set<string>>(() => readSavedIds());
+  const [savedIds, setSavedIds] = useState<Set<string>>(() =>
+    readStoredStringSet(SAVED_LISTING_IDS_KEY)
+  );
   const [messageDraft, setMessageDraft] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [messageStatus, setMessageStatus] = useState('');
   const [shareStatus, setShareStatus] = useState('');
-  const user = readStoredUser();
+  const user = readStoredWebUser() as StoredUser | null;
   const userId = String(user?.id || '').trim();
   const userPhone = String(user?.phone || '').trim();
   const userName = String(user?.name || '').trim();
@@ -314,8 +275,8 @@ export default function ListingDetailsPage(): ReactElement {
       return {
         ...raw,
         images,
-        videos: parseMedia(raw?.videos),
-        attributes: parseAttributes(raw?.attributes),
+        videos: parseMediaList(raw?.videos),
+        attributes: parseAttributeMap(raw?.attributes),
         status: String(raw?.status || ''),
         isActive: Boolean(raw?.isActive ?? raw?.is_active),
         isDeal: Boolean(raw?.isDeal ?? raw?.is_deal),
@@ -367,10 +328,10 @@ export default function ListingDetailsPage(): ReactElement {
   const isDealSoldOut = dealSlots > 0 && dealUsed >= dealSlots;
   const isBookDealDisabled = Boolean(userId && (!isDealActive || isDealSoldOut));
   const showDealTimer = dealStatus.startsWith('Ends in');
-  const timerParts = showDealTimer ? countdownParts(dealEnd, nowMs) : [];
+  const timerParts = showDealTimer ? countdownPartsFromMs(dealEnd, nowMs) : [];
 
-  const dealOfferPrice = parsePrice(listing?.offerPrice);
-  const originalPrice = parsePrice(listing?.price);
+  const dealOfferPrice = parsePositiveNumber(listing?.offerPrice) ?? 0;
+  const originalPrice = parsePositiveNumber(listing?.price) ?? 0;
   const hasDealPrice = dealOfferPrice > 0 && originalPrice > dealOfferPrice;
   const rawAddressLabel = String(listing?.address || listing?.location || '').trim();
   const addressLabel =
@@ -424,20 +385,20 @@ export default function ListingDetailsPage(): ReactElement {
     pincodeLabel || String(resolvedLocationQuery.data?.pincode || '').trim();
   const displayLocationLabel =
     detailsAddressLabel || (detailsPincodeLabel ? `Pincode ${detailsPincodeLabel}` : 'Nearby');
-  const heroImage = listing?.images?.[mainImageIndex] || listing?.images?.[0] || '';
-  const dealDisplayPrice = formatPrice(
+  const dealDisplayPrice = formatPriceInr(
     hasDealPrice ? dealOfferPrice : originalPrice || listing?.price
   );
-  const dealOriginalPrice = hasDealPrice ? formatPrice(originalPrice) : '';
-  const discountPercent = hasDealPrice
-    ? Math.round(((originalPrice - dealOfferPrice) / originalPrice) * 100)
-    : 0;
+  const dealOriginalPrice = hasDealPrice ? formatPriceInr(originalPrice) : '';
+  const discountPercent =
+    hasDealPrice && originalPrice > 0
+      ? Math.round(((originalPrice - dealOfferPrice) / originalPrice) * 100)
+      : 0;
   const isSaved = Boolean(listing?.id && savedIds.has(listing.id));
   const emiAvailable = Boolean(listing?.emiAvailable ?? listing?.emi_available);
-  const emiPlans = parseEmiPlans(listing?.emiPlans ?? listing?.emi_plans);
+  const emiPlans = parseEmiPlanList(listing?.emiPlans ?? listing?.emi_plans);
   const warrantyText = String(listing?.warrantyText || listing?.warranty_text || '').trim();
-  const buyerFeatures = parseStringList(listing?.dealExtraFeatures ?? listing?.deal_extra_features);
-  const listingAttributes = Object.entries(parseAttributes(listing?.attributes));
+  const buyerFeatures = parseTextList(listing?.dealExtraFeatures ?? listing?.deal_extra_features);
+  const listingAttributes = Object.entries(parseAttributeMap(listing?.attributes));
   const showBuyerOptions = emiAvailable || Boolean(warrantyText) || buyerFeatures.length > 0;
 
   const renderBuyerOptions = () =>
@@ -460,7 +421,7 @@ export default function ListingDetailsPage(): ReactElement {
                       {plan.durationMonths} months
                     </span>
                     <span className="mt-1 block text-base text-slate-950">
-                      {formatPrice(plan.monthlyAmount)}/month
+                      {formatPriceInr(plan.monthlyAmount)}/month
                     </span>
                   </div>
                 ))}
@@ -502,11 +463,6 @@ export default function ListingDetailsPage(): ReactElement {
       window.clearInterval(intervalId);
     };
   }, [isDeal]);
-
-  useEffect(() => {
-    setMainImageIndex(0);
-    setMainImageFailed(false);
-  }, [listing?.id]);
 
   const handleBookDeal = () => {
     if (!id) return;
@@ -628,16 +584,16 @@ export default function ListingDetailsPage(): ReactElement {
     }
 
     setSavedIds(next);
-    localStorage.setItem(SAVED_IDS_KEY, JSON.stringify([...next]));
+    writeStoredStringSet(SAVED_LISTING_IDS_KEY, next);
     localStorage.setItem(SAVED_LISTINGS_KEY, JSON.stringify(snapshots));
   };
 
   const displayPrice = (() => {
     if (!listing) return 'Price on request';
-    const offer = parsePrice(listing.offerPrice);
-    const base = parsePrice(listing.price);
-    if (offer > 0 && base > offer) return formatPrice(offer);
-    return formatPrice(listing.price);
+    const offer = parsePositiveNumber(listing.offerPrice);
+    const base = parsePositiveNumber(listing.price);
+    if (offer && base && base > offer) return formatPriceInr(offer);
+    return formatPriceInr(listing.price);
   })();
 
   if (!id) return <Navigate to="/" replace />;
@@ -703,81 +659,15 @@ export default function ListingDetailsPage(): ReactElement {
         {listing ? (
           <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,0.94fr)_minmax(420px,0.9fr)]">
             <section className="min-w-0 space-y-4 lg:sticky lg:top-24">
-              <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white p-3 shadow-sm">
-                <div className="relative overflow-hidden rounded-[18px] bg-[#eef4fb]">
-                  {isDeal ? (
-                    <span className="absolute left-4 top-4 z-10 rounded-full bg-[#1f63b2] px-3 py-1.5 text-[11px] uppercase text-white shadow-sm">
-                      Deal
-                    </span>
-                  ) : null}
-                  <div className="absolute right-4 top-4 z-10 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={toggleSaved}
-                      className={`grid h-10 w-10 place-items-center rounded-full bg-white shadow-sm transition ${
-                        isSaved ? 'text-rose-500' : 'text-slate-700 hover:text-rose-500'
-                      }`}
-                      aria-label={isSaved ? 'Remove from favourites' : 'Save'}
-                      aria-pressed={isSaved}
-                    >
-                      <Heart size={18} className={isSaved ? 'fill-rose-500' : ''} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleShareDeal()}
-                      className="grid h-10 w-10 place-items-center rounded-full bg-white text-slate-700 shadow-sm transition hover:text-[#1f63b2]"
-                      aria-label="Share"
-                    >
-                      <Share2 size={18} />
-                    </button>
-                  </div>
-                  <div className="flex aspect-[4/3] min-h-[320px] items-center justify-center sm:min-h-[440px]">
-                    {heroImage && !mainImageFailed ? (
-                      <img
-                        src={heroImage}
-                        alt={listing.title}
-                        className="h-full w-full object-contain object-center"
-                        onError={() => setMainImageFailed(true)}
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">
-                        No media available
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {listing.images && listing.images.length > 1 ? (
-                  <div className="mt-3 grid grid-cols-4 gap-3">
-                    {listing.images.slice(0, 4).map((image, index) => (
-                      <button
-                        key={`${image}-${index}`}
-                        type="button"
-                        onClick={() => {
-                          setMainImageIndex(index);
-                          setMainImageFailed(false);
-                        }}
-                        className={`aspect-square overflow-hidden rounded-[14px] border bg-white transition ${
-                          mainImageIndex === index
-                            ? 'border-[#1f63b2] ring-2 ring-[#1f63b2]/15'
-                            : 'border-slate-200 hover:border-[#9bb9dd]'
-                        }`}
-                      >
-                        <img
-                          src={image}
-                          alt={`${listing.title} ${index + 1}`}
-                          className="h-full w-full object-cover object-center"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-              {shareStatus ? (
-                <p className="text-center text-xs text-slate-600">{shareStatus}</p>
-              ) : null}
+              <ListingGallery
+                key={listing?.id || id}
+                listing={listing}
+                isSaved={isSaved}
+                onToggleSaved={toggleSaved}
+                onShareDeal={handleShareDeal}
+                shareStatus={shareStatus}
+              />
             </section>
-
             <section className="min-w-0 space-y-4">
               <div className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                 <div className="flex flex-wrap items-center gap-2">

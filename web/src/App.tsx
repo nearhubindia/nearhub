@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { CirclePercent, Home, PlusCircle, UserRound } from 'lucide-react';
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { queryClient, enableQueryPersistence } from '@/lib/query-client';
 import './index.css';
 import { ProtectedRoute } from './shared/components/ProtectedRoute';
@@ -17,6 +18,7 @@ const MyListingsPage = lazy(() => import('./features/landing/pages/MyListingsPag
 const CreateListingPage = lazy(() => import('./features/landing/pages/CreateListingPage'));
 const SavedPage = lazy(() => import('./features/landing/pages/SavedPage'));
 const MessagesPage = lazy(() => import('./features/landing/pages/MessagesPage'));
+const NotificationsPage = lazy(() => import('./features/landing/pages/NotificationsPage'));
 const DealInboxPage = lazy(() => import('./features/landing/pages/DealInboxPage'));
 const MyOrdersPage = lazy(() => import('./features/landing/pages/MyOrdersPage'));
 const UserSubscriptionsPage = lazy(() => import('./features/landing/pages/SubscriptionsPage'));
@@ -54,6 +56,46 @@ const ContactSubmissionsPage = lazy(() => import('./features/admin/pages/Contact
 const ErrorLogsPage = lazy(() => import('./features/admin/pages/ErrorLogsPage'));
 const AdminLogin = lazy(() => import('./features/admin/pages/AdminLogin'));
 
+function MobileBottomNav() {
+  const location = useLocation();
+  const pathname = location.pathname;
+  const items = [
+    { label: 'Home', to: '/', icon: Home, active: pathname === '/' },
+    { label: 'Post', to: '/create-listing', icon: PlusCircle, active: pathname === '/create-listing' },
+    { label: 'Deals For You', to: '/deals', icon: CirclePercent, active: pathname === '/deals' },
+    { label: 'Profile', to: '/profile', icon: UserRound, active: pathname === '/profile' },
+  ];
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-[70] grid h-[72px] grid-cols-4 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_24px_-22px_rgba(15,23,42,0.65)] md:hidden">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <Link
+            key={item.label}
+            to={item.to}
+            className={`flex min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
+              item.active ? 'text-[#0759e6]' : 'text-slate-500'
+            }`}
+            aria-label={item.label}
+          >
+            <Icon size={25} className={item.active ? 'stroke-[2.4]' : ''} />
+            <span className="max-w-full truncate px-1">{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+function ScrollToTop() {
+  const location = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname, location.search]);
+
+  return null;
+}
 function RouteTransitionShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -65,7 +107,7 @@ function RouteTransitionShell({ children }: { children: React.ReactNode }) {
   }, [location.pathname, location.search]);
 
   return (
-    <div className={isTransitioning ? 'route-transitioning' : 'route-transitioned'}>
+    <div className={(isTransitioning ? 'route-transitioning' : 'route-transitioned') + ' pb-[72px] md:pb-0'}>
       {isTransitioning ? <div className="route-loading-bar" /> : null}
       {children}
     </div>
@@ -79,6 +121,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <SeoManager />
+        <ScrollToTop />
         <Suspense
           fallback={
             <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">
@@ -110,6 +153,7 @@ function App() {
               <Route path="/deal-inbox" element={<DealInboxPage />} />
               <Route path="/edit-listing/:id" element={<EditListingPage />} />
               <Route path="/messages" element={<MessagesPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/messages/:conversationId" element={<ConversationPage />} />
               <Route path="/subscriptions" element={<UserSubscriptionsPage />} />
               <Route path="/invoices" element={<InvoicesPage />} />
@@ -161,9 +205,11 @@ function App() {
             </Routes>
           </RouteTransitionShell>
         </Suspense>
+        <MobileBottomNav />
       </BrowserRouter>
     </QueryClientProvider>
   );
 }
 
 export default App;
+

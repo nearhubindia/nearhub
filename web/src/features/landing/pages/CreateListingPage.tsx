@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactElement } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
   Briefcase,
@@ -21,8 +22,10 @@ import {
 } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { createListing } from '../api/listings';
 import { getListingImages } from '@/features/landing/lib/listing-images';
+import { parsePositiveNumber } from '@/features/landing/lib/landing-utils';
 import {
   getAttributeKey,
   getDefaultAdminMainCategory,
@@ -158,16 +161,6 @@ function normalizeAttributeValue(
   return value;
 }
 
-function readStoredUser(): StoredUser | null {
-  try {
-    const raw = localStorage.getItem('nearhub_web_user');
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredUser;
-  } catch {
-    return null;
-  }
-}
-
 function readStoredToken(): string {
   try {
     return String(localStorage.getItem('nearhub_web_token') || '').trim();
@@ -195,11 +188,6 @@ function classNames(...values: Array<string | false | null | undefined>): string
   return values.filter(Boolean).join(' ');
 }
 
-function parsePrice(value: unknown): number {
-  const amount = typeof value === 'string' ? Number(value) : Number(value || 0);
-  return Number.isFinite(amount) && amount > 0 ? amount : 0;
-}
-
 function isCoordinateLabel(value: string): boolean {
   return /^-?\d{1,2}(?:\.\d+)?\s*,\s*-?\d{1,3}(?:\.\d+)?$/.test(value.trim());
 }
@@ -221,17 +209,51 @@ function parseCoordinateLabel(value: string): { latitude: string; longitude: str
 function formatLocationName(data?: LocationLookupResult | null): string {
   if (!data) return '';
   const locationName = String(data.locationName || '').trim();
-  if (locationName && !isCoordinateLabel(locationName)) return locationName;
+  if (locationName && !isCoordinateLabel(locationName) && !isPincodeLabel(locationName)) {
+    return locationName;
+  }
   return [data.city, data.state]
     .map((item) => String(item || '').trim())
     .filter(Boolean)
     .join(', ');
 }
 
+async function fetchPublicLocationFromCoordinates(
+  latitude: string,
+  longitude: string
+): Promise<LocationLookupResult | null> {
+  const response = await fetch(
+    `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&localityLanguage=en`
+  );
+  if (!response.ok) return null;
+  const payload = (await response.json().catch(() => ({}))) as {
+    locality?: string;
+    city?: string;
+    principalSubdivision?: string;
+    postcode?: string;
+    countryName?: string;
+  };
+  const city = String(payload.city || payload.locality || '').trim();
+  const state = String(payload.principalSubdivision || '').trim();
+  const locationName = [city, state].filter(Boolean).join(', ');
+  const pincode = String(payload.postcode || '')
+    .replace(/[^0-9]/g, '')
+    .slice(0, 6);
+
+  if (!locationName && !pincode) return null;
+  return {
+    locationName: locationName || city || state,
+    city,
+    state,
+    pincode,
+  };
+}
+
 async function fetchLocationFromCoordinates(
   latitude: string,
   longitude: string
 ): Promise<LocationLookupResult | null> {
+  let reverseData: LocationLookupResult | null = null;
   const reverseResponse = await fetch(
     `${getApiUrl()}/api/location/reverse-geocode?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`
   );
@@ -240,10 +262,9 @@ async function fetchLocationFromCoordinates(
     data?: LocationLookupResult;
   };
   if (reverseResponse.ok && reversePayload.success && reversePayload.data) {
-    const locationName = formatLocationName(reversePayload.data);
-    const pincode = String(reversePayload.data.pincode || '').trim();
-    if (locationName || pincode) {
-      return reversePayload.data;
+    reverseData = reversePayload.data;
+    if (formatLocationName(reverseData) && String(reverseData.pincode || '').trim()) {
+      return reverseData;
     }
   }
 
@@ -252,7 +273,23 @@ async function fetchLocationFromCoordinates(
   );
   const nearbyPayload = (await nearbyResponse.json().catch(() => [])) as LocationLookupResult[];
   const nearest = Array.isArray(nearbyPayload) ? nearbyPayload[0] : null;
-  return nearest || null;
+  if (!nearest) {
+    const publicData = await fetchPublicLocationFromCoordinates(latitude, longitude).catch(
+      () => null
+    );
+    if (publicData) {
+      return {
+        ...publicData,
+        pincode: publicData.pincode || reverseData?.pincode,
+      };
+    }
+    return reverseData;
+  }
+
+  return {
+    ...nearest,
+    pincode: nearest.pincode || reverseData?.pincode,
+  };
 }
 
 function formatDateLabel(value?: string): string {
@@ -372,7 +409,8 @@ function textareaClass(extra = ''): string {
 export default function CreateListingPage(): ReactElement {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const storedUser = readStoredUser();
+  const queryClient = useQueryClient();
+  const storedUser = readStoredWebUser() as StoredUser | null;
   const userId = String(storedUser?.id || '').trim();
   const userPhone = String(storedUser?.phone || '').trim();
   const authToken = readStoredToken();
@@ -425,9 +463,8 @@ export default function CreateListingPage(): ReactElement {
   const [isRecordingVideo, setIsRecordingVideo] = useState(false);
   const [starterCredits, setStarterCredits] = useState<StarterCreditsSummary | null>(null);
   const [subscriptionSummaries, setSubscriptionSummaries] = useState<UserSubscriptionSummary[]>([]);
-  const [activePlanName, setActivePlanName] = useState('');
+  const [nowMs] = useState(() => Date.now());
   const [activeSubscriptionId, setActiveSubscriptionId] = useState('');
-  const [activeSubscriptionTierId, setActiveSubscriptionTierId] = useState('');
   const [isLoadingSubscriptionStatus, setIsLoadingSubscriptionStatus] = useState(false);
   const [loadedSourceListingId, setLoadedSourceListingId] = useState('');
   const [message, setMessage] = useState('');
@@ -436,67 +473,64 @@ export default function CreateListingPage(): ReactElement {
   const [attributeValues, setAttributeValues] = useState<Record<string, ListingAttributeValue>>({});
   const { groups: categoryGroups, priceUnits, attributesByKey } = useListingTaxonomy();
 
-  const subCategories = useMemo(
-    () =>
-      categoryGroups.find((entry) => entry.mainCategory === mainCategory)?.subcategories ||
-      categoryGroups[0]?.subcategories ||
-      getSubCategoriesForMainCategory(mainCategory),
-    [categoryGroups, mainCategory]
-  );
   const mainCategoryOptions = useMemo(
     () => categoryGroups.map((group) => group.mainCategory),
     [categoryGroups]
   );
+  const effectiveMainCategory = mainCategoryOptions.includes(mainCategory)
+    ? mainCategory
+    : mainCategoryOptions[0] || mainCategory;
+  const subCategories =
+    categoryGroups.find((entry) => entry.mainCategory === effectiveMainCategory)?.subcategories ||
+    categoryGroups[0]?.subcategories ||
+    getSubCategoriesForMainCategory(effectiveMainCategory);
+  const effectiveSubCategory = subCategories.includes(subCategory)
+    ? subCategory
+    : subCategories[0] || subCategory;
   const attributeDefinitions = useMemo(
-    () => attributesByKey[getAttributeKey(mainCategory, subCategory)] || [],
-    [attributesByKey, mainCategory, subCategory]
+    () => attributesByKey[getAttributeKey(effectiveMainCategory, effectiveSubCategory)] || [],
+    [attributesByKey, effectiveMainCategory, effectiveSubCategory]
   );
-  const activeSubscriptionOptions = useMemo(() => {
-    const now = Date.now();
-    return subscriptionSummaries
-      .map((item) => {
-        const maxListings = Number(item.tier?.maxListings || 0);
-        const listingsUsed = Number(item.listingsUsed || 0);
-        const listingsRemaining = maxListings === -1 ? -1 : Math.max(0, maxListings - listingsUsed);
-        const tierName = String(item.tier?.name || 'Subscription').trim();
-        const tierId = String(item.subscriptionTierId || item.tier?.id || '').trim();
-        const expiresAt = String(item.expiresAt || '').trim();
-        const expiresAtMs = new Date(expiresAt).getTime();
-        const isActive = String(item.status || '').toLowerCase() === 'active';
-        const isValid = isActive && Number.isFinite(expiresAtMs) && expiresAtMs > now;
+  const activeSubscriptionOptions = subscriptionSummaries
+    .map((item) => {
+      const maxListings = Number(item.tier?.maxListings || 0);
+      const listingsUsed = Number(item.listingsUsed || 0);
+      const listingsRemaining = maxListings === -1 ? -1 : Math.max(0, maxListings - listingsUsed);
+      const tierName = String(item.tier?.name || 'Subscription').trim();
+      const tierId = String(item.subscriptionTierId || item.tier?.id || '').trim();
+      const expiresAt = String(item.expiresAt || '').trim();
+      const expiresAtMs = new Date(expiresAt).getTime();
+      const isActive = String(item.status || '').toLowerCase() === 'active';
+      const isValid = isActive && Number.isFinite(expiresAtMs) && expiresAtMs > nowMs;
 
-        return {
-          ...item,
-          tierId,
-          tierName,
-          expiresAt,
-          maxListings,
-          listingsUsed,
-          listingsRemaining,
-          isValid,
-          isUnlimited: maxListings === -1,
-          canCreateListing: maxListings === -1 || listingsRemaining > 0,
-          boostCredits: Number(item.tier?.boostCredits || 0),
-          boostsRemaining: Number(item.boostsRemaining || 0),
-          durationDays: Number(item.tier?.durationDays || 30),
-        };
-      })
-      .filter((item) => item.isValid)
-      .sort((a, b) => {
-        if (a.isUnlimited !== b.isUnlimited) return a.isUnlimited ? -1 : 1;
-        if (a.listingsRemaining !== b.listingsRemaining)
-          return b.listingsRemaining - a.listingsRemaining;
-        return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
-      });
-  }, [subscriptionSummaries]);
-  const selectableSubscriptionOptions = useMemo(
-    () => activeSubscriptionOptions.filter((item) => item.canCreateListing),
-    [activeSubscriptionOptions]
+      return {
+        ...item,
+        tierId,
+        tierName,
+        expiresAt,
+        maxListings,
+        listingsUsed,
+        listingsRemaining,
+        isValid,
+        isUnlimited: maxListings === -1,
+        canCreateListing: maxListings === -1 || listingsRemaining > 0,
+        boostCredits: Number(item.tier?.boostCredits || 0),
+        boostsRemaining: Number(item.boostsRemaining || 0),
+        durationDays: Number(item.tier?.durationDays || 30),
+      };
+    })
+    .filter((item) => item.isValid)
+    .sort((a, b) => {
+      if (a.isUnlimited !== b.isUnlimited) return a.isUnlimited ? -1 : 1;
+      if (a.listingsRemaining !== b.listingsRemaining) return b.listingsRemaining - a.listingsRemaining;
+      return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
+    });
+  const selectableSubscriptionOptions = activeSubscriptionOptions.filter(
+    (item) => item.canCreateListing
   );
-  const selectedSubscriptionOption = useMemo(
-    () => activeSubscriptionOptions.find((item) => item.id === activeSubscriptionId) || null,
-    [activeSubscriptionId, activeSubscriptionOptions]
-  );
+  const selectedSubscriptionOption =
+    activeSubscriptionOptions.find((item) => item.id === activeSubscriptionId) || null;
+  const selectedSubscriptionId = activeSubscriptionId || selectableSubscriptionOptions[0]?.id || '';
   const postingSubscriptionOption =
     selectedSubscriptionOption || selectableSubscriptionOptions[0] || null;
   const maxImageUploads =
@@ -522,70 +556,26 @@ export default function CreateListingPage(): ReactElement {
   ];
   const sourceListingId = String(searchParams.get('sourceListing') || '').trim();
   const activeDealStep = sourceListingId ? dealStep : Math.min(dealStep, 2);
-  const shouldRequireCondition = useMemo(
-    () => shouldRequireConditionForCategory(mainCategory, subCategory),
-    [mainCategory, subCategory]
+  const shouldRequireCondition = shouldRequireConditionForCategory(
+    effectiveMainCategory,
+    effectiveSubCategory
   );
-  useEffect(() => {
-    if (!mainCategoryOptions.length) return;
-    if (!mainCategoryOptions.includes(mainCategory)) {
-      const fallbackMain = mainCategoryOptions[0];
-      const fallbackSubs =
-        categoryGroups.find((entry) => entry.mainCategory === fallbackMain)?.subcategories || [];
-      setMainCategory(fallbackMain);
-      setSubCategory(fallbackSubs[0] || 'Other');
-      return;
-    }
-    if (subCategories.length && !subCategories.includes(subCategory)) {
-      setSubCategory(subCategories[0]);
-    }
-  }, [categoryGroups, mainCategory, mainCategoryOptions, subCategories, subCategory]);
-  useEffect(() => {
-    if (!priceUnits.length) return;
-    if (!priceUnits.includes(priceUnit)) {
-      setPriceUnit(priceUnits[0]);
-    }
-  }, [priceUnit, priceUnits]);
-  useEffect(() => {
-    if (mode !== 'deal') return;
-    if (sourceListingId) {
-      setDealStep(2);
-    } else {
-      setDealStep((step) => Math.min(step, 2));
-    }
-  }, [mode, sourceListingId]);
-  const completionCount = useMemo(() => {
-    const checks = [
-      Boolean(title.trim()),
-      Boolean(mainCategory.trim() && subCategory.trim()),
-      Boolean(price.trim()),
-      Boolean(description.trim()),
-      !shouldRequireCondition || Boolean(condition.trim()),
-      Boolean(location.trim()),
-      /^\d{6}$/.test(pincode.trim()),
-      images.length > 0,
-      mode === 'deal' ? Boolean(stock.trim()) : true,
-      mode === 'deal'
-        ? Boolean(dealStartDate && dealStartTime && dealEndDate && dealEndTime)
-        : true,
-    ];
-    return checks.filter(Boolean).length;
-  }, [
-    condition,
-    dealEndDate,
-    dealEndTime,
-    description,
-    images.length,
-    location,
-    mainCategory,
-    mode,
-    pincode,
-    price,
-    shouldRequireCondition,
-    stock,
-    subCategory,
-    title,
-  ]);
+  const visiblePriceUnit = priceUnits.includes(priceUnit) ? priceUnit : priceUnits[0] || priceUnit;
+  const visibleImages = images.slice(0, maxImageUploads);
+  const completionCount = [
+    Boolean(title.trim()),
+    Boolean(effectiveMainCategory.trim() && effectiveSubCategory.trim()),
+    Boolean(price.trim()),
+    Boolean(description.trim()),
+    !shouldRequireCondition || Boolean(condition.trim()),
+    Boolean(location.trim()),
+    /^\d{6}$/.test(pincode.trim()),
+    visibleImages.length > 0,
+    mode === 'deal' ? Boolean(stock.trim()) : true,
+    mode === 'deal'
+      ? Boolean(dealStartDate && dealStartTime && dealEndDate && dealEndTime)
+      : true,
+  ].filter(Boolean).length;
   const subscriptionStatusLabel = isLoadingSubscriptionStatus
     ? 'Checking status...'
     : postingSubscriptionOption
@@ -625,7 +615,8 @@ export default function CreateListingPage(): ReactElement {
         postingSubscriptionOption?.canCreateListing ||
         (starterCredits?.isActive && starterCredits.listingsRemaining > 0)
       );
-  const emiBaseAmount = parsePrice(mode === 'deal' ? offerPrice || price : offerPrice || price);
+  const emiBaseAmount =
+    parsePositiveNumber(mode === 'deal' ? offerPrice || price : offerPrice || price) || 0;
   const calculateMonthlyEmi = (durationMonths: string): string => {
     const months = Number(durationMonths);
     if (!emiBaseAmount || !Number.isFinite(months) || months <= 0) return '';
@@ -643,10 +634,6 @@ export default function CreateListingPage(): ReactElement {
       cameraStream?.getTracks().forEach((track) => track.stop());
     };
   }, [cameraStream]);
-
-  useEffect(() => {
-    setImages((prev) => prev.slice(0, maxImageUploads));
-  }, [maxImageUploads]);
 
   useEffect(() => {
     let ignore = false;
@@ -673,17 +660,11 @@ export default function CreateListingPage(): ReactElement {
           return maxListings === -1 || listingsUsed < maxListings;
         });
         setStarterCredits(payload.starterCredits || null);
-        setActivePlanName(String(activePlan?.tier?.name || '').trim());
         setActiveSubscriptionId(String(activePlan?.id || '').trim());
-        setActiveSubscriptionTierId(
-          String(activePlan?.subscriptionTierId || activePlan?.tier?.id || '').trim()
-        );
       } catch {
         if (!ignore) {
           setStarterCredits(null);
-          setActivePlanName('');
           setActiveSubscriptionId('');
-          setActiveSubscriptionTierId('');
         }
       } finally {
         if (!ignore) setIsLoadingSubscriptionStatus(false);
@@ -695,40 +676,6 @@ export default function CreateListingPage(): ReactElement {
       ignore = true;
     };
   }, [userId, userPhone]);
-
-  useEffect(() => {
-    if (selectableSubscriptionOptions.length === 0) {
-      if (activeSubscriptionId || activeSubscriptionTierId || activePlanName) {
-        setActiveSubscriptionId('');
-        setActiveSubscriptionTierId('');
-        setActivePlanName('');
-      }
-      return;
-    }
-
-    const currentOption =
-      selectableSubscriptionOptions.find((item) => item.id === activeSubscriptionId) || null;
-    const nextOption = currentOption || selectableSubscriptionOptions[0];
-
-    if (nextOption.id && nextOption.id !== activeSubscriptionId) {
-      setActiveSubscriptionId(nextOption.id);
-    }
-
-    const nextTierId = String(nextOption.subscriptionTierId || nextOption.tierId || '').trim();
-    const nextPlanName = String(nextOption.tierName || '').trim();
-    if (nextTierId !== activeSubscriptionTierId) {
-      setActiveSubscriptionTierId(nextTierId);
-    }
-    if (nextPlanName !== activePlanName) {
-      setActivePlanName(nextPlanName);
-    }
-  }, [
-    activePlanName,
-    activeSubscriptionId,
-    activeSubscriptionTierId,
-    selectableSubscriptionOptions,
-    activeSubscriptionOptions,
-  ]);
 
   useEffect(() => {
     if (mode !== 'deal' || !sourceListingId) return;
@@ -849,6 +796,12 @@ export default function CreateListingPage(): ReactElement {
     if (nextMode === 'deal') {
       setPostIntent('sell');
       setOfferPrice(price || offerPrice);
+      setImages((prev) =>
+        prev.slice(
+          0,
+          dealType === 'combo' ? MAX_COMBO_DEAL_IMAGE_UPLOADS : MAX_NORMAL_DEAL_IMAGE_UPLOADS
+        )
+      );
       if (!stock) setStock('10');
       if (!dealStartDate) setDealStartDate(todayDateValue());
       if (!dealStartTime) setDealStartTime(nowTimeValue());
@@ -1086,8 +1039,6 @@ export default function CreateListingPage(): ReactElement {
           const resolvedPincode = String(resolved?.pincode || '').trim();
           if (resolvedLocation) {
             setLocation(resolvedLocation);
-          } else if (mode === 'listing') {
-            setLocation(`${latitude}, ${longitude}`);
           } else {
             setMessage('Unable to find a location name. Please enter it manually.');
           }
@@ -1095,11 +1046,7 @@ export default function CreateListingPage(): ReactElement {
             setPincode(resolvedPincode);
           }
         } catch {
-          if (mode === 'listing') {
-            setLocation(`${latitude}, ${longitude}`);
-          } else {
-            setMessage('Unable to find a location name. Please enter it manually.');
-          }
+          setMessage('Unable to find a location name. Please enter it manually.');
         } finally {
           setIsResolvingLocation(false);
         }
@@ -1192,7 +1139,7 @@ export default function CreateListingPage(): ReactElement {
       setMessage(mode === 'deal' ? 'Please enter product title.' : 'Please enter listing title.');
       return false;
     }
-    if (!subCategory.trim()) {
+    if (!effectiveSubCategory.trim()) {
       setMessage('Please choose a category.');
       return false;
     }
@@ -1224,28 +1171,29 @@ export default function CreateListingPage(): ReactElement {
           return false;
         }
       }
-      if (!stock.trim() || Number(stock) <= 0) {
-        setMessage('Please enter stock available.');
-        return false;
-      }
-      if (!dealStartDate || !dealStartTime) {
-        setMessage('Please choose deal start date and time.');
-        return false;
-      }
-      const startAt = new Date(`${dealStartDate}T${dealStartTime}`);
-      if (startAt.getTime() <= Date.now()) {
-        setMessage('Deal start time must be in the future.');
-        return false;
-      }
-      if (!dealEndDate || !dealEndTime) {
-        setMessage('Please choose deal end date and time.');
-        return false;
-      }
-      const endAt = new Date(`${dealEndDate}T${dealEndTime}`);
-      if (endAt.getTime() <= Date.now()) {
-        setMessage('Deal end time must be in the future.');
-        return false;
-      }
+    if (!stock.trim() || Number(stock) <= 0) {
+      setMessage('Please enter stock available.');
+      return false;
+    }
+    if (!dealStartDate || !dealStartTime) {
+      setMessage('Please choose deal start date and time.');
+      return false;
+    }
+    const startAt = new Date(`${dealStartDate}T${dealStartTime}`);
+    const nowMs = new Date().getTime();
+    if (startAt.getTime() <= nowMs) {
+      setMessage('Deal start time must be in the future.');
+      return false;
+    }
+    if (!dealEndDate || !dealEndTime) {
+      setMessage('Please choose deal end date and time.');
+      return false;
+    }
+    const endAt = new Date(`${dealEndDate}T${dealEndTime}`);
+    if (endAt.getTime() <= nowMs) {
+      setMessage('Deal end time must be in the future.');
+      return false;
+    }
       if (endAt.getTime() <= startAt.getTime()) {
         setMessage('Deal end time must be after the start time.');
         return false;
@@ -1278,13 +1226,22 @@ export default function CreateListingPage(): ReactElement {
       );
       return false;
     }
-    if (!/^\d{6}$/.test(normalizedPincode)) {
+    if (!(mode === 'deal' && sourceListingId) && !/^\d{6}$/.test(normalizedPincode)) {
       setMessage('Please enter a valid 6-digit pincode.');
       return false;
     }
     return true;
   };
 
+  const refreshListingFeeds = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['nearhub-home-feed'] }),
+      queryClient.invalidateQueries({ queryKey: ['public-listings'] }),
+      queryClient.invalidateQueries({ queryKey: ['deals-page-listings'] }),
+      queryClient.invalidateQueries({ queryKey: ['saved-listings-source'] }),
+      queryClient.invalidateQueries({ queryKey: ['my-listings', userId] }),
+    ]);
+  };
   const submitListing = async () => {
     if (!userId || !authToken) {
       setMessage('Please log in again before creating a listing.');
@@ -1372,11 +1329,6 @@ export default function CreateListingPage(): ReactElement {
               dealCycleQuantity: dealRecurrence !== 'none' ? Number(stock) : undefined,
               maxDealBookings: Number(stock),
               dealBookingsUsed: 0,
-              postDealPriceMode,
-              postDealDiscountPrice:
-                postDealPriceMode === 'discount' && postDealDiscountPrice
-                  ? Number(postDealDiscountPrice)
-                  : undefined,
               dealTerms: 'Voucher can be redeemed while stock is available.',
               voucherEnabled: true,
             }),
@@ -1390,6 +1342,8 @@ export default function CreateListingPage(): ReactElement {
         if (!response.ok || payload.success === false) {
           throw new Error(payload.error || payload.message || 'Failed to create deal.');
         }
+        await refreshListingFeeds();
+        await refreshListingFeeds();
         navigate(`/listing/${encodeURIComponent(sourceListingId)}`);
         return;
       }
@@ -1399,18 +1353,18 @@ export default function CreateListingPage(): ReactElement {
           userId,
           title: title.trim(),
           description: dealDescription,
-          mainCategory: mainCategory.trim(),
-          subCategory: subCategory.trim(),
-          category: subCategory.trim(),
+          mainCategory: effectiveMainCategory.trim(),
+          subCategory: effectiveSubCategory.trim(),
+          category: effectiveSubCategory.trim(),
           price: Number(price),
           offerPrice: offerPrice.trim() ? Number(offerPrice) : undefined,
-          priceUnit: isDeal ? undefined : priceUnit,
+          priceUnit: isDeal ? undefined : visiblePriceUnit,
           condition: shouldRequireCondition ? condition : undefined,
           location: resolvedLocation.location,
           pincode: resolvedLocation.pincode || undefined,
           sellerName: String(storedUser?.name || '').trim() || undefined,
           contactPhone: userPhone || undefined,
-          images: images.slice(0, maxImageUploads),
+          images: visibleImages,
           videos: videos.slice(0, MAX_VIDEO_UPLOADS),
           userSubscriptionId:
             needsPostingCredits && postingSubscriptionOption?.canCreateListing
@@ -1436,11 +1390,6 @@ export default function CreateListingPage(): ReactElement {
               : undefined,
           dealCycleQuantity: isDeal && dealRecurrence !== 'none' ? Number(stock) : undefined,
           maxDealBookings: isDeal ? Number(stock) : undefined,
-          postDealPriceMode: isDeal ? postDealPriceMode : undefined,
-          postDealDiscountPrice:
-            isDeal && postDealPriceMode === 'discount' && postDealDiscountPrice
-              ? Number(postDealDiscountPrice)
-              : undefined,
           comboItems: isDeal ? [] : undefined,
           dealTerms: isDeal ? 'Voucher can be redeemed while stock is available.' : undefined,
           voucherEnabled: isDeal ? true : undefined,
@@ -1570,7 +1519,7 @@ export default function CreateListingPage(): ReactElement {
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {activeSubscriptionOptions.length > 0 ? (
             activeSubscriptionOptions.map((option) => {
-              const selected = option.id === activeSubscriptionId;
+              const selected = option.id === selectedSubscriptionId;
               return (
                 <button
                   key={option.id}
@@ -1579,10 +1528,6 @@ export default function CreateListingPage(): ReactElement {
                   onClick={() => {
                     if (!option.canCreateListing || !option.id) return;
                     setActiveSubscriptionId(option.id);
-                    setActiveSubscriptionTierId(
-                      String(option.subscriptionTierId || option.tierId || '').trim()
-                    );
-                    setActivePlanName(option.tierName);
                   }}
                   className={classNames(
                     'rounded-2xl border p-4 text-left transition',
@@ -1717,9 +1662,9 @@ export default function CreateListingPage(): ReactElement {
   );
 
   const renderImagePreview = () =>
-    images.length ? (
+    visibleImages.length ? (
       <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5">
-        {images.map((image, index) => (
+        {visibleImages.map((image, index) => (
           <div
             key={`${image}-${index}`}
             className="relative aspect-square overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"
@@ -2065,7 +2010,7 @@ export default function CreateListingPage(): ReactElement {
                       Main Category
                     </span>
                     <select
-                      value={mainCategory}
+                      value={effectiveMainCategory}
                       onChange={(event) => selectMainCategory(event.target.value)}
                       className={textInputClass('appearance-auto')}
                     >
@@ -2081,7 +2026,7 @@ export default function CreateListingPage(): ReactElement {
                       Subcategory
                     </span>
                     <select
-                      value={subCategory}
+                      value={effectiveSubCategory}
                       onChange={(event) => setSubCategory(event.target.value)}
                       className={textInputClass('appearance-auto')}
                     >
@@ -2104,7 +2049,7 @@ export default function CreateListingPage(): ReactElement {
                     <div className="mb-4">
                       <p className="text-sm font-semibold text-slate-900">Listing Attributes</p>
                       <p className="mt-1 text-xs text-slate-500">
-                        Add extra details for {subCategory || 'this category'}.
+                        Add extra details for {effectiveSubCategory || 'this category'}.
                       </p>
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -2192,7 +2137,7 @@ export default function CreateListingPage(): ReactElement {
                   />
                 </div>
                 <p className="mb-2 mt-4 text-xs font-normal text-slate-500">Unit:</p>
-                <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2">
                   {priceUnits.map((unit) => (
                     <button
                       key={unit}
@@ -2200,7 +2145,7 @@ export default function CreateListingPage(): ReactElement {
                       onClick={() => setPriceUnit(unit)}
                       className={classNames(
                         'h-8 rounded-full border px-4 text-xs font-normal',
-                        priceUnit === unit
+                        visiblePriceUnit === unit
                           ? 'border-[#1f63b2] bg-[#1f63b2] text-white'
                           : 'border-slate-200 bg-white text-slate-600'
                       )}
@@ -2624,7 +2569,8 @@ export default function CreateListingPage(): ReactElement {
                         ['Title', title || 'Selected listing'],
                         [
                           'Category',
-                          [mainCategory, subCategory].filter(Boolean).join(' / ') || 'Not set',
+                          [effectiveMainCategory, effectiveSubCategory].filter(Boolean).join(' / ') ||
+                            'Not set',
                         ],
                         ['Brand', brand || 'Not set'],
                         ['Condition', condition || 'Not set'],

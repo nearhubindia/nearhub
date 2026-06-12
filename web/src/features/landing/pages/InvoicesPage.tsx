@@ -4,8 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { FileText, Download } from 'lucide-react';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { readStoredWebUser, type StoredWebUser } from '@/lib/web-auth-storage';
 
-type StoredUser = { id?: string; phone?: string };
+type StoredUser = StoredWebUser;
 
 type InvoiceItem = {
   invoiceNumber: string;
@@ -31,16 +32,6 @@ type InvoicesResponse = {
 
 const LOCAL_HIDE_KEY = 'nearhub_web_deleted_invoice_ids';
 
-function readStoredUser(): StoredUser | null {
-  try {
-    const raw = localStorage.getItem('nearhub_web_user');
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredUser;
-  } catch {
-    return null;
-  }
-}
-
 function readHiddenInvoices(): string[] {
   try {
     const raw = localStorage.getItem(LOCAL_HIDE_KEY);
@@ -65,7 +56,7 @@ function formatCurrency(amount: number): string {
 }
 
 export default function InvoicesPage(): ReactElement {
-  const user = readStoredUser();
+  const user = readStoredWebUser() as StoredUser | null;
   const userId = String(user?.id || '').trim();
   const userPhone = String(user?.phone || '').trim();
   const [hiddenInvoiceIds, setHiddenInvoiceIds] = useState<string[]>(() => readHiddenInvoices());

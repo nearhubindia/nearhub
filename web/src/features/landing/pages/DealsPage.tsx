@@ -10,6 +10,16 @@ import {
   getListingImages,
   getPrimaryListingImage,
 } from '@/features/landing/lib/listing-images';
+import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
+import {
+  SAVED_LISTING_IDS_KEY,
+  countdownPartsFromMs,
+  formatPriceInr,
+  formatDistanceKm,
+  parsePositiveNumber,
+  readStoredStringSet,
+  writeStoredStringSet,
+} from '@/features/landing/lib/landing-utils';
 
 type DealListing = {
   id: string;
@@ -48,42 +58,7 @@ type ListingsResponse = {
   results?: DealListing[];
 };
 
-const SAVED_IDS_KEY = 'nearhub_web_saved_listing_ids';
 const FALLBACK_IMAGE = FALLBACK_LISTING_IMAGE;
-
-function readSavedIds(): Set<string> {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(SAVED_IDS_KEY) || '[]');
-    return new Set(Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function parsePrice(value: string | number | undefined): number {
-  const parsed = typeof value === 'string' ? Number(value) : Number(value || 0);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function formatPrice(value: string | number | undefined): string {
-  const amount = parsePrice(value);
-  if (!amount) return 'Price on request';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatDistance(value: number | string | undefined): string {
-  const distance = typeof value === 'string' ? Number(value) : value;
-  if (Number.isFinite(distance) && Number(distance) >= 0) {
-    const rounded =
-      Number(distance) < 10 ? Number(distance).toFixed(1) : Math.round(Number(distance)).toString();
-    return `${rounded.replace(/\.0$/, '')} km away`;
-  }
-  return '1 km away';
-}
 
 function formatTimeLeft(item: DealListing, nowMs: number): string {
   const end = getEffectiveDealWindow(item, nowMs)?.endMs || 0;
@@ -146,15 +121,15 @@ function DealCard({
   nowMs: number;
   combo?: boolean;
 }): ReactElement {
-  const price = parsePrice(item.price);
-  const offer = parsePrice(item.offerPrice);
+  const price = parsePositiveNumber(item.price) || 0;
+  const offer = parsePositiveNumber(item.offerPrice) || 0;
   const hasOffer = offer > 0 && price > 0 && offer < price;
   const displayPrice = hasOffer ? item.offerPrice : item.price;
   const images = getListingImages(item);
   const image = getPrimaryListingImage(item);
   const comboImages = [images[0] || FALLBACK_IMAGE, images[1] || images[0] || FALLBACK_IMAGE];
   const dealStatus = formatDealStatus(item, nowMs);
-  const distance = formatDistance(item.distanceKm ?? item.distance_km);
+  const distance = formatDistanceKm(item.distanceKm ?? item.distance_km);
 
   return (
     <article className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -191,15 +166,17 @@ function DealCard({
               </span>
             </>
           ) : (
-            <img
-              src={image}
-              alt={item.title}
-              className="h-full w-full object-cover object-center"
-              loading="lazy"
-              onError={(event) => {
-                event.currentTarget.src = FALLBACK_IMAGE;
-              }}
-            />
+            <div className="flex h-full w-full items-center justify-center overflow-hidden bg-slate-50">
+              <img
+                src={image}
+                alt={item.title}
+                className="mx-auto h-full w-full object-contain object-center sm:object-cover"
+                loading="lazy"
+                onError={(event) => {
+                  event.currentTarget.src = FALLBACK_IMAGE;
+                }}
+              />
+            </div>
           )}
           <span className="absolute left-1.5 top-1.5 rounded-full bg-[#181c33] px-1.5 py-0.5 text-[10px] font-bold text-white sm:left-3 sm:top-3 sm:px-2.5 sm:py-1 sm:text-xs">
             {getDealTypeLabel(item)}
@@ -229,11 +206,11 @@ function DealCard({
           ) : null}
           <div className="mt-1.5 flex flex-wrap items-baseline gap-1.5 sm:mt-2 sm:gap-2">
             <span className="text-xs font-black text-slate-950 sm:text-base">
-              {formatPrice(displayPrice)}
+              {formatPriceInr(displayPrice)}
             </span>
             {hasOffer ? (
               <span className="text-[10px] font-semibold text-slate-400 line-through sm:text-sm">
-                {formatPrice(item.price)}
+                {formatPriceInr(item.price)}
               </span>
             ) : null}
           </div>
@@ -243,9 +220,25 @@ function DealCard({
           {dealStatus.startsWith('Ends in') ? (
             <div className="mt-2 text-center sm:mt-3">
               <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#0759e6] sm:text-[11px] sm:tracking-[0.24em]">
-                Deals Ends in
+                DEAL ENDS IN
               </p>
-              <div className="mt-2 flex items-center justify-center gap-1 sm:mt-3 sm:gap-2">
+              <div className="mt-2 flex items-center justify-center gap-1.5 sm:hidden">
+                {countdownPartsFromMs(
+                  item.dealEndAt ? new Date(item.dealEndAt).getTime() : undefined,
+                  nowMs
+                ).map((part) => (
+                  <div
+                    key={part.label}
+                    className="grid h-[38px] w-[clamp(32px,8.8vw,40px)] place-items-center rounded-xl bg-white text-center text-[#dc1633] shadow-sm ring-1 ring-[#f8d9dd]"
+                  >
+                    <span className="block text-[12px] font-black leading-none">{part.value}</span>
+                    <span className="mt-0.5 block text-[7px] font-normal leading-none text-slate-500">
+                      {part.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 hidden items-center justify-center gap-2 sm:flex">
                 {formatTimeLeft(item, nowMs)
                   .split(' : ')
                   .map((value, index) => (
@@ -278,7 +271,17 @@ function DealCard({
 export default function DealsPage(): ReactElement {
   const [searchParams] = useSearchParams();
   const query = searchParams.get('q') ?? '';
-  const [savedIds, setSavedIds] = useState<Set<string>>(() => readSavedIds());
+  const latitudeParam = searchParams.get('latitude') ?? '';
+  const longitudeParam = searchParams.get('longitude') ?? '';
+  const storedGeoCoords = useMemo(() => readStoredWebGeoCoords(), []);
+  const requestGeoCoords = useMemo(() => {
+    const latitude = Number(latitudeParam || storedGeoCoords?.latitude);
+    const longitude = Number(longitudeParam || storedGeoCoords?.longitude);
+    return Number.isFinite(latitude) && Number.isFinite(longitude) ? { latitude, longitude } : null;
+  }, [latitudeParam, longitudeParam, storedGeoCoords]);
+  const [savedIds, setSavedIds] = useState<Set<string>>(() =>
+    readStoredStringSet(SAVED_LISTING_IDS_KEY)
+  );
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -292,11 +295,20 @@ export default function DealsPage(): ReactElement {
   }, []);
 
   const dealsQuery = useQuery({
-    queryKey: ['deals-page-listings'],
+    queryKey: ['deals-page-listings', requestGeoCoords?.latitude, requestGeoCoords?.longitude],
     queryFn: async () => {
-      const response = await fetch(
-        `${getApiUrl()}/api/listings?limit=200&dealsOnly=1&dealsPage=1&includeExpiredDeals=1`
-      );
+      const params = new URLSearchParams({
+        limit: '200',
+        dealsOnly: '1',
+        dealsPage: '1',
+        includeExpiredDeals: '1',
+      });
+      if (requestGeoCoords) {
+        params.set('latitude', String(requestGeoCoords.latitude));
+        params.set('longitude', String(requestGeoCoords.longitude));
+        params.set('radius', '50');
+      }
+      const response = await fetch(`${getApiUrl()}/api/listings?${params.toString()}`);
       const payload = (await response.json()) as ListingsResponse;
       if (!response.ok || payload.success === false) throw new Error('Failed to load deals');
       return (payload.data || payload.results || []).filter((item) => {
@@ -310,6 +322,8 @@ export default function DealsPage(): ReactElement {
         );
       });
     },
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const toggleSaved = (id: string) => {
@@ -317,7 +331,7 @@ export default function DealsPage(): ReactElement {
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSavedIds(next);
-    localStorage.setItem(SAVED_IDS_KEY, JSON.stringify([...next]));
+    writeStoredStringSet(SAVED_LISTING_IDS_KEY, next);
   };
 
   const filteredDeals = useMemo(() => {
@@ -349,10 +363,6 @@ export default function DealsPage(): ReactElement {
     <div className="min-h-screen bg-[#f7faff] text-slate-950">
       <LandingHeader active="deals" />
       <main className="w-full px-3 pb-16 pt-28 sm:px-4 lg:px-5">
-        <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5">
-          {/* Search is provided in the header */}
-        </section>
-
         <section className="mt-6 grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-[1fr_auto] md:items-center">
           <div>
             <h1 className="text-3xl font-black tracking-tight">Deals</h1>

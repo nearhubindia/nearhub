@@ -10,6 +10,7 @@ import { createListing, getListingById } from '../../listings/services/listings'
 import { getUserById, getUserByPhone } from '../../users/services/user-profiles';
 import { adminAuthMiddleware } from './admin-auth';
 import {
+  notifyDealPublished,
   notifyListingApproved,
   notifyListingRejected,
 } from '../../../shared/services/auto-notifications';
@@ -564,6 +565,11 @@ export function registerAdminListingsRoutes(app: Express) {
         notifyListingApproved(listing.sellerId, listing.title, listing.id).catch((error) =>
           console.error('[Admin Listings] Failed to send listing approved notification:', error)
         );
+        if (listing.isDeal && existing.status !== 'active') {
+          notifyDealPublished(listing).catch((error) =>
+            console.error('[Admin Listings] Failed to create deal notification:', error)
+          );
+        }
       } else {
         notifyListingRejected(listing.sellerId, listing.title, reasonRaw).catch((error) =>
           console.error('[Admin Listings] Failed to send listing rejected notification:', error)

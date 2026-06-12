@@ -4,8 +4,9 @@
  */
 
 import { db } from '../../data/db';
-import { inAppNotifications } from '../../features/admin/models/admin-settings';
-import { eq, and, desc, isNull, or, lt } from 'drizzle-orm';
+import { inAppNotifications, listings } from '../../features/admin/models/admin-settings';
+import { eq, and, desc, isNull, or, lt, inArray } from 'drizzle-orm';
+import { parseJsonArrayField } from '../utils/json-fields';
 
 export interface CreateInAppNotificationOptions {
   userId?: string | null;
@@ -66,8 +67,7 @@ export async function getUserNotifications(userId: string, limit = 50): Promise<
     const notifications = await db.query.inAppNotifications.findMany({
       where: or(
         eq(inAppNotifications.userId, userId),
-        eq(inAppNotifications.userType, 'all'),
-        isNull(inAppNotifications.userId)
+        and(isNull(inAppNotifications.userId), eq(inAppNotifications.userType, 'all'))
       ),
       orderBy: [desc(inAppNotifications.createdAt)],
       limit,
@@ -75,9 +75,46 @@ export async function getUserNotifications(userId: string, limit = 50): Promise<
 
     // Filter out expired notifications
     const now = new Date();
-    return notifications.filter((n: any) => {
+    const visibleNotifications = notifications.filter((n: any) => {
       if (!n.expiresAt) return true;
       return new Date(n.expiresAt) > now;
+    });
+    const listingReferenceIds = [
+      ...new Set(
+        visibleNotifications
+          .filter((n: any) => ['deal', 'listing'].includes(String(n.category || '')))
+          .map((n: any) => String(n.referenceId || '').trim())
+          .filter(Boolean)
+      ),
+    ];
+
+    if (listingReferenceIds.length === 0) return visibleNotifications;
+
+    const listingRows = await db
+      .select({
+        id: listings.id,
+        title: listings.title,
+        images: listings.images,
+      })
+      .from(listings)
+      .where(inArray(listings.id, listingReferenceIds));
+
+    const listingMeta = new Map(
+      listingRows.map((listing) => {
+        const imageUrl = parseJsonArrayField(listing.images)[0] || null;
+        return [listing.id, { imageUrl, listingTitle: listing.title }];
+      })
+    );
+
+    return visibleNotifications.map((notification: any) => {
+      const meta = listingMeta.get(String(notification.referenceId || ''));
+      if (!meta) return notification;
+      return {
+        ...notification,
+        imageUrl: meta.imageUrl,
+        listingTitle: meta.listingTitle,
+        actionUrl: notification.actionUrl || `/listing/${notification.referenceId}`,
+      };
     });
   } catch (error) {
     console.error('[InAppNotification] Error fetching notifications:', error);

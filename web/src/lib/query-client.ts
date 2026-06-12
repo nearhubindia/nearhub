@@ -66,7 +66,7 @@ export function enableQueryPersistence(): void {
     try {
       if (query.options?.meta?.persist) return true;
       const k = Array.isArray(query.queryKey) ? query.queryKey[0] : query.queryKey;
-      const whitelist = ['header-push-notifications', 'header-user-profile', 'nearhub-home-feed'];
+      const whitelist = ['header-push-notifications', 'header-user-profile'];
       return whitelist.includes(String(k));
     } catch {
       return false;

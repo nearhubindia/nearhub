@@ -5,6 +5,7 @@ import {
   type Listing,
   type InsertListing,
 } from '../../admin/models/admin-settings';
+import { calculateDistance } from '../../search/services/distance';
 import { loadListingAttributeValueMap, replaceListingAttributeValues } from './listing-attributes';
 import { eq, and, desc, or, gte, lt, isNull, inArray } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
@@ -34,6 +35,12 @@ function coerceMediaToJson(value: unknown): string {
   return JSON.stringify(coerceMediaToArray(value));
 }
 
+type DbResultWithRowCount = { rowCount?: number };
+
+function isDbError(error: unknown): error is { code?: string; message?: string } {
+  return typeof error === 'object' && error !== null;
+}
+
 /**
  * Create new listing
  */
@@ -56,17 +63,19 @@ export async function createListing(
       ? validated.mainCategory.trim()
       : normalizedSubCategory || null;
 
-  // Images are stored as a Postgres text[] column in the active schema.
-  // Videos remain text(JSON) for backward compatibility.
-  const imagesAsArray = coerceMediaToArray(validated.images);
+  // Images and videos are stored as JSON text for compatibility across deployments.
+  const imagesAsJson = coerceMediaToJson(validated.images);
   const videosAsJson = coerceMediaToJson(validated.videos);
+  const comboItemsAsJson = coerceMediaToJson(
+    (validated as { comboItems?: unknown }).comboItems
+  );
 
   // Calculate expiration if duration is provided
   const expiresAt = validated.durationDays
     ? new Date(Date.now() + validated.durationDays * 24 * 60 * 60 * 1000)
     : null;
 
-  const insertValues = (imagesValue: unknown, videosValue: unknown) =>
+  const insertValues = (imagesValue: string, videosValue: string) =>
     ({
       ...validated,
       mainCategory: normalizedMainCategory,
@@ -74,13 +83,14 @@ export async function createListing(
       category: normalizedSubCategory || validated.category,
       images: imagesValue,
       videos: videosValue,
+      comboItems: comboItemsAsJson,
       expiresAt,
-    }) as any;
+    });
 
   try {
     const result = await db
       .insert(listings)
-      .values(insertValues(imagesAsArray, videosAsJson))
+      .values(insertValues(imagesAsJson, videosAsJson))
       .returning();
     const created = result[0];
     if (created && attributes && Object.keys(attributes).length > 0) {
@@ -92,16 +102,13 @@ export async function createListing(
       }).catch(() => undefined);
     }
     return created;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Fallback for deployments where images are stored as JSON text instead of text[].
     const isMalformedArray =
-      error?.code === '22P02' && String(error?.message || '').includes('malformed array literal');
+      isDbError(error) && error.code === '22P02' && String(error.message || '').includes('malformed array literal');
     if (!isMalformedArray) {
       throw error;
     }
-
-    const imagesAsJson = coerceMediaToJson(validated.images);
-    const videosAsJson = coerceMediaToJson(validated.videos);
 
     const retry = await db
       .insert(listings)
@@ -211,10 +218,6 @@ export async function getActiveListing(
 
   // If geo-filtering is requested, filter by distance
   if (latitude !== undefined && longitude !== undefined && radiusKm !== undefined && radiusKm > 0) {
-    // Haversine formula for distance calculation in PostgreSQL
-    // Distance in km = 6371 * 2 * ASIN(SQRT(POWER(SIN((lat2 - lat1) * PI() / 180 / 2), 2) +
-    //                COS(lat1 * PI() / 180) * COS(lat2 * PI() / 180) *
-    //                POWER(SIN((lon2 - lon1) * PI() / 180 / 2), 2)))
     const allResults = await query;
 
     // Filter results by distance (since we can't use HAVING without GROUP BY)
@@ -224,22 +227,7 @@ export async function getActiveListing(
       if (!listing.latitude || !listing.longitude) return false;
       const lat1 = parseFloat(listing.latitude);
       const lon1 = parseFloat(listing.longitude);
-      const lat2 = latitude;
-      const lon2 = longitude;
-
-      // Haversine formula in JavaScript
-      const R = 6371; // Earth's radius in km
-      const dLat = ((lat2 - lat1) * Math.PI) / 180;
-      const dLon = ((lon2 - lon1) * Math.PI) / 180;
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos((lat1 * Math.PI) / 180) *
-          Math.cos((lat2 * Math.PI) / 180) *
-          Math.sin(dLon / 2) *
-          Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const distance = R * c;
-
+      const distance = calculateDistance(lat1, lon1, latitude, longitude);
       return distance <= radiusKm;
     });
 
@@ -263,7 +251,7 @@ export async function boostListingForHours(id: string, hours: number): Promise<L
       boostedUntil,
       boostCount: sql`${listings.boostCount} + 1`,
       updatedAt: new Date(),
-    } as any)
+    })
     .where(eq(listings.id, id))
     .returning();
 
@@ -361,7 +349,7 @@ export async function updateListing(
   } as Record<string, unknown>;
 
   if (hasImagesUpdate) {
-    updateValues.images = coerceMediaToArray(normalizedUpdates.images);
+    updateValues.images = coerceMediaToJson(normalizedUpdates.images);
   } else {
     delete updateValues.images;
   }
@@ -372,10 +360,18 @@ export async function updateListing(
     delete updateValues.videos;
   }
 
+  if (Object.prototype.hasOwnProperty.call(normalizedUpdates, 'comboItems')) {
+    updateValues.comboItems = coerceMediaToJson(
+      (normalizedUpdates as { comboItems?: unknown }).comboItems
+    );
+  } else {
+    delete updateValues.comboItems;
+  }
+
   try {
     const result = await db
       .update(listings)
-      .set(updateValues as any)
+      .set(updateValues as never)
       .where(eq(listings.id, id))
       .returning();
 
@@ -390,9 +386,9 @@ export async function updateListing(
     }
 
     return updated;
-  } catch (error: any) {
+  } catch (error: unknown) {
     const isMalformedArray =
-      error?.code === '22P02' && String(error?.message || '').includes('malformed array literal');
+      isDbError(error) && error.code === '22P02' && String(error.message || '').includes('malformed array literal');
     if (!isMalformedArray) {
       throw error;
     }
@@ -404,7 +400,7 @@ export async function updateListing(
         ...(hasImagesUpdate ? { images: coerceMediaToJson(normalizedUpdates.images) } : {}),
         ...(hasVideosUpdate ? { videos: coerceMediaToJson(normalizedUpdates.videos) } : {}),
         updatedAt: new Date(),
-      } as any)
+      })
       .where(eq(listings.id, id))
       .returning();
 
@@ -446,8 +442,8 @@ export async function expireListing(id: string): Promise<Listing | null> {
  * Delete listing
  */
 export async function deleteListing(id: string): Promise<boolean> {
-  const result = await db.delete(listings).where(eq(listings.id, id));
-  return (result as any).rowCount > 0;
+  const result = (await db.delete(listings).where(eq(listings.id, id))) as DbResultWithRowCount;
+  return (result.rowCount || 0) > 0;
 }
 
 /**
@@ -518,12 +514,12 @@ export async function getPaidListingCount(): Promise<number> {
  * Expire all listings with expired dates
  */
 export async function expireExpiredListings(): Promise<number> {
-  const result = await db
+  const result = (await db
     .update(listings)
     .set({ status: 'expired', isActive: false, updatedAt: new Date() })
-    .where(and(lt(listings.expiresAt, sql`now()`), eq(listings.status, 'active')));
+    .where(and(lt(listings.expiresAt, sql`now()`), eq(listings.status, 'active')))) as DbResultWithRowCount;
 
-  return (result as any).rowCount || 0;
+  return result.rowCount || 0;
 }
 
 /**

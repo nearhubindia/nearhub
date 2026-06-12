@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { Heart, RefreshCw, Tag, MapPin } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -6,7 +6,15 @@ import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
+import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
 import { FALLBACK_LISTING_IMAGE, getListingImages } from '@/features/landing/lib/listing-images';
+import {
+  SAVED_LISTING_IDS_KEY,
+  formatPriceInr,
+  parsePositiveNumber,
+  readStoredStringSet,
+  writeStoredStringSet,
+} from '@/features/landing/lib/landing-utils';
 
 type Listing = {
   id: string;
@@ -42,7 +50,6 @@ type Listing = {
 };
 
 const FALLBACK_IMAGE = FALLBACK_LISTING_IMAGE;
-const SAVED_IDS_KEY = 'nearhub_web_saved_listing_ids';
 const SAVED_LISTINGS_KEY = 'nearhub_web_saved_listing_snapshots';
 
 type ListingsResponse = {
@@ -72,26 +79,11 @@ const categories: BrowseCategory[] = [
   { label: 'Others', mainCategory: 'Community, Pets & Others' },
 ];
 
-function formatPrice(value: string | number | undefined): string {
-  const n = typeof value === 'string' ? Number(value) : value;
-  if (!Number.isFinite(n)) return 'Price on request';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(n as number);
-}
-
 function getDealStatus(listing: Listing): string {
   const isDeal = Boolean(listing.isDeal ?? listing.is_deal);
   if (!isDeal) return '';
   const status = formatDealStatus(listing, Date.now());
   return status === 'Deal expired' ? 'Closed' : status;
-}
-
-function parsePrice(value: string | number | undefined): number {
-  const amount = typeof value === 'string' ? Number(value) : Number(value || 0);
-  return Number.isFinite(amount) && amount > 0 ? amount : 0;
 }
 
 function getPostDealPriceMode(listing: Listing): string {
@@ -101,11 +93,10 @@ function getPostDealPriceMode(listing: Listing): string {
 }
 
 function getDisplayPriceValue(listing: Listing): string | number | undefined {
-  const offer = parsePrice(listing.offerPrice);
-  const base = parsePrice(listing.price);
-  const postDealDiscount = parsePrice(
-    listing.postDealDiscountPrice ?? listing.post_deal_discount_price
-  );
+  const offer = parsePositiveNumber(listing.offerPrice) || 0;
+  const base = parsePositiveNumber(listing.price) || 0;
+  const postDealDiscount =
+    parsePositiveNumber(listing.postDealDiscountPrice ?? listing.post_deal_discount_price) || 0;
   if (!offer || !base || offer >= base) return listing.price;
   const isDeal = Boolean(listing.isDeal ?? listing.is_deal);
   if (!isDeal) return listing.offerPrice;
@@ -119,29 +110,26 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const storedUser = useMemo(() => readStoredWebUser(), []);
+  const storedGeoCoords = useMemo(() => readStoredWebGeoCoords(), []);
   const query = searchParams.get('q') ?? '';
   const location = searchParams.get('location') ?? '';
-  const latitude = searchParams.get('latitude') ?? '';
-  const longitude = searchParams.get('longitude') ?? '';
+  const latitude = searchParams.get('latitude') ?? String(storedGeoCoords?.latitude ?? '');
+  const longitude = searchParams.get('longitude') ?? String(storedGeoCoords?.longitude ?? '');
   const storedRadiusKm = Number(storedUser?.preferences?.searchRadiusKm ?? 50);
   const effectiveRadiusKm =
     Number.isFinite(storedRadiusKm) && storedRadiusKm > 0 ? storedRadiusKm : 50;
-  const [category, setCategory] = useState(() => searchParams.get('category') ?? 'All');
+  const category = searchParams.get('category') ?? 'All';
   const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
+  const [savedIds, setSavedIds] = useState<Set<string>>(() =>
+    readStoredStringSet(SAVED_LISTING_IDS_KEY)
+  );
 
-  useEffect(() => {
-    setCategory(searchParams.get('category') ?? 'All');
-  }, [searchParams]);
-  const [savedIds, setSavedIds] = useState<Set<string>>(() => {
-    try {
-      const raw = localStorage.getItem(SAVED_IDS_KEY);
-      if (!raw) return new Set();
-      const parsed = JSON.parse(raw);
-      return new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : []);
-    } catch {
-      return new Set();
-    }
-  });
+  const updateCategory = (nextCategory: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (nextCategory === 'All') params.delete('category');
+    else params.set('category', nextCategory);
+    navigate({ search: params.toString() });
+  };
 
   const toggleSaved = (listing: Listing) => {
     const id = listing.id;
@@ -168,7 +156,7 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
     }
 
     setSavedIds(next);
-    localStorage.setItem(SAVED_IDS_KEY, JSON.stringify([...next]));
+    writeStoredStringSet(SAVED_LISTING_IDS_KEY, next);
     localStorage.setItem(SAVED_LISTINGS_KEY, JSON.stringify(snapshots));
   };
 
@@ -221,6 +209,8 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
         });
       return dealsOnly ? normalized.filter((item) => item.isDeal) : normalized;
     },
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   return (
@@ -263,7 +253,7 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
             {categories.map((item) => (
               <button
                 key={item.label}
-                onClick={() => setCategory(item.label)}
+                onClick={() => updateCategory(item.label)}
                 className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
                   category === item.label
                     ? 'border-[#1e5da8] bg-[#1e5da8] text-white'
@@ -404,7 +394,7 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                     ) : null}
                     <div className="mt-2 flex items-center justify-between sm:mt-3">
                       <p className="text-xs font-black text-[#0f4b8a] sm:text-sm">
-                        {formatPrice(getDisplayPriceValue(listing))}
+                        {formatPriceInr(getDisplayPriceValue(listing))}
                       </p>
                       <div className="flex items-center gap-3">
                         <Link

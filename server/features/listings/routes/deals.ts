@@ -446,6 +446,8 @@ export function registerDealRoutes(app: Express): void {
         }
 
         const code = voucherCode();
+        const listingImages = parseStringArrayField(listing.images);
+        const primaryImage = listingImages[0] || '';
         const payload = {
           voucherCode: code,
           listingId,
@@ -456,6 +458,8 @@ export function registerDealRoutes(app: Express): void {
           dealStartAt: dealWindow.startAt.toISOString(),
           dealEndAt: dealWindow.endAt.toISOString(),
           dealCycleKey: dealWindow.cycleKey,
+          listingImage: primaryImage,
+          listingImages,
           comboItems: parseStringArrayField(listing.comboItems),
           terms: String(listing.dealTerms || '').trim(),
         };
@@ -480,6 +484,8 @@ export function registerDealRoutes(app: Express): void {
               success: true,
               booking: inserted[0],
               voucher: payload,
+              listingImage: primaryImage,
+              listingImages,
               voucherViewUrl: `/api/deals/bookings/${inserted[0].id}/voucher`,
             },
           },

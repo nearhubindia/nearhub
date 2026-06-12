@@ -362,7 +362,9 @@ function toPublicListing(
     saveCount: likeCount,
     image: primaryImage,
     imageUrl: primaryImage,
+    listingImage: primaryImage,
     images: publicImages,
+    listingImages: publicImages,
     videos: publicVideos,
   };
 }
@@ -961,9 +963,8 @@ export function registerListingRoutes(app: Express) {
       );
       sanitizedUpdates.maxDealBookings = normalizeOptionalNumber(sanitizedUpdates.maxDealBookings);
       sanitizedUpdates.dealBookingsUsed = normalizeOptionalNumber(sanitizedUpdates.dealBookingsUsed);
-      sanitizedUpdates.postDealDiscountPrice = normalizeOptionalNumber(
-        sanitizedUpdates.postDealDiscountPrice
-      );
+      delete sanitizedUpdates.postDealPriceMode;
+      delete sanitizedUpdates.postDealDiscountPrice;
 
       if (Array.isArray(sanitizedUpdates.comboItems)) {
         sanitizedUpdates.comboItems = JSON.stringify(sanitizedUpdates.comboItems);

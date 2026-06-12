@@ -1,9 +1,12 @@
 import { getApiUrl } from '@/lib/config';
+import { readStoredWebUser } from '@/lib/web-auth-storage';
 
 export type StoredUser = { id?: string; phone?: string; name?: string };
 
 export type DealVoucherPayload = {
   listingTitle?: string;
+  listingImage?: string;
+  listingImages?: string[];
   bookedAt?: string;
   dealStartAt?: string | null;
   dealEndAt?: string | null;
@@ -26,13 +29,7 @@ export type DealBooking = {
 export type DealStatTone = 'blue' | 'emerald' | 'amber' | 'rose';
 
 export function readStoredUser(): StoredUser | null {
-  try {
-    const raw = localStorage.getItem('nearhub_web_user');
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredUser;
-  } catch {
-    return null;
-  }
+  return readStoredWebUser() as StoredUser | null;
 }
 
 export function parseVoucherPayload(value: DealBooking['voucherPayload']): DealVoucherPayload {

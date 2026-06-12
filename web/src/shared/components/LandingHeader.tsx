@@ -7,6 +7,7 @@ import {
   Pin,
   MapPin,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   CircleUserRound,
   CreditCard,
@@ -33,10 +34,12 @@ import {
   writeStoredWebUser,
   type StoredWebUser,
 } from '@/lib/web-auth-storage';
+import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
 import { Logo } from './Logo';
 import { Container } from './Container';
 
 type NavKey = 'home' | 'features' | 'browse' | 'deals' | 'contact';
+const HEADER_PERSIST_KEY = 'nearhub:header:inputs:v1';
 
 interface LandingHeaderProps {
   active: NavKey;
@@ -49,6 +52,7 @@ type InAppNotification = {
   category?: string | null;
   actionLabel?: string | null;
   actionUrl?: string | null;
+  imageUrl?: string | null;
   isRead?: boolean;
   createdAt?: string;
 };
@@ -101,6 +105,47 @@ function formatNotificationTime(timestamp?: string): string {
   });
 }
 
+function getInitialHeaderState(
+  search: string,
+  persisted: {
+    query?: string;
+    location?: string;
+    geo?: { latitude: number; longitude: number } | null;
+  } | null,
+  fallbackGeo: { latitude: number; longitude: number } | null
+): {
+  query: string;
+  location: string;
+  geoCoords: { latitude: number; longitude: number } | null;
+  locationQuery: string;
+} {
+  const params = new URLSearchParams(search);
+  const persistedQuery = persisted?.query || '';
+  const persistedLocation = persisted?.location || '';
+  const persistedGeo = persisted?.geo || null;
+
+  const query = params.get('q') || persistedQuery;
+
+  const locationParam = params.get('location') || '';
+  const location = isTransientLocationValue(locationParam)
+    ? ''
+    : locationParam || (isTransientLocationValue(persistedLocation) ? '' : persistedLocation);
+
+  const lat = params.get('latitude');
+  const lon = params.get('longitude');
+  const geoCoords =
+    lat && lon && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon))
+      ? { latitude: Number(lat), longitude: Number(lon) }
+      : persistedGeo || fallbackGeo;
+
+  return {
+    query,
+    location,
+    geoCoords,
+    locationQuery: location,
+  };
+}
+
 export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
   const queryClient = useQueryClient();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -110,38 +155,27 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
   const [user, setUser] = useState<StoredWebUser | null>(null);
   const navigate = useNavigate();
   const routerLocation = useLocation();
-  const HEADER_PERSIST_KEY = 'nearhub:header:inputs:v1';
-  const hydratedRef = useRef(false);
   const appendSearch = (path: string) => `${path}${routerLocation.search || ''}`;
-  const persistedHeaderStateRef = useRef(readPersistedHeaderState(HEADER_PERSIST_KEY));
-  const persistedHeaderState = persistedHeaderStateRef.current;
+  const storedGeoCoords = useMemo(() => readStoredWebGeoCoords(), []);
+  const persistedHeaderState = useMemo(() => readPersistedHeaderState(HEADER_PERSIST_KEY), []);
+  const initialHeaderState = useMemo(
+    () => getInitialHeaderState(routerLocation.search, persistedHeaderState, storedGeoCoords),
+    [persistedHeaderState, routerLocation.search, storedGeoCoords]
+  );
 
   // Search & location (moved from pages)
-  const [query, setQuery] = useState(() => {
-    const restored = persistedHeaderState?.query || '';
-    return restored;
-  });
-  const [location, setLocation] = useState(() => {
-    const restored = persistedHeaderState?.location || '';
-    return isTransientLocationValue(restored) ? '' : restored;
-  });
-  const [geoCoords, setGeoCoords] = useState<{ latitude: number; longitude: number } | null>(() => {
-    const geo = persistedHeaderState?.geo;
-    return geo && typeof geo.latitude === 'number' && typeof geo.longitude === 'number'
-      ? { latitude: geo.latitude, longitude: geo.longitude }
-      : null;
-  });
+  const [query, setQuery] = useState(() => initialHeaderState.query);
+  const [location, setLocation] = useState(() => initialHeaderState.location);
+  const [geoCoords, setGeoCoords] = useState<{ latitude: number; longitude: number } | null>(
+    () => initialHeaderState.geoCoords
+  );
   const [isLocating, setIsLocating] = useState(false);
   const [suggestions, setSuggestions] = useState<
     Array<{ display: string; lat?: number; lon?: number }>
   >([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [locationQuery, setLocationQuery] = useState(() => {
-    const restored = persistedHeaderState?.location || '';
-    return isTransientLocationValue(restored) ? '' : restored;
-  });
+  const [isLocationFocused, setIsLocationFocused] = useState(false);
+  const [locationQuery, setLocationQuery] = useState(() => initialHeaderState.locationQuery);
   const suggestionRequestRef = useRef(0);
-  const suggestionsRef = useRef<HTMLDivElement | null>(null);
   const locationInputRef = useRef<HTMLInputElement | null>(null);
 
   const persistHeaderState = (next: {
@@ -232,10 +266,28 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
   useEffect(() => {
     const profile = profileQuery.data;
     if (!profile || !user) return;
-    const nextName = getMeaningfulWebUserName(profile.name);
-    if (!nextName || nextName === userName) return;
-    writeStoredWebUser({ ...user, ...profile, name: nextName });
-  }, [profileQuery.data, user, userName]);
+    const nextName = getMeaningfulWebUserName(profile.name) || user.name;
+    const mergedUser = {
+      ...user,
+      ...profile,
+      name: nextName,
+    };
+
+    const hasChanged =
+      mergedUser.name !== user.name ||
+      mergedUser.email !== user.email ||
+      mergedUser.avatarUrl !== user.avatarUrl ||
+      mergedUser.bio !== user.bio ||
+      mergedUser.address !== user.address ||
+      mergedUser.gstin !== user.gstin ||
+      mergedUser.latitude !== user.latitude ||
+      mergedUser.longitude !== user.longitude ||
+      JSON.stringify(mergedUser.preferences || {}) !== JSON.stringify(user.preferences || {});
+
+    if (hasChanged) {
+      writeStoredWebUser(mergedUser);
+    }
+  }, [profileQuery.data, user]);
 
   const submitSearch = (event?: React.FormEvent<HTMLFormElement>) => {
     if (event) event.preventDefault();
@@ -251,133 +303,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
     navigate(`/search${params.toString() ? `?${params.toString()}` : ''}`);
   };
 
-  // Keep header inputs in sync with URL params so values persist after navigation
-  useEffect(() => {
-    try {
-      const params = new URLSearchParams(routerLocation.search);
-      const hasQ = params.has('q');
-      const hasLocationParam = params.has('location');
-      const hasLat = params.has('latitude');
-      const hasLon = params.has('longitude');
-
-      if (hasQ || hasLocationParam || hasLat || hasLon) {
-        if (hasQ) {
-          setQuery(params.get('q') || '');
-        }
-        if (hasLocationParam) {
-          const loc = params.get('location') || '';
-          if (isTransientLocationValue(loc)) {
-            setLocation('');
-            setLocationQuery('');
-          } else {
-            setLocation(loc);
-            setLocationQuery(loc);
-          }
-          setShowSuggestions(false);
-        }
-        // Only set geo coords if both latitude and longitude present
-        if (hasLat && hasLon) {
-          const lat = params.get('latitude');
-          const lon = params.get('longitude');
-          if (lat && lon) setGeoCoords({ latitude: Number(lat), longitude: Number(lon) });
-        }
-        return;
-      }
-
-      // No URL params — try restoring from localStorage
-      const raw = localStorage.getItem(HEADER_PERSIST_KEY);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw) as {
-            query?: string;
-            location?: string;
-            geo?: { latitude: number; longitude: number } | null;
-          } | null;
-          if (parsed) {
-            if (typeof parsed.query === 'string') setQuery(parsed.query);
-            if (typeof parsed.location === 'string') {
-              if (isTransientLocationValue(parsed.location)) {
-                setLocation('');
-                setLocationQuery('');
-              } else {
-                setLocation(parsed.location);
-                setLocationQuery(parsed.location);
-              }
-              setShowSuggestions(false);
-            }
-            if (
-              parsed.geo &&
-              typeof parsed.geo.latitude === 'number' &&
-              typeof parsed.geo.longitude === 'number'
-            ) {
-              setGeoCoords({ latitude: parsed.geo.latitude, longitude: parsed.geo.longitude });
-            } else {
-              setGeoCoords(null);
-            }
-          }
-        } catch {
-          // ignore parse errors
-        }
-      }
-    } catch {
-      // ignore
-    }
-
-    // Allow the persistence effect to start writing after the initial restore pass.
-    hydratedRef.current = true;
-  }, [routerLocation.search]);
-
-  // Keep the URL in sync with the current header state so a full refresh restores it reliably.
-  useEffect(() => {
-    if (!hydratedRef.current) return;
-
-    const params = new URLSearchParams(routerLocation.search);
-    const nextQ = query.trim();
-    const nextLocation = isTransientLocationValue(location) ? '' : location.trim();
-
-    if (nextQ) params.set('q', nextQ);
-    else params.delete('q');
-
-    if (nextLocation) params.set('location', nextLocation);
-    else params.delete('location');
-
-    if (geoCoords) {
-      params.set('latitude', String(geoCoords.latitude));
-      params.set('longitude', String(geoCoords.longitude));
-      params.set('radius', '50');
-    } else {
-      params.delete('latitude');
-      params.delete('longitude');
-      params.delete('radius');
-    }
-
-    const nextSearch = params.toString();
-    const currentSearch = routerLocation.search.replace(/^\?/, '');
-    if (nextSearch === currentSearch) return;
-
-    navigate(
-      { pathname: routerLocation.pathname, search: nextSearch ? `?${nextSearch}` : '' },
-      { replace: true }
-    );
-  }, [geoCoords, location, navigate, query, routerLocation.pathname, routerLocation.search]);
-
-  // Persist header inputs to localStorage so they survive full page reloads
-  useEffect(() => {
-    if (!hydratedRef.current) return;
-    const toSave = { query: query || '', location: location || '', geo: geoCoords || null };
-    try {
-      localStorage.setItem(HEADER_PERSIST_KEY, JSON.stringify(toSave));
-    } catch {
-      // ignore quota errors
-    }
-  }, [query, location, geoCoords]);
-
   // Location autocomplete using internal city search API
   useEffect(() => {
     const q = locationQuery.trim();
     if (!q) {
-      setSuggestions([]);
-      setShowSuggestions(false);
       return;
     }
 
@@ -392,13 +321,38 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
         if (!res.ok) return;
         const payload = await res.json().catch(() => ({}));
         if (suggestionRequestRef.current !== id) return;
-        const data = Array.isArray(payload.data) ? payload.data : [];
+        const data = Array.isArray(payload.data)
+          ? (payload.data as Array<
+              | {
+                  locationName?: string;
+                  city?: string;
+                  state?: string;
+                  pincode?: string;
+                  latitude?: number | string;
+                  longitude?: number | string;
+                }
+              | undefined
+            >)
+          : [];
         setSuggestions(
-          data.map((entry: any) => ({
-            display: `${entry.locationName}${entry.city ? `, ${entry.city}` : ''}${entry.state ? `, ${entry.state}` : ''}${entry.pincode ? ` - ${entry.pincode}` : ''}`,
-            lat: Number(entry.latitude) || undefined,
-            lon: Number(entry.longitude) || undefined,
-          }))
+          data
+            .filter(
+              (
+                entry
+              ): entry is {
+                locationName?: string;
+                city?: string;
+                state?: string;
+                pincode?: string;
+                latitude?: number | string;
+                longitude?: number | string;
+              } => Boolean(entry)
+            )
+            .map((entry) => ({
+              display: `${entry.locationName || ''}${entry.city ? `, ${entry.city}` : ''}${entry.state ? `, ${entry.state}` : ''}${entry.pincode ? ` - ${entry.pincode}` : ''}`,
+              lat: Number(entry.latitude) || undefined,
+              lon: Number(entry.longitude) || undefined,
+            }))
         );
       } catch {
         // ignore
@@ -407,21 +361,6 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
 
     return () => window.clearTimeout(timer);
   }, [locationQuery]);
-
-  useEffect(() => {
-    const onDocClick = (ev: MouseEvent) => {
-      if (!suggestionsRef.current) return;
-      if (!suggestionsRef.current.contains(ev.target as Node)) {
-        setShowSuggestions(false);
-      }
-    };
-    window.addEventListener('click', onDocClick);
-    return () => window.removeEventListener('click', onDocClick);
-  }, []);
-
-  useEffect(() => {
-    setShowSuggestions(false);
-  }, [routerLocation.pathname]);
 
   const detectLocation = () => {
     if (!navigator.geolocation) {
@@ -458,6 +397,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
 
           const nextLocation = resolvedLocation || 'Current location';
           setLocation(nextLocation);
+          setLocationQuery(nextLocation);
           persistHeaderState({
             query,
             location: nextLocation,
@@ -534,9 +474,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
 
   return (
     <header className="fixed left-0 right-0 top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
-      <Container className="flex h-[82px] items-center justify-between gap-4">
-        <Link to="/" onClick={() => setIsMenuOpen(false)} className="shrink-0">
-          <Logo size="md" />
+      <Container className="flex h-[82px] min-w-0 items-center justify-between gap-2 sm:gap-4">
+        <Link to="/" onClick={() => setIsMenuOpen(false)} className="min-w-0 shrink">
+          <Logo size="sm" className="sm:hidden" />
+          <Logo size="md" className="hidden sm:flex" />
         </Link>
 
         <form onSubmit={submitSearch} className="hidden flex-1 items-center gap-4 md:flex">
@@ -552,13 +493,13 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                 const nextValue = e.target.value;
                 setLocation(nextValue);
                 setLocationQuery(nextValue);
-                setShowSuggestions(Boolean(nextValue.trim()));
+                setIsLocationFocused(Boolean(nextValue.trim()));
               }}
               onFocus={() => {
-                if (locationQuery.trim()) setShowSuggestions(true);
+                setIsLocationFocused(true);
               }}
               onBlur={() => {
-                window.setTimeout(() => setShowSuggestions(false), 150);
+                window.setTimeout(() => setIsLocationFocused(false), 150);
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -578,11 +519,8 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
             >
               <Pin size={14} className="text-[#0759e6]" />
             </button>
-            {showSuggestions && suggestions.length > 0 ? (
-              <div
-                ref={suggestionsRef}
-                className="absolute left-0 top-[110%] z-50 w-56 rounded-md border border-slate-200 bg-white shadow-lg"
-              >
+            {isLocationFocused && locationQuery.trim() && suggestions.length > 0 ? (
+              <div className="absolute left-0 top-[110%] z-50 w-56 rounded-md border border-slate-200 bg-white shadow-lg">
                 {suggestions.map((s, idx) => (
                   <button
                     key={idx}
@@ -590,7 +528,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                     onClick={() => {
                       setLocation(s.display);
                       setLocationQuery(s.display);
-                      setShowSuggestions(false);
+                      setIsLocationFocused(false);
                       const nextGeo =
                         s.lat && s.lon
                           ? { latitude: Number(s.lat), longitude: Number(s.lon) }
@@ -696,21 +634,34 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                   <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
                     {pushNotifications.map((notification) => {
                       const content = (
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-black text-slate-950">
-                              {notification.title}
+                        <div className="flex min-w-0 gap-2.5">
+                          {notification.imageUrl ? (
+                            <img
+                              src={notification.imageUrl}
+                              alt=""
+                              className="h-12 w-12 shrink-0 rounded-md border border-slate-200 bg-slate-50 object-cover"
+                              loading="lazy"
+                              onError={(event) => {
+                                event.currentTarget.src = '/nearhub.png';
+                              }}
+                            />
+                          ) : null}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-black text-slate-950">
+                                {notification.title}
+                              </p>
+                              {!notification.isRead ? (
+                                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#0759e6]" />
+                              ) : null}
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-600">
+                              {notification.message}
                             </p>
-                            {!notification.isRead ? (
-                              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#0759e6]" />
-                            ) : null}
+                            <p className="mt-2 text-[11px] font-semibold text-slate-400">
+                              {formatNotificationTime(notification.createdAt)}
+                            </p>
                           </div>
-                          <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-600">
-                            {notification.message}
-                          </p>
-                          <p className="mt-2 text-[11px] font-semibold text-slate-400">
-                            {formatNotificationTime(notification.createdAt)}
-                          </p>
                         </div>
                       );
 
@@ -726,7 +677,11 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                           {notification.actionUrl ? (
                             <Link
                               to={notification.actionUrl}
-                              onClick={() => setIsNotificationsOpen(false)}
+                              onClick={() => {
+                                setIsNotificationsOpen(false);
+                                if (!notification.isRead)
+                                  void markNotificationRead(notification.id);
+                              }}
                               className="block"
                             >
                               {content}
@@ -852,39 +807,49 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
           </div>
         </nav>
 
-        <button
-          type="button"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 text-slate-800 md:hidden"
-          aria-label="Toggle navigation menu"
-          onClick={() => setIsMenuOpen((prev) => !prev)}
-        >
-          {isMenuOpen ? <X size={19} /> : <Menu size={19} />}
-        </button>
+        <div className="ml-auto flex items-center gap-2 md:hidden">
+          {active === 'home' ? (
+            <button
+              type="button"
+              onClick={detectLocation}
+              disabled={isLocating}
+              className="flex h-10 min-w-0 max-w-[150px] flex-1 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 text-left shadow-sm disabled:opacity-60 min-[390px]:max-w-[170px] sm:h-12 sm:max-w-[190px] sm:gap-2 sm:px-3"
+              aria-label="Detect location"
+            >
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#0759e6] text-white sm:h-8 sm:w-8">
+                <MapPin size={19} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-bold leading-4 text-slate-950 sm:text-sm">
+                  {isLocating ? 'Locating...' : location || 'Anakapalle'}
+                </span>
+                <span className="block truncate text-[10px] font-semibold leading-4 text-slate-500 sm:text-xs">
+                  Within 50 km
+                </span>
+              </span>
+              <ChevronDown size={16} className="hidden shrink-0 text-slate-500 min-[390px]:block" />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-800"
+            aria-label="Toggle navigation menu"
+            onClick={() => setIsMenuOpen((prev) => !prev)}
+          >
+            {isMenuOpen ? <X size={19} /> : <Menu size={19} />}
+          </button>
+        </div>
       </Container>
 
       {isMenuOpen ? (
         <div className="border-t border-slate-200 bg-white px-4 py-3 md:hidden">
           <Container className="flex flex-col gap-2 text-sm font-semibold">
             <Link
-              to={appendSearch('/')}
-              className="rounded-md px-3 py-2 text-slate-800"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Home
-            </Link>
-            <Link
               to={appendSearch('/search')}
               className="rounded-md px-3 py-2 text-slate-800"
               onClick={() => setIsMenuOpen(false)}
             >
               Search
-            </Link>
-            <Link
-              to={appendSearch('/deals')}
-              className="rounded-md px-3 py-2 text-slate-800"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Deals
             </Link>
             <Link
               to={appendSearch('/contact')}
@@ -894,65 +859,15 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
               Contact
             </Link>
             <Link
-              to="/create-listing"
-              className="rounded-md bg-[#0759e6] px-3 py-2 text-white"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Create Listing
-            </Link>
-            <Link
               to={isLoggedIn ? '/bookings' : '/auth/register'}
               className="rounded-md px-3 py-2 text-slate-800"
               onClick={() => setIsMenuOpen(false)}
             >
-              {isLoggedIn ? 'Bookings & Notifications' : 'Sign In'}
+              {isLoggedIn ? 'Bookings' : 'Sign In'}
             </Link>
-            {isLoggedIn ? (
-              <>
-                <button
-                  type="button"
-                  className="flex items-center justify-between rounded-md px-3 py-2 text-left text-slate-800"
-                  onClick={() => setIsNotificationsOpen((prev) => !prev)}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Bell size={16} /> Notifications
-                  </span>
-                  {unreadNotificationCount > 0 ? (
-                    <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-black text-white">
-                      {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
-                    </span>
-                  ) : null}
-                </button>
-                {isNotificationsOpen ? (
-                  <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                    {notificationsQuery.isLoading ? (
-                      <p className="text-sm font-semibold text-slate-600">
-                        Loading notifications...
-                      </p>
-                    ) : null}
-                    {!notificationsQuery.isLoading && pushNotifications.length === 0 ? (
-                      <p className="text-sm font-semibold text-slate-600">No notifications yet.</p>
-                    ) : null}
-                    <div className="space-y-2">
-                      {pushNotifications.slice(0, 5).map((notification) => (
-                        <div
-                          key={`mobile-${notification.id}`}
-                          className="rounded-md bg-white p-3 text-sm shadow-sm"
-                        >
-                          <p className="font-black text-slate-950">{notification.title}</p>
-                          <p className="mt-1 text-xs font-semibold leading-5 text-slate-600">
-                            {notification.message}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </>
-            ) : null}
             {isLoggedIn
               ? menuItems
-                  .filter((item) => item.to !== '/bookings')
+                  .filter((item) => item.to !== '/bookings' && item.to !== '/profile')
                   .map((item) => (
                     <Link
                       key={item.label}
@@ -964,6 +879,19 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                     </Link>
                   ))
               : null}
+            {isLoggedIn ? (
+              <button
+                type="button"
+                className="mt-1 rounded-md px-3 py-2 text-left font-bold text-red-600 transition hover:bg-red-50"
+                onClick={() => {
+                  handleLogout();
+                  setIsMenuOpen(false);
+                  navigate('/auth/register');
+                }}
+              >
+                Logout
+              </button>
+            ) : null}
           </Container>
         </div>
       ) : null}

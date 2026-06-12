@@ -3,6 +3,8 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, IndianRupee, MapPin, Save } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { readStoredWebUser } from '@/lib/web-auth-storage';
+import { parseMediaList, parseTextList } from '@/features/landing/lib/listing-parsers';
 import {
   ADMIN_CATEGORY_GROUPS,
   getDefaultAdminMainCategory,
@@ -86,53 +88,6 @@ function sanitizePriceInput(value: string | number | null | undefined): string {
   return `${whole}.${fraction.slice(0, 2)}`;
 }
 
-function readStoredUser(): StoredUser | null {
-  try {
-    const raw = localStorage.getItem('nearhub_web_user');
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredUser;
-  } catch {
-    return null;
-  }
-}
-
-function parseMedia(value: unknown): string[] {
-  if (Array.isArray(value))
-    return value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()));
-  if (typeof value !== 'string') return [];
-  const trimmed = value.trim();
-  if (!trimmed) return [];
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (Array.isArray(parsed))
-      return parsed.filter(
-        (item): item is string => typeof item === 'string' && Boolean(item.trim())
-      );
-  } catch {
-    // fall through to newline/comma parsing
-  }
-  return trimmed
-    .split(/\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function parseTextList(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
-  if (typeof value !== 'string') return [];
-  try {
-    const parsed = JSON.parse(value);
-    if (Array.isArray(parsed))
-      return parsed.map((item) => String(item || '').trim()).filter(Boolean);
-  } catch {
-    // fall through
-  }
-  return value
-    .split(/\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function toInputDateTime(value: string): { date: string; time: string } {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return { date: '', time: '' };
@@ -172,11 +127,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function EditListingPage(): ReactElement {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  const storedUser = readStoredUser();
+  const storedUser = readStoredWebUser() as StoredUser | null;
   const userId = String(storedUser?.id || '').trim();
   const userPhone = String(storedUser?.phone || '').trim();
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => Boolean(id && userId));
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [isDeal, setIsDeal] = useState(false);
@@ -215,10 +170,7 @@ export default function EditListingPage(): ReactElement {
   const shouldRequireCondition = shouldRequireConditionForCategory(mainCategory, subCategory);
 
   useEffect(() => {
-    if (!id || !userId) {
-      setIsLoading(false);
-      return;
-    }
+    if (!id || !userId) return;
 
     let ignore = false;
     const loadListing = async () => {
@@ -270,8 +222,8 @@ export default function EditListingPage(): ReactElement {
             .replace(/[^0-9]/g, '')
             .slice(0, 10)
         );
-        setImagesText(parseMedia(listing.images).join('\n'));
-        setVideosText(parseMedia(listing.videos).join('\n'));
+        setImagesText(parseMediaList(listing.images).join('\n'));
+        setVideosText(parseMediaList(listing.videos).join('\n'));
         setDealType(
           String(listing.dealType || listing.deal_type || 'normal').toLowerCase() === 'combo'
             ? 'combo'
@@ -360,8 +312,8 @@ export default function EditListingPage(): ReactElement {
     setIsSaving(true);
     setMessage('');
     try {
-      const images = parseMedia(imagesText);
-      const videos = parseMedia(videosText);
+      const images = parseMediaList(imagesText);
+      const videos = parseMediaList(videosText);
       const dealEndAt =
         isDeal && dealEndDate && dealEndTime
           ? new Date(`${dealEndDate}T${dealEndTime}`).toISOString()

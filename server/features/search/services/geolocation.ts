@@ -3,11 +3,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-
-interface Coordinate {
-  latitude: number;
-  longitude: number;
-}
+import { calculateDistance } from './distance';
 
 interface GeometryPolygon {
   type: 'Polygon';
@@ -289,7 +285,7 @@ class GeolocationService {
       const centerLat = (polygon.bbox.minLat + polygon.bbox.maxLat) / 2;
       const centerLon = (polygon.bbox.minLon + polygon.bbox.maxLon) / 2;
 
-      const distance = this.calculateDistance(latitude, longitude, centerLat, centerLon);
+      const distance = calculateDistance(latitude, longitude, centerLat, centerLon);
 
       if (distance < minDistance) {
         minDistance = distance;
@@ -306,24 +302,6 @@ class GeolocationService {
     }
 
     return null;
-  }
-
-  /**
-   * Calculate distance between two coordinates (Haversine formula)
-   * Returns distance in kilometers
-   */
-  private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371; // Earth's radius in km
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
   }
 
   /**
@@ -435,7 +413,11 @@ class GeolocationService {
         return a.city.length - b.city.length;
       })
       .slice(0, limit)
-      .map(({ score: _score, ...result }) => result);
+      .map((result) => {
+        const { score: _score, ...rest } = result;
+        void _score;
+        return rest;
+      });
   }
 }
 

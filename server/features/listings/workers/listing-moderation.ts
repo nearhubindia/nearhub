@@ -2,7 +2,10 @@ import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../../../data/db';
 import { listings } from '../../admin/models/admin-settings';
 import { moderateListing } from '../../../shared/ai/moderation';
-import { notifyAdminListingPendingReview } from '../../../shared/services/auto-notifications';
+import {
+  notifyAdminListingPendingReview,
+  notifyDealPublished,
+} from '../../../shared/services/auto-notifications';
 
 type ModerationQueueRow = {
   id: string;
@@ -184,10 +187,16 @@ export async function processListingModerationQueue(batchSize = 10): Promise<{
       });
 
       if (decision.shouldAutoApprove) {
-        await db
+        const [approvedListing] = await db
           .update(listings)
           .set({ status: 'active', isActive: true, updatedAt: new Date() } as any)
-          .where(and(eq(listings.id, listing.id), eq(listings.status, 'pending')));
+          .where(and(eq(listings.id, listing.id), eq(listings.status, 'pending')))
+          .returning();
+        if (approvedListing?.isDeal) {
+          notifyDealPublished(approvedListing).catch((error) => {
+            console.error('[ListingModerationWorker] Failed deal notification:', error);
+          });
+        }
         autoApproved++;
       } else {
         manualReview++;

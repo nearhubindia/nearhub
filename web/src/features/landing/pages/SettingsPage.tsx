@@ -11,10 +11,6 @@ import {
 
 type StoredUser = StoredWebUser;
 
-function readStoredUser(): StoredUser | null {
-  return readStoredWebUser();
-}
-
 function writeStoredUser(user: StoredUser) {
   writeStoredWebUser(user);
 }
@@ -51,7 +47,7 @@ function ToggleRow({
 
 export default function SettingsPage(): ReactElement {
   const navigate = useNavigate();
-  const user = readStoredUser();
+  const user = readStoredWebUser() as StoredUser | null;
 
   const [notifications, setNotifications] = useState(
     Boolean(user?.preferences?.notifications ?? true)

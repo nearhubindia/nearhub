@@ -35,6 +35,36 @@ export async function notifyNewListing(listing: Listing): Promise<void> {
 }
 
 /**
+ * Create an in-app notification when a deal becomes visible to buyers.
+ */
+export async function notifyDealPublished(listing: Listing): Promise<void> {
+  try {
+    if (!listing.isDeal || !listing.id) return;
+
+    const location = listing.location ? ` in ${listing.location}` : '';
+    const price = listing.offerPrice || listing.price;
+
+    await createInAppNotification({
+      userId: null,
+      userType: 'all',
+      title: 'New Deal Available',
+      message: `${listing.title}${location}${price ? ` - Rs. ${price}` : ''}`,
+      type: 'success',
+      category: 'deal',
+      referenceId: listing.id,
+      priority: 'high',
+      actionLabel: 'View Deal',
+      actionUrl: `/listing/${listing.id}`,
+      createdBy: 'system',
+    });
+
+    console.log(`[Auto-Notify] Deal notification created for listing: ${listing.id}`);
+  } catch (error) {
+    console.error('[Auto-Notify] Failed to create deal notification:', error);
+  }
+}
+
+/**
  * Send notification when listing price drops
  */
 export async function notifyPriceDrop(

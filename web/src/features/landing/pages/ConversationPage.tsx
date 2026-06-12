@@ -3,8 +3,9 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { readStoredWebUser, type StoredWebUser } from '@/lib/web-auth-storage';
 
-type StoredUser = { id?: string; phone?: string; name?: string };
+type StoredUser = StoredWebUser;
 
 type ConversationMeta = {
   conversationId: string;
@@ -22,19 +23,9 @@ type ChatMessage = {
   isRead?: boolean;
 };
 
-function readStoredUser(): StoredUser | null {
-  try {
-    const raw = localStorage.getItem('nearhub_web_user');
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredUser;
-  } catch {
-    return null;
-  }
-}
-
 export default function ConversationPage(): ReactElement {
   const { conversationId = '' } = useParams();
-  const user = readStoredUser();
+  const user = readStoredWebUser() as StoredUser | null;
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);

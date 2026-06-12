@@ -53,6 +53,13 @@ app/build-*-mapping.txt.sha256
 
 # Local release archives
 server-release.tgz
+release/
+*.zip
+
+# Local secrets and temp export folders
+.tmp/
+.nearhub-ssh/
+*password*.txt
 
 # IDEs
 .vscode/

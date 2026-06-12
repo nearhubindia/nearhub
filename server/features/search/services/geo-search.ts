@@ -22,7 +22,15 @@ export interface GeoSearchOptions {
   limit?: number;
 }
 
-export interface SearchResult extends DBListing {
+export interface SearchResult
+  extends Omit<DBListing, 'price' | 'offerPrice' | 'latitude' | 'longitude' | 'images' | 'videos'> {
+  userId?: string | null;
+  price: number;
+  offerPrice?: number;
+  latitude?: number;
+  longitude?: number;
+  images: string[];
+  videos: string[];
   distanceKm?: number;
 }
 
@@ -38,7 +46,7 @@ function toPositiveLimit(value: unknown, fallback: number, max: number): number 
 
 function mapListing(listing: DBListing): SearchResult {
   return {
-    ...(listing as any),
+    ...listing,
     userId: listing.sellerId,
     price: Number(listing.price),
     offerPrice:
@@ -47,8 +55,8 @@ function mapListing(listing: DBListing): SearchResult {
         : undefined,
     latitude: listing.latitude ? Number(listing.latitude) : undefined,
     longitude: listing.longitude ? Number(listing.longitude) : undefined,
-    images: parseJsonArrayField(listing.images) as any,
-    videos: parseJsonArrayField(listing.videos) as any,
+    images: parseJsonArrayField(listing.images) as string[],
+    videos: parseJsonArrayField(listing.videos) as string[],
   };
 }
 
@@ -139,7 +147,7 @@ export async function searchListingsByGeo(options: GeoSearchOptions): Promise<Se
     const numericDistance = Number(row.distanceKm);
     return {
       ...mapped,
-      distanceKm: Number.isFinite(numericDistance) ? Number(numericDistance.toFixed(1)) : undefined,
+      distanceKm: Number.isFinite(numericDistance) ? Number(numericDistance.toFixed(2)) : undefined,
     };
   });
 }

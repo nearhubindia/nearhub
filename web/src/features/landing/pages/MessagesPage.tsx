@@ -4,8 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Clock3, MessageCircle } from 'lucide-react';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { readStoredWebUser, type StoredWebUser } from '@/lib/web-auth-storage';
 
-type StoredUser = { id?: string; phone?: string; name?: string };
+type StoredUser = StoredWebUser;
 
 type Thread = {
   conversationId: string;
@@ -23,16 +24,6 @@ type Thread = {
 
 type ThreadResponse = { success?: boolean; data?: Thread[]; error?: string };
 
-function readStoredUser(): StoredUser | null {
-  try {
-    const raw = localStorage.getItem('nearhub_web_user');
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredUser;
-  } catch {
-    return null;
-  }
-}
-
 function formatTimeAgo(timestamp?: string): string {
   if (!timestamp) return 'now';
   const ms = Date.now() - new Date(timestamp).getTime();
@@ -45,7 +36,7 @@ function formatTimeAgo(timestamp?: string): string {
 }
 
 export default function MessagesPage(): ReactElement {
-  const user = readStoredUser();
+  const user = readStoredWebUser() as StoredUser | null;
   const userId = String(user?.id || '').trim();
   const userPhone = String(user?.phone || '').trim();
 

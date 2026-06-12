@@ -4,8 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, MapPin, Package, ShieldCheck, Ticket } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
-
-type StoredUser = { id?: string; phone?: string; name?: string };
+import { readStoredWebUser } from '@/lib/web-auth-storage';
+import { parseMediaList } from '@/features/landing/lib/listing-parsers';
+import { formatPriceInr } from '@/features/landing/lib/landing-utils';
 type VoucherLinks = { viewUrl?: string; downloadUrl?: string };
 
 type Listing = {
@@ -29,40 +30,6 @@ type Listing = {
   dealBookingsUsed?: number;
 };
 
-function readStoredUser(): StoredUser | null {
-  try {
-    const raw = localStorage.getItem('nearhub_web_user');
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredUser;
-  } catch {
-    return null;
-  }
-}
-
-function parseMedia(value: unknown): string[] {
-  if (Array.isArray(value))
-    return value.filter((item): item is string => typeof item === 'string' && !!item);
-  if (typeof value !== 'string') return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === 'string' && !!item)
-      : [];
-  } catch {
-    return value.trim() ? [value.trim()] : [];
-  }
-}
-
-function formatPrice(value: string | number | undefined): string {
-  const amount = typeof value === 'string' ? Number(value) : value;
-  if (!Number.isFinite(amount)) return 'Price on request';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount as number);
-}
-
 function toApiAbsoluteUrl(pathOrUrl: string): string {
   const raw = String(pathOrUrl || '').trim();
   if (!raw) return '';
@@ -75,9 +42,10 @@ function toApiAbsoluteUrl(pathOrUrl: string): string {
 export default function OrderSummaryPage(): ReactElement {
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
-  const user = readStoredUser();
+  const user = readStoredWebUser();
   const userId = String(user?.id || '').trim();
   const userPhone = String(user?.phone || '').trim();
+  const [nowMs] = useState(() => Date.now());
   const [message, setMessage] = useState('');
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [voucherLinks, setVoucherLinks] = useState<VoucherLinks>({});
@@ -99,7 +67,7 @@ export default function OrderSummaryPage(): ReactElement {
       const raw = payload.listing || payload.data;
       return {
         ...raw,
-        images: parseMedia(raw?.images),
+        images: parseMediaList(raw?.images),
         isActive: Boolean(raw?.isActive ?? raw?.is_active),
         isDeal: Boolean(raw?.isDeal ?? raw?.is_deal),
         dealStartAt: String(raw?.dealStartAt || raw?.deal_start_at || ''),
@@ -125,8 +93,8 @@ export default function OrderSummaryPage(): ReactElement {
     Boolean(listing?.isActive) &&
     String(listing?.status || '').toLowerCase() === 'active' &&
     isWindowValid &&
-    Date.now() >= dealStart &&
-    Date.now() <= dealEnd;
+    nowMs >= dealStart &&
+    nowMs <= dealEnd;
   const slots = Number(listing?.maxDealBookings || 0);
   const used = Number(listing?.dealBookingsUsed || 0);
   const isSoldOut = slots > 0 && used >= slots;
@@ -267,14 +235,14 @@ export default function OrderSummaryPage(): ReactElement {
               <div className="mt-4 space-y-3 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-600">Item price</span>
-                  <span className="font-bold text-slate-900">{formatPrice(listing.price)}</span>
+                  <span className="font-bold text-slate-900">{formatPriceInr(listing.price)}</span>
                 </div>
                 {Number(listing.offerPrice || 0) > 0 &&
                 Number(listing.offerPrice) < Number(listing.price || 0) ? (
                   <div className="flex items-center justify-between text-emerald-700">
                     <span>Deal discount</span>
                     <span>
-                      -{formatPrice(Number(listing.price || 0) - Number(listing.offerPrice || 0))}
+                      -{formatPriceInr(Number(listing.price || 0) - Number(listing.offerPrice || 0))}
                     </span>
                   </div>
                 ) : null}
@@ -282,7 +250,7 @@ export default function OrderSummaryPage(): ReactElement {
                   <div className="flex items-center justify-between">
                     <span className="text-base font-black text-slate-900">Total</span>
                     <span className="text-2xl font-black text-[#113965]">
-                      {formatPrice(finalPrice)}
+                      {formatPriceInr(finalPrice)}
                     </span>
                   </div>
                 </div>

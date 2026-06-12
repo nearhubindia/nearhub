@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  Bell,
   ChevronRight,
   Flame,
   Gift,
   Heart,
   History,
-  LocateFixed,
   MapPin,
   PackagePlus,
   Search,
@@ -17,6 +17,18 @@ import { LandingFooter, LandingHeader, Container } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
 import { FALLBACK_LISTING_IMAGE, getListingImages } from '@/features/landing/lib/listing-images';
+import { readStoredWebUser } from '@/lib/web-auth-storage';
+import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
+import {
+  SAVED_LISTING_IDS_KEY,
+  countdownPartsFromMs,
+  discountPercentage,
+  formatPriceInr,
+  formatDistanceKm,
+  parsePositiveNumber,
+  readStoredStringSet,
+  writeStoredStringSet,
+} from '@/features/landing/lib/landing-utils';
 
 type Listing = {
   id: string;
@@ -46,6 +58,17 @@ type Listing = {
   deal_recurrence?: string;
   dealRecurrenceUntil?: string;
   deal_recurrence_until?: string;
+  dealStatus?: string;
+  deal_status?: string;
+  dealCycleQuantity?: number | string;
+  deal_cycle_quantity?: number | string;
+  maxDealBookings?: number | string;
+  max_deal_bookings?: number | string;
+  dealBookingsUsed?: number | string;
+  deal_bookings_used?: number | string;
+  status?: string;
+  isActive?: boolean;
+  is_active?: boolean;
   comboItems?: string[] | string;
   distanceKm?: number | string;
   distance_km?: number | string;
@@ -75,43 +98,20 @@ type ListingsResponse = {
   results?: Listing[];
 };
 
-const SAVED_IDS_KEY = 'nearhub_web_saved_listing_ids';
+type InAppNotification = {
+  id: string;
+  category?: string | null;
+  isRead?: boolean;
+};
+
+type NotificationsResponse = {
+  success?: boolean;
+  data?: InAppNotification[];
+};
+
 const FALLBACK_IMAGE = FALLBACK_LISTING_IMAGE;
 const HERO_BANNERS = ['/banner1.png', '/banner2.png'];
 const EMPTY_LISTINGS: Listing[] = [];
-
-function readSavedIds(): Set<string> {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(SAVED_IDS_KEY) || '[]');
-    return new Set(Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : []);
-  } catch {
-    return new Set();
-  }
-}
-
-function parsePrice(value: string | number | undefined): number | undefined {
-  const amount = typeof value === 'string' ? Number(value) : Number(value);
-  return Number.isFinite(amount) && amount > 0 ? amount : undefined;
-}
-
-function formatPrice(value: number | undefined): string {
-  if (!value) return 'Price on request';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function formatDistance(value: number | string | undefined): string {
-  const distance = typeof value === 'string' ? Number(value) : value;
-  if (Number.isFinite(distance) && Number(distance) >= 0) {
-    const rounded =
-      Number(distance) < 10 ? Number(distance).toFixed(1) : Math.round(Number(distance)).toString();
-    return `${rounded.replace(/\.0$/, '')} km away`;
-  }
-  return '1 km away';
-}
 
 function parseComboItems(value: string[] | string | undefined): string[] | undefined {
   if (Array.isArray(value)) return value.filter(Boolean).map(String);
@@ -132,33 +132,9 @@ function parseComboItems(value: string[] | string | undefined): string[] | undef
 }
 
 function formatCountdown(endAt: number | undefined, nowMs: number): string {
-  return countdownParts(endAt, nowMs)
+  return countdownPartsFromMs(endAt, nowMs)
     .map((part) => part.value)
     .join(' : ');
-}
-
-function countdownParts(
-  endAt: number | undefined,
-  nowMs: number
-): Array<{ value: string; label: string }> {
-  const diff = typeof endAt === 'number' && Number.isFinite(endAt) ? Math.max(0, endAt - nowMs) : 0;
-  const days = Math.floor(diff / 86_400_000);
-  const hours = Math.floor((diff % 86_400_000) / 3_600_000);
-  const minutes = Math.floor((diff % 3_600_000) / 60_000);
-  const seconds = Math.floor((diff % 60_000) / 1000);
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return [
-    { value: pad(days), label: 'DAYS' },
-    { value: pad(hours), label: 'HOURS' },
-    { value: pad(minutes), label: 'MINS' },
-    { value: pad(seconds), label: 'SECS' },
-  ];
-}
-
-function discount(product: ProductCardData): string | null {
-  if (!product.price || !product.originalPrice || product.originalPrice <= product.price)
-    return null;
-  return `${Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF`;
 }
 
 function isDeal(item: Listing): boolean {
@@ -192,6 +168,42 @@ function isDealUpcoming(item: Listing, nowMs: number): boolean {
   const startAt = getDealStartMs(item, nowMs);
   return typeof startAt === 'number' && Number.isFinite(startAt) ? nowMs < startAt : false;
 }
+function numberValue(value: number | string | undefined): number {
+  const parsed = typeof value === 'string' ? Number(value) : Number(value || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isDealStockCompleted(item: Listing): boolean {
+  const maxSlots =
+    numberValue(item.dealCycleQuantity ?? item.deal_cycle_quantity) ||
+    numberValue(item.maxDealBookings ?? item.max_deal_bookings);
+  const usedSlots = numberValue(item.dealBookingsUsed ?? item.deal_bookings_used);
+  return maxSlots > 0 && usedSlots >= maxSlots;
+}
+
+function isDealMarkedCompleted(item: Listing): boolean {
+  const status = String(item.dealStatus ?? item.deal_status ?? item.status ?? '').toLowerCase();
+  return [
+    'completed',
+    'complete',
+    'closed',
+    'expired',
+    'sold_out',
+    'sold-out',
+    'stock_completed',
+  ].includes(status);
+}
+
+function isDealCompleted(item: Listing, nowMs: number): boolean {
+  return (
+    isDeal(item) &&
+    (isDealExpired(item, nowMs) || isDealStockCompleted(item) || isDealMarkedCompleted(item))
+  );
+}
+
+function isDealAvailableForDealSections(item: Listing, nowMs: number): boolean {
+  return isDeal(item) && !isDealCompleted(item, nowMs);
+}
 
 function getPostDealPriceMode(item: Listing): string {
   return String(item.postDealPriceMode || item.post_deal_price_mode || 'original').toLowerCase();
@@ -201,9 +213,9 @@ function getDisplayPrices(
   item: Listing,
   nowMs: number
 ): { displayPrice: number | undefined; originalPrice: number | undefined } {
-  const offerPrice = parsePrice(item.offerPrice);
-  const price = parsePrice(item.price);
-  const postDealDiscountPrice = parsePrice(
+  const offerPrice = parsePositiveNumber(item.offerPrice);
+  const price = parsePositiveNumber(item.price);
+  const postDealDiscountPrice = parsePositiveNumber(
     item.postDealDiscountPrice ?? item.post_deal_discount_price
   );
   if (!price) return { displayPrice: offerPrice, originalPrice: undefined };
@@ -233,7 +245,7 @@ function mapListing(item: Listing, nowMs: number): ProductCardData {
     images,
     price: displayPrice,
     originalPrice,
-    distance: formatDistance(item.distanceKm ?? item.distance_km),
+    distance: formatDistanceKm(item.distanceKm ?? item.distance_km),
     badge: isDealActive(item, nowMs) ? 'Deal' : undefined,
     dealEndsAt: getDealEndMs(item, nowMs),
     dealStatus: formatDealStatus(item, nowMs),
@@ -263,6 +275,7 @@ function ProductCard({
   onToggleSaved,
   showCountdown = false,
   combo = false,
+  mobileVariant = 'default',
   nowMs,
 }: {
   product: ProductCardData;
@@ -270,9 +283,10 @@ function ProductCard({
   onToggleSaved: (id: string) => void;
   showCountdown?: boolean;
   combo?: boolean;
+  mobileVariant?: 'default' | 'overlay' | 'deal';
   nowMs: number;
 }): ReactElement {
-  const sale = discount(product);
+  const sale = discountPercentage(product.price, product.originalPrice);
   const comboImages = combo
     ? [
         product.images[0] || product.image,
@@ -283,16 +297,32 @@ function ProductCard({
     combo && product.comboItems && product.comboItems.length >= 2
       ? `${product.comboItems[0]} + ${product.comboItems[1]}`
       : product.title;
+  const mobileCardWidth =
+    mobileVariant === 'default'
+      ? ''
+      : 'w-[calc((100vw-2rem-0.5rem)/2)] shrink-0 sm:w-[176px] md:w-auto md:shrink';
+  const mobileShell =
+    mobileVariant === 'overlay'
+      ? 'max-md:relative max-md:rounded-xl max-md:border-slate-300 max-md:bg-slate-950'
+      : mobileVariant === 'deal'
+        ? 'max-md:rounded-xl max-md:border-slate-300'
+        : '';
+  const imageShape =
+    mobileVariant === 'overlay'
+      ? 'max-md:aspect-[1.12] max-md:overflow-hidden max-md:rounded-xl'
+      : mobileVariant === 'deal'
+        ? 'max-md:aspect-[0.92]'
+        : '';
 
   return (
     <article
-      className={`group overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+      className={`group overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${mobileCardWidth} ${mobileShell} ${
         combo ? 'h-full' : ''
       }`}
     >
       <Link to={`/listing/${encodeURIComponent(product.id)}`} className="block">
         <div
-          className={`relative bg-slate-100 ${
+          className={`relative bg-slate-100 ${imageShape} ${
             combo ? 'aspect-[1.72]' : 'aspect-[1.02] sm:aspect-[1.14]'
           }`}
         >
@@ -324,7 +354,11 @@ function ProductCard({
             />
           )}
           {sale ? (
-            <span className="absolute left-1.5 top-1.5 rounded-md bg-red-600 px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm sm:left-2 sm:top-2 sm:px-2 sm:py-1 sm:text-xs">
+            <span
+              className={`absolute left-1.5 top-1.5 rounded-md bg-red-600 px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm sm:left-2 sm:top-2 sm:px-2 sm:py-1 sm:text-xs ${
+                mobileVariant !== 'default' ? 'max-md:hidden' : ''
+              }`}
+            >
               {sale}
             </span>
           ) : null}
@@ -335,6 +369,11 @@ function ProductCard({
               {product.badge}
             </span>
           ) : null}
+          {product.badge && showCountdown ? (
+            <span className="absolute left-2 top-2 rounded-full bg-slate-900/85 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm md:hidden">
+              {product.badge}
+            </span>
+          ) : null}
           {combo ? (
             <span className="absolute left-1/2 top-1/2 grid h-9 w-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[3px] border-white bg-red-600 text-xl font-medium text-white shadow-lg">
               +
@@ -342,18 +381,28 @@ function ProductCard({
           ) : null}
         </div>
       </Link>
-      <div className="p-2 sm:p-3">
+      <div
+        className={`p-2 sm:p-3 ${
+          mobileVariant === 'overlay'
+            ? 'max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:z-10 max-md:bg-gradient-to-t max-md:from-black/90 max-md:via-black/60 max-md:to-transparent max-md:pt-9'
+            : ''
+        } ${mobileVariant === 'deal' ? 'max-md:p-2' : ''}`}
+      >
         <div className="flex min-h-8 items-start justify-between gap-1.5 sm:min-h-10 sm:gap-2">
           <Link
             to={`/listing/${encodeURIComponent(product.id)}`}
-            className="line-clamp-2 text-xs font-normal leading-snug text-slate-950 hover:text-[#0858d8] sm:text-sm"
+            className={`line-clamp-2 text-xs font-normal leading-snug text-slate-950 hover:text-[#0858d8] sm:text-sm ${
+              mobileVariant === 'overlay' ? 'max-md:text-white max-md:hover:text-white' : ''
+            } ${mobileVariant === 'deal' ? 'max-md:text-[13px] max-md:font-bold' : ''}`}
           >
             {comboTitle}
           </Link>
           <button
             type="button"
             onClick={() => onToggleSaved(product.id)}
-            className="shrink-0 rounded-full p-0.5 text-slate-500 transition hover:bg-slate-100 hover:text-red-600 sm:p-1"
+            className={`shrink-0 rounded-full p-0.5 text-slate-500 transition hover:bg-slate-100 hover:text-red-600 sm:p-1 ${
+              mobileVariant === 'overlay' ? 'max-md:text-white max-md:hover:bg-white/10' : ''
+            }`}
             aria-label={saved ? 'Remove from favourites' : 'Save listing'}
           >
             <Heart
@@ -366,41 +415,61 @@ function ProductCard({
           <p className="mt-1 line-clamp-1 text-xs font-normal text-slate-500">{product.title}</p>
         ) : null}
         <div className="mt-1.5 flex flex-wrap items-baseline gap-1.5 sm:mt-2 sm:gap-2">
-          <span className="text-sm font-medium text-[#0759e6] sm:text-base">
-            {formatPrice(product.price)}
+          <span
+            className={`text-sm font-medium text-[#0759e6] sm:text-base ${
+              mobileVariant === 'overlay' ? 'max-md:text-white' : ''
+            } ${mobileVariant === 'deal' ? 'max-md:text-[13px] max-md:font-black max-md:text-slate-950' : ''}`}
+          >
+            {formatPriceInr(product.price)}
           </span>
           {product.originalPrice ? (
-            <span className="text-[10px] font-normal text-slate-400 line-through sm:text-xs">
-              {formatPrice(product.originalPrice)}
+            <span
+              className={`text-[10px] font-normal text-slate-400 line-through sm:text-xs ${
+                mobileVariant === 'overlay' ? 'max-md:text-white/60' : ''
+              }`}
+            >
+              {formatPriceInr(product.originalPrice)}
             </span>
           ) : null}
         </div>
-        <div className="mt-1.5 flex items-center gap-1 text-[10px] font-normal text-slate-600 sm:mt-2 sm:text-xs">
+        <div
+          className={`mt-1.5 flex items-center gap-1 text-[10px] font-normal text-slate-600 sm:mt-2 sm:text-xs ${
+            mobileVariant === 'overlay' ? 'max-md:text-white' : ''
+          } ${mobileVariant === 'deal' ? 'max-md:mt-1 max-md:text-[11px]' : ''}`}
+        >
           <MapPin size={12} className="h-[11px] w-[11px] sm:h-3 sm:w-3" />
           <span className="truncate">{product.distance}</span>
         </div>
         {showCountdown && product.dealStatus ? (
           product.dealStatus.startsWith('Ends in') ? (
-            <div className="mt-3 text-center">
-              <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#0759e6]">
-                DEAL ENDS IN
-              </p>
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                {countdownParts(product.dealEndsAt, nowMs).map((part) => (
-                  <div
-                    key={part.label}
-                    className="grid h-[36px] min-w-[36px] w-[36px] place-items-center rounded-lg bg-white text-center text-[#dc1633] shadow-sm ring-1 ring-[#f8d9dd]"
-                  >
-                    <span className="block text-[10px] font-medium leading-none">{part.value}</span>
-                    <span className="mt-0.5 block text-[7px] font-normal leading-none text-slate-500">
-                      {part.label}
-                    </span>
-                  </div>
-                ))}
+            <div className="mt-2 text-center sm:mt-3">
+              <div className="flex items-center gap-1.5 border-t border-slate-100 pt-2 text-[12px] font-black text-red-500 md:hidden">
+                <History size={14} className="shrink-0" />
+                <span className="truncate">{formatCountdown(product.dealEndsAt, nowMs)}</span>
+              </div>
+              <div className="max-md:hidden">
+                <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#0759e6]">
+                  DEAL ENDS IN
+                </p>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  {countdownPartsFromMs(product.dealEndsAt, nowMs).map((part) => (
+                    <div
+                      key={part.label}
+                      className="grid h-[36px] min-w-[36px] w-[36px] place-items-center rounded-lg bg-white text-center text-[#dc1633] shadow-sm ring-1 ring-[#f8d9dd]"
+                    >
+                      <span className="block text-[10px] font-medium leading-none">
+                        {part.value}
+                      </span>
+                      <span className="mt-0.5 block text-[7px] font-normal leading-none text-slate-500">
+                        {part.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
               <Link
                 to={`/order-summary/${encodeURIComponent(product.id)}`}
-                className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-md bg-[#0759e6] px-3 text-xs font-medium text-white transition hover:bg-[#0448bd]"
+                className="mt-2 inline-flex h-8 w-full items-center justify-center rounded-md bg-[#0759e6] px-3 text-xs font-medium text-white transition hover:bg-[#0448bd] sm:mt-3 sm:h-9"
               >
                 Book Deal
               </Link>
@@ -418,7 +487,6 @@ function ProductCard({
     </article>
   );
 }
-
 function ComboDealCard({
   product,
   nowMs,
@@ -426,7 +494,7 @@ function ComboDealCard({
   product: ProductCardData;
   nowMs: number;
 }): ReactElement {
-  const sale = discount(product);
+  const sale = discountPercentage(product.price, product.originalPrice);
   const comboImages = [
     product.images[0] || product.image || FALLBACK_IMAGE,
     product.images[1] || product.images[0] || product.image || FALLBACK_IMAGE,
@@ -481,11 +549,11 @@ function ComboDealCard({
 
         <div className="mt-2 flex flex-wrap items-baseline gap-2">
           <span className="text-xl font-medium leading-none text-[#0759e6]">
-            {formatPrice(product.price)}
+            {formatPriceInr(product.price)}
           </span>
           {product.originalPrice ? (
             <span className="text-xs font-normal text-slate-400 line-through">
-              {formatPrice(product.originalPrice)}
+              {formatPriceInr(product.originalPrice)}
             </span>
           ) : null}
         </div>
@@ -494,7 +562,7 @@ function ComboDealCard({
           <p className="text-xs font-normal text-[#0759e6]">Deal status</p>
           {product.dealStatus?.startsWith('Ends in') ? (
             <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
-              {countdownParts(product.dealEndsAt, nowMs).map((part) => (
+              {countdownPartsFromMs(product.dealEndsAt, nowMs).map((part) => (
                 <div
                   key={part.label}
                   className="grid h-[32px] min-w-[32px] w-[32px] place-items-center rounded-lg bg-white text-center text-[#dc1633] shadow-sm ring-1 ring-[#f8d9dd]"
@@ -558,8 +626,21 @@ function SectionHeader({
 export default function UserHomePage(): ReactElement {
   const [activeBanner, setActiveBanner] = useState(0);
   const [activeCategory, setActiveCategory] = useState('All');
-  const [savedIds, setSavedIds] = useState<Set<string>>(() => readSavedIds());
+  const [savedIds, setSavedIds] = useState<Set<string>>(() =>
+    readStoredStringSet(SAVED_LISTING_IDS_KEY)
+  );
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const user = readStoredWebUser();
+  const userId = String(user?.id || '').trim();
+  const userPhone = String(user?.phone || '').trim();
+  const notificationHeaders = useMemo(
+    () => ({
+      'Content-Type': 'application/json',
+      'x-user-id': userId,
+      ...(userPhone ? { 'x-user-phone': userPhone } : {}),
+    }),
+    [userId, userPhone]
+  );
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -573,32 +654,76 @@ export default function UserHomePage(): ReactElement {
     return () => window.clearInterval(timer);
   }, []);
 
+  const storedGeoCoords = useMemo(() => readStoredWebGeoCoords(), []);
+
   const listingsQuery = useQuery({
-    queryKey: ['nearhub-home-feed'],
+    queryKey: ['nearhub-home-feed', storedGeoCoords?.latitude, storedGeoCoords?.longitude],
     queryFn: async () => {
-      const [listingsResponse, dealsResponse] = await Promise.all([
-        fetch(`${getApiUrl()}/api/listings?limit=80&homeFeedVersion=marketplace-v1`),
-        fetch(
-          `${getApiUrl()}/api/listings?limit=80&dealsOnly=1&includeExpiredDeals=1&homeFeedVersion=marketplace-v1`
-        ),
-      ]);
-      if (!listingsResponse.ok || !dealsResponse.ok) throw new Error('Failed to load listings');
-      const listingsPayload = (await listingsResponse.json()) as ListingsResponse;
-      const dealsPayload = (await dealsResponse.json()) as ListingsResponse;
-      const items = [
-        ...(listingsPayload.data || listingsPayload.results || []),
-        ...(dealsPayload.data || dealsPayload.results || []),
-      ];
-      return Array.from(new Map(items.map((item) => [item.id, item])).values());
+      const params = new URLSearchParams({
+        limit: '100',
+      });
+
+      if (storedGeoCoords) {
+        params.set('latitude', String(storedGeoCoords.latitude));
+        params.set('longitude', String(storedGeoCoords.longitude));
+        params.set('radius', '50');
+      }
+
+      const response = await fetch(`${getApiUrl()}/api/listings?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to load listings');
+      }
+
+      const payload = (await response.json()) as ListingsResponse;
+      return (payload.data || payload.results || [])
+        .map((item) => ({
+          ...item,
+          isDeal: Boolean(item.isDeal ?? item.is_deal),
+          isActive: item.isActive ?? item.is_active ?? true,
+          status: String(item.status || 'active').toLowerCase(),
+          dealType: String(item.dealType || item.deal_type || '').toLowerCase(),
+          dealStatus: String(item.dealStatus || item.deal_status || '').toLowerCase(),
+        }))
+        .filter((item) => Boolean(item.isActive) && item.status === 'active');
     },
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
+
+  const notificationsQuery = useQuery({
+    queryKey: ['header-push-notifications', userId],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const response = await fetch(
+        `${getApiUrl()}/api/notifications?userId=${encodeURIComponent(userId)}&limit=50`,
+        { headers: notificationHeaders }
+      );
+      const payload = (await response.json()) as NotificationsResponse;
+      if (!response.ok || payload.success === false) {
+        throw new Error('Failed to load notifications');
+      }
+      return payload.data || [];
+    },
+    refetchInterval: 30_000,
+  });
+
+  const unreadNotificationCount = useMemo(
+    () =>
+      (notificationsQuery.data || []).filter(
+        (item) => !item.isRead && item.category !== 'message' && item.category !== 'deal_purchase'
+      ).length,
+    [notificationsQuery.data]
+  );
 
   const liveListings = listingsQuery.data ?? EMPTY_LISTINGS;
   const regularListings = useMemo(
-    () => liveListings.filter((item) => !isDeal(item) || !isDealExpired(item, nowMs)),
+    () => liveListings.filter((item) => !isDeal(item) || isDealCompleted(item, nowMs)),
     [liveListings, nowMs]
   );
-  const dealListings = useMemo(() => liveListings.filter(isDeal), [liveListings]);
+  const dealListings = useMemo(
+    () => liveListings.filter((item) => isDealAvailableForDealSections(item, nowMs)),
+    [liveListings, nowMs]
+  );
 
   const upcomingDealListings = useMemo(
     () => dealListings.filter((item) => isDealUpcoming(item, nowMs)),
@@ -611,8 +736,8 @@ export default function UserHomePage(): ReactElement {
   );
 
   const expiredDealListings = useMemo(
-    () => dealListings.filter((item) => isDealExpired(item, nowMs)),
-    [dealListings, nowMs]
+    () => liveListings.filter((item) => isDeal(item) && isDealExpired(item, nowMs)),
+    [liveListings, nowMs]
   );
 
   const trending = useMemo(() => {
@@ -684,7 +809,7 @@ export default function UserHomePage(): ReactElement {
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSavedIds(next);
-    localStorage.setItem(SAVED_IDS_KEY, JSON.stringify([...next]));
+    writeStoredStringSet(SAVED_LISTING_IDS_KEY, next);
   };
 
   return (
@@ -692,46 +817,37 @@ export default function UserHomePage(): ReactElement {
       <LandingHeader active="home" />
       <main>
         <section className="w-full px-2 pt-[5.25rem] sm:hidden">
-          <form
-            action="/search"
-            className="rounded-md border border-slate-200 bg-white p-3 shadow-[0_6px_22px_rgba(15,23,42,0.12)]"
-          >
-            <label className="flex h-9 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-400 shadow-sm">
-              <MapPin size={14} className="shrink-0 text-slate-400" />
+          <form action="/search" className="flex items-center gap-3">
+            <label className="flex h-14 min-w-0 flex-1 items-center gap-3 rounded-full border border-slate-200 bg-white px-4 text-base font-semibold text-slate-500 shadow-sm">
+              <Search size={22} className="shrink-0 text-slate-500" />
               <input
-                name="location"
+                name="q"
                 type="search"
-                placeholder="Location (city, area)"
-                className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus:outline-none"
+                placeholder="Search listings near you"
+                className="min-w-0 flex-1 bg-transparent text-base font-semibold text-slate-800 placeholder:text-slate-500 focus:outline-none"
               />
-            </label>
-            <div className="mt-3 flex items-center gap-2">
-              <label className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-400 shadow-sm">
-                <Search size={14} className="shrink-0 text-slate-400" />
-                <input
-                  name="q"
-                  type="search"
-                  placeholder="Search listings nearby"
-                  className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus:outline-none"
-                />
-              </label>
               <button
-                type="button"
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-[#0759e6] shadow-sm"
-                aria-label="Use current location"
+                type="submit"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-[#0759e6]"
+                aria-label="Search"
               >
-                <LocateFixed size={16} />
+                <ChevronRight size={25} />
               </button>
-            </div>
-            <button
-              type="submit"
-              className="mt-3 flex h-10 w-full items-center justify-center rounded-full bg-[#0759e6] px-4 text-xs font-bold text-white shadow-sm"
+            </label>
+            <Link
+              to="/notifications"
+              className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full text-[#0759e6] transition hover:bg-blue-50"
+              aria-label="Notifications"
             >
-              Search Near Me
-            </button>
+              <Bell size={30} />
+              {unreadNotificationCount > 0 ? (
+                <span className="absolute right-1 top-1 grid h-5 min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-black leading-none text-white">
+                  {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                </span>
+              ) : null}
+            </Link>
           </form>
         </section>
-
         <section className="w-full px-2 pt-3 sm:px-4 sm:pt-[5.25rem]">
           <div className="relative aspect-[3/1] w-full overflow-hidden rounded-md bg-[#020b3b] shadow-sm">
             <img
@@ -754,7 +870,7 @@ export default function UserHomePage(): ReactElement {
           </div>
         </section>
 
-        <Container className="pb-8 font-inter font-normal pt-8">
+        <Container className="pb-8 pt-3 font-inter font-normal sm:pt-5">
           {listingsQuery.isLoading ? (
             <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-normal text-slate-600">
               Loading listings...
@@ -767,20 +883,21 @@ export default function UserHomePage(): ReactElement {
             </div>
           ) : null}
 
-          <section className="mt-8">
+          <section className="mt-3 sm:mt-5">
             <SectionHeader
               icon={<Flame className="fill-red-500 font-poppins text-red-500" size={22} />}
               title="Trending Near You"
               to="/search"
             />
             {trending.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
+              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
                 {trending.map((product) => (
                   <ProductCard
                     key={product.id}
                     product={product}
                     saved={savedIds.has(product.id)}
                     onToggleSaved={toggleSaved}
+                    mobileVariant="overlay"
                     nowMs={nowMs}
                   />
                 ))}
@@ -797,7 +914,7 @@ export default function UserHomePage(): ReactElement {
               to="/deals"
             />
             {todaysDeals.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
+              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
                 {todaysDeals.map((product) => (
                   <ProductCard
                     key={`deal-${product.id}`}
@@ -805,6 +922,7 @@ export default function UserHomePage(): ReactElement {
                     saved={savedIds.has(product.id)}
                     onToggleSaved={toggleSaved}
                     showCountdown
+                    mobileVariant="deal"
                     nowMs={nowMs}
                   />
                 ))}

@@ -4,6 +4,13 @@ import { Heart, MapPin } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { readStoredWebUser } from '@/lib/web-auth-storage';
+import {
+  SAVED_LISTING_IDS_KEY,
+  formatPriceInr,
+  readStoredStringSet,
+  writeStoredStringSet,
+} from '@/features/landing/lib/landing-utils';
 
 type StoredUser = { id?: string; phone?: string };
 type SavedListing = {
@@ -21,48 +28,14 @@ type SavedListing = {
 
 type ListingsResponse = { success?: boolean; data?: SavedListing[]; results?: SavedListing[] };
 
-const SAVED_IDS_KEY = 'nearhub_web_saved_listing_ids';
 const FALLBACK_IMAGE = '/nearhub.png';
 
-function readStoredUser(): StoredUser | null {
-  try {
-    const raw = localStorage.getItem('nearhub_web_user');
-    if (!raw) return null;
-    return JSON.parse(raw) as StoredUser;
-  } catch {
-    return null;
-  }
-}
-
-function readSavedIds(): string[] {
-  try {
-    const raw = localStorage.getItem(SAVED_IDS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeSavedIds(ids: string[]) {
-  localStorage.setItem(SAVED_IDS_KEY, JSON.stringify(ids));
-}
-
-function formatPrice(value: string | number | undefined): string {
-  const n = typeof value === 'string' ? Number(value) : value;
-  if (!Number.isFinite(n)) return 'Price on request';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(n as number);
-}
-
 export default function SavedPage(): ReactElement {
-  const storedUser = readStoredUser();
+  const storedUser = readStoredWebUser() as StoredUser | null;
   const userId = String(storedUser?.id || '').trim();
-  const [savedIds, setSavedIds] = useState<string[]>(() => readSavedIds());
+  const [savedIds, setSavedIds] = useState<Set<string>>(() =>
+    readStoredStringSet(SAVED_LISTING_IDS_KEY)
+  );
 
   const listingsQuery = useQuery({
     queryKey: ['saved-listings-source'],
@@ -80,13 +53,14 @@ export default function SavedPage(): ReactElement {
 
   const savedListings = useMemo(() => {
     const map = new Map((listingsQuery.data || []).map((item) => [item.id, item]));
-    return savedIds.map((id) => map.get(id)).filter(Boolean) as SavedListing[];
+    return [...savedIds].map((id) => map.get(id)).filter(Boolean) as SavedListing[];
   }, [listingsQuery.data, savedIds]);
 
   const removeSaved = (id: string) => {
-    const next = savedIds.filter((item) => item !== id);
+    const next = new Set(savedIds);
+    next.delete(id);
     setSavedIds(next);
-    writeSavedIds(next);
+    writeStoredStringSet(SAVED_LISTING_IDS_KEY, next);
   };
 
   if (!userId) return <Navigate to="/auth/register" replace />;
@@ -145,7 +119,7 @@ export default function SavedPage(): ReactElement {
                     <MapPin size={12} /> {item.location || 'Nearby'}
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-2">
-                    <p className="text-sm font-bold text-[#0f4b8a]">{formatPrice(item.price)}</p>
+                    <p className="text-sm font-bold text-[#0f4b8a]">{formatPriceInr(item.price)}</p>
                     <div className="flex shrink-0 items-center gap-2">
                       <Link
                         to={`/listing/${item.id}`}
