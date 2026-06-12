@@ -27,6 +27,7 @@ import { users } from '../../users/models/users';
 import { resolveUserDisplayName } from '../../users/services/user-profiles';
 import { eq, inArray, or } from 'drizzle-orm';
 import { parseJsonArrayField } from '../../../shared/utils/json-fields';
+import { calculateDistance } from '../../search/services/distance';
 
 function normalizeOwnerId(value: unknown): string {
   if (typeof value !== 'string') return '';
@@ -369,6 +370,39 @@ function toPublicListing(
   };
 }
 
+function attachDistanceKm<T extends { latitude?: unknown; longitude?: unknown }>(
+  listing: T,
+  latitude: number | undefined,
+  longitude: number | undefined
+): T & { distanceKm?: number } {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return listing;
+  }
+
+  const requestLatitude = Number(latitude);
+  const requestLongitude = Number(longitude);
+  if (!Number.isFinite(requestLatitude) || !Number.isFinite(requestLongitude)) {
+    return listing;
+  }
+
+  const listingLatitude = Number(listing.latitude);
+  const listingLongitude = Number(listing.longitude);
+  if (!Number.isFinite(listingLatitude) || !Number.isFinite(listingLongitude)) {
+    return listing;
+  }
+
+  const distanceKm = calculateDistance(
+    listingLatitude,
+    listingLongitude,
+    requestLatitude,
+    requestLongitude
+  );
+  return {
+    ...listing,
+    distanceKm: Number(distanceKm.toFixed(2)),
+  };
+}
+
 async function resolveTrustedRequestUserId(req: Request): Promise<string> {
   return getRequestUserId(req);
 }
@@ -455,9 +489,13 @@ export function registerListingRoutes(app: Express) {
         priceFilteredListings.map((l) => String(l.id || ''))
       );
 
+      const listingsWithDistance = priceFilteredListings.map((listing) =>
+        attachDistanceKm(listing, latitude, longitude)
+      );
+
       const response = {
         success: true,
-        data: priceFilteredListings.map((l) =>
+        data: listingsWithDistance.map((l) =>
           toPublicListing(req, l, sellerMetaMap, {
             includeSellerIdentity,
             chatCountMap,
