@@ -61,7 +61,12 @@ function MobileBottomNav() {
   const pathname = location.pathname;
   const items = [
     { label: 'Home', to: '/', icon: Home, active: pathname === '/' },
-    { label: 'Post', to: '/create-listing', icon: PlusCircle, active: pathname === '/create-listing' },
+    {
+      label: 'Post',
+      to: '/create-listing',
+      icon: PlusCircle,
+      active: pathname === '/create-listing',
+    },
     { label: 'Deals For You', to: '/deals', icon: CirclePercent, active: pathname === '/deals' },
     { label: 'Profile', to: '/profile', icon: UserRound, active: pathname === '/profile' },
   ];
@@ -107,7 +112,11 @@ function RouteTransitionShell({ children }: { children: React.ReactNode }) {
   }, [location.pathname, location.search]);
 
   return (
-    <div className={(isTransitioning ? 'route-transitioning' : 'route-transitioned') + ' pb-[72px] md:pb-0'}>
+    <div
+      className={
+        (isTransitioning ? 'route-transitioning' : 'route-transitioned') + ' pb-[72px] md:pb-0'
+      }
+    >
       {isTransitioning ? <div className="route-loading-bar" /> : null}
       {children}
     </div>
@@ -212,4 +221,3 @@ function App() {
 }
 
 export default App;
-

@@ -522,7 +522,8 @@ export default function CreateListingPage(): ReactElement {
     .filter((item) => item.isValid)
     .sort((a, b) => {
       if (a.isUnlimited !== b.isUnlimited) return a.isUnlimited ? -1 : 1;
-      if (a.listingsRemaining !== b.listingsRemaining) return b.listingsRemaining - a.listingsRemaining;
+      if (a.listingsRemaining !== b.listingsRemaining)
+        return b.listingsRemaining - a.listingsRemaining;
       return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
     });
   const selectableSubscriptionOptions = activeSubscriptionOptions.filter(
@@ -572,9 +573,7 @@ export default function CreateListingPage(): ReactElement {
     /^\d{6}$/.test(pincode.trim()),
     visibleImages.length > 0,
     mode === 'deal' ? Boolean(stock.trim()) : true,
-    mode === 'deal'
-      ? Boolean(dealStartDate && dealStartTime && dealEndDate && dealEndTime)
-      : true,
+    mode === 'deal' ? Boolean(dealStartDate && dealStartTime && dealEndDate && dealEndTime) : true,
   ].filter(Boolean).length;
   const subscriptionStatusLabel = isLoadingSubscriptionStatus
     ? 'Checking status...'
@@ -1171,29 +1170,29 @@ export default function CreateListingPage(): ReactElement {
           return false;
         }
       }
-    if (!stock.trim() || Number(stock) <= 0) {
-      setMessage('Please enter stock available.');
-      return false;
-    }
-    if (!dealStartDate || !dealStartTime) {
-      setMessage('Please choose deal start date and time.');
-      return false;
-    }
-    const startAt = new Date(`${dealStartDate}T${dealStartTime}`);
-    const nowMs = new Date().getTime();
-    if (startAt.getTime() <= nowMs) {
-      setMessage('Deal start time must be in the future.');
-      return false;
-    }
-    if (!dealEndDate || !dealEndTime) {
-      setMessage('Please choose deal end date and time.');
-      return false;
-    }
-    const endAt = new Date(`${dealEndDate}T${dealEndTime}`);
-    if (endAt.getTime() <= nowMs) {
-      setMessage('Deal end time must be in the future.');
-      return false;
-    }
+      if (!stock.trim() || Number(stock) <= 0) {
+        setMessage('Please enter stock available.');
+        return false;
+      }
+      if (!dealStartDate || !dealStartTime) {
+        setMessage('Please choose deal start date and time.');
+        return false;
+      }
+      const startAt = new Date(`${dealStartDate}T${dealStartTime}`);
+      const nowMs = new Date().getTime();
+      if (startAt.getTime() <= nowMs) {
+        setMessage('Deal start time must be in the future.');
+        return false;
+      }
+      if (!dealEndDate || !dealEndTime) {
+        setMessage('Please choose deal end date and time.');
+        return false;
+      }
+      const endAt = new Date(`${dealEndDate}T${dealEndTime}`);
+      if (endAt.getTime() <= nowMs) {
+        setMessage('Deal end time must be in the future.');
+        return false;
+      }
       if (endAt.getTime() <= startAt.getTime()) {
         setMessage('Deal end time must be after the start time.');
         return false;
@@ -2137,7 +2136,7 @@ export default function CreateListingPage(): ReactElement {
                   />
                 </div>
                 <p className="mb-2 mt-4 text-xs font-normal text-slate-500">Unit:</p>
-              <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2">
                   {priceUnits.map((unit) => (
                     <button
                       key={unit}
@@ -2569,8 +2568,9 @@ export default function CreateListingPage(): ReactElement {
                         ['Title', title || 'Selected listing'],
                         [
                           'Category',
-                          [effectiveMainCategory, effectiveSubCategory].filter(Boolean).join(' / ') ||
-                            'Not set',
+                          [effectiveMainCategory, effectiveSubCategory]
+                            .filter(Boolean)
+                            .join(' / ') || 'Not set',
                         ],
                         ['Brand', brand || 'Not set'],
                         ['Condition', condition || 'Not set'],

@@ -233,7 +233,9 @@ function ListingGallery({
         </div>
       ) : null}
 
-      {shareStatus ? <p className="mt-3 text-center text-xs text-slate-600">{shareStatus}</p> : null}
+      {shareStatus ? (
+        <p className="mt-3 text-center text-xs text-slate-600">{shareStatus}</p>
+      ) : null}
     </section>
   );
 }

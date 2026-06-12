@@ -58,17 +58,16 @@ export function parseAttributeMap(value: unknown): Record<string, ParsedAttribut
   if (!value) return {};
 
   if (typeof value === 'object' && !Array.isArray(value)) {
-    return Object.entries(value as Record<string, unknown>).reduce<Record<string, ParsedAttributeValue>>(
-      (acc, [key, raw]) => {
-        if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
-          acc[key] = raw;
-        } else if (raw != null) {
-          acc[key] = String(raw);
-        }
-        return acc;
-      },
-      {}
-    );
+    return Object.entries(value as Record<string, unknown>).reduce<
+      Record<string, ParsedAttributeValue>
+    >((acc, [key, raw]) => {
+      if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
+        acc[key] = raw;
+      } else if (raw != null) {
+        acc[key] = String(raw);
+      }
+      return acc;
+    }, {});
   }
 
   if (typeof value !== 'string') return {};

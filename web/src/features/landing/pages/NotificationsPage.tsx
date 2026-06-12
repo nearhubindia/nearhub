@@ -149,7 +149,9 @@ export default function NotificationsPage(): ReactElement {
                     <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#0759e6]" />
                   ) : null}
                 </div>
-                {notification.actionUrl ? <ChevronRight size={19} className="text-slate-400" /> : null}
+                {notification.actionUrl ? (
+                  <ChevronRight size={19} className="text-slate-400" />
+                ) : null}
               </>
             );
 

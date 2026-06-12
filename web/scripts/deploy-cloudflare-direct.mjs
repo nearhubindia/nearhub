@@ -122,7 +122,11 @@ function walk(dir, base = dir, out = []) {
 
 function hashAsset(buffer, relativePath) {
   const extension = path.extname(relativePath).slice(1);
-  return crypto.createHash('sha256').update(buffer.toString('base64') + extension).digest('hex').slice(0, 32);
+  return crypto
+    .createHash('sha256')
+    .update(buffer.toString('base64') + extension)
+    .digest('hex')
+    .slice(0, 32);
 }
 
 function getContentType(relativePath) {
@@ -201,7 +205,14 @@ function findWranglerCli() {
 
   const candidates = [];
   for (const entry of fs.readdirSync(npxRoot)) {
-    const candidate = path.join(npxRoot, entry, 'node_modules', 'wrangler', 'wrangler-dist', 'cli.js');
+    const candidate = path.join(
+      npxRoot,
+      entry,
+      'node_modules',
+      'wrangler',
+      'wrangler-dist',
+      'cli.js'
+    );
     if (fs.existsSync(candidate)) {
       candidates.push(candidate);
     }
@@ -357,8 +368,16 @@ async function createDeployment({
       new Blob([fs.readFileSync(functionsBundle.routingConfigPath)]),
       'functions-filepath-routing-config.json'
     );
-    form.append('_worker.bundle', new Blob([fs.readFileSync(functionsBundle.bundlePath)]), '_worker.bundle');
-    form.append('_routes.json', new Blob([fs.readFileSync(functionsBundle.routesPath)]), '_routes.json');
+    form.append(
+      '_worker.bundle',
+      new Blob([fs.readFileSync(functionsBundle.bundlePath)]),
+      '_worker.bundle'
+    );
+    form.append(
+      '_routes.json',
+      new Blob([fs.readFileSync(functionsBundle.routesPath)]),
+      '_routes.json'
+    );
   }
 
   const response = await fetch(

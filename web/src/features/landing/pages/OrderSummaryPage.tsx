@@ -242,7 +242,8 @@ export default function OrderSummaryPage(): ReactElement {
                   <div className="flex items-center justify-between text-emerald-700">
                     <span>Deal discount</span>
                     <span>
-                      -{formatPriceInr(Number(listing.price || 0) - Number(listing.offerPrice || 0))}
+                      -
+                      {formatPriceInr(Number(listing.price || 0) - Number(listing.offerPrice || 0))}
                     </span>
                   </div>
                 ) : null}
