@@ -3,6 +3,8 @@ import {
   getAnalytics,
   isSupported as isAnalyticsSupported,
   logEvent,
+  setUserId,
+  setUserProperties,
   type Analytics,
 } from 'firebase/analytics';
 import {
@@ -17,6 +19,8 @@ type WebAnalyticsUser = {
   id: string;
   plan?: string;
   city?: string;
+  name?: string;
+  phone?: string;
 };
 
 type EventParams = Record<string, string | number | boolean | null | undefined>;
@@ -133,7 +137,24 @@ export async function trackWebPageView(pathname: string, search: string): Promis
 }
 
 export async function setWebAnalyticsUser(user: WebAnalyticsUser | null): Promise<void> {
-  if (!user) return;
+  const analytics = await getAnalyticsInstance();
+
+  if (!user) {
+    if (analytics) {
+      await setUserId(analytics, null);
+      await setUserProperties(analytics, {});
+    }
+    return;
+  }
+
+  if (analytics) {
+    await setUserId(analytics, user.id);
+    await setUserProperties(analytics, {
+      plan: user.plan || 'free',
+      city: user.city || 'unknown',
+    });
+  }
+
   await trackWebEvent('login_state', {
     user_id: user.id,
     plan: user.plan || 'free',

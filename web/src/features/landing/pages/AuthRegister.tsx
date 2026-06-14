@@ -2,6 +2,7 @@ import { useState, type ReactElement } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { getApiUrl } from '@/lib/config';
+import { trackWebEvent } from '@/lib/firebase';
 
 function isValidPhone(phone: string): boolean {
   return /^[6-9]\d{9}$/.test(phone.replace(/\D/g, ''));
@@ -24,6 +25,7 @@ export default function AuthRegister(): ReactElement {
     setIsSending(true);
     setMessage('');
     try {
+      void trackWebEvent('begin_sign_up', { method: 'otp' });
       const response = await fetch(`${getApiUrl()}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

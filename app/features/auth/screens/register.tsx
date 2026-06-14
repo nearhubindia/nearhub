@@ -20,6 +20,7 @@ import { Logo } from '@/shared/components/Logo';
 import { parseJsonSafely } from '@/lib/http-response';
 import { getApiUrl } from '@/lib/query-client';
 import { createResponsiveStyles } from '@/lib/responsive';
+import { trackAnalyticsEvent } from '@/lib/firebase-analytics';
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
@@ -40,6 +41,7 @@ export default function RegisterScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      void trackAnalyticsEvent('begin_sign_up', { method: 'otp' });
       const baseUrl = getApiUrl();
       const phoneToSend = phone.replace(/\s/g, '');
       const url = new URL('/api/auth/send-otp', baseUrl);

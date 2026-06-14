@@ -3,7 +3,11 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { CirclePercent, Home, MessageCircle, Plus, UserRound } from 'lucide-react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { queryClient, enableQueryPersistence } from '@/lib/query-client';
-import { readStoredWebUser } from '@/lib/web-auth-storage';
+import {
+  readStoredWebUser,
+  WEB_AUTH_CHANGED_EVENT,
+  type StoredWebUser,
+} from '@/lib/web-auth-storage';
 import {
   initializeWebAnalytics,
   registerWebPushToken,
@@ -177,6 +181,7 @@ function RouteTransitionShell({ children }: { children: React.ReactNode }) {
 
 function WebTelemetry() {
   const location = useLocation();
+  const [storedUser, setStoredUser] = useState<StoredWebUser | null>(() => readStoredWebUser());
 
   useEffect(() => {
     void initializeWebAnalytics();
@@ -187,20 +192,39 @@ function WebTelemetry() {
   }, [location.pathname, location.search]);
 
   useEffect(() => {
-    const user = readStoredWebUser();
-    if (!user?.id) return;
+    const syncStoredUser = () => {
+      setStoredUser(readStoredWebUser());
+    };
+
+    syncStoredUser();
+    window.addEventListener(WEB_AUTH_CHANGED_EVENT, syncStoredUser);
+    window.addEventListener('storage', syncStoredUser);
+
+    return () => {
+      window.removeEventListener(WEB_AUTH_CHANGED_EVENT, syncStoredUser);
+      window.removeEventListener('storage', syncStoredUser);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!storedUser?.id) {
+      void setWebAnalyticsUser(null);
+      return;
+    }
 
     void setWebAnalyticsUser({
-      id: user.id,
-      city: user.address,
+      id: storedUser.id,
+      city: storedUser.address,
+      name: storedUser.name,
+      phone: storedUser.phone,
     });
     void registerWebPushToken({
-      id: user.id,
-      phone: user.phone,
-      name: user.name,
-      notificationsEnabled: user.preferences?.notifications !== false,
+      id: storedUser.id,
+      phone: storedUser.phone,
+      name: storedUser.name,
+      notificationsEnabled: storedUser.preferences?.notifications !== false,
     });
-  }, [location.pathname]);
+  }, [storedUser]);
 
   return null;
 }
