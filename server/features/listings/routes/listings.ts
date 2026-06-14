@@ -376,6 +376,66 @@ function toPublicListing(
   };
 }
 
+function toMutationListingResponse(listing: any) {
+  if (!listing || typeof listing !== 'object') {
+    return listing;
+  }
+
+  const sellerId = String(listing.sellerId || listing.seller_id || '').trim();
+  const mainCategory = listing.mainCategory ?? listing.main_category ?? null;
+  const subCategory =
+    listing.subCategory ?? listing.sub_category ?? listing.category ?? null;
+  const category = listing.category ?? subCategory ?? null;
+
+  return {
+    ...listing,
+    sellerId,
+    userId: sellerId,
+    mainCategory,
+    subCategory,
+    category,
+    listingType: listing.listingType ?? listing.listing_type ?? null,
+    offerPrice: listing.offerPrice ?? listing.offer_price ?? null,
+    priceUnit: listing.priceUnit ?? listing.price_unit ?? null,
+    contactPhone: listing.contactPhone ?? listing.contact_phone ?? null,
+    isActive: listing.isActive ?? listing.is_active ?? false,
+    isPaid: listing.isPaid ?? listing.is_paid ?? false,
+    durationDays: listing.durationDays ?? listing.duration_days ?? null,
+    subscriptionTierId:
+      listing.subscriptionTierId ?? listing.subscription_tier_id ?? null,
+    userSubscriptionId:
+      listing.userSubscriptionId ?? listing.user_subscription_id ?? null,
+    couponId: listing.couponId ?? listing.coupon_id ?? null,
+    boostedUntil: listing.boostedUntil ?? listing.boosted_until ?? null,
+    boostCount: listing.boostCount ?? listing.boost_count ?? 0,
+    isDeal: listing.isDeal ?? listing.is_deal ?? false,
+    dealType: listing.dealType ?? listing.deal_type ?? null,
+    dealStartAt: listing.dealStartAt ?? listing.deal_start_at ?? null,
+    dealEndAt: listing.dealEndAt ?? listing.deal_end_at ?? null,
+    dealRecurrence: listing.dealRecurrence ?? listing.deal_recurrence ?? 'none',
+    dealRecurrenceUntil:
+      listing.dealRecurrenceUntil ?? listing.deal_recurrence_until ?? null,
+    dealCycleQuantity:
+      listing.dealCycleQuantity ?? listing.deal_cycle_quantity ?? null,
+    dealLastCycleKey: listing.dealLastCycleKey ?? listing.deal_last_cycle_key ?? null,
+    maxDealBookings: listing.maxDealBookings ?? listing.max_deal_bookings ?? null,
+    dealBookingsUsed: listing.dealBookingsUsed ?? listing.deal_bookings_used ?? 0,
+    purchaseLimitType:
+      listing.purchaseLimitType ?? listing.purchase_limit_type ?? null,
+    comboItems: parseJsonArrayField(listing.comboItems ?? listing.combo_items),
+    dealTerms: listing.dealTerms ?? listing.deal_terms ?? null,
+    voucherEnabled: listing.voucherEnabled ?? listing.voucher_enabled ?? true,
+    visibilityMode: listing.visibilityMode ?? listing.visibility_mode ?? 'local',
+    visibilityRadiusKm:
+      listing.visibilityRadiusKm ?? listing.visibility_radius_km ?? null,
+    images: parseJsonArrayField(listing.images),
+    videos: parseJsonArrayField(listing.videos),
+    createdAt: listing.createdAt ?? listing.created_at ?? null,
+    updatedAt: listing.updatedAt ?? listing.updated_at ?? null,
+    expiresAt: listing.expiresAt ?? listing.expires_at ?? null,
+  };
+}
+
 function attachDistanceKm<T extends { latitude?: unknown; longitude?: unknown }>(
   listing: T,
   latitude: number | undefined,
@@ -1063,7 +1123,7 @@ export function registerListingRoutes(app: Express) {
 
       return res.json({
         success: true,
-        listing: updated,
+        listing: toMutationListingResponse(updated),
         message: 'Listing updated successfully',
       });
     } catch (error) {

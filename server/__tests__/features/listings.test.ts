@@ -139,6 +139,25 @@ describe('Listings API - Strict Tests', () => {
     expect(res.body?.code).toBe('INVALID_IMAGE_URI');
   });
 
+  it('PATCH /api/listings/:id returns normalized media arrays', async () => {
+    const app = createTestApp();
+    const ownerId = randomUUID();
+    await seedUser(ownerId);
+    const listing = await seedListing(ownerId);
+
+    const res = await request(app)
+      .patch(`/api/listings/${listing.id}`)
+      .set('x-user-id', ownerId)
+      .send({ title: 'Updated title' });
+
+    expect(res.status).toBe(200);
+    expect(res.body?.success).toBe(true);
+    expect(res.body?.listing?.sellerId).toBe(ownerId);
+    expect(res.body?.listing?.userId).toBe(ownerId);
+    expect(Array.isArray(res.body?.listing?.images)).toBe(true);
+    expect(Array.isArray(res.body?.listing?.videos)).toBe(true);
+  });
+
   it('DELETE /api/listings/:id enforces ownership and returns 404 for missing listing', async () => {
     const app = createTestApp();
     const ownerId = randomUUID();
