@@ -1,6 +1,16 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAnalytics, isSupported as isAnalyticsSupported, logEvent, type Analytics } from 'firebase/analytics';
-import { getMessaging, getToken, isSupported as isMessagingSupported, type Messaging } from 'firebase/messaging';
+import {
+  getAnalytics,
+  isSupported as isAnalyticsSupported,
+  logEvent,
+  type Analytics,
+} from 'firebase/analytics';
+import {
+  getMessaging,
+  getToken,
+  isSupported as isMessagingSupported,
+  type Messaging,
+} from 'firebase/messaging';
 import { getApiUrl } from './config';
 
 type WebAnalyticsUser = {
@@ -42,15 +52,13 @@ const firebaseConfig = {
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'nearhub-b8dd7',
   storageBucket:
     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'nearhub-b8dd7.firebasestorage.app',
-  messagingSenderId:
-    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '822544369307',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '822544369307',
   appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:822544369307:web:e7ac97ee3f89c9a334283e',
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-3RDDBXSGB0',
 };
 
 const webPushVapidKey =
-  import.meta.env.VITE_FIREBASE_WEB_PUSH_VAPID_KEY ||
-  'xaZd4Q14dPjngmVvD_b0Axthy4y5AvOswSRSRUbMEds';
+  import.meta.env.VITE_FIREBASE_WEB_PUSH_VAPID_KEY || 'xaZd4Q14dPjngmVvD_b0Axthy4y5AvOswSRSRUbMEds';
 
 let appInstance: FirebaseApp | null = null;
 let analyticsPromise: Promise<Analytics | null> | null = null;
@@ -74,7 +82,10 @@ function sanitizeEventParams(params?: EventParams): Record<string, string | numb
   return Object.fromEntries(
     Object.entries(params)
       .filter(([, value]) => value !== undefined && value !== null && value !== '')
-      .map(([key, value]) => [key, typeof value === 'boolean' ? String(value) : (value as string | number)])
+      .map(([key, value]) => [
+        key,
+        typeof value === 'boolean' ? String(value) : (value as string | number),
+      ])
   );
 }
 

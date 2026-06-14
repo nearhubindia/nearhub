@@ -386,7 +386,7 @@ export default function ListingDetailsPage(): ReactElement {
       title: listing.title,
       category: listing.category,
       price: parsePositiveNumber(listing.offerPrice) || parsePositiveNumber(listing.price) || 0,
-      listingType: listing.isDeal ?? listing.is_deal ? 'deal' : 'listing',
+      listingType: (listing.isDeal ?? listing.is_deal) ? 'deal' : 'listing',
       location: String(listing.location || listing.address || ''),
     });
   }, [listing]);
