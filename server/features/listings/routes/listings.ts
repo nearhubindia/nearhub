@@ -962,6 +962,14 @@ export function registerListingRoutes(app: Express) {
         delete sanitizedUpdates.mainCategory;
       }
       delete sanitizedUpdates.subcategory;
+      delete sanitizedUpdates.emiAvailable;
+      delete sanitizedUpdates.emi_available;
+      delete sanitizedUpdates.emiPlans;
+      delete sanitizedUpdates.emi_plans;
+      delete sanitizedUpdates.warrantyText;
+      delete sanitizedUpdates.warranty_text;
+      delete sanitizedUpdates.dealExtraFeatures;
+      delete sanitizedUpdates.deal_extra_features;
 
       // If a seller edits an already approved listing, route it back to admin review.
       // Status-only actions (e.g. mark sold) should not trigger re-approval.

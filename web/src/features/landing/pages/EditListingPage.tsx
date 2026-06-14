@@ -380,9 +380,6 @@ export default function EditListingPage(): ReactElement {
           isDeal && postDealPriceMode === 'discount' && postDealDiscountPrice
             ? Number(postDealDiscountPrice)
             : undefined,
-        emiAvailable,
-        warrantyText: warrantyText.trim() || undefined,
-        dealExtraFeatures: parseTextList(extraFeaturesText),
       };
 
       const response = await fetch(`${getApiUrl()}/api/listings/${encodeURIComponent(id)}`, {
