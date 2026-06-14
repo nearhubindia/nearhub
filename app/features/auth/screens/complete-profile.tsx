@@ -24,6 +24,7 @@ import { createResponsiveStyles } from '@/lib/responsive';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 import { isValidEmailAddress } from '@/lib/email-utils';
 import { sanitizeAlphabeticName } from '@/lib/name-utils';
+import { trackSignUp } from '@/lib/firebase-analytics';
 
 export default function CompleteProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -113,6 +114,7 @@ export default function CompleteProfileScreen() {
       const data = await res.json();
       if (data.success && data.user) {
         await login(data.user);
+        void trackSignUp('profile_complete');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.dismissTo('/(tabs)');
       } else {

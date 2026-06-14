@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { trackWebCreateListing } from '@/lib/firebase';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { createListing } from '../api/listings';
 import { getListingImages } from '@/features/landing/lib/listing-images';
@@ -1359,6 +1360,13 @@ export default function CreateListingPage(): ReactElement {
         }
         await refreshListingFeeds();
         await refreshListingFeeds();
+        void trackWebCreateListing({
+          listingId: sourceListingId,
+          category: effectiveSubCategory.trim(),
+          listingType: dealType,
+          price: Number(offerPrice || price || 0),
+          mode: 'deal',
+        });
         navigate(`/listing/${encodeURIComponent(sourceListingId)}`);
         return;
       }
@@ -1417,6 +1425,13 @@ export default function CreateListingPage(): ReactElement {
       );
 
       const createdId = String(payload.listing?.id || '').trim();
+      void trackWebCreateListing({
+        listingId: createdId || undefined,
+        category: effectiveSubCategory.trim(),
+        listingType: isDeal ? dealType : 'listing',
+        price: Number(offerPrice || price || 0),
+        mode,
+      });
       navigate(createdId ? `/listing/${createdId}` : '/my-listings');
     } catch (error) {
       setMessage(

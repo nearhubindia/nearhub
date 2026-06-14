@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { trackWebGenerateLead, trackWebViewItem } from '@/lib/firebase';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
 import { formatDealStatus } from '@/lib/deal-timer';
@@ -378,6 +379,18 @@ export default function ListingDetailsPage(): ReactElement {
   });
 
   const listing = listingQuery.data;
+  useEffect(() => {
+    if (!listing?.id) return;
+    void trackWebViewItem({
+      id: listing.id,
+      title: listing.title,
+      category: listing.category,
+      price: parsePositiveNumber(listing.offerPrice) || parsePositiveNumber(listing.price) || 0,
+      listingType: Boolean(listing.isDeal ?? listing.is_deal) ? 'deal' : 'listing',
+      location: String(listing.location || listing.address || ''),
+    });
+  }, [listing]);
+
   const isDeal = Boolean(listing?.isDeal ?? listing?.is_deal);
   const isPublishedListing =
     Boolean(listing?.isActive ?? listing?.is_active) &&
@@ -555,6 +568,12 @@ export default function ListingDetailsPage(): ReactElement {
       setBookingMessage('This deal listing is not published yet.');
       return;
     }
+    void trackWebGenerateLead({
+      listingId: id,
+      listingTitle: listing?.title,
+      method: 'deal_booking',
+      category: listing?.category,
+    });
     navigate(`/order-summary/${encodeURIComponent(id)}`);
   };
 
@@ -583,6 +602,12 @@ export default function ListingDetailsPage(): ReactElement {
     }
 
     const conversationId = String(payload.data?.conversationId || '').trim();
+    void trackWebGenerateLead({
+      listingId: id,
+      listingTitle: listing?.title,
+      method: 'chat',
+      category: listing?.category,
+    });
     await queryClient.invalidateQueries({
       queryKey: ['message-threads', userId],
     });
@@ -876,6 +901,15 @@ export default function ListingDetailsPage(): ReactElement {
                 {contactQuery.data ? (
                   <a
                     href={`tel:${contactQuery.data}`}
+                    onClick={() => {
+                      if (!listing?.id) return;
+                      void trackWebGenerateLead({
+                        listingId: listing.id,
+                        listingTitle: listing.title,
+                        method: 'call',
+                        category: listing.category,
+                      });
+                    }}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#1f63b2] px-4 text-sm text-white shadow-sm transition hover:bg-[#174f92]"
                   >
                     <Phone size={16} /> Call Seller

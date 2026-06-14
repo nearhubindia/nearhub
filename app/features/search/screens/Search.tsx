@@ -13,6 +13,7 @@ import { useListings } from '@/shared/contexts/listings-context';
 import { Category } from '@/lib/types';
 import { useListingTaxonomy } from '@/lib/use-listing-taxonomy';
 import { getCategoryDisplayMeta } from '@/lib/category-display';
+import { trackSearchEvent } from '@/lib/firebase-analytics';
 
 const TOP_CATEGORIES_DAILY_CACHE_KEY = '@nearhub_top_categories_daily_cache_v1';
 const TOP_CATEGORY_LIMIT = 16;
@@ -122,6 +123,11 @@ export default function SearchScreen() {
         categoryValue === 'All' ? undefined : categoryValue,
         undefined
       ).catch(console.error);
+      void trackSearchEvent({
+        searchTerm: normalizedQuery,
+        category: categoryValue === 'All' ? undefined : String(categoryValue),
+        location: pincodeValue || undefined,
+      });
 
       router.push({
         pathname: '/search-results',
@@ -157,6 +163,11 @@ export default function SearchScreen() {
         nextCategory === 'All' ? undefined : nextCategory,
         undefined
       ).catch(console.error);
+      void trackSearchEvent({
+        searchTerm: searchQuery.trim() || String(nextCategory),
+        category: nextCategory === 'All' ? undefined : String(nextCategory),
+        location: pincodeValue || undefined,
+      });
 
       router.push({
         pathname: '/search-results',

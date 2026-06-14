@@ -1,6 +1,6 @@
 import '@/lib/button-style-normalizer';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import React, { useEffect, useCallback } from 'react';
 import Constants from 'expo-constants';
 import { InteractionManager, LogBox, Platform, Pressable, Text, View } from 'react-native';
@@ -19,7 +19,7 @@ import {
 } from '@expo-google-fonts/inter';
 import { ErrorBoundary } from '@/shared/components/ErrorBoundary';
 import { getApiUrl, queryClient } from '@/lib/query-client';
-import { AuthProvider } from '@/shared/contexts/auth-context';
+import { AuthProvider, useAuth } from '@/shared/contexts/auth-context';
 import { ListingsProvider } from '@/shared/contexts/listings-context';
 import { MessagesProvider } from '@/shared/contexts/messages-context';
 import { SearchHistoryProvider } from '@/shared/contexts/search-history-context';
@@ -28,6 +28,11 @@ import { NotificationsProvider } from '@/shared/contexts/notifications-context';
 import { NotificationCenter } from '@/shared/components/NotificationCenter';
 import { maybeHandleDeferredListingDeepLink } from '@/lib/deferred-listing-deeplink';
 import { getAppDownloadUrl } from '@/lib/config';
+import {
+  initializeFirebaseAnalytics,
+  setAnalyticsUser,
+  trackScreenView,
+} from '@/lib/firebase-analytics';
 
 // Keep the splash screen visible while we fetch resources
 void SplashScreen.preventAutoHideAsync();
@@ -373,6 +378,34 @@ function RootLayoutNav() {
   );
 }
 
+function AppTelemetry() {
+  const pathname = usePathname();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    void initializeFirebaseAnalytics();
+  }, []);
+
+  useEffect(() => {
+    void setAnalyticsUser(
+      user
+        ? {
+            id: user.id,
+            plan: user.plan,
+            city: user.location?.city,
+          }
+        : null
+    );
+  }, [user]);
+
+  useEffect(() => {
+    if (!pathname) return;
+    void trackScreenView(pathname);
+  }, [pathname]);
+
+  return null;
+}
+
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -509,6 +542,7 @@ export default function RootLayout() {
                       <ListingsProvider>
                         <MessagesProvider>
                           <NotificationsProvider>
+                            <AppTelemetry />
                             <NotificationCenter />
                             <RootLayoutNav />
                           </NotificationsProvider>

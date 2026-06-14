@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, MapPin, Package, ShieldCheck, Ticket } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { trackWebPurchase } from '@/lib/firebase';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { parseMediaList } from '@/features/landing/lib/listing-parsers';
 import { formatPriceInr } from '@/features/landing/lib/landing-utils';
@@ -155,6 +156,14 @@ export default function OrderSummaryPage(): ReactElement {
         return;
       }
       setMessage('Deal purchased successfully. Your voucher is ready.');
+      void trackWebPurchase({
+        purchaseType: 'deal',
+        transactionId: String(payload.booking?.id || payload.paymentId || id),
+        value: Number(listing.offerPrice || listing.price || 0),
+        itemId: id,
+        itemName: listing.title,
+        category: listing.category,
+      });
       setVoucherLinks({
         viewUrl: toApiAbsoluteUrl(String(payload.voucherViewUrl || '')),
         downloadUrl: toApiAbsoluteUrl(String(payload.voucherDownloadUrl || '')),

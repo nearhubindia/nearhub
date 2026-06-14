@@ -21,6 +21,7 @@ import { useAuth } from '@/shared/contexts/auth-context';
 import { parseJsonSafely } from '@/lib/http-response';
 import { getApiUrl } from '@/lib/query-client';
 import { createResponsiveStyles } from '@/lib/responsive';
+import { trackLogin, trackSignUp } from '@/lib/firebase-analytics';
 
 const OTP_LENGTH = 6;
 type VerifyOtpResponse = {
@@ -118,6 +119,10 @@ export default function VerifyOTPScreen() {
       if (data.success && data.user) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await login({ ...data.user, token: data.token });
+        void trackLogin('otp');
+        if (data.isNewUser || data.requiresProfileCompletion) {
+          void trackSignUp('otp');
+        }
         if (data.isNewUser || data.requiresProfileCompletion) {
           router.replace({
             pathname: '/auth/complete-profile',

@@ -54,7 +54,9 @@
       "expo-splash-screen",
       "expo-web-browser",
       "./plugins/withCleartextTraffic",
-      "./plugins/withFullScreenSplash"
+      "./plugins/withFullScreenSplash",
+      "@react-native-firebase/app",
+      "@react-native-firebase/analytics"
     ],
     "experiments": {
       "typedRoutes": false,

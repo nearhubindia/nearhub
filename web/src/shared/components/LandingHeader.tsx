@@ -25,6 +25,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { getApiUrl } from '@/lib/config';
+import { trackWebSearch } from '@/lib/firebase';
 import {
   clearStoredWebAuth,
   getMeaningfulWebUserName,
@@ -316,6 +317,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
       params.set('radius', '50');
     }
     persistHeaderState({ query, location, geo: geoCoords });
+    void trackWebSearch({
+      searchTerm: query.trim(),
+      location: location.trim(),
+    });
     navigate(`/search${params.toString() ? `?${params.toString()}` : ''}`);
   };
 

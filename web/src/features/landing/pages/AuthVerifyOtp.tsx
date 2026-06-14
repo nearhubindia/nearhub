@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { Input } from '@/components/ui/input';
 import { getApiUrl } from '@/lib/config';
+import { trackWebLogin, trackWebSignUp } from '@/lib/firebase';
 import { getMeaningfulWebUserName, writeStoredWebAuth } from '@/lib/web-auth-storage';
 
 export default function AuthVerifyOtp(): ReactElement {
@@ -47,6 +48,8 @@ export default function AuthVerifyOtp(): ReactElement {
           address?: string;
           gstin?: string;
         };
+        isNewUser?: boolean;
+        requiresProfileCompletion?: boolean;
       };
       if (!data.success) {
         setMessage(data.message || 'OTP verification failed');
@@ -69,6 +72,10 @@ export default function AuthVerifyOtp(): ReactElement {
         },
         token
       );
+      void trackWebLogin('otp');
+      if (data.isNewUser || data.requiresProfileCompletion) {
+        void trackWebSignUp('otp');
+      }
       navigate(redirectPath.startsWith('/') ? redirectPath : '/browse');
     } catch {
       setMessage('OTP verification failed. Please try again.');

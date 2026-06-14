@@ -31,6 +31,7 @@ import RichTextPreview from '@/shared/components/RichTextPreview';
 import { createResponsiveStyles } from '@/lib/responsive';
 import { bookDeal } from '@/lib/deal-bookings';
 import { countdownPartsFromMs, formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
+import { trackGenerateLead, trackPurchaseEvent, trackViewItem } from '@/lib/firebase-analytics';
 
 const { width } = Dimensions.get('window');
 
@@ -312,6 +313,18 @@ export default function ListingDetailScreen() {
   }, [listing?.id]);
 
   useEffect(() => {
+    if (!listing?.id) return;
+    void trackViewItem({
+      id: listing.id,
+      title: listing.title,
+      category: listing.category,
+      price: Number(listing.offerPrice || listing.price || 0),
+      listingType: listing.isDeal ? 'deal' : 'listing',
+      location: listing.location?.city || '',
+    });
+  }, [listing]);
+
+  useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -515,6 +528,12 @@ export default function ListingDetailScreen() {
         return;
       }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      void trackGenerateLead({
+        listingId: listing.id,
+        listingTitle: listing.title,
+        method: 'chat',
+        category: listing.category,
+      });
       router.push({
         pathname: '/chat/[listingId]',
         params: {
@@ -559,6 +578,12 @@ export default function ListingDetailScreen() {
             throw new Error('Seller phone number is not available.');
           }
           setResolvedContactPhone(fetchedPhone);
+          void trackGenerateLead({
+            listingId: listing.id,
+            listingTitle: listing.title,
+            method: 'call',
+            category: listing.category,
+          });
           phone = fetchedPhone;
         } catch (error: any) {
           Alert.alert('Contact Seller', error?.message || 'Seller phone number is not available.');
@@ -607,6 +632,19 @@ export default function ListingDetailScreen() {
         setIsBookingDeal(true);
         try {
           await bookDeal(listing.id, user?.id || '', user?.phone || undefined);
+          void trackGenerateLead({
+            listingId: listing.id,
+            listingTitle: listing.title,
+            method: 'deal_booking',
+            category: listing.category,
+          });
+          void trackPurchaseEvent({
+            purchaseType: 'deal',
+            itemId: listing.id,
+            itemName: listing.title,
+            category: listing.category,
+            value: Number(listing.offerPrice || listing.price || 0),
+          });
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           Alert.alert('Deal booked', 'Your booking is confirmed.', [
             { text: 'Close', style: 'cancel' },

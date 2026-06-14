@@ -9,6 +9,7 @@ import {
   ExpoPushTicket,
   ExpoPushErrorReceipt,
 } from "expo-server-sdk";
+import { getFirebaseAdminMessaging } from "./firebase-admin";
 import { db } from "../../data/db";
 import {
   pushTokens,
@@ -22,6 +23,11 @@ import { listings } from "../../features/admin/models/admin-settings";
 const expo = new Expo({
   accessToken: process.env.EXPO_ACCESS_TOKEN,
 });
+
+type PushTokenRecord = {
+  token: string;
+  platform: string;
+};
 
 export interface SendPushNotificationOptions {
   title: string;
@@ -66,12 +72,13 @@ export async function sendPushToUser(
       return { success: false, error: "No active push tokens" };
     }
 
-    const messages = createPushMessages(
-      tokens.map((t: any) => t.token),
+    const result = await sendPushTokens(
+      tokens.map((t: any) => ({
+        token: String(t.token || ""),
+        platform: String(t.platform || ""),
+      })),
       options,
     );
-
-    const result = await sendPushMessages(messages);
 
     // Log notification
     await logNotification({
@@ -123,12 +130,13 @@ export async function sendPushToUsers(
       };
     }
 
-    const messages = createPushMessages(
-      tokens.map((t: any) => t.token),
+    const result = await sendPushTokens(
+      tokens.map((t: any) => ({
+        token: String(t.token || ""),
+        platform: String(t.platform || ""),
+      })),
       options,
     );
-
-    const result = await sendPushMessages(messages);
 
     // Log notification for each user
     await Promise.all(
@@ -190,12 +198,13 @@ export async function broadcastPushNotification(
       `[Push] Broadcasting to ${tokens.length} devices (${options.userType || "all"} users)`,
     );
 
-    const messages = createPushMessages(
-      tokens.map((t: any) => t.token),
+    const result = await sendPushTokens(
+      tokens.map((t: any) => ({
+        token: String(t.token || ""),
+        platform: String(t.platform || ""),
+      })),
       options,
     );
-
-    const result = await sendPushMessages(messages);
 
     // Log broadcast notification
     await logNotification({
@@ -336,9 +345,8 @@ export async function registerPushToken(
   deviceId?: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Validate token
-    if (!Expo.isExpoPushToken(token)) {
-      return { success: false, error: "Invalid Expo push token" };
+    if (!isSupportedPushToken(token, platform)) {
+      return { success: false, error: "Invalid push token" };
     }
 
     // Check if token already exists
@@ -457,6 +465,55 @@ function createPushMessages(
   }));
 }
 
+function isSupportedPushToken(token: string, platform: string): boolean {
+  const rawToken = String(token || "");
+  const webToken = String(token || "").trim();
+  const normalizedPlatform = String(platform || "").trim().toLowerCase();
+
+  if (Expo.isExpoPushToken(rawToken)) {
+    return true;
+  }
+
+  if (normalizedPlatform === "web") {
+    return webToken.length >= 32 && !/\s/.test(webToken);
+  }
+
+  return false;
+}
+
+async function sendPushTokens(
+  tokens: PushTokenRecord[],
+  options: SendPushNotificationOptions,
+): Promise<{ success: boolean; sentCount: number; errors: string[] }> {
+  const expoTokens = tokens
+    .map((item) => item.token)
+    .filter((token) => Expo.isExpoPushToken(token));
+  const webTokens = tokens
+    .filter((item) => item.platform === "web" && !Expo.isExpoPushToken(item.token))
+    .map((item) => item.token);
+
+  const errors: string[] = [];
+  let sentCount = 0;
+
+  if (expoTokens.length > 0) {
+    const expoResult = await sendPushMessages(createPushMessages(expoTokens, options));
+    sentCount += expoResult.sentCount;
+    errors.push(...expoResult.errors);
+  }
+
+  if (webTokens.length > 0) {
+    const webResult = await sendWebPushMessages(webTokens, options);
+    sentCount += webResult.sentCount;
+    errors.push(...webResult.errors);
+  }
+
+  return {
+    success: sentCount > 0,
+    sentCount,
+    errors,
+  };
+}
+
 /**
  * Helper: Send push messages via Expo
  */
@@ -505,6 +562,67 @@ async function sendPushMessages(
     sentCount,
     errors,
   };
+}
+
+async function sendWebPushMessages(
+  tokens: string[],
+  options: SendPushNotificationOptions,
+): Promise<{ success: boolean; sentCount: number; errors: string[] }> {
+  const messaging = getFirebaseAdminMessaging();
+  if (!messaging) {
+    return {
+      success: false,
+      sentCount: 0,
+      errors: ["Firebase Admin messaging is not configured"],
+    };
+  }
+
+  const link = String(
+    options.dealUrl || options.data?.url || options.data?.dealUrl || "",
+  ).trim() || "https://nearhub.in/";
+  const data = Object.fromEntries(
+    Object.entries(options.data || {}).map(([key, value]) => [key, String(value)]),
+  );
+
+  try {
+    const response = await messaging.sendEachForMulticast({
+      tokens,
+      notification: {
+        title: options.title,
+        body: options.body,
+      },
+      data: {
+        ...data,
+        ...(options.listingId ? { listingId: String(options.listingId) } : {}),
+        ...(link ? { url: link, dealUrl: link } : {}),
+      },
+      webpush: {
+        fcmOptions: {
+          link,
+        },
+        notification: {
+          icon: "https://nearhub.in/nearhub.png",
+          badge: "https://nearhub.in/nearhub.png",
+        },
+      },
+    });
+
+    const errors = response.responses
+      .filter((item) => !item.success)
+      .map((item) => item.error?.message || "Web push send failed");
+
+    return {
+      success: response.successCount > 0,
+      sentCount: response.successCount,
+      errors,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      sentCount: 0,
+      errors: [error instanceof Error ? error.message : "Web push send failed"],
+    };
+  }
 }
 
 /**

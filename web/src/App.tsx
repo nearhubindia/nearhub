@@ -3,6 +3,13 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { CirclePercent, Home, MessageCircle, Plus, UserRound } from 'lucide-react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { queryClient, enableQueryPersistence } from '@/lib/query-client';
+import { readStoredWebUser } from '@/lib/web-auth-storage';
+import {
+  initializeWebAnalytics,
+  registerWebPushToken,
+  setWebAnalyticsUser,
+  trackWebPageView,
+} from '@/lib/firebase';
 import './index.css';
 import { ProtectedRoute } from './shared/components/ProtectedRoute';
 import { SeoManager } from './shared/components/SeoManager';
@@ -168,6 +175,36 @@ function RouteTransitionShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function WebTelemetry() {
+  const location = useLocation();
+
+  useEffect(() => {
+    void initializeWebAnalytics();
+  }, []);
+
+  useEffect(() => {
+    void trackWebPageView(location.pathname, location.search);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    const user = readStoredWebUser();
+    if (!user?.id) return;
+
+    void setWebAnalyticsUser({
+      id: user.id,
+      city: user.address,
+    });
+    void registerWebPushToken({
+      id: user.id,
+      phone: user.phone,
+      name: user.name,
+      notificationsEnabled: user.preferences?.notifications !== false,
+    });
+  }, [location.pathname]);
+
+  return null;
+}
+
 function App() {
   // enable simple localStorage persistence for react-query cache
   enableQueryPersistence();
@@ -183,6 +220,7 @@ function App() {
       <BrowserRouter>
         {showInitialSplash ? <SplashScreen /> : null}
         <SeoManager />
+        <WebTelemetry />
         <ScrollToTop />
         <Suspense fallback={<SplashScreen />}>
           <RouteTransitionShell>

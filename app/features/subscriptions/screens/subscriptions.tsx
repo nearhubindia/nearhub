@@ -23,6 +23,7 @@ import { useAuth } from '@/shared/contexts/auth-context';
 import { getApiUrl } from '@/lib/query-client';
 import { extractInvoiceFromResponse, storeInvoice } from '@/lib/invoice-storage';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
+import { trackAnalyticsEvent, trackPurchaseEvent } from '@/lib/firebase-analytics';
 
 interface SubscriptionTier {
   id: string;
@@ -596,9 +597,25 @@ export default function SubscriptionsScreen(): React.JSX.Element {
         return;
       }
 
+      void trackAnalyticsEvent('begin_checkout', {
+        currency: 'INR',
+        value: price,
+        item_id: selectedTierId,
+        item_name: selectedTier.name,
+        item_category: 'subscription',
+      });
+
       // If 100% discount — subscription is free
       if (checkoutData.isFree) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        void trackPurchaseEvent({
+          purchaseType: 'subscription',
+          transactionId: subscriptionId,
+          value: price,
+          itemId: selectedTierId,
+          itemName: selectedTier.name,
+          category: 'subscription',
+        });
         await refreshAfterPurchase(subscriptionId);
         Alert.alert('Success!', checkoutData.message || 'Subscription activated for free!', [
           { text: 'OK' },
@@ -698,6 +715,14 @@ export default function SubscriptionsScreen(): React.JSX.Element {
 
       if (verifyData.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        void trackPurchaseEvent({
+          purchaseType: 'subscription',
+          transactionId: paymentResult.razorpay_payment_id || paymentResult.razorpay_order_id,
+          value: checkoutData.discount?.finalAmount ?? price,
+          itemId: selectedTierId,
+          itemName: selectedTier.name,
+          category: 'subscription',
+        });
 
         if (verifyData.invoice) {
           try {

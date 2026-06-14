@@ -54,6 +54,7 @@ import * as ImageStorage from '@/lib/image-storage';
 import * as ImageHasher from '@/lib/image-hasher';
 import RichTextEditor from '@/shared/components/RichTextEditor';
 import { createResponsiveStyles } from '@/lib/responsive';
+import { trackCreateListingEvent } from '@/lib/firebase-analytics';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 
 interface LocationSuggestion {
@@ -2036,6 +2037,12 @@ export default function CreateScreen() {
       setVideoUri(null);
       setVideoThumbnail(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void trackCreateListingEvent({
+        category,
+        listingType,
+        price: Number(offerPrice || price || 0),
+        mode: 'listing',
+      });
       router.push({ pathname: '/my-listings', params: { posted: '1' } });
     } catch (e) {
       const error = e as any;

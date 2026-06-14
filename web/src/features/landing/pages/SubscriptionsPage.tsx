@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { trackWebEvent, trackWebPurchase } from '@/lib/firebase';
 import { readStoredWebUser, type StoredWebUser } from '@/lib/web-auth-storage';
 
 type StoredUser = StoredWebUser;
@@ -494,8 +495,24 @@ export default function SubscriptionsPage(): ReactElement {
         throw new Error(checkout.error || 'Checkout failed');
       }
 
+      void trackWebEvent('begin_checkout', {
+        currency: 'INR',
+        value: getPlanPrice(tier),
+        item_id: tier.id,
+        item_name: tier.name,
+        item_category: 'subscription',
+      });
+
       if (checkout.isFree) {
         setCheckoutMessage(checkout.message || 'Plan activated successfully.');
+        void trackWebPurchase({
+          purchaseType: 'subscription',
+          transactionId: created.id,
+          value: getPlanPrice(tier),
+          itemId: tier.id,
+          itemName: tier.name,
+          category: 'subscription',
+        });
         await subscriptionsQuery.refetch();
         return;
       }
@@ -555,6 +572,15 @@ export default function SubscriptionsPage(): ReactElement {
                 if (!verifyResponse.ok || !verified.success) {
                   throw new Error(verified.error || 'Payment verification failed');
                 }
+                void trackWebPurchase({
+                  purchaseType: 'subscription',
+                  transactionId:
+                    paymentResponse.razorpay_payment_id || paymentResponse.razorpay_order_id,
+                  value: Number(checkout.payment?.amountInRupees || 0),
+                  itemId: tier.id,
+                  itemName: tier.name,
+                  category: 'subscription',
+                });
                 setCheckoutMessage(
                   verified.message || 'Payment verified. Plan activated successfully.'
                 );
