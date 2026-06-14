@@ -11,8 +11,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "preview": "vite preview",
-    "deploy:cloudflare:prod": "npm run build && npx wrangler pages deploy dist --project-name=nearhub --branch=main",
-    "deploy:cloudflare:preview": "npm run build && npx wrangler pages deploy dist --project-name=nearhub --branch=master",
+    "deploy:cloudflare:prod": "node scripts/deploy-cloudflare.mjs prod",
+    "deploy:cloudflare:preview": "node scripts/deploy-cloudflare.mjs preview",
     "deploy:cloudflare:auto": "node scripts/deploy-cloudflare.mjs"
   },
   "dependencies": {

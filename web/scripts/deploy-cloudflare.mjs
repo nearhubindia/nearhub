@@ -7,11 +7,20 @@ function run(command, args) {
   const result = spawnSync(command, args, {
     stdio: 'inherit',
     shell: false,
+    env: process.env,
   });
 
   if (result.status !== 0) {
     process.exit(result.status || 1);
   }
+}
+
+function requireEnv(name) {
+  const value = String(process.env[name] || '').trim();
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
 }
 
 function loadEnvFile(filePath) {
@@ -90,7 +99,9 @@ const mode = resolveMode();
 const targetBranch = resolveTargetBranch(mode);
 hydrateDeployEnv();
 
-const projectName = process.env.CLOUDFLARE_PAGES_PROJECT || 'nearhub';
+const projectName = requireEnv('CLOUDFLARE_PAGES_PROJECT');
+requireEnv('CLOUDFLARE_ACCOUNT_ID');
+requireEnv('CLOUDFLARE_API_TOKEN');
 
 console.log(`[Cloudflare Deploy] Mode: ${mode}`);
 console.log(`[Cloudflare Deploy] Target Pages branch: ${targetBranch}`);

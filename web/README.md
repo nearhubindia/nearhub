@@ -14,7 +14,7 @@ Notes:
 
 - `nearhub.in` updates only when deploying with `--branch=main`.
 - Deploying without explicit branch may publish to preview (`master`) and not reflect on production.
-- The Cloudflare deploy script auto-loads `web/.env.deploy` first, then falls back to repo-local env files like `server/.env`, `server/.env.local`, `web/.env`, and `web/.env.local`.
+- The Cloudflare deploy script auto-loads `web/.env.deploy` first and now fails fast if `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, or `CLOUDFLARE_PAGES_PROJECT` are missing.
 - Copy [`web/.env.deploy.example`](/home/pavanprasad/Downloads/nearhub/web/.env.deploy.example) to [`web/.env.deploy`](/home/pavanprasad/Downloads/nearhub/web/.env.deploy) for Nearhub-specific Cloudflare Pages values.
 
 Currently, two official plugins are available:
