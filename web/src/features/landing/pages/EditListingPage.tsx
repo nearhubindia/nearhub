@@ -225,9 +225,7 @@ export default function EditListingPage(): ReactElement {
             .slice(0, 6)
         );
         const nextVisibilityMode =
-          String(listing.visibilityMode || 'local').toLowerCase() === 'online'
-            ? 'online'
-            : 'local';
+          String(listing.visibilityMode || 'local').toLowerCase() === 'online' ? 'online' : 'local';
         setVisibilityMode(nextVisibilityMode);
         setVisibilityRadiusKm(
           nextVisibilityMode === 'online' ? String(listing.visibilityRadiusKm || 50) : '50'
