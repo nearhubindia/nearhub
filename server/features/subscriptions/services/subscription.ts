@@ -36,6 +36,8 @@ export interface CreateListingRequest {
   pincode?: string;
   latitude?: number;
   longitude?: number;
+  visibilityMode?: 'local' | 'online';
+  visibilityRadiusKm?: number;
   isDeal?: boolean;
   dealType?: 'normal' | 'combo';
   dealStartAt?: string;

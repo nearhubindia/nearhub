@@ -2,6 +2,7 @@ type UserHeaderIdentity = {
   id?: string | null;
   phone?: string | null;
   name?: string | null;
+  token?: string | null;
 };
 
 type BuildUserAuthHeadersOptions = {
@@ -34,6 +35,11 @@ export function buildUserAuthHeaders(
 
   if (includeName && userName) {
     headers['x-user-name'] = userName;
+  }
+
+  const token = typeof user?.token === 'string' ? user.token.trim() : '';
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
   return headers;

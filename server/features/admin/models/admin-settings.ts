@@ -795,6 +795,8 @@ export const listings = pgTable('listings', {
   pincode: varchar('pincode', { length: 10 }),
   latitude: decimal('latitude', { precision: 10, scale: 8 }),
   longitude: decimal('longitude', { precision: 11, scale: 8 }),
+  visibilityMode: varchar('visibility_mode', { length: 20 }).notNull().default('local'),
+  visibilityRadiusKm: integer('visibility_radius_km'),
 
   // Media (unified: up to 5 images + up to 2 videos per listing)
   images: text('images'), // JSON array of image URLs (up to 5 images)

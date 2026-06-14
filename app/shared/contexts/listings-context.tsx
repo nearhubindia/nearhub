@@ -58,6 +58,24 @@ function parseOptionalCount(...candidates: unknown[]): number | undefined {
   return undefined;
 }
 
+type StoredAuthUser = {
+  id?: string;
+  phone?: string;
+  token?: string;
+};
+
+async function getStoredAuthUser(): Promise<StoredAuthUser | null> {
+  const raw = await AsyncStorage.getItem('@nearhub_auth_user');
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as StoredAuthUser;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function mergeListings(existing: Listing | undefined, incoming: Listing): Listing {
   if (!existing) return incoming;
 
@@ -359,6 +377,14 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
               latitude: listing.latitude ? parseFloat(listing.latitude) : 0,
               longitude: listing.longitude ? parseFloat(listing.longitude) : 0,
             },
+            visibilityMode:
+              listing.visibilityMode === 'online' || listing.visibilityMode === 'local'
+                ? listing.visibilityMode
+                : undefined,
+            visibilityRadiusKm:
+              listing.visibilityRadiusKm !== undefined && listing.visibilityRadiusKm !== null
+                ? Number(listing.visibilityRadiusKm)
+                : undefined,
             sellerName: resolveSellerName(listing),
             sellerVerified: Boolean((listing as any).sellerVerified),
             sellerPhone: listing.contactPhone || listing.sellerPhone || '',
@@ -591,6 +617,9 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       if (!ownerId) {
         throw new Error('Missing listing owner id');
       }
+      const storedAuthUser = await getStoredAuthUser();
+      const authToken = String(storedAuthUser?.token || '').trim();
+      const ownerPhone = String(storedAuthUser?.phone || listing.sellerPhone || '').trim();
       const requestBody = {
         userId: ownerId,
         sellerName: listing.sellerName,
@@ -605,6 +634,9 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         priceUnit: listing.priceUnit,
         condition: listing.condition,
         location: listing.location?.city || 'Unknown',
+        visibilityMode: listing.visibilityMode || 'local',
+        visibilityRadiusKm:
+          listing.visibilityMode === 'online' ? Number(listing.visibilityRadiusKm || 0) : undefined,
         images: listing.images || [],
         videos: listing.videos || [], // Include videos array (from video uploads)
         listingType: listing.videos && listing.videos.length > 0 ? 'video' : 'image',
@@ -638,7 +670,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
       const response = await fetch(`${backendURL}/api/subscriptions/create-listing`, {
         method: 'POST',
-        headers: buildUserAuthHeaders({ id: ownerId }),
+        headers: buildUserAuthHeaders({ id: ownerId, phone: ownerPhone, token: authToken }),
         body: JSON.stringify({
           ...requestBody,
           // Explicitly include latitude and longitude for geolocation

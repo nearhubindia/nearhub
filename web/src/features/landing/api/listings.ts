@@ -13,6 +13,8 @@ export type CreateListingRequest = {
   condition?: string;
   location: string;
   pincode?: string;
+  visibilityMode?: 'local' | 'online';
+  visibilityRadiusKm?: number;
   sellerName?: string;
   contactPhone?: string;
   images?: string[];

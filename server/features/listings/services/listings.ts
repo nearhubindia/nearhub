@@ -35,6 +35,22 @@ function coerceMediaToJson(value: unknown): string {
   return JSON.stringify(coerceMediaToArray(value));
 }
 
+function normalizeVisibilityMode(value: unknown): 'local' | 'online' {
+  return typeof value === 'string' && value.trim().toLowerCase() === 'online' ? 'online' : 'local';
+}
+
+function getEffectiveVisibilityRadiusKm(listing: {
+  visibilityMode?: unknown;
+  visibilityRadiusKm?: unknown;
+}): number {
+  if (normalizeVisibilityMode(listing.visibilityMode) !== 'online') {
+    return 0;
+  }
+
+  const radius = Number(listing.visibilityRadiusKm);
+  return Number.isFinite(radius) && radius > 0 ? radius : 0;
+}
+
 type DbResultWithRowCount = { rowCount?: number };
 
 function isDbError(error: unknown): error is { code?: string; message?: string } {
@@ -228,7 +244,8 @@ export async function getActiveListing(
       const lat1 = parseFloat(listing.latitude);
       const lon1 = parseFloat(listing.longitude);
       const distance = calculateDistance(lat1, lon1, latitude, longitude);
-      return distance <= radiusKm;
+      const effectiveRadiusKm = Math.max(radiusKm, getEffectiveVisibilityRadiusKm(listing));
+      return distance <= effectiveRadiusKm;
     });
 
     return filtered;

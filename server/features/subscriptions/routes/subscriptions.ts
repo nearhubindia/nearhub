@@ -755,6 +755,8 @@ export function registerSubscriptionRoutes(app: Express) {
           pincode,
           latitude,
           longitude,
+          visibilityMode,
+          visibilityRadiusKm,
           featured = false,
           isDeal = false,
           dealType,
@@ -836,6 +838,11 @@ export function registerSubscriptionRoutes(app: Express) {
         const normalizedDealCycleQuantity = Number(
           dealCycleQuantity || maxDealBookings || 0,
         );
+        const normalizedVisibilityMode =
+          typeof visibilityMode === "string" && visibilityMode.trim().toLowerCase() === "online"
+            ? "online"
+            : "local";
+        const normalizedVisibilityRadiusKm = Number(visibilityRadiusKm);
         const normalizedComboItems = Array.isArray(comboItems)
           ? comboItems
               .map((item) => String(item || "").trim())
@@ -885,6 +892,19 @@ export function registerSubscriptionRoutes(app: Express) {
               ? "Missing required fields: userId, title, price, category, condition, location"
               : "Missing required fields: userId, title, price, category, location",
           });
+        }
+
+        if (normalizedVisibilityMode === "online") {
+          if (
+            !Number.isFinite(normalizedVisibilityRadiusKm) ||
+            normalizedVisibilityRadiusKm < 1 ||
+            normalizedVisibilityRadiusKm > 500
+          ) {
+            return res.status(400).json({
+              error: "Please enter a valid visibility radius between 1 and 500 km.",
+              code: "INVALID_VISIBILITY_RADIUS",
+            });
+          }
         }
 
         const ownerRecord = await db.query.users.findFirst({
@@ -1163,6 +1183,9 @@ export function registerSubscriptionRoutes(app: Express) {
           pincode,
           latitude: latitude ? parseFloat(latitude as string) : undefined,
           longitude: longitude ? parseFloat(longitude as string) : undefined,
+          visibilityMode: normalizedVisibilityMode,
+          visibilityRadiusKm:
+            normalizedVisibilityMode === "online" ? normalizedVisibilityRadiusKm : undefined,
           isDeal: normalizedIsDeal,
           dealType: normalizedDealType,
           dealStartAt:
@@ -1222,6 +1245,8 @@ export function registerSubscriptionRoutes(app: Express) {
             pincode: listingData.pincode,
             latitude: listingData.latitude?.toString(),
             longitude: listingData.longitude?.toString(),
+            visibilityMode: listingData.visibilityMode,
+            visibilityRadiusKm: listingData.visibilityRadiusKm,
             images: imageItems,
             videos: videoItems,
             subscriptionTierId: subscriptionTierId || null,

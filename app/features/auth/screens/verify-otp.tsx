@@ -26,6 +26,7 @@ const OTP_LENGTH = 6;
 type VerifyOtpResponse = {
   success?: boolean;
   message?: string;
+  token?: string;
   user?: any;
   isNewUser?: boolean;
   requiresProfileCompletion?: boolean;
@@ -116,7 +117,7 @@ export default function VerifyOTPScreen() {
 
       if (data.success && data.user) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        await login(data.user);
+        await login({ ...data.user, token: data.token });
         if (data.isNewUser || data.requiresProfileCompletion) {
           router.replace({
             pathname: '/auth/complete-profile',

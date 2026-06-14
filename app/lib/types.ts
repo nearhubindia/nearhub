@@ -38,6 +38,8 @@ export interface Listing {
   boostedUntil?: string;
   boostCount?: number;
   pincode?: string;
+  visibilityMode?: 'local' | 'online';
+  visibilityRadiusKm?: number;
   duration?: number; // Duration in days for paid listings (15, 45, 90, 180)
   durationDays?: number; // Server-side canonical duration field
   isDeal?: boolean;

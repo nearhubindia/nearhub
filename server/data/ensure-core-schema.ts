@@ -56,6 +56,8 @@ async function applyCoreSchemaPatches(): Promise<void> {
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS combo_items text`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_terms text`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS voucher_enabled boolean NOT NULL DEFAULT true`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS visibility_mode varchar(20) NOT NULL DEFAULT 'local'`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS visibility_radius_km integer`);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS deal_bookings (
       id varchar PRIMARY KEY DEFAULT gen_random_uuid(),

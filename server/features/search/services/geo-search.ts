@@ -113,13 +113,22 @@ export async function searchListingsByGeo(options: GeoSearchOptions): Promise<Se
       )
     )
   `;
+  const effectiveRadiusExpression = sql<number>`
+    greatest(
+      ${radiusKm},
+      case
+        when ${listings.visibilityMode} = 'online' then coalesce(${listings.visibilityRadiusKm}, 0)
+        else 0
+      end
+    )
+  `;
 
   const conditions = [
     eq(listings.isActive, true),
     eq(listings.status, 'active'),
     or(isNull(listings.expiresAt), gte(listings.expiresAt, sql`now()`)),
     sql`${listings.latitude} IS NOT NULL AND ${listings.longitude} IS NOT NULL`,
-    sql`${distanceExpression} <= ${radiusKm}`,
+    sql`${distanceExpression} <= ${effectiveRadiusExpression}`,
   ];
   if (category) {
     conditions.push(eq(listings.category, category));

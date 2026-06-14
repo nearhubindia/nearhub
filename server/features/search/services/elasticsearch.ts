@@ -398,8 +398,13 @@ export async function searchListings(
             Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distance = R * c;
+        const visibilityRadiusKm =
+          String(listing.visibilityMode || '').toLowerCase() === 'online'
+            ? Number(listing.visibilityRadiusKm || 0)
+            : 0;
+        const effectiveRadiusKm = Math.max(radiusKm, Number.isFinite(visibilityRadiusKm) ? visibilityRadiusKm : 0);
 
-        return distance <= radiusKm;
+        return distance <= effectiveRadiusKm;
       });
     }
 

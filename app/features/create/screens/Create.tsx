@@ -198,6 +198,8 @@ export default function CreateScreen() {
   const [locationCity, setLocationCity] = useState('');
   const [locationDistrict, setLocationDistrict] = useState('');
   const [locationState, setLocationState] = useState('');
+  const [visibilityMode, setVisibilityMode] = useState<'local' | 'online'>('local');
+  const [visibilityRadiusKm, setVisibilityRadiusKm] = useState('50');
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [latitudeInput, setLatitudeInput] = useState('');
@@ -2002,6 +2004,9 @@ export default function CreateScreen() {
             city: finalCity || 'Unknown Location',
           },
           pincode: pincode || undefined,
+          visibilityMode,
+          visibilityRadiusKm:
+            visibilityMode === 'online' ? Number(visibilityRadiusKm || 0) : undefined,
           condition: resolvedCondition,
           listingType,
           duration, // Pass duration for paid listings
@@ -2090,6 +2095,17 @@ export default function CreateScreen() {
         ]
       );
       return;
+    }
+
+    if (visibilityMode === 'online') {
+      const radius = Number(visibilityRadiusKm);
+      if (!Number.isFinite(radius) || radius < 1 || radius > 500) {
+        Alert.alert(
+          'Invalid Radius',
+          'Please enter an online visibility radius between 1 and 500 km.'
+        );
+        return;
+      }
     }
 
     // If no paid plan is selected, let backend decide starter/coupon eligibility.
@@ -2758,6 +2774,51 @@ export default function CreateScreen() {
                   <Feather name="chevron-right" size={16} color={Colors.textTertiary} />
                 </Pressable>
               )}
+
+              <View style={{ marginTop: 14 }}>
+                <Text style={styles.formSubLabel}>Visibility</Text>
+                <View style={styles.chipRow}>
+                  <Pressable
+                    style={[styles.chip, visibilityMode === 'local' && styles.chipActive]}
+                    onPress={() => setVisibilityMode('local')}
+                  >
+                    <Text
+                      style={[styles.chipText, visibilityMode === 'local' && styles.chipTextActive]}
+                    >
+                      Local
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.chip, visibilityMode === 'online' && styles.chipActive]}
+                    onPress={() => setVisibilityMode('online')}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        visibilityMode === 'online' && styles.chipTextActive,
+                      ]}
+                    >
+                      Online
+                    </Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.visibilityHelperText}>
+                  Local keeps the current behavior. Online extends discovery to the radius you set.
+                </Text>
+                {visibilityMode === 'online' ? (
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={styles.formSubLabel}>Visibility Radius (km)</Text>
+                    <TextInput
+                      style={[styles.input, styles.priceField]}
+                      value={visibilityRadiusKm}
+                      onChangeText={(text) => setVisibilityRadiusKm(text.replace(/[^0-9]/g, ''))}
+                      placeholder="e.g. 200"
+                      placeholderTextColor={Colors.textTertiary}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                ) : null}
+              </View>
             </View>
 
             {showConditionField && (
@@ -4114,6 +4175,13 @@ const styles = createResponsiveStyles({
     color: '#64748B',
     marginBottom: 8,
     marginTop: 8,
+  },
+  visibilityHelperText: {
+    marginTop: 8,
+    fontSize: 11,
+    lineHeight: 16,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textSecondary,
   },
   sectionHeaderRow: {
     flexDirection: 'row' as const,

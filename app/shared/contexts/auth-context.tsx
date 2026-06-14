@@ -59,6 +59,7 @@ export interface User {
   id: string;
   phone: string;
   name: string;
+  token?: string;
   gender: 'male' | 'female' | 'other';
   email: string;
   avatarUrl?: string;
@@ -155,11 +156,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (userData: User) => {
-    setUser(userData);
+    const nextUser = {
+      ...userData,
+      token: userData.token || user?.token,
+    };
+    setUser(nextUser);
     if (userData.location?.city) {
       setUserCity(userData.location.city);
     }
-    await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData));
+    await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser));
   };
 
   const logout = async () => {
