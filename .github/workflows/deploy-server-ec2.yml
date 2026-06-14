@@ -5,10 +5,10 @@ on:
     branches:
       - main
     paths:
-      - "server/**"
-      - "Dockerfile.prod"
-      - "docker-compose.prod.yml"
-      - ".github/workflows/deploy-server-ec2.yml"
+      - 'server/**'
+      - 'Dockerfile.prod'
+      - 'docker-compose.prod.yml'
+      - '.github/workflows/deploy-server-ec2.yml'
   workflow_dispatch:
 
 concurrency:
@@ -88,8 +88,8 @@ jobs:
         run: |
           set -euo pipefail
           PORT="${{ secrets.AWS_EC2_PORT || '22' }}"
-          HOST="${{ secrets.AWS_EC2_HOST }}"
-          USER="${{ secrets.AWS_EC2_USER }}"
+          HOST="${{ secrets.AWS_EC2_HOST || '65.2.151.47' }}"
+          USER="${{ secrets.AWS_EC2_USER || 'admin' }}"
 
           mkdir -p ~/.ssh
           install -m 600 /dev/null ~/.ssh/id_nearhub_ec2
@@ -127,7 +127,7 @@ jobs:
           script: |
             set -euo pipefail
 
-            APP_DIR="${{ secrets.AWS_APP_DIR }}"
+            APP_DIR="${{ secrets.AWS_APP_DIR || '/opt/nearhub-server' }}"
             ENV_FILE="${{ secrets.AWS_ENV_FILE || '/etc/nearhub/server.env' }}"
             COMPOSE_PROJECT_NAME="${{ secrets.AWS_COMPOSE_PROJECT_NAME || 'nearhub' }}"
             COMPOSE_FILE_NAME="${{ secrets.AWS_COMPOSE_FILE_NAME || 'docker-compose.prod.yml' }}"

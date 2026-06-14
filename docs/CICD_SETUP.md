@@ -22,6 +22,11 @@ Set these in `GitHub -> Settings -> Secrets and variables -> Actions`.
 - `AWS_COMPOSE_FILE_NAME` (default: `docker-compose.prod.yml`)
 - `AWS_DOCKERFILE_NAME` (default: `Dockerfile.prod`)
 
+### Local server deploy config
+
+- `server/.env.deploy.example` documents the same EC2 deploy defaults used by `scripts/deploy-server-ec2.sh`
+- Copy it to `server/.env.deploy` if you want to keep local manual deploy settings in one place
+
 ### Web deploy (Cloudflare Pages)
 
 - `CLOUDFLARE_API_TOKEN`
@@ -54,7 +59,7 @@ sudo chmod 640 /etc/nearhub/server.env
 6. For Razorpay, keep both alias pairs populated in `/etc/nearhub/server.env`:
    - `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`
    - `RAZORPAY_API_KEY` and `RAZORPAY_API_SECRET`
-   The runtime accepts either pair, but setting both avoids mismatches across scripts and services.
+     The runtime accepts either pair, but setting both avoids mismatches across scripts and services.
 
 ## 3. How Deploy Works
 
@@ -81,6 +86,7 @@ No `git pull` is done on EC2.
 
 - Local PEM path: `nearhub-debian-key-20260524-015812.pem`
 - Local helper script: `scripts/deploy-server-ec2.sh`
+- The helper script auto-loads `server/.env.deploy` and `server/.env.deploy.local` before falling back to repo and server env files
 
 If the production EC2 does not use an Elastic IP, update `AWS_EC2_HOST` and the manual
 deploy script defaults after any stop/start or instance replacement because the public IP
@@ -114,6 +120,7 @@ npm run quality:release
 ```
 
 This gate enforces:
+
 - type-check (`tsc`)
 - lint (`eslint`)
 - strict Jest run with open-handle detection (`jest --detectOpenHandles --runInBand`)

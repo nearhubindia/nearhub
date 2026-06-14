@@ -15,10 +15,53 @@ COMPOSE_FILE_NAME="${COMPOSE_FILE_NAME:-docker-compose.prod.yml}"
 DOCKERFILE_NAME="${DOCKERFILE_NAME:-Dockerfile.prod}"
 SYSTEMD_UNIT_NAME="${SYSTEMD_UNIT_NAME:-nearhub-stack.service}"
 
-if [ ! -f "$EC2_KEY_PATH" ]; then
-  echo "Missing EC2 key: $EC2_KEY_PATH" >&2
-  exit 1
-fi
+load_env_file() {
+  local file_path="$1"
+
+  if [ ! -f "$file_path" ]; then
+    return 0
+  fi
+
+  while IFS= read -r raw_line || [ -n "$raw_line" ]; do
+    local line="${raw_line#"${raw_line%%[![:space:]]*}"}"
+
+    if [ -z "$line" ] || [ "${line#\#}" != "$line" ]; then
+      continue
+    fi
+
+    local key="${line%%=*}"
+    local value="${line#*=}"
+
+    if [ "$key" = "$line" ] || [ -z "$key" ]; then
+      continue
+    fi
+
+    key="${key%"${key##*[![:space:]]}"}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+
+    if [ "${value#\"}" != "$value" ] && [ "${value%\"}" != "$value" ]; then
+      value="${value#\"}"
+      value="${value%\"}"
+    elif [ "${value#\'}" != "$value" ] && [ "${value%\'}" != "$value" ]; then
+      value="${value#\'}"
+      value="${value%\'}"
+    fi
+
+    if [ -z "${!key:-}" ]; then
+      export "$key=$value"
+    fi
+  done < "$file_path"
+}
+
+hydrate_deploy_env() {
+  load_env_file "$ROOT_DIR/server/.env.deploy"
+  load_env_file "$ROOT_DIR/server/.env.deploy.local"
+  load_env_file "$ROOT_DIR/.env"
+  load_env_file "$ROOT_DIR/.env.local"
+  load_env_file "$ROOT_DIR/server/.env"
+  load_env_file "$ROOT_DIR/server/.env.local"
+}
 
 if [ "$REQUIRE_CLEAN_GIT" = "true" ]; then
   if [ -n "$(git -C "$ROOT_DIR" status --porcelain)" ]; then
@@ -26,6 +69,13 @@ if [ "$REQUIRE_CLEAN_GIT" = "true" ]; then
     echo "Please commit/stash changes before running deploy." >&2
     exit 1
   fi
+fi
+
+hydrate_deploy_env
+
+if [ ! -f "$EC2_KEY_PATH" ]; then
+  echo "Missing EC2 key: $EC2_KEY_PATH" >&2
+  exit 1
 fi
 
 RELEASE_DIR="$(mktemp -d /tmp/nearhub-release.XXXXXX)"
