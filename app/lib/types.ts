@@ -50,6 +50,7 @@ export interface Listing {
   dealRecurrenceUntil?: string;
   dealCycleQuantity?: number;
   maxDealBookings?: number;
+  purchaseLimitType?: 'ONE_TIME' | 'UNLIMITED';
   postDealPriceMode?: 'original' | 'discount';
   postDealDiscountPrice?: number;
   comboItems?: string[];

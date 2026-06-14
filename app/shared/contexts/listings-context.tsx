@@ -22,6 +22,7 @@ type DealListingInput = {
   dealRecurrenceUntil?: string;
   dealCycleQuantity?: number;
   maxDealBookings?: number;
+  purchaseLimitType?: 'ONE_TIME' | 'UNLIMITED';
   postDealPriceMode?: 'original' | 'discount';
   postDealDiscountPrice?: number;
   comboItems?: string[];
@@ -437,6 +438,10 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
               listing.maxDealBookings !== undefined && listing.maxDealBookings !== null
                 ? Number(listing.maxDealBookings)
                 : undefined,
+            purchaseLimitType:
+              listing.purchaseLimitType === 'ONE_TIME' || listing.purchaseLimitType === 'UNLIMITED'
+                ? listing.purchaseLimitType
+                : undefined,
             postDealPriceMode: (listing.postDealPriceMode ||
               undefined) as Listing['postDealPriceMode'],
             postDealDiscountPrice:
@@ -772,6 +777,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           dealRecurrenceUntil: updates.isDeal ? updates.dealRecurrenceUntil : undefined,
           dealCycleQuantity: updates.isDeal ? updates.dealCycleQuantity : undefined,
           maxDealBookings: updates.isDeal ? updates.maxDealBookings : undefined,
+          purchaseLimitType: updates.isDeal ? updates.purchaseLimitType : undefined,
           postDealPriceMode: updates.isDeal ? updates.postDealPriceMode : undefined,
           postDealDiscountPrice: updates.isDeal ? updates.postDealDiscountPrice : undefined,
           comboItems: updates.isDeal ? updates.comboItems : undefined,

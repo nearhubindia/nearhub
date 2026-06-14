@@ -24,6 +24,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 type DealType = 'normal' | 'combo';
 type DealRecurrence = 'none' | 'daily' | 'weekly' | 'monthly';
+type PurchaseLimitType = 'ONE_TIME' | 'UNLIMITED';
 type PostDealMode = 'original' | 'discount';
 
 const buildDealTimestamp = (daysToAdd: number) => {
@@ -63,6 +64,7 @@ export default function CreateDealScreen() {
   const [dealRecurrenceUntilDays, setDealRecurrenceUntilDays] = useState('30');
   const [dealCycleQuantity, setDealCycleQuantity] = useState('1');
   const [maxDealBookings, setMaxDealBookings] = useState('10');
+  const [purchaseLimitType, setPurchaseLimitType] = useState<PurchaseLimitType>('ONE_TIME');
   const [postDealPriceMode, setPostDealPriceMode] = useState<PostDealMode>('original');
   const [postDealDiscountPrice, setPostDealDiscountPrice] = useState('');
   const [dealTerms, setDealTerms] = useState('');
@@ -135,6 +137,10 @@ export default function CreateDealScreen() {
         return false;
       }
     }
+    if (!purchaseLimitType) {
+      Alert.alert('Select purchase limit', 'Choose whether buyers can book once or unlimited.');
+      return false;
+    }
     return true;
   };
 
@@ -156,6 +162,7 @@ export default function CreateDealScreen() {
             : undefined,
         dealCycleQuantity: dealRecurrence !== 'none' ? Number(dealCycleQuantity) || 1 : undefined,
         maxDealBookings: Number(maxDealBookings) || 10,
+        purchaseLimitType,
         postDealPriceMode,
         postDealDiscountPrice:
           postDealPriceMode === 'discount' ? Number(postDealDiscountPrice) || undefined : undefined,
@@ -372,6 +379,32 @@ export default function CreateDealScreen() {
                   placeholder="10"
                   placeholderTextColor={Colors.textTertiary}
                 />
+
+                <Text style={styles.fieldLabel}>Purchase limit</Text>
+                <View style={styles.chipRow}>
+                  {([
+                    { value: 'ONE_TIME', label: 'One time per buyer' },
+                    { value: 'UNLIMITED', label: 'Unlimited bookings' },
+                  ] as const).map((option) => (
+                    <Pressable
+                      key={option.value}
+                      style={[
+                        styles.chip,
+                        purchaseLimitType === option.value && styles.chipActive,
+                      ]}
+                      onPress={() => setPurchaseLimitType(option.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          purchaseLimitType === option.value && styles.chipTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
 
                 <Text style={styles.fieldLabel}>After deal ends</Text>
                 <View style={styles.chipRow}>
