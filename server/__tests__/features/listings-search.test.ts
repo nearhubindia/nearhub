@@ -40,7 +40,7 @@ describe('Listings Search API', () => {
         location: input.location,
         status: 'active',
         isActive: true,
-        images: JSON.stringify(['https://example.com/search.jpg']),
+        images: ['https://example.com/search.jpg'],
         videos: JSON.stringify([]),
       })
       .onConflictDoNothing({ target: listings.id });

@@ -33,7 +33,7 @@ describe('Messages API', () => {
         location: 'Delhi',
         status: 'active',
         isActive: true,
-        images: JSON.stringify(['https://example.com/item.jpg']),
+        images: ['https://example.com/item.jpg'],
         videos: JSON.stringify([]),
       })
       .onConflictDoNothing({ target: listings.id });

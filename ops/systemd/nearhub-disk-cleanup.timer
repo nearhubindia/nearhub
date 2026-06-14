@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Nearhub Disk Cleanup Daily
+
+[Timer]
+OnBootSec=30min
+OnUnitActiveSec=1d
+RandomizedDelaySec=1h
+Persistent=true
+Unit=nearhub-disk-cleanup.service
+
+[Install]
+WantedBy=timers.target

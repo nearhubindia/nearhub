@@ -14,6 +14,8 @@ COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-nearhub}"
 COMPOSE_FILE_NAME="${COMPOSE_FILE_NAME:-docker-compose.prod.yml}"
 DOCKERFILE_NAME="${DOCKERFILE_NAME:-Dockerfile.prod}"
 SYSTEMD_UNIT_NAME="${SYSTEMD_UNIT_NAME:-nearhub-stack.service}"
+DISK_CLEANUP_SERVICE_NAME="${DISK_CLEANUP_SERVICE_NAME:-nearhub-disk-cleanup.service}"
+DISK_CLEANUP_TIMER_NAME="${DISK_CLEANUP_TIMER_NAME:-nearhub-disk-cleanup.timer}"
 
 load_env_file() {
   local file_path="$1"
@@ -98,6 +100,8 @@ tar -C "$SERVER_DIR" \
 cp "$ROOT_DIR/$DOCKERFILE_NAME" "$BUILD_DIR/"
 cp "$ROOT_DIR/$COMPOSE_FILE_NAME" "$BUILD_DIR/"
 cp "$ROOT_DIR/ops/systemd/$SYSTEMD_UNIT_NAME" "$BUILD_DIR/"
+cp "$ROOT_DIR/ops/systemd/$DISK_CLEANUP_SERVICE_NAME" "$BUILD_DIR/"
+cp "$ROOT_DIR/ops/systemd/$DISK_CLEANUP_TIMER_NAME" "$BUILD_DIR/"
 
 cd "$BUILD_DIR"
 npm ci
@@ -110,6 +114,8 @@ cp drizzle.config.js "$RELEASE_DIR/"
 cp "$DOCKERFILE_NAME" "$RELEASE_DIR/"
 cp "$COMPOSE_FILE_NAME" "$RELEASE_DIR/"
 cp "$SYSTEMD_UNIT_NAME" "$RELEASE_DIR/"
+cp "$DISK_CLEANUP_SERVICE_NAME" "$RELEASE_DIR/"
+cp "$DISK_CLEANUP_TIMER_NAME" "$RELEASE_DIR/"
 if [ -d data ]; then
   cp -R data "$RELEASE_DIR/"
 fi
@@ -156,6 +162,10 @@ if [ ! -f "\$RELEASE_DIR/$SYSTEMD_UNIT_NAME" ]; then
   echo "Systemd unit is missing from the release artifact" >&2
   exit 1
 fi
+if [ ! -f "\$RELEASE_DIR/$DISK_CLEANUP_SERVICE_NAME" ] || [ ! -f "\$RELEASE_DIR/$DISK_CLEANUP_TIMER_NAME" ]; then
+  echo "Disk cleanup systemd units are missing from the release artifact" >&2
+  exit 1
+fi
 
 sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" build server
 sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d redis
@@ -166,9 +176,25 @@ rm -rf "$APP_DIR/current"
 ln -sfn "\$RELEASE_DIR" "$APP_DIR/current"
 
 sudo install -m 644 "\$RELEASE_DIR/$SYSTEMD_UNIT_NAME" /etc/systemd/system/$SYSTEMD_UNIT_NAME
+sudo install -m 644 "\$RELEASE_DIR/$DISK_CLEANUP_SERVICE_NAME" /etc/systemd/system/$DISK_CLEANUP_SERVICE_NAME
+sudo install -m 644 "\$RELEASE_DIR/$DISK_CLEANUP_TIMER_NAME" /etc/systemd/system/$DISK_CLEANUP_TIMER_NAME
 sudo systemctl daemon-reload
 sudo systemctl enable --now $SYSTEMD_UNIT_NAME
+sudo systemctl enable --now $DISK_CLEANUP_TIMER_NAME
 
 sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" ps
 curl -fsS http://127.0.0.1:5000/api/health
+
+current_release="\$(readlink -f "$APP_DIR/current")"
+previous_release="\$(ls -1dt "$APP_DIR/releases"/* 2>/dev/null | grep -vx "\$current_release" | head -n 1 || true)"
+for release_path in "$APP_DIR"/releases/*; do
+  [ -d "\$release_path" ] || continue
+  if [ "\$release_path" = "\$current_release" ] || [ "\$release_path" = "\$previous_release" ]; then
+    continue
+  fi
+  rm -rf "\$release_path"
+done
+
+sudo docker container prune -f
+sudo docker image prune -af
 EOF

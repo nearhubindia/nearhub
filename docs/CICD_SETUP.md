@@ -78,6 +78,7 @@ sudo chmod 640 /etc/nearhub/server.env
   - runs `npm run db:migrate` inside the server container
   - switches `current` symlink
   - installs and enables `nearhub-stack.service` so the stack comes back after reboot
+  - installs and enables `nearhub-disk-cleanup.timer` for daily safe cleanup of old releases, Docker cruft, apt cache, and journal logs
   - validates the `/api/health` endpoint
 
 No `git pull` is done on EC2.

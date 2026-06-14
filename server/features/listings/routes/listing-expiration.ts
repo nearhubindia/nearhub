@@ -12,6 +12,7 @@ import {
   calculatePriceWithDiscount,
 } from '../../admin/services/admin-settings';
 import { getActiveListing } from '../services/listings';
+import { parseJsonArrayField } from '../../../shared/utils/json-fields';
 
 export function registerListingExpirationRoutes(app: Express) {
   /**
@@ -227,9 +228,7 @@ export function registerListingExpirationRoutes(app: Express) {
       // Filter for listings with videos only
       const shortsListings = videoListings
         .filter((listing) => {
-          const videos = Array.isArray(listing.videos)
-            ? listing.videos
-            : JSON.parse(listing.videos || '[]');
+          const videos = parseJsonArrayField(listing.videos);
           return videos.length > 0;
         })
         .slice(0, limit); // Limit to requested count
@@ -243,12 +242,8 @@ export function registerListingExpirationRoutes(app: Express) {
           category: listing.category,
           price: listing.price,
           location: listing.location,
-          videos: Array.isArray(listing.videos)
-            ? listing.videos
-            : JSON.parse(listing.videos || '[]'),
-          images: Array.isArray(listing.images)
-            ? listing.images
-            : JSON.parse(listing.images || '[]'),
+          videos: parseJsonArrayField(listing.videos),
+          images: parseJsonArrayField(listing.images),
           userId: listing.sellerId,
           createdAt: listing.createdAt,
           latitude: listing.latitude,

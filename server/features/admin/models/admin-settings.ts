@@ -799,7 +799,7 @@ export const listings = pgTable('listings', {
   visibilityRadiusKm: integer('visibility_radius_km'),
 
   // Media (unified: up to 5 images + up to 2 videos per listing)
-  images: text('images'), // JSON array of image URLs (up to 5 images)
+  images: text('images').array(), // Production stores image URLs as text[]
   videos: text('videos'), // JSON array of video URLs (up to 2 videos)
 
   // Subscription & promotion

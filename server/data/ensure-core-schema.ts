@@ -53,6 +53,7 @@ async function applyCoreSchemaPatches(): Promise<void> {
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_last_cycle_key varchar(40)`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS max_deal_bookings integer`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_bookings_used integer NOT NULL DEFAULT 0`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS purchase_limit_type varchar(20)`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS combo_items text`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_terms text`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS voucher_enabled boolean NOT NULL DEFAULT true`);
@@ -132,6 +133,9 @@ async function applyCoreSchemaPatches(): Promise<void> {
   );
   await db.execute(
     sql`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS listing_price_units jsonb`
+  );
+  await db.execute(
+    sql`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS listing_category_groups jsonb`
   );
 
   // Keep display_name useful when legacy rows only had username.

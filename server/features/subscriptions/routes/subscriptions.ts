@@ -1311,7 +1311,12 @@ export function registerSubscriptionRoutes(app: Express) {
           throw createError;
         }
 
-        await enqueueListingModeration(createdListing.id);
+        void enqueueListingModeration(createdListing.id).catch((error) => {
+          console.error(
+            '[Subscriptions] Failed to enqueue listing moderation, but listing was created:',
+            error
+          );
+        });
 
         // If coupon was used, record the free listing usage
         if (isFreeFromCoupon && couponCode) {

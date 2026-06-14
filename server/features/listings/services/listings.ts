@@ -1,4 +1,4 @@
-import { db } from '../../../data/db';
+import { db, pool } from '../../../data/db';
 import {
   listings,
   insertListingSchema,
@@ -35,6 +35,20 @@ function coerceMediaToJson(value: unknown): string {
   return JSON.stringify(coerceMediaToArray(value));
 }
 
+function isListingsImagesSchemaMismatchError(error: unknown): boolean {
+  return (
+    isDbError(error) &&
+    (error.code === '22P02' ||
+      error.code === '42804' ||
+      error.code === '23502' ||
+      error.code === '42601') &&
+    (String(error.message || '').includes('malformed array literal') ||
+      String(error.message || '').includes('column "images" is of type text[]') ||
+      String(error.message || '').includes('column "images" is of type text') ||
+      String(error.message || '').includes('cannot cast type'))
+  );
+}
+
 function normalizeVisibilityMode(value: unknown): 'local' | 'online' {
   return typeof value === 'string' && value.trim().toLowerCase() === 'online' ? 'online' : 'local';
 }
@@ -51,10 +65,117 @@ function getEffectiveVisibilityRadiusKm(listing: {
   return Number.isFinite(radius) && radius > 0 ? radius : 0;
 }
 
-type DbResultWithRowCount = { rowCount?: number };
-
 function isDbError(error: unknown): error is { code?: string; message?: string } {
   return typeof error === 'object' && error !== null;
+}
+
+type DbResultWithRowCount = { rowCount?: number };
+
+function toSnakeCaseColumnName(key: string): string {
+  return key.replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`);
+}
+
+async function insertListingWithPgArrayImages(
+  values: InsertListing & {
+    mainCategory: string | null;
+    subCategory: string | null;
+    category: string;
+    images: string[];
+    videos: string;
+    comboItems: string;
+    expiresAt: Date | null;
+  }
+): Promise<Listing> {
+  const result = await pool.query(
+    `insert into listings (
+      seller_id, title, description, main_category, sub_category, category, listing_type,
+      price, offer_price, price_unit, contact_phone, condition, location, pincode,
+      latitude, longitude, images, videos, subscription_tier_id, user_subscription_id,
+      coupon_id, status, is_active, is_paid, featured, sponsored, boosted_until,
+      boost_count, is_deal, deal_type, deal_start_at, deal_end_at, deal_recurrence,
+      deal_recurrence_until, deal_cycle_quantity, deal_last_cycle_key, max_deal_bookings,
+      deal_bookings_used, combo_items, deal_terms, voucher_enabled, duration_days, expires_at
+    ) values (
+      $1, $2, $3, $4, $5, $6, $7,
+      $8, $9, $10, $11, $12, $13, $14,
+      $15, $16, $17, $18, $19, $20,
+      $21, $22, $23, $24, $25, $26,
+      $27, $28, $29, $30, $31, $32, $33,
+      $34, $35, $36, $37, $38, $39, $40,
+      $41, $42, $43
+    ) returning *`,
+    [
+      values.sellerId,
+      values.title,
+      values.description ?? null,
+      values.mainCategory,
+      values.subCategory,
+      values.category,
+      values.listingType ?? 'mixed',
+      values.price,
+      values.offerPrice ?? null,
+      values.priceUnit ?? null,
+      values.contactPhone ?? null,
+      values.condition ?? null,
+      values.location,
+      values.pincode ?? null,
+      values.latitude ?? null,
+      values.longitude ?? null,
+      values.images,
+      values.videos,
+      values.subscriptionTierId ?? null,
+      values.userSubscriptionId ?? null,
+      values.couponId ?? null,
+      values.status ?? 'active',
+      values.isActive ?? true,
+      values.isPaid ?? false,
+      values.featured ?? false,
+      values.sponsored ?? false,
+      values.boostedUntil ?? null,
+      values.boostCount ?? 0,
+      values.isDeal ?? false,
+      values.dealType ?? null,
+      values.dealStartAt ?? null,
+      values.dealEndAt ?? null,
+      values.dealRecurrence ?? 'none',
+      values.dealRecurrenceUntil ?? null,
+      values.dealCycleQuantity ?? null,
+      values.dealLastCycleKey ?? null,
+      values.maxDealBookings ?? null,
+      values.dealBookingsUsed ?? 0,
+      values.comboItems,
+      values.dealTerms ?? null,
+      values.voucherEnabled ?? true,
+      values.durationDays ?? null,
+      values.expiresAt,
+    ]
+  );
+
+  return result.rows[0] as Listing;
+}
+
+async function updateListingWithPgArrayImages(
+  id: string,
+  updateValues: Record<string, unknown>
+): Promise<Listing | null> {
+  const entries = Object.entries(updateValues);
+  if (entries.length === 0) {
+    const existing = await getListingById(id);
+    return existing as Listing | null;
+  }
+
+  const assignments = entries.map(
+    ([key], index) => `"${toSnakeCaseColumnName(key)}" = $${index + 1}`
+  );
+  const params = entries.map(([, value]) => value);
+  params.push(id);
+
+  const result = await pool.query(
+    `update listings set ${assignments.join(', ')} where id = $${params.length} returning *`,
+    params
+  );
+
+  return (result.rows[0] as Listing | undefined) ?? null;
 }
 
 /**
@@ -79,7 +200,8 @@ export async function createListing(
       ? validated.mainCategory.trim()
       : normalizedSubCategory || null;
 
-  // Images and videos are stored as JSON text for compatibility across deployments.
+  // Production currently stores images as text[] while some environments still use JSON text.
+  const imagesAsArray = coerceMediaToArray(validated.images);
   const imagesAsJson = coerceMediaToJson(validated.images);
   const videosAsJson = coerceMediaToJson(validated.videos);
   const comboItemsAsJson = coerceMediaToJson(
@@ -104,11 +226,16 @@ export async function createListing(
     });
 
   try {
-    const result = await db
-      .insert(listings)
-      .values(insertValues(imagesAsJson, videosAsJson))
-      .returning();
-    const created = result[0];
+    const created = await insertListingWithPgArrayImages({
+      ...validated,
+      mainCategory: normalizedMainCategory,
+      subCategory: normalizedSubCategory || null,
+      category: normalizedSubCategory || validated.category,
+      images: imagesAsArray,
+      videos: videosAsJson,
+      comboItems: comboItemsAsJson,
+      expiresAt,
+    });
     if (created && attributes && Object.keys(attributes).length > 0) {
       await replaceListingAttributeValues({
         listingId: created.id,
@@ -119,16 +246,15 @@ export async function createListing(
     }
     return created;
   } catch (error: unknown) {
-    // Fallback for deployments where images are stored as JSON text instead of text[].
-    const isMalformedArray =
-      isDbError(error) && error.code === '22P02' && String(error.message || '').includes('malformed array literal');
-    if (!isMalformedArray) {
+    console.error('[Listings] Raw image-array insert failed, falling back:', error);
+    // Fallback for deployments where the listings.images column is still JSON text.
+    if (!isListingsImagesSchemaMismatchError(error)) {
       throw error;
     }
 
     const retry = await db
       .insert(listings)
-      .values(insertValues(imagesAsJson, videosAsJson))
+      .values(insertValues(imagesAsJson, videosAsJson) as never)
       .returning();
     const created = retry[0];
     if (created && attributes && Object.keys(attributes).length > 0) {
@@ -366,7 +492,8 @@ export async function updateListing(
   } as Record<string, unknown>;
 
   if (hasImagesUpdate) {
-    updateValues.images = coerceMediaToJson(normalizedUpdates.images);
+    const normalizedImages = coerceMediaToArray(normalizedUpdates.images);
+    updateValues.images = normalizedImages;
   } else {
     delete updateValues.images;
   }
@@ -386,13 +513,11 @@ export async function updateListing(
   }
 
   try {
-    const result = await db
-      .update(listings)
-      .set(updateValues as never)
-      .where(eq(listings.id, id))
-      .returning();
-
-    const updated = result.length > 0 ? result[0] : null;
+    const updated = hasImagesUpdate
+      ? await updateListingWithPgArrayImages(id, updateValues)
+      : (
+          await db.update(listings).set(updateValues as never).where(eq(listings.id, id)).returning()
+        )[0] || null;
     if (updated && attributes !== undefined) {
       await replaceListingAttributeValues({
         listingId: updated.id,
@@ -404,20 +529,21 @@ export async function updateListing(
 
     return updated;
   } catch (error: unknown) {
-    const isMalformedArray =
-      isDbError(error) && error.code === '22P02' && String(error.message || '').includes('malformed array literal');
-    if (!isMalformedArray) {
+    console.error('[Listings] Raw image-array update failed, falling back:', error);
+    if (!isListingsImagesSchemaMismatchError(error)) {
       throw error;
     }
 
     const result = await db
       .update(listings)
-      .set({
-        ...updateValues,
-        ...(hasImagesUpdate ? { images: coerceMediaToJson(normalizedUpdates.images) } : {}),
-        ...(hasVideosUpdate ? { videos: coerceMediaToJson(normalizedUpdates.videos) } : {}),
-        updatedAt: new Date(),
-      })
+      .set(
+        {
+          ...updateValues,
+          ...(hasImagesUpdate ? { images: coerceMediaToJson(normalizedUpdates.images) } : {}),
+          ...(hasVideosUpdate ? { videos: coerceMediaToJson(normalizedUpdates.videos) } : {}),
+          updatedAt: new Date(),
+        } as never
+      )
       .where(eq(listings.id, id))
       .returning();
 
