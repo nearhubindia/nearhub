@@ -382,16 +382,15 @@ export default function CreateDealScreen() {
 
                 <Text style={styles.fieldLabel}>Purchase limit</Text>
                 <View style={styles.chipRow}>
-                  {([
-                    { value: 'ONE_TIME', label: 'One time per buyer' },
-                    { value: 'UNLIMITED', label: 'Unlimited bookings' },
-                  ] as const).map((option) => (
+                  {(
+                    [
+                      { value: 'ONE_TIME', label: 'One time per buyer' },
+                      { value: 'UNLIMITED', label: 'Unlimited bookings' },
+                    ] as const
+                  ).map((option) => (
                     <Pressable
                       key={option.value}
-                      style={[
-                        styles.chip,
-                        purchaseLimitType === option.value && styles.chipActive,
-                      ]}
+                      style={[styles.chip, purchaseLimitType === option.value && styles.chipActive]}
                       onPress={() => setPurchaseLimitType(option.value)}
                     >
                       <Text
