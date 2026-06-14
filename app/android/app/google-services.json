@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "763727669230",
-    "project_id": "nearhub-aa6f3",
-    "storage_bucket": "nearhub-aa6f3.firebasestorage.app"
+    "project_number": "822544369307",
+    "project_id": "nearhub-b8dd7",
+    "storage_bucket": "nearhub-b8dd7.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:763727669230:android:eba5db94bbc9b620cf90ff",
+        "mobilesdk_app_id": "1:822544369307:android:dea4d852d96af20834283e",
         "android_client_info": {
           "package_name": "com.synvide.nearhub"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBGvEZT8-_EDSaC3WBRUa7aF796NSFRheE"
+          "current_key": "AIzaSyBposx1bsyhZOXmfrEntaUzJ9q_1Ku9-0U"
         }
       ],
       "services": {
