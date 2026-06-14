@@ -46,6 +46,8 @@ type EditableListing = {
   status?: string;
   contactPhone?: string;
   sellerPhone?: string;
+  visibilityMode?: 'local' | 'online';
+  visibilityRadiusKm?: number;
   isDeal?: boolean;
   is_deal?: boolean;
   dealType?: string;
@@ -148,6 +150,8 @@ export default function EditListingPage(): ReactElement {
   const [condition, setCondition] = useState('Good');
   const [location, setLocation] = useState('');
   const [pincode, setPincode] = useState('');
+  const [visibilityMode, setVisibilityMode] = useState<'local' | 'online'>('local');
+  const [visibilityRadiusKm, setVisibilityRadiusKm] = useState('50');
   const [status, setStatus] = useState('active');
   const [contactPhone, setContactPhone] = useState('');
   const [imagesText, setImagesText] = useState('');
@@ -219,6 +223,14 @@ export default function EditListingPage(): ReactElement {
           String(listing.pincode || listing.pinCode || listing.postalCode || '')
             .replace(/[^0-9]/g, '')
             .slice(0, 6)
+        );
+        const nextVisibilityMode =
+          String(listing.visibilityMode || 'local').toLowerCase() === 'online'
+            ? 'online'
+            : 'local';
+        setVisibilityMode(nextVisibilityMode);
+        setVisibilityRadiusKm(
+          nextVisibilityMode === 'online' ? String(listing.visibilityRadiusKm || 50) : '50'
         );
         setStatus(String(listing.status || 'active'));
         setContactPhone(
@@ -306,6 +318,13 @@ export default function EditListingPage(): ReactElement {
       setMessage('Please enter a valid 6-digit pincode.');
       return;
     }
+    if (visibilityMode === 'online') {
+      const radius = Number(visibilityRadiusKm);
+      if (!Number.isFinite(radius) || radius < 1 || radius > 500) {
+        setMessage('Please enter an online visibility radius between 1 and 500 km.');
+        return;
+      }
+    }
     if (isDeal) {
       if (!offerPrice.trim() || Number(offerPrice) <= 0) {
         setMessage('Please enter deal price.');
@@ -346,6 +365,9 @@ export default function EditListingPage(): ReactElement {
         condition: shouldRequireCondition ? condition : undefined,
         location: location.trim(),
         pincode: pincode.trim(),
+        visibilityMode,
+        visibilityRadiusKm:
+          visibilityMode === 'online' ? Number(visibilityRadiusKm || 0) : undefined,
         status,
         contactPhone: contactPhone.trim() || undefined,
         images,
@@ -596,6 +618,58 @@ export default function EditListingPage(): ReactElement {
                   />
                 </label>
               </div>
+            </Section>
+
+            <Section title="Visibility">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setVisibilityMode('local')}
+                  className={`rounded-xl border px-4 py-3 text-left text-sm transition ${
+                    visibilityMode === 'local'
+                      ? 'border-[#1f63b2] bg-[#edf5ff] text-[#1f63b2]'
+                      : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className="block font-normal">Local</span>
+                  <span className="mt-1 block text-xs text-slate-500">
+                    Keep the current nearby listing behavior.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVisibilityMode('online')}
+                  className={`rounded-xl border px-4 py-3 text-left text-sm transition ${
+                    visibilityMode === 'online'
+                      ? 'border-[#1f63b2] bg-[#edf5ff] text-[#1f63b2]'
+                      : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className="block font-normal">Online</span>
+                  <span className="mt-1 block text-xs text-slate-500">
+                    Extend discovery using a custom radius.
+                  </span>
+                </button>
+              </div>
+              <p className="mt-3 text-xs font-normal text-slate-500">
+                Local uses the default area matching. Online lets you set a visibility radius.
+              </p>
+              {visibilityMode === 'online' ? (
+                <div className="mt-4 grid gap-2 sm:max-w-xs">
+                  <label className="text-xs font-normal text-slate-500">
+                    Visibility radius (km)
+                  </label>
+                  <input
+                    value={visibilityRadiusKm}
+                    onChange={(event) =>
+                      setVisibilityRadiusKm(event.target.value.replace(/[^0-9]/g, ''))
+                    }
+                    placeholder="e.g. 200"
+                    inputMode="numeric"
+                    className={textInputClass('bg-white')}
+                  />
+                </div>
+              ) : null}
             </Section>
 
             <Section title="Media">

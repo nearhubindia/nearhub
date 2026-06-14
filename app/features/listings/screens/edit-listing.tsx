@@ -101,6 +101,14 @@ export default function EditListingScreen() {
     listing?.location?.longitude ? String(listing.location.longitude) : ''
   );
   const [pincode, setPincode] = useState(listing?.pincode || '');
+  const [visibilityMode, setVisibilityMode] = useState<'local' | 'online'>(
+    listing?.visibilityMode === 'online' ? 'online' : 'local'
+  );
+  const [visibilityRadiusKm, setVisibilityRadiusKm] = useState(
+    listing?.visibilityMode === 'online'
+      ? String(listing?.visibilityRadiusKm || 50)
+      : '50'
+  );
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [mapsLinkInput, setMapsLinkInput] = useState('');
   const [isResolvingMapsLink, setIsResolvingMapsLink] = useState(false);
@@ -1121,6 +1129,14 @@ export default function EditListingScreen() {
       return;
     }
 
+    if (visibilityMode === 'online') {
+      const radius = Number(visibilityRadiusKm);
+      if (!Number.isFinite(radius) || radius < 1 || radius > 500) {
+        Alert.alert('Error', 'Please enter an online visibility radius between 1 and 500 km.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setSubmitProgress(10);
     setSubmitStatusMessage('Preparing your update...');
@@ -1158,6 +1174,9 @@ export default function EditListingScreen() {
           longitude,
         },
         pincode: pincode.trim() || undefined,
+        visibilityMode,
+        visibilityRadiusKm:
+          visibilityMode === 'online' ? Number(visibilityRadiusKm || 0) : undefined,
         images: portableImages,
         videos,
       });
@@ -1596,6 +1615,54 @@ export default function EditListingScreen() {
                 <Feather name="chevron-right" size={18} color={Colors.textSecondary} />
               </View>
             </Pressable>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Visibility</Text>
+            <View style={styles.visibilityRow}>
+              <Pressable
+                style={[styles.visibilityChip, visibilityMode === 'local' && styles.visibilityChipActive]}
+                onPress={() => setVisibilityMode('local')}
+              >
+                <Text
+                  style={[
+                    styles.visibilityChipText,
+                    visibilityMode === 'local' && styles.visibilityChipTextActive,
+                  ]}
+                >
+                  Local
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.visibilityChip, visibilityMode === 'online' && styles.visibilityChipActive]}
+                onPress={() => setVisibilityMode('online')}
+              >
+                <Text
+                  style={[
+                    styles.visibilityChipText,
+                    visibilityMode === 'online' && styles.visibilityChipTextActive,
+                  ]}
+                >
+                  Online
+                </Text>
+              </Pressable>
+            </View>
+            <Text style={styles.visibilityHelperText}>
+              Local keeps the current behavior. Online extends discovery to the radius you set.
+            </Text>
+            {visibilityMode === 'online' && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.formSubLabel}>Visibility Radius (km)</Text>
+                <TextInput
+                  style={[styles.input, styles.priceField]}
+                  value={visibilityRadiusKm}
+                  onChangeText={(text) => setVisibilityRadiusKm(text.replace(/[^0-9]/g, ''))}
+                  placeholder="e.g. 200"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="number-pad"
+                />
+              </View>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -2077,6 +2144,48 @@ const styles = StyleSheet.create({
   pickerOptionTextActive: {
     color: '#FFFFFF',
     fontFamily: 'Inter_600SemiBold',
+  },
+  visibilityRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  visibilityChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  visibilityChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: '#EAF2FF',
+  },
+  visibilityChipText: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.text,
+  },
+  visibilityChipTextActive: {
+    color: Colors.primary,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  visibilityHelperText: {
+    marginTop: 10,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textSecondary,
+  },
+  formSubLabel: {
+    marginBottom: 8,
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textSecondary,
+  },
+  priceField: {
+    flex: 1,
   },
   priceRow: {
     flexDirection: 'row',

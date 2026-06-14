@@ -761,6 +761,9 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           longitude: updates.location?.longitude,
           images: updates.images,
           videos: updates.videos,
+          visibilityMode: updates.visibilityMode,
+          visibilityRadiusKm:
+            updates.visibilityMode === 'online' ? updates.visibilityRadiusKm : undefined,
           isDeal: updates.isDeal,
           dealType: updates.isDeal ? updates.dealType : undefined,
           dealStartAt: updates.isDeal ? updates.dealStartAt : undefined,
