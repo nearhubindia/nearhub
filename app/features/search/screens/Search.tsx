@@ -10,7 +10,9 @@ import AppScreenBanners from '@/shared/components/AppScreenBanners';
 import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
 import { useSearchHistory } from '@/shared/contexts/search-history-context';
 import { useListings } from '@/shared/contexts/listings-context';
-import { Category, CATEGORIES, CATEGORY_PICTURE_IMAGES, CATEGORY_PICTURES } from '@/lib/types';
+import { Category } from '@/lib/types';
+import { useListingTaxonomy } from '@/lib/use-listing-taxonomy';
+import { getCategoryDisplayMeta } from '@/lib/category-display';
 
 const TOP_CATEGORIES_DAILY_CACHE_KEY = '@nearhub_top_categories_daily_cache_v1';
 const TOP_CATEGORY_LIMIT = 16;
@@ -40,9 +42,7 @@ function getLocalDateKey(date: Date = new Date()): string {
 
 function sanitizeCachedCategories(value: unknown): Category[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(
-    (item): item is Category => typeof item === 'string' && CATEGORIES.includes(item as Category)
-  );
+  return value.filter((item): item is Category => typeof item === 'string' && item.trim().length > 0);
 }
 
 export default function SearchScreen() {
@@ -63,6 +63,7 @@ export default function SearchScreen() {
     addSearch,
   } = useSearchHistory();
   const { listings } = useListings();
+  const { groups: categoryGroups } = useListingTaxonomy();
   const { banners: searchBanners, isLoading: isSearchBannersLoading } =
     useAppScreenBanners('search');
   const queryValue = Array.isArray(query) ? query[0] : query;
@@ -73,13 +74,17 @@ export default function SearchScreen() {
   const pincodeValue = Array.isArray(pincode) ? pincode[0] : pincode;
   const categoryValue = Array.isArray(category) ? category[0] : category;
   const radiusValue = Array.isArray(radius) ? radius[0] : radius;
-  const initialCategory =
-    categoryValue === 'All' || CATEGORIES.includes(categoryValue as Category)
-      ? (categoryValue as Category | 'All')
-      : 'All';
+  const availableCategories = useMemo(
+    () =>
+      Array.from(
+        new Set(categoryGroups.flatMap((group) => group.subcategories).filter((item) => Boolean(item)))
+      ),
+    [categoryGroups]
+  );
+  const initialCategory = categoryValue === 'All' ? 'All' : ((categoryValue || 'All') as Category | 'All');
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>(initialCategory);
   const [topCategoryTiles, setTopCategoryTiles] = useState<Category[]>(
-    CATEGORIES.slice(0, TOP_CATEGORY_LIMIT)
+    availableCategories.slice(0, TOP_CATEGORY_LIMIT)
   );
   const topCategoriesDailyCacheRef = useRef<TopCategoriesDailyCache | null>(null);
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
@@ -93,6 +98,12 @@ export default function SearchScreen() {
       }),
     [listings]
   );
+
+  useEffect(() => {
+    setTopCategoryTiles((current) =>
+      current.length > 0 ? current : availableCategories.slice(0, TOP_CATEGORY_LIMIT)
+    );
+  }, [availableCategories]);
 
   const navigateToResults = useCallback(
     (query: string) => {
@@ -158,27 +169,30 @@ export default function SearchScreen() {
   );
 
   const rankedTopCategoryTiles = useMemo((): Category[] => {
+    if (availableCategories.length === 0) {
+      return [];
+    }
     if (searchHistory.length === 0) {
-      return CATEGORIES.slice(0, TOP_CATEGORY_LIMIT);
+      return availableCategories.slice(0, TOP_CATEGORY_LIMIT);
     }
 
-    const categoryScores: Record<Category, number> = Object.fromEntries(
-      CATEGORIES.map((cat) => [cat, 0])
-    ) as Record<Category, number>;
+    const categoryScores: Record<string, number> = Object.fromEntries(
+      availableCategories.map((cat) => [cat, 0])
+    );
 
     searchHistory.forEach((item) => {
       const weight = Math.max(1, item.searchCount);
       const normalizedQuery = item.query.toLowerCase().trim();
 
-      if (item.category && CATEGORIES.includes(item.category as Category)) {
-        categoryScores[item.category as Category] += weight * 2;
+      if (item.category && categoryScores[item.category] !== undefined) {
+        categoryScores[item.category] += weight * 2;
       }
 
       if (!normalizedQuery) {
         return;
       }
 
-      CATEGORIES.forEach((categoryName) => {
+      availableCategories.forEach((categoryName) => {
         if (normalizedQuery.includes(categoryName.toLowerCase())) {
           categoryScores[categoryName] += weight * 2;
         }
@@ -197,16 +211,16 @@ export default function SearchScreen() {
       });
     });
 
-    const ranked = [...CATEGORIES].sort((a, b) => {
+    const ranked = [...availableCategories].sort((a, b) => {
       const diff = categoryScores[b] - categoryScores[a];
       if (diff !== 0) {
         return diff;
       }
-      return CATEGORIES.indexOf(a) - CATEGORIES.indexOf(b);
+      return availableCategories.indexOf(a) - availableCategories.indexOf(b);
     });
 
     return ranked.slice(0, TOP_CATEGORY_LIMIT);
-  }, [searchHistory, searchableListings]);
+  }, [searchHistory, searchableListings, availableCategories]);
 
   useEffect(() => {
     if (!isSearchHistoryLoaded) return;
@@ -342,8 +356,7 @@ export default function SearchScreen() {
           </View>
           <View style={styles.categoriesGrid}>
             {topCategoryTiles.map((item) => {
-              const picture = CATEGORY_PICTURES[item];
-              const pictureImage = CATEGORY_PICTURE_IMAGES[item];
+              const meta = getCategoryDisplayMeta(item);
               const isSelected = selectedCategory === item;
 
               return (
@@ -353,13 +366,15 @@ export default function SearchScreen() {
                   onPress={() => navigateToCategoryResults(item)}
                 >
                   <View style={[styles.iconTile, isSelected && styles.iconTileSelected]}>
-                    <Image
-                      source={{ uri: pictureImage }}
-                      style={styles.pictureImage}
-                      contentFit="contain"
-                      cachePolicy="memory-disk"
-                    />
-                    <Text style={styles.pictureIconFallback}>{picture}</Text>
+                    {meta.pictureImage ? (
+                      <Image
+                        source={{ uri: meta.pictureImage }}
+                        style={styles.pictureImage}
+                        contentFit="contain"
+                        cachePolicy="memory-disk"
+                      />
+                    ) : null}
+                    <Text style={styles.pictureIconFallback}>{meta.picture}</Text>
                   </View>
                   <Text style={[styles.categoryLabel, isSelected && styles.categoryLabelSelected]}>
                     {item}

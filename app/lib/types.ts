@@ -40,6 +40,19 @@ export interface Listing {
   pincode?: string;
   duration?: number; // Duration in days for paid listings (15, 45, 90, 180)
   durationDays?: number; // Server-side canonical duration field
+  isDeal?: boolean;
+  dealType?: 'normal' | 'combo';
+  dealStartAt?: string;
+  dealEndAt?: string;
+  dealRecurrence?: 'none' | 'daily' | 'weekly' | 'monthly';
+  dealRecurrenceUntil?: string;
+  dealCycleQuantity?: number;
+  maxDealBookings?: number;
+  postDealPriceMode?: 'original' | 'discount';
+  postDealDiscountPrice?: number;
+  comboItems?: string[];
+  dealTerms?: string;
+  voucherEnabled?: boolean;
   sellerAvatar?: string;
   viewCount?: number; // Total views for analytics
   chatCount?: number; // Total chat conversations for this listing
@@ -47,25 +60,7 @@ export interface Listing {
   saveCount?: number; // Optional server-provided saves metric
 }
 
-export type PriceUnit =
-  // Services
-  | 'per sqft'
-  | 'per hour'
-  | 'per room'
-  | 'per toilet'
-  | 'per day'
-  | 'per session'
-  // Products
-  | 'per unit'
-  | 'per kg'
-  | 'per litre'
-  | 'per bucket'
-  | 'per box'
-  | 'per piece'
-  // Jobs & Real Estate
-  | 'per month'
-  | 'per year'
-  | 'one-time';
+export type PriceUnit = string;
 
 export const PRICE_UNITS: Record<string, PriceUnit[]> = {
   Services: ['per sqft', 'per hour', 'per room', 'per toilet', 'per day', 'per session'],
@@ -78,40 +73,7 @@ export const PRICE_UNITS: Record<string, PriceUnit[]> = {
   default: ['per unit', 'per piece'],
 };
 
-export type Category =
-  | 'Electronics'
-  | 'Mobiles'
-  | 'Computers'
-  | 'Appliances'
-  | 'Vehicles'
-  | 'EV Vehicles'
-  | 'Commercial Vehicles'
-  | 'Bikes'
-  | 'Spare Parts'
-  | 'Real Estate'
-  | 'Rentals'
-  | 'Jobs'
-  | 'Freelance'
-  | 'Services'
-  | 'Furniture'
-  | 'Fashion'
-  | 'Clothing'
-  | 'Beauty'
-  | 'Kids'
-  | 'Home & Garden'
-  | 'Sports'
-  | 'Books'
-  | 'Education'
-  | 'Health'
-  | 'Travel'
-  | 'Events'
-  | 'Food'
-  | 'Pets Accessories'
-  | 'Agriculture'
-  | 'Business'
-  | 'Community'
-  | 'Pets'
-  | 'Other';
+export type Category = string;
 
 export const CATEGORIES: Category[] = [
   'Electronics',
@@ -149,7 +111,7 @@ export const CATEGORIES: Category[] = [
   'Other',
 ];
 
-export const CATEGORY_ICONS: Record<Category, { name: string; family: string }> = {
+export const CATEGORY_ICONS: Record<string, { name: string; family: string }> = {
   Electronics: { name: 'smartphone', family: 'Feather' },
   Mobiles: { name: 'smartphone', family: 'Feather' },
   Computers: { name: 'monitor', family: 'Feather' },
@@ -185,7 +147,7 @@ export const CATEGORY_ICONS: Record<Category, { name: string; family: string }> 
   Other: { name: 'more-horizontal', family: 'Feather' },
 };
 
-export const CATEGORY_COLORS: Record<Category, string> = {
+export const CATEGORY_COLORS: Record<string, string> = {
   Electronics: Colors.categoryElectronics,
   Mobiles: Colors.primary,
   Computers: Colors.primaryDark,
@@ -221,7 +183,7 @@ export const CATEGORY_COLORS: Record<Category, string> = {
   Other: Colors.categoryOther,
 };
 
-export const CATEGORY_PICTURES: Record<Category, string> = {
+export const CATEGORY_PICTURES: Record<string, string> = {
   Electronics: '📱',
   Mobiles: '📲',
   Computers: '💻',
@@ -257,7 +219,7 @@ export const CATEGORY_PICTURES: Record<Category, string> = {
   Other: '📦',
 };
 
-export const CATEGORY_PICTURE_IMAGES: Record<Category, string> = {
+export const CATEGORY_PICTURE_IMAGES: Record<string, string> = {
   Electronics: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4f1.png',
   Mobiles: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4f2.png',
   Computers: 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f4bb.png',

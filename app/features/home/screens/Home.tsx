@@ -41,6 +41,7 @@ import { shareListingLink } from '@/lib/share-app-link';
 import { getApiUrl } from '@/lib/query-client';
 import { useAdminSettings } from '@/lib/use-admin-settings';
 import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
+import { useListingTaxonomy } from '@/lib/use-listing-taxonomy';
 import { createResponsiveStyles } from '@/lib/responsive';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -81,12 +82,17 @@ export default function HomeScreen() {
   const { user, setUserSearchRadius, setUserLocation } = useAuth();
   const { trackSave } = useUserInterests();
   const { geoRadiusKm } = useAdminSettings();
+  const { groups: categoryGroups } = useListingTaxonomy();
   const {
     banners: homeBanners,
     isLoading: isHomeBannersLoading,
     refreshBanners,
   } = useAppScreenBanners('home');
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>('All');
+  const orderedCategories = useMemo(
+    () => Array.from(new Set(categoryGroups.flatMap((group) => group.subcategories))),
+    [categoryGroups]
+  );
 
   // Location selection state
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -101,7 +107,7 @@ export default function HomeScreen() {
   const [isAutoLocatingUser, setIsAutoLocatingUser] = useState(false);
   const [isAutoDetectingLocation, setIsAutoDetectingLocation] = useState(false);
   const [isBootstrappingLocation, setIsBootstrappingLocation] = useState(false);
-  const [isLocationBootstrapActive, setIsLocationBootstrapActive] = useState(true);
+  const [isLocationBootstrapActive, setIsLocationBootstrapActive] = useState(false);
   const [locationPermissionRequired, setLocationPermissionRequired] = useState(false);
   const [canAskLocationPermissionAgain, setCanAskLocationPermissionAgain] = useState(true);
   const cityInputRef = useRef<TextInput>(null);
@@ -395,8 +401,7 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // On first launch without a resolved location, block feed behind a splash-style loader
-  // so users only see local results (not global listings first).
+  // Try to resolve location in the background, but do not block the feed behind a splash screen.
   useEffect(() => {
     const hasResolvedLocation =
       (selectedLocationLat !== null && selectedLocationLon !== null) ||
@@ -411,7 +416,6 @@ export default function HomeScreen() {
 
     let cancelled = false;
     setIsBootstrappingLocation(true);
-    setIsLocationBootstrapActive(true);
 
     const interactionTask = InteractionManager.runAfterInteractions(() => {
       startupAutoLocationTimeoutRef.current = setTimeout(() => {
@@ -550,11 +554,17 @@ export default function HomeScreen() {
       counts.set(category, (counts.get(category) || 0) + 1);
     }
 
-    return Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
+    const backendOrdered = orderedCategories
+      .map((category) => ({ category, count: counts.get(category) || 0 }))
+      .filter((entry) => entry.count > 0);
+    const uncatalogued = Array.from(counts.entries())
+      .filter(([category]) => !orderedCategories.includes(category))
       .map(([category, count]) => ({ category, count }));
-  }, [filteredListingsByLocation]);
+
+    return [...backendOrdered, ...uncatalogued]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }, [filteredListingsByLocation, orderedCategories]);
 
   const homeListingsForGrid = useMemo(() => {
     if (selectedCategory === 'All') return filteredListingsByLocation;
@@ -575,9 +585,6 @@ export default function HomeScreen() {
   const hasDealsTopSection = showDealsSection;
   const activeListingsForGrid = homeListingsForGrid;
   const hasLocation = Boolean(userLat && userLon);
-  const showInitialLocationLoader =
-    isBootstrappingLocation || (hasLocation && isLoading && activeListingsForGrid.length === 0);
-
   const onRefresh = useCallback(async () => {
     await Promise.all([refreshListings(), refreshBanners()]);
   }, [refreshListings, refreshBanners]);
@@ -1203,55 +1210,6 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {showInitialLocationLoader && (
-        <View style={styles.initialLocationLoaderOverlay}>
-          {isAutoLocatingUser || isBootstrappingLocation ? (
-            <>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.initialLocationLoaderTitle}>Finding listings near you...</Text>
-              <Text style={styles.initialLocationLoaderSubtitle}>
-                We are fetching results based on your location.
-              </Text>
-            </>
-          ) : (
-            <>
-              <Feather name="map-pin" size={34} color={Colors.primary} />
-              <Text style={styles.initialLocationLoaderTitle}>Location Required</Text>
-              <Text style={styles.initialLocationLoaderSubtitle}>
-                {locationPermissionRequired
-                  ? 'Enable location permission to continue using NearHub.'
-                  : 'NearHub needs auto-detected location to show relevant nearby listings.'}
-              </Text>
-              <Pressable
-                style={styles.initialLocationRetryButton}
-                onPress={() => {
-                  if (locationPermissionRequired && !canAskLocationPermissionAgain) {
-                    void Linking.openSettings();
-                    return;
-                  }
-                  void autoDetectLocation(setIsAutoLocatingUser);
-                }}
-              >
-                <Text style={styles.initialLocationRetryButtonText}>
-                  {locationPermissionRequired
-                    ? canAskLocationPermissionAgain
-                      ? 'Grant Location Access'
-                      : 'Open Settings'
-                    : 'Detect Location'}
-                </Text>
-              </Pressable>
-              {locationPermissionRequired && !canAskLocationPermissionAgain ? (
-                <Pressable
-                  style={styles.initialLocationSettingsButton}
-                  onPress={() => void Linking.openSettings()}
-                >
-                  <Text style={styles.initialLocationSettingsButtonText}>I Enabled It, Retry</Text>
-                </Pressable>
-              ) : null}
-            </>
-          )}
-        </View>
-      )}
     </View>
   );
 }
@@ -1260,56 +1218,6 @@ const styles = createResponsiveStyles({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-  },
-  initialLocationLoaderOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 1000,
-    elevation: 1000,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    gap: 10,
-    paddingHorizontal: 24,
-  },
-  initialLocationLoaderTitle: {
-    marginTop: 6,
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-    color: Colors.text,
-    textAlign: 'center',
-  },
-  initialLocationLoaderSubtitle: {
-    fontSize: 13,
-    fontFamily: 'Inter_500Medium',
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  initialLocationRetryButton: {
-    marginTop: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    backgroundColor: Colors.primary,
-  },
-  initialLocationRetryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  initialLocationSettingsButton: {
-    marginTop: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    backgroundColor: '#FFFFFF',
-  },
-  initialLocationSettingsButtonText: {
-    color: Colors.primary,
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
   },
   topEdgeCover: {
     position: 'absolute',

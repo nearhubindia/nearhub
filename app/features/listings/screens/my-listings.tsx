@@ -52,6 +52,9 @@ export default function MyListingsScreen() {
     renewId?: string;
     posted?: string;
     edited?: string;
+    picker?: string;
+    dealType?: 'normal' | 'combo';
+    selected?: string;
   }>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -79,8 +82,12 @@ export default function MyListingsScreen() {
   const [autoRenewOpenedForId, setAutoRenewOpenedForId] = useState<string | null>(null);
   const [upgradePlans, setUpgradePlans] = useState<UpgradePlan[]>(DEFAULT_UPGRADE_PLANS);
   const [nowTick, setNowTick] = useState(Date.now());
+  const [selectedDealIds, setSelectedDealIds] = useState<string[]>([]);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const isDealPicker = params.picker === 'deal';
+  const requestedDealType = params.dealType === 'combo' ? 'combo' : 'normal';
+  const maxDealSelections = requestedDealType === 'combo' ? 2 : 1;
 
   const handleBackPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -229,6 +236,20 @@ export default function MyListingsScreen() {
   }, [hasHandledEditedSuccess, params.edited]);
 
   useEffect(() => {
+    if (!isDealPicker) {
+      setSelectedDealIds([]);
+      return;
+    }
+
+    const initialSelected = String(params.selected || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .slice(0, maxDealSelections);
+    setSelectedDealIds(initialSelected);
+  }, [isDealPicker, maxDealSelections, params.selected]);
+
+  useEffect(() => {
     const timer = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -241,6 +262,41 @@ export default function MyListingsScreen() {
       setRefreshing(false);
     }
   }, [fetchUpgradePlans, refreshBanners, refreshListings]);
+
+  const toggleDealSelection = (listingId: string) => {
+    setSelectedDealIds((current) => {
+      if (current.includes(listingId)) {
+        return current.filter((id) => id !== listingId);
+      }
+      if (requestedDealType === 'normal') {
+        return [listingId];
+      }
+      if (current.length >= maxDealSelections) {
+        return [...current.slice(1), listingId];
+      }
+      return [...current, listingId];
+    });
+  };
+
+  const confirmDealSelection = () => {
+    if (selectedDealIds.length < maxDealSelections) {
+      Alert.alert(
+        'Select listings',
+        requestedDealType === 'combo'
+          ? 'Choose two listings to create a combo deal.'
+          : 'Choose one listing to create a deal.'
+      );
+      return;
+    }
+
+    router.replace({
+      pathname: '/create-deal',
+      params: {
+        dealType: requestedDealType,
+        sourceListings: selectedDealIds.join(','),
+      },
+    });
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -696,22 +752,30 @@ export default function MyListingsScreen() {
         <Pressable onPress={handleBackPress} style={styles.backButton} hitSlop={8}>
           <Feather name="arrow-left" size={24} color={Colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>My Listings</Text>
+        <Text style={styles.headerTitle}>
+          {isDealPicker
+            ? requestedDealType === 'combo'
+              ? 'Select Combo Listings'
+              : 'Select Listing for Deal'
+            : 'My Listings'}
+        </Text>
         <View style={styles.headerActions}>
+          {!isDealPicker ? (
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/listings/analytics');
+              }}
+              style={styles.analyticsButton}
+              hitSlop={8}
+            >
+              <Feather name="bar-chart-2" size={20} color={Colors.primary} />
+            </Pressable>
+          ) : null}
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/listings/analytics');
-            }}
-            style={styles.analyticsButton}
-            hitSlop={8}
-          >
-            <Feather name="bar-chart-2" size={20} color={Colors.primary} />
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/(tabs)/create');
+              router.push('/create-listing');
             }}
             style={styles.addButton}
             hitSlop={8}
@@ -885,8 +949,40 @@ export default function MyListingsScreen() {
                   </View>
                 </Pressable>
 
+                {isDealPicker && item.status === 'active' && !isExpiredItem ? (
+                  <Pressable
+                    style={[
+                      styles.dealSelectButton,
+                      selectedDealIds.includes(item.id) && styles.dealSelectButtonActive,
+                    ]}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      toggleDealSelection(item.id);
+                    }}
+                  >
+                    <Feather
+                      name={selectedDealIds.includes(item.id) ? 'check-circle' : 'tag'}
+                      size={18}
+                      color={selectedDealIds.includes(item.id) ? '#FFFFFF' : '#0F172A'}
+                    />
+                    <Text
+                      style={[
+                        styles.dealSelectButtonText,
+                        selectedDealIds.includes(item.id) && styles.dealSelectButtonTextActive,
+                      ]}
+                    >
+                      {selectedDealIds.includes(item.id)
+                        ? 'Selected for Deal'
+                        : requestedDealType === 'combo'
+                          ? 'Select for Combo'
+                          : 'Select for Deal'}
+                    </Text>
+                  </Pressable>
+                ) : null}
+
                 {/* Action Buttons Grid */}
-                {item.status === 'active' && !isExpiredItem && (
+                {!isDealPicker && item.status === 'active' && !isExpiredItem && (
                   <View style={styles.actionButtonsGrid}>
                     <Pressable
                       style={[styles.actionButton, styles.editButton]}
@@ -961,7 +1057,7 @@ export default function MyListingsScreen() {
                   </View>
                 )}
 
-                {isExpiredItem && (
+                {!isDealPicker && isExpiredItem && (
                   <View style={styles.actionButtonsGrid}>
                     <Pressable
                       style={[styles.actionButton, styles.actionButtonFull, styles.boostButton]}
@@ -973,7 +1069,7 @@ export default function MyListingsScreen() {
                   </View>
                 )}
 
-                {item.status === 'rejected' && (
+                {!isDealPicker && item.status === 'rejected' && (
                   <View style={styles.actionButtonsGrid}>
                     <Pressable
                       style={[styles.actionButton, styles.editButton]}
@@ -1007,7 +1103,7 @@ export default function MyListingsScreen() {
                   </View>
                 )}
 
-                {item.status === 'sold' && (
+                {!isDealPicker && item.status === 'sold' && (
                   <View style={styles.actionButtonsGrid}>
                     <Pressable
                       style={[styles.actionButton, styles.actionButtonFull, styles.restoreButton]}
@@ -1044,7 +1140,27 @@ export default function MyListingsScreen() {
           />
         }
         ListHeaderComponent={
-          <AppScreenBanners banners={listingsBanners} isLoading={isListingsBannersLoading} />
+          <>
+            <AppScreenBanners banners={listingsBanners} isLoading={isListingsBannersLoading} />
+            {isDealPicker ? (
+              <View style={styles.dealPickerBanner}>
+                <Text style={styles.dealPickerTitle}>
+                  {requestedDealType === 'combo'
+                    ? 'Pick two active listings to create a combo deal'
+                    : 'Pick one active listing to upgrade into a deal'}
+                </Text>
+                <Text style={styles.dealPickerSubtitle}>
+                  Selected: {selectedDealIds.length}/{maxDealSelections}
+                </Text>
+                <Pressable style={styles.dealPickerConfirmButton} onPress={confirmDealSelection}>
+                  <Feather name="arrow-right" size={16} color="#fff" />
+                  <Text style={styles.dealPickerConfirmText}>
+                    {requestedDealType === 'combo' ? 'Continue with Combo' : 'Continue with Deal'}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </>
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -1054,7 +1170,7 @@ export default function MyListingsScreen() {
               Create your first listing to get started. Pending approvals and status badges will
               appear here.
             </Text>
-            <Pressable style={styles.createButton} onPress={() => router.push('/(tabs)/create')}>
+            <Pressable style={styles.createButton} onPress={() => router.push('/create-listing')}>
               <Feather name="plus" size={20} color="#fff" />
               <Text style={styles.createButtonText}>Create Listing</Text>
             </Pressable>
@@ -1558,6 +1674,32 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
   },
+  dealSelectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 12,
+    minHeight: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#F8FAFC',
+  },
+  dealSelectButtonActive: {
+    backgroundColor: '#0B5B43',
+    borderColor: '#0B5B43',
+  },
+  dealSelectButtonText: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#0F172A',
+  },
+  dealSelectButtonTextActive: {
+    color: '#FFFFFF',
+  },
   resubmitButton: {
     backgroundColor: '#2563eb',
   },
@@ -1565,6 +1707,41 @@ const styles = createResponsiveStyles({
     fontSize: 12,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
+  },
+  dealPickerBanner: {
+    marginHorizontal: 14,
+    marginBottom: 14,
+    borderRadius: 18,
+    backgroundColor: '#ECFDF3',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    padding: 14,
+  },
+  dealPickerTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter_700Bold',
+    color: '#065F46',
+  },
+  dealPickerSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#047857',
+  },
+  dealPickerConfirmButton: {
+    marginTop: 12,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#0B5B43',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dealPickerConfirmText: {
+    fontSize: 13,
+    fontFamily: 'Inter_700Bold',
+    color: '#FFFFFF',
   },
   listContent: {
     paddingTop: 12,

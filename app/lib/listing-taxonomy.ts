@@ -1,17 +1,10 @@
 import { CATEGORIES, Category, Listing } from '@/lib/types';
 
-export type MainCategory =
-  | 'Vehicles'
-  | 'Electronics & Appliances'
-  | 'Home, Property & Living'
-  | 'Fashion & Lifestyle'
-  | 'Jobs & Services'
-  | 'Food, Travel & Events'
-  | 'Community, Pets & Others';
+export type MainCategory = string;
 
 type ListingFormType = Listing['listingType'];
 
-const CATEGORY_TAXONOMY: Record<MainCategory, Category[]> = {
+const CATEGORY_TAXONOMY: Record<string, Category[]> = {
   Vehicles: ['Vehicles', 'EV Vehicles', 'Commercial Vehicles', 'Bikes', 'Spare Parts'],
   'Electronics & Appliances': ['Electronics', 'Mobiles', 'Computers', 'Appliances'],
   'Home, Property & Living': ['Furniture', 'Home & Garden', 'Real Estate', 'Rentals'],
@@ -73,11 +66,18 @@ export type CategoryGroup = {
   subcategories: Category[];
 };
 
+export const DEFAULT_CATEGORY_GROUPS: CategoryGroup[] = Object.entries(CATEGORY_TAXONOMY).map(
+  ([mainCategory, subcategories]) => ({
+    mainCategory,
+    subcategories,
+  })
+);
+
 export function getCategoryGroupsForListingType(listingType: ListingFormType): CategoryGroup[] {
   const allowed = new Set(LISTING_TYPE_ALLOWED_SUBCATEGORIES[listingType] ?? CATEGORIES);
 
-  return (Object.entries(CATEGORY_TAXONOMY) as Array<[MainCategory, Category[]]>)
-    .map(([mainCategory, subcategories]) => ({
+  return DEFAULT_CATEGORY_GROUPS
+    .map(({ mainCategory, subcategories }) => ({
       mainCategory,
       subcategories: subcategories.filter((subcategory) => allowed.has(subcategory)),
     }))

@@ -2,29 +2,20 @@ import type { Category, Listing } from '@/lib/types';
 
 export type ProductStateFilter = 'all' | 'brand_new' | 'resale';
 
-const PRODUCT_CATEGORIES: Category[] = [
-  'Electronics',
-  'Mobiles',
-  'Computers',
-  'Appliances',
-  'Vehicles',
-  'EV Vehicles',
-  'Commercial Vehicles',
-  'Bikes',
-  'Spare Parts',
-  'Furniture',
-  'Fashion',
-  'Clothing',
-  'Beauty',
-  'Kids',
-  'Home & Garden',
-  'Sports',
-  'Books',
-  'Pets Accessories',
-  'Agriculture',
-  'Pets',
-  'Other',
-];
+const NON_PRODUCT_CATEGORIES = new Set([
+  'services',
+  'freelance',
+  'jobs',
+  'business',
+  'education',
+  'health',
+  'real estate',
+  'rentals',
+  'food',
+  'travel',
+  'events',
+  'community',
+]);
 
 function toNumericPrice(value: unknown): number {
   const numericValue = Number(value);
@@ -46,7 +37,18 @@ export function getDiscountPercent(listing: Pick<Listing, 'price' | 'offerPrice'
 }
 
 export function isProductCategory(category: Category | 'All' | string): boolean {
-  return PRODUCT_CATEGORIES.includes(category as Category);
+  const normalized = String(category || '')
+    .trim()
+    .toLowerCase();
+  return Boolean(normalized) && normalized !== 'all' && !NON_PRODUCT_CATEGORIES.has(normalized);
+}
+
+export function isProductListing(listing: Listing): boolean {
+  const listingType = String(listing.listingType || '')
+    .trim()
+    .toLowerCase();
+  if (listingType === 'service' || listingType === 'job') return false;
+  return isProductCategory(listing.category);
 }
 
 export function isRestaurantDeal(listing: Listing): boolean {
@@ -59,14 +61,14 @@ export function isHotelDeal(listing: Listing): boolean {
 
 export function isNewProductDeal(listing: Listing): boolean {
   return (
-    isProductCategory(listing.category) &&
+    isProductListing(listing) &&
     listing.condition === 'new' &&
     hasValidOfferPrice(listing)
   );
 }
 
 export function matchesProductState(listing: Listing, filter: ProductStateFilter): boolean {
-  if (!isProductCategory(listing.category) || filter === 'all') {
+  if (!isProductListing(listing) || filter === 'all') {
     return true;
   }
 

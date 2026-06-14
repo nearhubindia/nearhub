@@ -22,12 +22,13 @@ import {
   hasEnoughDataForPersonalization,
 } from '@/lib/personalization';
 import { calculateDistance } from '@/lib/location-data';
-import { Category, CATEGORIES } from '@/lib/types';
+import { Category } from '@/lib/types';
 import { formatCondition } from '@/lib/utils';
 import ListingCard from '@/shared/components/ListingCard';
 import CategoryPill from '@/shared/components/CategoryPill';
 import { shareListingLink } from '@/lib/share-app-link';
 import { useAdminSettings } from '@/lib/use-admin-settings';
+import { useListingTaxonomy } from '@/lib/use-listing-taxonomy';
 import { createResponsiveStyles } from '@/lib/responsive';
 
 const LISTING_IMAGE_ASPECT_RATIO = 3 / 4;
@@ -59,12 +60,15 @@ export default function SearchResultsScreen() {
   const { user } = useAuth();
   const { interests, trackSave } = useUserInterests();
   const { geoRadiusKm } = useAdminSettings();
+  const { groups: categoryGroups } = useListingTaxonomy();
+  const availableCategories = useMemo(
+    () => Array.from(new Set(categoryGroups.flatMap((group) => group.subcategories))),
+    [categoryGroups]
+  );
 
   const initialCategoryParam = Array.isArray(category) ? category[0] : category;
   const initialCategory: Category | 'All' =
-    initialCategoryParam === 'All' || CATEGORIES.includes(initialCategoryParam as Category)
-      ? (initialCategoryParam as Category | 'All')
-      : 'All';
+    initialCategoryParam === 'All' ? 'All' : ((initialCategoryParam || 'All') as Category | 'All');
 
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>(initialCategory);
   const [searchQuery, setSearchQuery] = useState(Array.isArray(query) ? query[0] : query || '');
@@ -300,7 +304,7 @@ export default function SearchResultsScreen() {
 
             {/* Categories */}
             <FlatList
-              data={['All', ...CATEGORIES]}
+              data={['All', ...availableCategories]}
               renderItem={({ item: cat }) => (
                 <CategoryPill
                   category={cat === 'All' ? 'All' : (cat as any)}

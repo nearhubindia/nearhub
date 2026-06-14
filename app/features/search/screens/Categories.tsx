@@ -5,22 +5,28 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
-import { Category, CATEGORIES, CATEGORY_PICTURE_IMAGES, CATEGORY_PICTURES } from '@/lib/types';
+import { Category } from '@/lib/types';
+import { useListingTaxonomy } from '@/lib/use-listing-taxonomy';
+import { getCategoryDisplayMeta } from '@/lib/category-display';
 
 interface CategoryItem {
   key: string;
   label: Category;
 }
 
-const CATEGORY_ITEMS: CategoryItem[] = CATEGORIES.map((category) => ({
-  key: category,
-  label: category,
-}));
-
 export default function CategoriesScreen() {
   const insets = useSafeAreaInsets();
   const { query = '', pincode = '', lat = '', lon = '' } = useLocalSearchParams();
+  const { groups: categoryGroups } = useListingTaxonomy();
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const categoryItems = React.useMemo(
+    () =>
+      Array.from(new Set(categoryGroups.flatMap((group) => group.subcategories))).map((category) => ({
+        key: category,
+        label: category,
+      })),
+    [categoryGroups]
+  );
 
   const queryValue = Array.isArray(query) ? query[0] : query;
   const pincodeValue = Array.isArray(pincode) ? pincode[0] : pincode;
@@ -54,25 +60,26 @@ export default function CategoriesScreen() {
       </View>
 
       <FlatList
-        data={CATEGORY_ITEMS}
+        data={categoryItems}
         keyExtractor={(item) => item.key}
         numColumns={4}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 36 }]}
         columnWrapperStyle={styles.columnWrapper}
         renderItem={({ item }) => {
-          const picture = CATEGORY_PICTURES[item.label];
-          const pictureImage = CATEGORY_PICTURE_IMAGES[item.label];
+          const meta = getCategoryDisplayMeta(item.label);
 
           return (
             <Pressable style={styles.categoryCard} onPress={() => handleCategoryPress(item.label)}>
               <View style={styles.iconTile}>
-                <Image
-                  source={{ uri: pictureImage }}
-                  style={styles.pictureImage}
-                  contentFit="contain"
-                  cachePolicy="memory-disk"
-                />
-                <Text style={styles.pictureIconFallback}>{picture}</Text>
+                {meta.pictureImage ? (
+                  <Image
+                    source={{ uri: meta.pictureImage }}
+                    style={styles.pictureImage}
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                  />
+                ) : null}
+                <Text style={styles.pictureIconFallback}>{meta.picture}</Text>
               </View>
               <Text style={styles.categoryText} numberOfLines={2}>
                 {item.label}

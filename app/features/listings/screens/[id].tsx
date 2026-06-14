@@ -29,6 +29,12 @@ import { shareListingLink } from '@/lib/share-app-link';
 import MediaCarousel from '@/shared/components/MediaCarousel';
 import RichTextPreview from '@/shared/components/RichTextPreview';
 import { createResponsiveStyles } from '@/lib/responsive';
+import { bookDeal } from '@/lib/deal-bookings';
+import {
+  countdownPartsFromMs,
+  formatDealStatus,
+  getEffectiveDealWindow,
+} from '@/lib/deal-timer';
 
 const { width } = Dimensions.get('window');
 
@@ -162,6 +168,52 @@ function mapApiListing(listing: any): Listing {
       listing?.durationDays !== undefined && listing?.durationDays !== null
         ? toNumber(listing.durationDays, 0)
         : undefined,
+    isDeal: Boolean(listing?.isDeal),
+    dealType:
+      typeof listing?.dealType === 'string' && listing.dealType.trim()
+        ? (listing.dealType.trim() as Listing['dealType'])
+        : undefined,
+    dealStartAt:
+      typeof listing?.dealStartAt === 'string' && listing.dealStartAt.trim()
+        ? listing.dealStartAt.trim()
+        : undefined,
+    dealEndAt:
+      typeof listing?.dealEndAt === 'string' && listing.dealEndAt.trim()
+        ? listing.dealEndAt.trim()
+        : undefined,
+    dealRecurrence:
+      typeof listing?.dealRecurrence === 'string' && listing.dealRecurrence.trim()
+        ? (listing.dealRecurrence.trim() as Listing['dealRecurrence'])
+        : undefined,
+    dealRecurrenceUntil:
+      typeof listing?.dealRecurrenceUntil === 'string' && listing.dealRecurrenceUntil.trim()
+        ? listing.dealRecurrenceUntil.trim()
+        : undefined,
+    dealCycleQuantity:
+      listing?.dealCycleQuantity !== undefined && listing.dealCycleQuantity !== null
+        ? toNumber(listing.dealCycleQuantity, 0)
+        : undefined,
+    maxDealBookings:
+      listing?.maxDealBookings !== undefined && listing.maxDealBookings !== null
+        ? toNumber(listing.maxDealBookings, 0)
+        : undefined,
+    postDealPriceMode:
+      typeof listing?.postDealPriceMode === 'string' && listing.postDealPriceMode.trim()
+        ? (listing.postDealPriceMode.trim() as Listing['postDealPriceMode'])
+        : undefined,
+    postDealDiscountPrice:
+      listing?.postDealDiscountPrice !== undefined && listing.postDealDiscountPrice !== null
+        ? toNumber(listing.postDealDiscountPrice, 0)
+        : undefined,
+    comboItems: parseMediaArray(listing?.comboItems),
+    dealTerms:
+      typeof listing?.dealTerms === 'string' && listing.dealTerms.trim()
+        ? listing.dealTerms.trim()
+        : undefined,
+    voucherEnabled:
+      listing?.voucherEnabled !== undefined && listing.voucherEnabled !== null
+        ? Boolean(listing.voucherEnabled)
+        : undefined,
     sellerAvatar:
       typeof listing?.sellerAvatar === 'string' && listing.sellerAvatar.trim()
         ? listing.sellerAvatar.trim()
@@ -199,6 +251,8 @@ export default function ListingDetailScreen() {
   const [deepLinkedListing, setDeepLinkedListing] = useState<Listing | null>(null);
   const [isFetchingListing, setIsFetchingListing] = useState(false);
   const [hasAttemptedListingFetch, setHasAttemptedListingFetch] = useState(false);
+  const [isBookingDeal, setIsBookingDeal] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   // Pause videos when screen loses focus
   useFocusEffect(
@@ -262,9 +316,15 @@ export default function ListingDetailScreen() {
   }, [listing?.id]);
 
   useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     setResolvedContactPhone('');
     setDeepLinkedListing(null);
     setHasAttemptedListingFetch(false);
+    setIsBookingDeal(false);
   }, [listingId]);
 
   useEffect(() => {
@@ -538,6 +598,33 @@ export default function ListingDetailScreen() {
     }
   };
 
+  const handleBookDeal = useCallback(() => {
+    if (!listing?.isDeal) return;
+
+    requireAuth(() => {
+      if (isOwner) {
+        Alert.alert('Not Allowed', 'You cannot book your own deal.');
+        return;
+      }
+
+      void (async () => {
+        setIsBookingDeal(true);
+        try {
+          await bookDeal(listing.id, user?.id || '', user?.phone || undefined);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert('Deal booked', 'Your booking is confirmed.', [
+            { text: 'Close', style: 'cancel' },
+            { text: 'View bookings', onPress: () => router.push('/bookings') },
+          ]);
+        } catch (error) {
+          Alert.alert('Booking failed', error instanceof Error ? error.message : 'Try again.');
+        } finally {
+          setIsBookingDeal(false);
+        }
+      })();
+    });
+  }, [isOwner, listing, requireAuth, user?.id, user?.phone]);
+
   const handleSave = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     toggleSaved(listingId);
@@ -553,6 +640,15 @@ export default function ListingDetailScreen() {
     listing.offerPrice > 0 &&
     listing.offerPrice < listing.price;
   const displayPrice = hasValidOfferPrice ? (listing.offerPrice as number) : listing.price;
+  const dealWindow = listing.isDeal ? getEffectiveDealWindow(listing, nowMs) : null;
+  const dealStatus = listing.isDeal ? formatDealStatus(listing, nowMs) : '';
+  const isBookableDeal = Boolean(
+    listing.isDeal && dealWindow && nowMs >= dealWindow.startMs && nowMs <= dealWindow.endMs
+  );
+  const comboTitle =
+    listing.isDeal && listing.dealType === 'combo' && listing.comboItems && listing.comboItems.length >= 2
+      ? `${listing.comboItems[0]} + ${listing.comboItems[1]}`
+      : listing.title;
 
   return (
     <View style={styles.container}>
@@ -614,117 +710,179 @@ export default function ListingDetailScreen() {
         </View>
 
         <View style={styles.details}>
-          <View style={styles.priceRow}>
-            <View style={styles.priceWrap}>
-              <Text style={styles.price}>₹{displayPrice.toLocaleString('en-IN')}</Text>
-              {listing.priceUnit && <Text style={styles.priceUnit}> / {listing.priceUnit}</Text>}
-              {hasValidOfferPrice && (
-                <Text style={styles.originalPrice}>₹{listing.price.toLocaleString('en-IN')}</Text>
-              )}
-            </View>
-            <View style={styles.rightBadges}>
-              {isExpired && (
-                <View style={styles.expiredBadge}>
-                  <Text style={styles.expiredBadgeText}>Expired</Text>
-                </View>
-              )}
-              <View
-                style={[
-                  styles.typeBadge,
-                  listing.listingType === 'buy' ? styles.buyBadge : styles.sellBadge,
-                ]}
-              >
-                <Text style={styles.typeText}>
-                  {listing.listingType === 'buy' ? 'Wanted' : 'For Sale'}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <Text style={styles.title}>{listing.title}</Text>
-
-          <View style={styles.metaRow}>
-            <View style={styles.metaItem}>
-              <Feather name="clock" size={14} color={Colors.textTertiary} />
-              <Text style={styles.metaText}>{getTimeAgo(listing.createdAt)}</Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Feather name="map-pin" size={14} color={Colors.textTertiary} />
-              <Text style={styles.metaText}>{listing.location.city}</Text>
-            </View>
-            <View style={styles.condBadge}>
-              <Text style={styles.condText}>{formatCondition(listing.condition)}</Text>
-            </View>
-          </View>
-
-          {isExpired && isOwner && (
-            <View style={styles.expiredCtaCard}>
-              <Text style={styles.expiredCtaTitle}>This listing has expired</Text>
-              <Text style={styles.expiredCtaSubtitle}>
-                Renew it to make it visible to buyers again.
-              </Text>
-              <Pressable
-                style={styles.renewNowButton}
-                onPress={() =>
-                  router.push({
-                    pathname: '/my-listings',
-                    params: { tab: 'expired', renewId: listing.id },
-                  })
-                }
-              >
-                <Feather name="refresh-cw" size={16} color="#fff" />
-                <Text style={styles.renewNowButtonText}>Renew now</Text>
-              </Pressable>
-            </View>
-          )}
-
-          {canShowDirections && (
-            <Pressable style={styles.inlineDirectionsButton} onPress={handleDirections}>
-              <Feather name="navigation" size={15} color={Colors.primary} />
-              <Text style={styles.inlineDirectionsText}>Get Directions</Text>
-            </Pressable>
-          )}
-
-          <View style={styles.divider} />
-
-          <Text style={styles.sectionTitle}>Description</Text>
-          <RichTextPreview text={listing.description || ''} textStyle={styles.description} />
-
-          <View style={styles.divider} />
-
-          <Text style={styles.sectionTitle}>Seller</Text>
-          <View style={styles.sellerCard}>
-            <View style={styles.sellerAvatar}>
-              {listing.sellerAvatar ? (
-                <Image source={{ uri: listing.sellerAvatar }} style={styles.sellerAvatarImage} />
-              ) : (
-                <Text style={styles.sellerAvatarText}>{listing.sellerName.charAt(0)}</Text>
-              )}
-            </View>
-            <View style={styles.sellerInfo}>
-              <View style={styles.sellerNameRow}>
-                <Text style={styles.sellerName}>{listing.sellerName}</Text>
-                {listing.sellerVerified && (
-                  <View style={styles.sellerVerifiedBadge}>
-                    <Feather name="check-circle" size={12} color="#fff" />
-                    <Text style={styles.sellerVerifiedText}>Verified</Text>
-                  </View>
+          <View style={styles.summaryCard}>
+            <View style={styles.priceRow}>
+              <View style={styles.priceWrap}>
+                <Text style={styles.price}>₹{displayPrice.toLocaleString('en-IN')}</Text>
+                {listing.priceUnit && <Text style={styles.priceUnit}> / {listing.priceUnit}</Text>}
+                {hasValidOfferPrice && (
+                  <Text style={styles.originalPrice}>₹{listing.price.toLocaleString('en-IN')}</Text>
                 )}
               </View>
-              <Text style={styles.sellerLocation}>{listing.location.city}</Text>
+              <View style={styles.rightBadges}>
+                {isExpired && (
+                  <View style={styles.expiredBadge}>
+                    <Text style={styles.expiredBadgeText}>Expired</Text>
+                  </View>
+                )}
+                <View
+                  style={[
+                    styles.typeBadge,
+                    listing.listingType === 'buy' ? styles.buyBadge : styles.sellBadge,
+                  ]}
+                >
+                  <Text style={styles.typeText}>
+                    {listing.listingType === 'buy' ? 'Wanted' : 'For Sale'}
+                  </Text>
+                </View>
+              </View>
             </View>
+
+            {listing.isDeal && (
+              <View style={styles.dealPanel}>
+                <View style={styles.dealPillRow}>
+                  <View style={styles.dealPill}>
+                    <Feather name="tag" size={12} color="#FFFFFF" />
+                    <Text style={styles.dealPillText}>Deal</Text>
+                  </View>
+                  {listing.voucherEnabled !== false ? (
+                    <View style={styles.voucherPill}>
+                      <Ionicons name="ticket-outline" size={12} color={Colors.textSecondary} />
+                      <Text style={styles.voucherPillText}>Voucher enabled</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                <Text style={styles.dealTitle}>{comboTitle}</Text>
+                {listing.dealType === 'combo' &&
+                listing.comboItems &&
+                listing.comboItems.length > 0 ? (
+                  <Text style={styles.dealComboSubtitle} numberOfLines={2}>
+                    {listing.comboItems.join(' + ')}
+                  </Text>
+                ) : null}
+
+                <View style={styles.dealStatusShell}>
+                  <Text style={styles.dealStatusKicker}>
+                    {dealStatus.startsWith('Ends in') ? 'DEAL ENDS IN' : 'Deal status'}
+                  </Text>
+                  {dealStatus.startsWith('Ends in') ? (
+                    <View style={styles.dealCountdownRow}>
+                      {countdownPartsFromMs(dealWindow?.endMs, nowMs).map((part) => (
+                        <View key={part.label} style={styles.dealCountdownBlock}>
+                          <Text style={styles.dealCountdownValue}>{part.value}</Text>
+                          <Text style={styles.dealCountdownLabel}>{part.label}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={styles.dealStatusValue}>{dealStatus || 'Deal listing'}</Text>
+                  )}
+                </View>
+
+                <Text style={styles.dealBannerSubtitle}>
+                  {listing.voucherEnabled === false
+                    ? 'Booking is available without a voucher.'
+                    : 'Booking will generate a voucher for redemption.'}
+                </Text>
+
+                {isBookableDeal ? (
+                  <Pressable
+                    style={[styles.dealBookButton, isBookingDeal && styles.dealBookButtonDisabled]}
+                    onPress={handleBookDeal}
+                    disabled={isBookingDeal}
+                  >
+                    {isBookingDeal ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.dealBookButtonText}>Book Deal</Text>
+                    )}
+                  </Pressable>
+                ) : null}
+              </View>
+            )}
+
+            <Text style={styles.title}>{comboTitle}</Text>
+
+            <View style={styles.metaRow}>
+              <View style={styles.metaItem}>
+                <Feather name="clock" size={14} color={Colors.textTertiary} />
+                <Text style={styles.metaText}>{getTimeAgo(listing.createdAt)}</Text>
+              </View>
+              <View style={styles.metaItem}>
+                <Feather name="map-pin" size={14} color={Colors.textTertiary} />
+                <Text style={styles.metaText}>{listing.location.city}</Text>
+              </View>
+              <View style={styles.condBadge}>
+                <Text style={styles.condText}>{formatCondition(listing.condition)}</Text>
+              </View>
+            </View>
+
+            <View style={styles.categoryTag}>
+              <Text style={styles.categoryText}>{listing.category}</Text>
+            </View>
+
+            {isExpired && isOwner && (
+              <View style={styles.expiredCtaCard}>
+                <Text style={styles.expiredCtaTitle}>This listing has expired</Text>
+                <Text style={styles.expiredCtaSubtitle}>
+                  Renew it to make it visible to buyers again.
+                </Text>
+                <Pressable
+                  style={styles.renewNowButton}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/my-listings',
+                      params: { tab: 'expired', renewId: listing.id },
+                    })
+                  }
+                >
+                  <Feather name="refresh-cw" size={16} color="#fff" />
+                  <Text style={styles.renewNowButtonText}>Renew now</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {canShowDirections && (
+              <Pressable style={styles.inlineDirectionsButton} onPress={handleDirections}>
+                <Feather name="navigation" size={15} color={Colors.primary} />
+                <Text style={styles.inlineDirectionsText}>Get Directions</Text>
+              </Pressable>
+            )}
           </View>
 
-          <View style={styles.divider} />
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Description</Text>
+            <RichTextPreview text={listing.description || ''} textStyle={styles.description} />
+          </View>
 
-          <Text style={styles.sectionTitle}>Category</Text>
-          <View style={styles.categoryTag}>
-            <Text style={styles.categoryText}>{listing.category}</Text>
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Seller</Text>
+            <View style={styles.sellerCard}>
+              <View style={styles.sellerAvatar}>
+                {listing.sellerAvatar ? (
+                  <Image source={{ uri: listing.sellerAvatar }} style={styles.sellerAvatarImage} />
+                ) : (
+                  <Text style={styles.sellerAvatarText}>{listing.sellerName.charAt(0)}</Text>
+                )}
+              </View>
+              <View style={styles.sellerInfo}>
+                <View style={styles.sellerNameRow}>
+                  <Text style={styles.sellerName}>{listing.sellerName}</Text>
+                  {listing.sellerVerified && (
+                    <View style={styles.sellerVerifiedBadge}>
+                      <Feather name="check-circle" size={12} color="#fff" />
+                      <Text style={styles.sellerVerifiedText}>Verified</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.sellerLocation}>{listing.location.city}</Text>
+              </View>
+            </View>
           </View>
 
           {recommendedProducts.length > 0 && (
-            <>
-              <View style={styles.divider} />
+            <View style={styles.sectionCard}>
               <Text style={styles.sectionTitle}>Recommended Products</Text>
               <ScrollView
                 horizontal
@@ -781,7 +939,7 @@ export default function ListingDetailScreen() {
                   );
                 })}
               </ScrollView>
-            </>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -877,14 +1035,161 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_600SemiBold',
   },
   details: {
+    marginTop: -24,
+    paddingHorizontal: 16,
+    gap: 14,
+  },
+  summaryCard: {
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     padding: 16,
-    marginTop: 0,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 2,
+  },
+  sectionCard: {
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 16,
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 4,
+  },
+  dealPanel: {
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: 14,
+    marginBottom: 14,
+  },
+  dealPillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  dealPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#0F172A',
+  },
+  dealPillText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+  },
+  voucherPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  voucherPillText: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+  },
+  dealTitle: {
+    marginTop: 12,
+    fontSize: 18,
+    lineHeight: 22,
+    color: '#0F172A',
+    fontFamily: 'Inter_700Bold',
+  },
+  dealComboSubtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#64748B',
+    fontFamily: 'Inter_400Regular',
+  },
+  dealStatusShell: {
+    marginTop: 14,
+    alignItems: 'center',
+  },
+  dealStatusKicker: {
+    fontSize: 11,
+    letterSpacing: 2.2,
+    color: Colors.primary,
+    fontFamily: 'Inter_700Bold',
+  },
+  dealCountdownRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  dealCountdownBlock: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#F8D9DD',
+  },
+  dealCountdownValue: {
+    color: '#DC1633',
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+  },
+  dealCountdownLabel: {
+    marginTop: 2,
+    color: '#64748B',
+    fontSize: 7,
+    fontFamily: 'Inter_500Medium',
+  },
+  dealStatusValue: {
+    marginTop: 6,
+    color: '#DC1633',
+    fontSize: 17,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  dealBannerSubtitle: {
+    marginTop: 14,
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.textSecondary,
+    fontFamily: 'Inter_400Regular',
+    textAlign: 'center',
+  },
+  dealBookButton: {
+    marginTop: 14,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dealBookButtonDisabled: {
+    opacity: 0.75,
+  },
+  dealBookButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
   },
   rightBadges: {
     flexDirection: 'row',
@@ -1108,6 +1413,7 @@ const styles = createResponsiveStyles({
   },
   categoryTag: {
     alignSelf: 'flex-start',
+    marginTop: 14,
     backgroundColor: Colors.primary,
     paddingHorizontal: 14,
     paddingVertical: 6,
@@ -1119,6 +1425,7 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_600SemiBold',
   },
   recommendedScrollContent: {
+    paddingTop: 10,
     gap: 10,
     paddingRight: 12,
   },

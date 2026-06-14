@@ -24,15 +24,15 @@ import { router, useLocalSearchParams } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
-import { Category, CATEGORIES, CONDITIONS, PriceUnit, PRICE_UNITS } from '@/lib/types';
+import { Category, CONDITIONS, PriceUnit } from '@/lib/types';
 import {
   MainCategory,
-  getCategoryGroupsForListingType,
   getDefaultCategoryForListingType,
   getDefaultMainCategoryForListingType,
   getMainCategoryForSubcategory,
   shouldRequireConditionForListing,
 } from '@/lib/listing-taxonomy';
+import { useListingTaxonomy } from '@/lib/use-listing-taxonomy';
 import UploadProgressBar from '@/shared/components/UploadProgressBar';
 import { deleteCloudflareMedia, uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 import { VideoRecorderModal } from '@/shared/components/VideoRecorderModal';
@@ -69,6 +69,7 @@ export default function EditListingScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getListingById, updateListing } = useListings();
+  const { groups: backendCategoryGroups, priceUnits: backendPriceUnits } = useListingTaxonomy();
 
   const listing = getListingById(id);
 
@@ -128,7 +129,10 @@ export default function EditListingScreen() {
   const [showPriceUnitPicker, setShowPriceUnitPicker] = useState(false);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
-  const categoryGroups = useMemo(() => getCategoryGroupsForListingType(listingType), [listingType]);
+  const categoryGroups = useMemo(
+    () => backendCategoryGroups.filter((group) => group.subcategories.length > 0),
+    [backendCategoryGroups]
+  );
   const visibleMainCategories = useMemo(
     () => categoryGroups.map((group) => group.mainCategory),
     [categoryGroups]
@@ -1531,10 +1535,7 @@ export default function EditListingScreen() {
             </View>
             {showPriceUnitPicker && (
               <View style={styles.pickerOptions}>
-                {Object.values(PRICE_UNITS)
-                  .flat()
-                  .filter((v, i, a) => a.indexOf(v) === i)
-                  .map((unit: PriceUnit) => (
+                {backendPriceUnits.map((unit: PriceUnit) => (
                     <Pressable
                       key={unit}
                       style={[styles.pickerOption, unit === priceUnit && styles.pickerOptionActive]}

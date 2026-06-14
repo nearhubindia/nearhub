@@ -1,0 +1,172 @@
+export type DealTimingInput = {
+  dealStartAt?: string | null;
+  dealEndAt?: string | null;
+  dealRecurrence?: string | null;
+  dealRecurrenceUntil?: string | null;
+};
+
+export type CountdownPart = {
+  label: 'D' | 'H' | 'M';
+  value: string;
+};
+
+function isValidTimestamp(value: number): value is number {
+  return Number.isFinite(value) && value > 0;
+}
+
+function parseRawDateTime(raw?: string | null): number | undefined {
+  if (!raw) return undefined;
+  const timestamp = new Date(raw).getTime();
+  return isValidTimestamp(timestamp) ? timestamp : undefined;
+}
+
+function addCycle(date: Date, recurrence: string): Date {
+  const next = new Date(date);
+  if (recurrence === 'daily') next.setDate(next.getDate() + 1);
+  if (recurrence === 'weekly') next.setDate(next.getDate() + 7);
+  if (recurrence === 'monthly') next.setMonth(next.getMonth() + 1);
+  return next;
+}
+
+function getDateOnly(ms: number): number {
+  const date = new Date(ms);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function isSameDay(msA: number, msB: number): boolean {
+  return getDateOnly(msA) === getDateOnly(msB);
+}
+
+function isTomorrow(startMs: number, nowMs: number): boolean {
+  const tomorrow = new Date(nowMs);
+  tomorrow.setHours(0, 0, 0, 0);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return getDateOnly(startMs) === tomorrow.getTime();
+}
+
+function formatDisplayDate(ms: number): string {
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(ms));
+}
+
+export function getEffectiveDealWindow(
+  input: DealTimingInput,
+  nowMs: number
+): { startMs: number; endMs: number; cycleKey: string; isRecurring: boolean } | null {
+  const firstStartMs = parseRawDateTime(input.dealStartAt ?? null);
+  const firstEndMs = parseRawDateTime(input.dealEndAt ?? null);
+  if (!firstStartMs || !firstEndMs || firstEndMs <= firstStartMs) return null;
+
+  const recurrence = String(input.dealRecurrence || 'none').toLowerCase();
+  const isRecurring = recurrence === 'daily' || recurrence === 'weekly' || recurrence === 'monthly';
+  if (!isRecurring) {
+    return {
+      startMs: firstStartMs,
+      endMs: firstEndMs,
+      cycleKey: new Date(firstStartMs).toISOString().slice(0, 10),
+      isRecurring: false,
+    };
+  }
+
+  const repeatUntilMs = parseRawDateTime(input.dealRecurrenceUntil ?? null);
+  if (!repeatUntilMs || repeatUntilMs < firstStartMs) return null;
+
+  let start = new Date(firstStartMs);
+  let end = new Date(firstEndMs);
+  let guard = 0;
+  while (end.getTime() < nowMs && end.getTime() < repeatUntilMs && guard < 370) {
+    start = addCycle(start, recurrence);
+    end = addCycle(end, recurrence);
+    guard += 1;
+  }
+
+  if (start.getTime() > repeatUntilMs) return null;
+  return {
+    startMs: start.getTime(),
+    endMs: Math.min(end.getTime(), repeatUntilMs),
+    cycleKey: start.toISOString().slice(0, 10),
+    isRecurring: true,
+  };
+}
+
+export function formatDealStartMessage(startMs: number, nowMs: number): string {
+  if (isSameDay(startMs, nowMs)) return 'Deal starts today';
+  if (isTomorrow(startMs, nowMs)) return 'Deal starts tomorrow';
+  return `Deal starts on ${formatDisplayDate(startMs)}`;
+}
+
+export function formatDealCountdown(milliseconds: number): string {
+  const minutes = Math.max(1, Math.ceil(milliseconds / 60000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.max(1, Math.ceil(minutes / 60));
+  return `${hours} hr${hours === 1 ? '' : 's'}`;
+}
+
+export function formatDealStatus(input: DealTimingInput, nowMs: number): string {
+  const window = getEffectiveDealWindow(input, nowMs);
+  if (!window) return '';
+  const { startMs, endMs, isRecurring } = window;
+
+  if (nowMs < startMs) {
+    return isRecurring
+      ? `Next deal ${formatDealStartMessage(startMs, nowMs).replace('Deal ', '')}`
+      : formatDealStartMessage(startMs, nowMs);
+  }
+
+  if (nowMs > endMs) return 'Deal expired';
+  return `Ends in ${formatDealCountdown(endMs - nowMs)}`;
+}
+
+export function isDealActiveNow(input: DealTimingInput, nowMs: number): boolean {
+  const window = getEffectiveDealWindow(input, nowMs);
+  if (!window) return false;
+  return nowMs >= window.startMs && nowMs <= window.endMs;
+}
+
+export function isDealUpcoming(input: DealTimingInput, nowMs: number): boolean {
+  const window = getEffectiveDealWindow(input, nowMs);
+  if (!window) return false;
+  return nowMs < window.startMs;
+}
+
+export function isDealExpired(input: DealTimingInput, nowMs: number): boolean {
+  const startMs = parseRawDateTime(input.dealStartAt ?? null);
+  const endMs = parseRawDateTime(input.dealEndAt ?? null);
+  if (!startMs || !endMs) return false;
+  return nowMs > endMs;
+}
+
+export function countdownPartsFromMs(
+  endAt: number | undefined,
+  nowMs: number
+): CountdownPart[] {
+  if (!endAt || endAt <= nowMs) {
+    return [
+      { label: 'D', value: '00' },
+      { label: 'H', value: '00' },
+      { label: 'M', value: '00' },
+    ];
+  }
+
+  const diffMs = Math.max(0, endAt - nowMs);
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  return [
+    { label: 'D', value: String(days).padStart(2, '0') },
+    { label: 'H', value: String(hours).padStart(2, '0') },
+    { label: 'M', value: String(minutes).padStart(2, '0') },
+  ];
+}
+
+export function formatCountdown(endAt: number | undefined, nowMs: number): string {
+  return countdownPartsFromMs(endAt, nowMs)
+    .map((part) => part.value)
+    .join(' : ');
+}

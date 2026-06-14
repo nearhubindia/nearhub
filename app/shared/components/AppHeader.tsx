@@ -20,6 +20,8 @@ import { NotificationBell } from '@/shared/components/NotificationBell';
 import { Logo } from '@/shared/components/Logo';
 import BrandWordmark from '@/shared/components/BrandWordmark';
 import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
+import { useListingTaxonomy } from '@/lib/use-listing-taxonomy';
+import { getCategoryDisplayMeta } from '@/lib/category-display';
 
 interface AppHeaderProps {
   selectedCategory?: string;
@@ -27,22 +29,6 @@ interface AppHeaderProps {
   title?: string;
   showNav?: boolean;
 }
-
-const CATEGORIES = [
-  { label: 'All', icon: 'grid' },
-  { label: 'Electronics', icon: 'smartphone' },
-  { label: 'Vehicles', icon: 'truck' },
-  { label: 'Real Estate', icon: 'home' },
-  { label: 'Jobs', icon: 'briefcase' },
-  { label: 'Services', icon: 'tool' },
-  { label: 'Furniture', icon: 'layers' },
-  { label: 'Clothing', icon: 'shopping-bag' },
-  { label: 'Home & Garden', icon: 'sun' },
-  { label: 'Sports', icon: 'activity' },
-  { label: 'Education', icon: 'book' },
-  { label: 'Pets', icon: 'heart' },
-  { label: 'Other', icon: 'more-horizontal' },
-];
 
 export function AppHeader({
   selectedCategory = 'All',
@@ -54,8 +40,15 @@ export function AppHeader({
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { groups: categoryGroups } = useListingTaxonomy();
   const [showMenu, setShowMenu] = useState(false);
   const slideAnim = new Animated.Value(1);
+  const categories = [
+    { label: 'All', icon: 'grid' },
+    ...Array.from(new Set(categoryGroups.flatMap((group) => group.subcategories)))
+      .slice(0, 12)
+      .map((label) => ({ label, icon: getCategoryDisplayMeta(label).icon })),
+  ];
 
   useEffect(() => {
     if (showMenu) {
@@ -191,7 +184,7 @@ export function AppHeader({
           style={styles.navScroll}
           contentContainerStyle={styles.navContent}
         >
-          {CATEGORIES.map((category) => (
+          {categories.map((category) => (
             <TouchableOpacity
               key={category.label}
               style={[

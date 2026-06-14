@@ -13,6 +13,22 @@ import { Listing, Category } from '@/lib/types';
 import { getBackendURL, getDebug } from '@/lib/config';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 
+type DealListingInput = {
+  isDeal?: boolean;
+  dealType?: 'normal' | 'combo';
+  dealStartAt?: string;
+  dealEndAt?: string;
+  dealRecurrence?: 'none' | 'daily' | 'weekly' | 'monthly';
+  dealRecurrenceUntil?: string;
+  dealCycleQuantity?: number;
+  maxDealBookings?: number;
+  postDealPriceMode?: 'original' | 'discount';
+  postDealDiscountPrice?: number;
+  comboItems?: string[];
+  dealTerms?: string;
+  voucherEnabled?: boolean;
+};
+
 const LISTINGS_KEY = '@marketlocal_listings';
 const SAVED_KEY = '@marketlocal_saved';
 const INITIALIZED_KEY = '@marketlocal_initialized';
@@ -159,7 +175,7 @@ interface ListingsContextValue {
   offset: number;
   limit: number;
   addListing: (
-    listing: Omit<Listing, 'id' | 'createdAt'>,
+    listing: Omit<Listing, 'id' | 'createdAt'> & Partial<DealListingInput>,
     duration?: number,
     couponCode?: string,
     subscriptionTierId?: string,
@@ -381,6 +397,34 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                 : undefined,
             duration: Number(listing.durationDays || listing.duration || 0) || undefined,
             durationDays: Number(listing.durationDays || listing.duration || 0) || undefined,
+            isDeal: Boolean(listing.isDeal),
+            dealType: (listing.dealType || undefined) as Listing['dealType'],
+            dealStartAt: listing.dealStartAt || undefined,
+            dealEndAt: listing.dealEndAt || undefined,
+            dealRecurrence: (listing.dealRecurrence || undefined) as Listing['dealRecurrence'],
+            dealRecurrenceUntil: listing.dealRecurrenceUntil || undefined,
+            dealCycleQuantity:
+              listing.dealCycleQuantity !== undefined && listing.dealCycleQuantity !== null
+                ? Number(listing.dealCycleQuantity)
+                : undefined,
+            maxDealBookings:
+              listing.maxDealBookings !== undefined && listing.maxDealBookings !== null
+                ? Number(listing.maxDealBookings)
+                : undefined,
+            postDealPriceMode: (listing.postDealPriceMode || undefined) as Listing['postDealPriceMode'],
+            postDealDiscountPrice:
+              listing.postDealDiscountPrice !== undefined && listing.postDealDiscountPrice !== null
+                ? Number(listing.postDealDiscountPrice)
+                : undefined,
+            comboItems: Array.isArray(listing.comboItems) ? listing.comboItems : undefined,
+            dealTerms:
+              typeof listing.dealTerms === 'string' && listing.dealTerms.trim()
+                ? listing.dealTerms.trim()
+                : undefined,
+            voucherEnabled:
+              listing.voucherEnabled !== undefined && listing.voucherEnabled !== null
+                ? Boolean(listing.voucherEnabled)
+                : undefined,
             status: listing.status || 'active',
             rejectionReason:
               typeof listing.rejectionReason === 'string' && listing.rejectionReason.trim()
@@ -563,6 +607,19 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         images: listing.images || [],
         videos: listing.videos || [], // Include videos array (from video uploads)
         listingType: listing.videos && listing.videos.length > 0 ? 'video' : 'image',
+        isDeal: listing.isDeal || false,
+        dealType: listing.isDeal ? listing.dealType || 'normal' : undefined,
+        dealStartAt: listing.isDeal ? listing.dealStartAt : undefined,
+        dealEndAt: listing.isDeal ? listing.dealEndAt : undefined,
+        dealRecurrence: listing.isDeal ? listing.dealRecurrence || 'none' : undefined,
+        dealRecurrenceUntil: listing.isDeal ? listing.dealRecurrenceUntil : undefined,
+        dealCycleQuantity: listing.isDeal ? listing.dealCycleQuantity : undefined,
+        maxDealBookings: listing.isDeal ? listing.maxDealBookings : undefined,
+        postDealPriceMode: listing.isDeal ? listing.postDealPriceMode : undefined,
+        postDealDiscountPrice: listing.isDeal ? listing.postDealDiscountPrice : undefined,
+        comboItems: listing.isDeal ? listing.comboItems : undefined,
+        dealTerms: listing.isDeal ? listing.dealTerms : undefined,
+        voucherEnabled: listing.isDeal ? listing.voucherEnabled : undefined,
         ...(duration && { duration }), // Include duration for paid listings
         ...(couponCode && { couponCode }), // Include coupon code if provided
         ...(subscriptionTierId && { subscriptionTierId }), // Include subscription tier ID if provided
@@ -671,6 +728,19 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           longitude: updates.location?.longitude,
           images: updates.images,
           videos: updates.videos,
+          isDeal: updates.isDeal,
+          dealType: updates.isDeal ? updates.dealType : undefined,
+          dealStartAt: updates.isDeal ? updates.dealStartAt : undefined,
+          dealEndAt: updates.isDeal ? updates.dealEndAt : undefined,
+          dealRecurrence: updates.isDeal ? updates.dealRecurrence : undefined,
+          dealRecurrenceUntil: updates.isDeal ? updates.dealRecurrenceUntil : undefined,
+          dealCycleQuantity: updates.isDeal ? updates.dealCycleQuantity : undefined,
+          maxDealBookings: updates.isDeal ? updates.maxDealBookings : undefined,
+          postDealPriceMode: updates.isDeal ? updates.postDealPriceMode : undefined,
+          postDealDiscountPrice: updates.isDeal ? updates.postDealDiscountPrice : undefined,
+          comboItems: updates.isDeal ? updates.comboItems : undefined,
+          dealTerms: updates.isDeal ? updates.dealTerms : undefined,
+          voucherEnabled: updates.isDeal ? updates.voucherEnabled : undefined,
         }),
       });
 

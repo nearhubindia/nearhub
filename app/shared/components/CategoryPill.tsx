@@ -2,7 +2,8 @@ import React from 'react';
 import { StyleSheet, Text, Pressable } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
-import { Category, CATEGORY_ICONS } from '@/lib/types';
+import { Category } from '@/lib/types';
+import { getCategoryDisplayMeta } from '@/lib/category-display';
 import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
 
 interface CategoryPillProps {
@@ -11,20 +12,10 @@ interface CategoryPillProps {
   onPress: () => void;
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  All: Colors.primary,
-  Electronics: Colors.categoryElectronics,
-  Vehicles: Colors.categoryVehicles,
-  Furniture: Colors.categoryFurniture,
-  Clothing: Colors.categoryClothing,
-  'Home & Garden': Colors.categoryHome,
-  Sports: Colors.categorySports,
-  Other: Colors.categoryOther,
-};
-
 export default function CategoryPill({ category, isSelected, onPress }: CategoryPillProps) {
-  const color = CATEGORY_COLORS[category] || Colors.primary;
-  const iconInfo = category === 'All' ? null : CATEGORY_ICONS[category as Category];
+  const meta = getCategoryDisplayMeta(category);
+  const color = category === 'All' ? Colors.primary : meta.color;
+  const iconName = category === 'All' ? 'grid' : meta.icon;
 
   return (
     <Pressable
@@ -36,13 +27,11 @@ export default function CategoryPill({ category, isSelected, onPress }: Category
       ]}
       onPress={onPress}
     >
-      {iconInfo && (
-        <Feather
-          name={iconInfo.name as any}
-          size={responsiveModerateScale(12)}
-          color={isSelected ? '#fff' : color}
-        />
-      )}
+      <Feather
+        name={iconName as any}
+        size={responsiveModerateScale(12)}
+        color={isSelected ? '#fff' : color}
+      />
       <Text style={[styles.text, { color: isSelected ? '#fff' : Colors.textSecondary }]}>
         {category}
       </Text>

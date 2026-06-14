@@ -31,7 +31,7 @@ import {
   isProfileComplete,
   getMissingProfileFields,
 } from '@/shared/contexts/auth-context';
-import { Category, CATEGORIES, CONDITIONS, PriceUnit, PRICE_UNITS, Listing } from '@/lib/types';
+import { Category, CATEGORIES, CONDITIONS, PriceUnit, Listing } from '@/lib/types';
 import { getApiUrl } from '@/lib/query-client';
 import { compressVideoWithProgress, getVideoFileSize } from '@/lib/video-compressor';
 import {
@@ -42,6 +42,7 @@ import {
   shouldRequireConditionForListing,
   MainCategory,
 } from '@/lib/listing-taxonomy';
+import { useListingTaxonomy } from '@/lib/use-listing-taxonomy';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 import {
   toPortableImageUri,
@@ -82,6 +83,7 @@ export default function CreateScreen() {
   const insets = useSafeAreaInsets();
   const { addListing } = useListings();
   const { user, isAuthenticated } = useAuth();
+  const { groups: backendCategoryGroups, priceUnits: backendPriceUnits } = useListingTaxonomy();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -260,7 +262,15 @@ export default function CreateScreen() {
     []
   );
 
-  const categoryGroups = useMemo(() => getCategoryGroupsForListingType(listingType), [listingType]);
+  const buildDealTimestamp = useCallback((offsetDays: number) => {
+    const safeDays = Number.isFinite(offsetDays) && offsetDays >= 0 ? offsetDays : 0;
+    return new Date(Date.now() + safeDays * 24 * 60 * 60 * 1000).toISOString();
+  }, []);
+
+  const categoryGroups = useMemo(
+    () => backendCategoryGroups.filter((group) => group.subcategories.length > 0),
+    [backendCategoryGroups]
+  );
   const visibleMainCategories = useMemo(
     () => categoryGroups.map((group) => group.mainCategory),
     [categoryGroups]
@@ -1453,7 +1463,6 @@ export default function CreateScreen() {
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const bottomCtaSafeSpacing = Platform.OS === 'web' ? 34 : 86;
-  const heroTopPadding = Platform.OS === 'web' ? 18 : 18 + Math.max(insets.top, 10);
 
   const uploadImagesToCloudflare = async (uris: string[]): Promise<string[]> => {
     return uploadImagesToCloudflareUtil(uris, {
@@ -2223,12 +2232,14 @@ export default function CreateScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
+        <View style={styles.backgroundOrbPrimary} />
+        <View style={styles.backgroundOrbSecondary} />
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={[
-            styles.content,
+            styles.scrollContent,
             {
-              paddingTop: 16,
+              paddingTop: insets.top + 14,
               paddingBottom: insets.bottom + bottomCtaSafeSpacing + 30,
             },
           ]}
@@ -2236,20 +2247,31 @@ export default function CreateScreen() {
           keyboardShouldPersistTaps="handled"
           scrollEnabled={true}
         >
-          <View style={styles.heroContainer}>
+          <View style={styles.content}>
             <LinearGradient
-              colors={['#0F172A', '#0E7490', '#14B8A6']}
+              colors={['#0F172A', '#0759E6']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[styles.heroCard, { paddingTop: heroTopPadding }]}
+              style={styles.createHero}
             >
-              <View style={styles.heroGlowOrbA} />
-              <View style={styles.heroGlowOrbB} />
-              <Text style={styles.heroEyebrow}>NearHub Seller Studio</Text>
-              <Text style={styles.screenTitle}>Create Listing</Text>
-              <Text style={styles.heroSubtitle}>
-                Build a premium listing in minutes. Every submission is reviewed by admin before it
-                goes live.
+              <View style={styles.createHeroTopRow}>
+                <View style={styles.createHeroPill}>
+                  <Feather name="edit-3" size={12} color="#FFFFFF" />
+                  <Text style={styles.createHeroPillText}>NearHub Create</Text>
+                </View>
+              </View>
+
+              <Text style={styles.createHeroTitle}>Create Listing</Text>
+              <Text style={styles.createHeroSubtitle}>
+                Build a listing with the standard NearHub posting flow. Every submission is
+                reviewed before it goes live.
+              </Text>
+            </LinearGradient>
+
+            <View style={styles.createSummaryCard}>
+              <Text style={styles.createSummarySubtitle}>
+                Move through the steps below to add media, pricing, location, and the right category
+                details.
               </Text>
 
               <View style={styles.heroProgressRow}>
@@ -2267,24 +2289,25 @@ export default function CreateScreen() {
               </View>
 
               <View style={styles.heroMetaRow}>
-                <View style={styles.heroMetaPill}>
-                  <Feather name="image" size={12} color="#CCFBF1" />
-                  <Text style={styles.heroMetaText}>{images.length} photos</Text>
+                <View style={styles.createMetaPill}>
+                  <Feather name="image" size={12} color={Colors.textSecondary} />
+                  <Text style={styles.createMetaText}>{images.length} photos</Text>
                 </View>
-                <View style={styles.heroMetaPill}>
-                  <Feather name="video" size={12} color="#CCFBF1" />
-                  <Text style={styles.heroMetaText}>{videoUri ? 'Video added' : 'No video'}</Text>
+                <View style={styles.createMetaPill}>
+                  <Feather name="video" size={12} color={Colors.textSecondary} />
+                  <Text style={styles.createMetaText}>
+                    {videoUri ? 'Video added' : 'No video'}
+                  </Text>
                 </View>
-                <View style={styles.heroMetaPill}>
-                  <Feather name="shield" size={12} color="#CCFBF1" />
-                  <Text style={styles.heroMetaText}>Admin review</Text>
+                <View style={styles.createMetaPill}>
+                  <Feather name="shield" size={12} color={Colors.textSecondary} />
+                  <Text style={styles.createMetaText}>Admin review</Text>
                 </View>
               </View>
-            </LinearGradient>
-          </View>
+            </View>
 
-          {/* Step 1: Listing Type */}
-          <View style={styles.section}>
+            {/* Step 1: Listing Type */}
+            <View style={styles.section}>
             <View style={styles.stepHeader}>
               <View style={styles.stepBadge}>
                 <Text style={styles.stepBadgeText}>1</Text>
@@ -2384,11 +2407,11 @@ export default function CreateScreen() {
               <View
                 style={[
                   styles.deduplicationBanner,
-                  { marginTop: 10, backgroundColor: '#F0F9FF', borderLeftColor: '#0369A1' },
+                  { marginTop: 10, backgroundColor: 'rgba(7, 89, 230, 0.08)', borderLeftColor: Colors.primary },
                 ]}
               >
-                <Feather name="info" size={16} color="#0369A1" />
-                <Text style={[styles.deduplicationText, { color: '#0369A1' }]}>
+                <Feather name="info" size={16} color={Colors.primary} />
+                <Text style={[styles.deduplicationText, { color: Colors.primary }]}>
                   No photos? We&apos;ll use our default job posting image.
                 </Text>
               </View>
@@ -2561,15 +2584,7 @@ export default function CreateScreen() {
             <View style={styles.unitSelectorInline}>
               <Text style={styles.unitInlineLabel}>Unit:</Text>
               <View style={styles.unitChipsContainer}>
-                {(
-                  PRICE_UNITS[
-                    listingType === 'service'
-                      ? 'Services'
-                      : listingType === 'job'
-                        ? 'Jobs'
-                        : category
-                  ] || PRICE_UNITS.default
-                ).map((unit) => (
+                {backendPriceUnits.map((unit) => (
                   <Pressable
                     key={unit}
                     style={[styles.unitChip, priceUnit === unit && styles.unitChipSelected]}
@@ -2780,7 +2795,7 @@ export default function CreateScreen() {
           {/* Subscription Status */}
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
-              <Feather name="shield" size={14} color="#0EA5E9" />
+              <Feather name="shield" size={14} color={Colors.primary} />
               <Text style={styles.sectionLabel}>Subscription Status</Text>
             </View>
             {isLoadingSubscription ? (
@@ -2850,7 +2865,7 @@ export default function CreateScreen() {
 
                 {subscriptionStats.isMultiple && (
                   <View style={styles.subscriptionHintBanner}>
-                    <Feather name="info" size={12} color="#0369A1" />
+                    <Feather name="info" size={12} color={Colors.primary} />
                     <Text style={styles.subscriptionHintText}>
                       Showing combined stats for all {allSubscriptions.length} subscriptions. Tap
                       Select to choose one.
@@ -2933,11 +2948,11 @@ export default function CreateScreen() {
                 ) : (
                   <View style={styles.noSubscriptionFeatureRow}>
                     <View style={styles.noSubscriptionFeaturePill}>
-                      <Feather name="star" size={11} color="#0369A1" />
+                      <Feather name="star" size={11} color={Colors.primary} />
                       <Text style={styles.noSubscriptionFeatureText}>Boost visibility</Text>
                     </View>
                     <View style={styles.noSubscriptionFeaturePill}>
-                      <Feather name="video" size={11} color="#0369A1" />
+                      <Feather name="video" size={11} color={Colors.primary} />
                       <Text style={styles.noSubscriptionFeatureText}>Video listings</Text>
                     </View>
                   </View>
@@ -2993,7 +3008,7 @@ export default function CreateScreen() {
               disabled={isSubmitting}
             >
               <LinearGradient
-                colors={['#0EA5E9', '#2563EB', '#1D4ED8']}
+                colors={['#003A9B', '#0759E6', '#FFB04A']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.submitGradient}
@@ -3009,6 +3024,7 @@ export default function CreateScreen() {
               </LinearGradient>
             </Pressable>
           </View>
+        </View>
         </ScrollView>
 
         {/* Subscription Picker Modal */}
@@ -3616,6 +3632,24 @@ const styles = createResponsiveStyles({
     flex: 1,
     backgroundColor: '#F3F6FB',
   },
+  backgroundOrbPrimary: {
+    position: 'absolute',
+    top: -84,
+    right: -56,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(7, 89, 230, 0.12)',
+  },
+  backgroundOrbSecondary: {
+    position: 'absolute',
+    top: 132,
+    left: -62,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255, 176, 74, 0.14)',
+  },
   guestNotice: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3703,6 +3737,94 @@ const styles = createResponsiveStyles({
     marginTop: 6,
     fontStyle: 'italic',
   },
+  dealToggleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    backgroundColor: Colors.surface,
+    padding: 14,
+    gap: 12,
+  },
+  dealToggleCardActive: {
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(10, 102, 194, 0.05)',
+  },
+  dealToggleCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  dealToggleTitle: {
+    fontSize: 15,
+    color: Colors.text,
+    fontFamily: 'Inter_700Bold',
+  },
+  dealToggleSubtitle: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.textSecondary,
+    fontFamily: 'Inter_400Regular',
+  },
+  dealTogglePill: {
+    minWidth: 56,
+    borderRadius: 999,
+    backgroundColor: Colors.borderLight,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  dealTogglePillActive: {
+    backgroundColor: Colors.primary,
+  },
+  dealTogglePillText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.textSecondary,
+  },
+  dealTogglePillTextActive: {
+    color: '#fff',
+  },
+  dealOptionsPanel: {
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: Colors.borderLight,
+    gap: 12,
+  },
+  multilineInput: {
+    minHeight: 96,
+    textAlignVertical: 'top',
+  },
+  dealVoucherCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    backgroundColor: Colors.surface,
+    padding: 14,
+    gap: 12,
+  },
+  dealVoucherCardActive: {
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(10, 102, 194, 0.05)',
+  },
+  dealVoucherTitle: {
+    fontSize: 14,
+    color: Colors.text,
+    fontFamily: 'Inter_700Bold',
+  },
+  dealVoucherSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.textSecondary,
+    fontFamily: 'Inter_400Regular',
+    maxWidth: 260,
+  },
   scrollView: {
     flex: 1,
   },
@@ -3755,60 +3877,71 @@ const styles = createResponsiveStyles({
     maxWidth: 920,
     alignSelf: 'center',
   },
-  screenTitle: {
-    fontSize: 30,
-    fontFamily: 'Inter_700Bold',
-    color: '#F8FAFC',
-    letterSpacing: 0.2,
-  },
-  heroContainer: {
-    // Slight overdraw prevents thin edge seams on some device pixel ratios.
-    marginHorizontal: -10,
-    marginTop: -16,
-    marginBottom: 10,
-  },
-  heroCard: {
-    borderRadius: 0,
+  scrollContent: {
     paddingHorizontal: 18,
-    paddingVertical: 18,
+  },
+  createSummaryCard: {
+    marginBottom: 14,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  createHero: {
+    marginBottom: 16,
+    borderRadius: 24,
     overflow: 'hidden',
-    borderWidth: 0,
+    padding: 20,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 8,
   },
-  heroGlowOrbA: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
+  createHeroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  createHeroPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(56, 189, 248, 0.28)',
-    top: -40,
-    right: -20,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
-  heroGlowOrbB: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 999,
-    backgroundColor: 'rgba(20, 184, 166, 0.24)',
-    bottom: -28,
-    left: -18,
-  },
-  heroEyebrow: {
+  createHeroPillText: {
+    color: '#FFFFFF',
     fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#A5F3FC',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 8,
+    fontFamily: 'Inter_700Bold',
   },
-  heroSubtitle: {
+  createHeroTitle: {
+    marginTop: 18,
+    color: '#FFFFFF',
+    fontSize: 28,
+    lineHeight: 32,
+    fontFamily: 'Inter_700Bold',
+  },
+  createHeroSubtitle: {
+    marginTop: 8,
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 14,
+    lineHeight: 21,
+    fontFamily: 'Inter_400Regular',
+  },
+  createSummarySubtitle: {
+    marginTop: 14,
     fontSize: 13,
     fontFamily: 'Inter_400Regular',
-    color: '#DBEAFE',
+    color: Colors.textSecondary,
     lineHeight: 19,
-    marginTop: 8,
   },
   heroProgressRow: {
-    marginTop: 16,
+    marginTop: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -3817,18 +3950,18 @@ const styles = createResponsiveStyles({
     flex: 1,
     height: 8,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+    backgroundColor: '#E2E8F0',
     overflow: 'hidden',
   },
   heroProgressFill: {
     height: '100%',
     borderRadius: 999,
-    backgroundColor: '#CFFAFE',
+    backgroundColor: Colors.primary,
   },
   heroProgressText: {
     fontSize: 11,
     fontFamily: 'Inter_600SemiBold',
-    color: '#ECFEFF',
+    color: Colors.textSecondary,
   },
   heroMetaRow: {
     marginTop: 14,
@@ -3836,21 +3969,21 @@ const styles = createResponsiveStyles({
     flexWrap: 'wrap',
     gap: 8,
   },
-  heroMetaPill: {
+  createMetaPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(15, 23, 42, 0.36)',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
+    borderColor: '#E2E8F0',
   },
-  heroMetaText: {
+  createMetaText: {
     fontSize: 11,
     fontFamily: 'Inter_500Medium',
-    color: '#ECFEFF',
+    color: Colors.textSecondary,
   },
   typeGrid: {
     flexDirection: 'row',

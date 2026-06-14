@@ -338,6 +338,20 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="create-listing"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
+        name="create-deal"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+        }}
+      />
+      <Stack.Screen
         name="settings"
         options={{
           headerShown: false,
@@ -382,11 +396,11 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (!fontsLoaded || !isVersionCheckComplete) {
-      return;
-    }
-
     let cancelled = false;
+    const fallbackTimer = setTimeout(() => {
+      if (cancelled) return;
+      void hideSplashOnce();
+    }, 1800);
 
     async function prepare() {
       if (Platform.OS === 'android') {
@@ -407,8 +421,9 @@ export default function RootLayout() {
     void prepare();
     return () => {
       cancelled = true;
+      clearTimeout(fallbackTimer);
     };
-  }, [fontsLoaded, hideSplashOnce, isVersionCheckComplete]);
+  }, [hideSplashOnce]);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -474,10 +489,6 @@ export default function RootLayout() {
     };
   }, [fontsLoaded, hardUpdateStatus.required]);
 
-  if (!fontsLoaded || !isVersionCheckComplete) {
-    return null;
-  }
-
   const AppProviders = View; // Platform.OS === 'web' ? View : KeyboardProvider;
   const GestureWrapper = Platform.OS === 'web' ? View : GestureHandlerRootView;
 
@@ -487,7 +498,7 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureWrapper style={{ flex: 1 }}>
             <AppProviders style={{ flex: 1 }}>
-              {hardUpdateStatus.required ? (
+              {isVersionCheckComplete && hardUpdateStatus.required ? (
                 <HardUpdateScreen
                   message={hardUpdateStatus.message}
                   storeUrl={hardUpdateStatus.storeUrl}

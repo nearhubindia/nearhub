@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     color: Colors.primaryDark,
   },
   hubText: {
-    color: Colors.primaryLight,
+    color: Colors.accent,
   },
   aiBadge: {
     position: 'absolute',
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: Colors.primary,
     borderWidth: 1,
-    borderColor: Colors.primaryLight,
+    borderColor: Colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },

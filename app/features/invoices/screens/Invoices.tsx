@@ -255,7 +255,7 @@ export default function InvoicesScreen() {
             </Text>
             <Pressable
               style={styles.createListingButton}
-              onPress={() => router.push('/(tabs)/create')}
+              onPress={() => router.push('/create-listing')}
             >
               <Feather name="plus" size={20} color="white" />
               <Text style={styles.createListingButtonText}>Create Listing</Text>
