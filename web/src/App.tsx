@@ -184,9 +184,7 @@ function App() {
         {showInitialSplash ? <SplashScreen /> : null}
         <SeoManager />
         <ScrollToTop />
-        <Suspense
-          fallback={<SplashScreen />}
-        >
+        <Suspense fallback={<SplashScreen />}>
           <RouteTransitionShell>
             <Routes>
               <Route path="/" element={<UserHomePage />} />

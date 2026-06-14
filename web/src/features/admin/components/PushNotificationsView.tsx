@@ -3,17 +3,9 @@
  * Send push notifications to buyers, sellers, or all users
  */
 
-import { useState, useEffect } from "react";
-import {
-  Bell,
-  Send,
-  Users,
-  ShoppingBag,
-  TrendingUp,
-  AlertCircle,
-  Check,
-} from "lucide-react";
-import { getApiUrl, getAdminToken } from "../constants/admin-constants";
+import { useState, useEffect } from 'react';
+import { Bell, Send, Users, ShoppingBag, TrendingUp, AlertCircle, Check } from 'lucide-react';
+import { getApiUrl, getAdminToken } from '../constants/admin-constants';
 
 interface PushStats {
   totalTokens: number;
@@ -51,21 +43,21 @@ export default function PushNotificationsView() {
   const [sending, setSending] = useState(false);
 
   // Form state
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [userType, setUserType] = useState<"all" | "buyer" | "seller">("all");
-  const [notificationType, setNotificationType] = useState("admin_broadcast");
-  const [imageUrl, setImageUrl] = useState("");
-  const [dealUrl, setDealUrl] = useState("");
-  const [listingId, setListingId] = useState("");
-  const [centerLatitude, setCenterLatitude] = useState("");
-  const [centerLongitude, setCenterLongitude] = useState("");
-  const [radiusKm, setRadiusKm] = useState("50");
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [userType, setUserType] = useState<'all' | 'buyer' | 'seller'>('all');
+  const [notificationType, setNotificationType] = useState('admin_broadcast');
+  const [imageUrl, setImageUrl] = useState('');
+  const [dealUrl, setDealUrl] = useState('');
+  const [listingId, setListingId] = useState('');
+  const [centerLatitude, setCenterLatitude] = useState('');
+  const [centerLongitude, setCenterLongitude] = useState('');
+  const [radiusKm, setRadiusKm] = useState('50');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Success/error state
-  const [successMessage, setSuccessMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     fetchStats();
@@ -85,28 +77,25 @@ export default function PushNotificationsView() {
         setStats(result.data);
       }
     } catch (error) {
-      console.error("Failed to fetch stats:", error);
+      console.error('Failed to fetch stats:', error);
     }
   };
 
   const fetchLogs = async () => {
     try {
       setLoading(true);
-      const response = await fetch(
-        `${getApiUrl()}/api/admin/push/logs?limit=20`,
-        {
-          headers: {
-            Authorization: `Bearer ${getAdminToken()}`,
-          },
+      const response = await fetch(`${getApiUrl()}/api/admin/push/logs?limit=20`, {
+        headers: {
+          Authorization: `Bearer ${getAdminToken()}`,
         },
-      );
+      });
 
       if (response.ok) {
         const result = await response.json();
         setLogs(result.data.logs);
       }
     } catch (error) {
-      console.error("Failed to fetch logs:", error);
+      console.error('Failed to fetch logs:', error);
     } finally {
       setLoading(false);
     }
@@ -118,13 +107,13 @@ export default function PushNotificationsView() {
     fileSizeBytes: number;
   }): Promise<{ uploadUrl: string; publicUrl: string }> => {
     const response = await fetch(`${getApiUrl()}/api/media/presign-upload`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${getAdminToken()}`,
       },
       body: JSON.stringify({
-        mediaType: "image",
+        mediaType: 'image',
         fileName: params.fileName,
         contentType: params.contentType,
         fileSizeBytes: params.fileSizeBytes,
@@ -137,13 +126,8 @@ export default function PushNotificationsView() {
       data?: { uploadUrl?: string; publicUrl?: string };
     } | null;
 
-    if (
-      !response.ok ||
-      !payload?.success ||
-      !payload.data?.uploadUrl ||
-      !payload.data?.publicUrl
-    ) {
-      throw new Error(payload?.error || "Failed to create image upload URL");
+    if (!response.ok || !payload?.success || !payload.data?.uploadUrl || !payload.data?.publicUrl) {
+      throw new Error(payload?.error || 'Failed to create image upload URL');
     }
 
     return {
@@ -152,29 +136,27 @@ export default function PushNotificationsView() {
     };
   };
 
-  const handleImageUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ): Promise<void> => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const selectedFile = event.target.files?.[0];
-    event.target.value = "";
+    event.target.value = '';
     if (!selectedFile) return;
-    if (!selectedFile.type.startsWith("image/")) {
-      setErrorMessage("Please choose an image file");
+    if (!selectedFile.type.startsWith('image/')) {
+      setErrorMessage('Please choose an image file');
       return;
     }
 
     try {
       setIsUploadingImage(true);
-      setErrorMessage("");
+      setErrorMessage('');
       const signed = await requestPresignedUpload({
         fileName: selectedFile.name,
-        contentType: selectedFile.type || "image/jpeg",
+        contentType: selectedFile.type || 'image/jpeg',
         fileSizeBytes: selectedFile.size,
       });
 
       const uploadResponse = await fetch(signed.uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": selectedFile.type || "image/jpeg" },
+        method: 'PUT',
+        headers: { 'Content-Type': selectedFile.type || 'image/jpeg' },
         body: selectedFile,
       });
 
@@ -184,9 +166,7 @@ export default function PushNotificationsView() {
 
       setImageUrl(signed.publicUrl);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Unable to upload image",
-      );
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to upload image');
     } finally {
       setIsUploadingImage(false);
     }
@@ -194,19 +174,19 @@ export default function PushNotificationsView() {
 
   const handleSendNotification = async () => {
     if (!title.trim() || !body.trim()) {
-      setErrorMessage("Title and message are required");
+      setErrorMessage('Title and message are required');
       return;
     }
 
     setSending(true);
-    setErrorMessage("");
-    setSuccessMessage("");
+    setErrorMessage('');
+    setSuccessMessage('');
 
     try {
       const response = await fetch(`${getApiUrl()}/api/admin/push/broadcast`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${getAdminToken()}`,
         },
         body: JSON.stringify({
@@ -214,14 +194,12 @@ export default function PushNotificationsView() {
           body,
           userType,
           notificationType,
-          adminId: "admin", // You can get this from auth context
+          adminId: 'admin', // You can get this from auth context
           imageUrl: imageUrl || undefined,
           dealUrl: dealUrl || undefined,
           listingId: listingId.trim() || undefined,
           centerLatitude: centerLatitude ? Number(centerLatitude) : undefined,
-          centerLongitude: centerLongitude
-            ? Number(centerLongitude)
-            : undefined,
+          centerLongitude: centerLongitude ? Number(centerLongitude) : undefined,
           radiusKm: radiusKm ? Number(radiusKm) : undefined,
           data: {
             type: notificationType,
@@ -234,32 +212,32 @@ export default function PushNotificationsView() {
 
       if (result.success) {
         setSuccessMessage(`✅ Sent to ${result.sentCount} devices!`);
-        setTitle("");
-        setBody("");
-        setImageUrl("");
-        setDealUrl("");
-        setListingId("");
-        setCenterLatitude("");
-        setCenterLongitude("");
-        setRadiusKm("50");
+        setTitle('');
+        setBody('');
+        setImageUrl('');
+        setDealUrl('');
+        setListingId('');
+        setCenterLatitude('');
+        setCenterLongitude('');
+        setRadiusKm('50');
         fetchStats();
         fetchLogs();
       } else {
         // Show detailed error message
-        const errorMsg = result.message || "Failed to broadcast notification";
-        if (errorMsg.includes("No active")) {
+        const errorMsg = result.message || 'Failed to broadcast notification';
+        if (errorMsg.includes('No active')) {
           setErrorMessage(
-            `⚠️ No active devices found. Ensure users have installed the app and enabled push notifications.`,
+            `⚠️ No active devices found. Ensure users have installed the app and enabled push notifications.`
           );
-        } else if (errorMsg.includes("Invalid Expo")) {
+        } else if (errorMsg.includes('Invalid Expo')) {
           setErrorMessage(`❌ Invalid push token configuration.`);
         } else {
           setErrorMessage(errorMsg);
         }
       }
     } catch (error) {
-      setErrorMessage("Failed to send notification");
-      console.error("Send error:", error);
+      setErrorMessage('Failed to send notification');
+      console.error('Send error:', error);
     } finally {
       setSending(false);
     }
@@ -268,86 +246,86 @@ export default function PushNotificationsView() {
   const quickTemplates: NotificationTemplate[] = [
     // Manual - Admin Broadcast Templates
     {
-      title: "🆕 New Listing Alert",
-      body: "Check out the latest items near you!",
-      type: "new_listing",
-      category: "Listing",
+      title: '🆕 New Listing Alert',
+      body: 'Check out the latest items near you!',
+      type: 'new_listing',
+      category: 'Listing',
       manual: true,
     },
     {
-      title: "💰 Price Drop Alert",
+      title: '💰 Price Drop Alert',
       body: "Don't miss out on great deals near you!",
-      type: "price_drop",
-      category: "Listing",
+      type: 'price_drop',
+      category: 'Listing',
       manual: true,
     },
     {
-      title: "🎟️ Special Coupon Available",
-      body: "Use code SAVE20 for 20% OFF. Valid for limited time!",
-      type: "coupon_available",
-      category: "Offer",
+      title: '🎟️ Special Coupon Available',
+      body: 'Use code SAVE20 for 20% OFF. Valid for limited time!',
+      type: 'coupon_available',
+      category: 'Offer',
       manual: true,
     },
     {
-      title: "⭐ Limited Time Offer",
+      title: '⭐ Limited Time Offer',
       body: "Get exclusive deals today. Don't miss out!",
-      type: "promotion",
-      category: "Offer",
+      type: 'promotion',
+      category: 'Offer',
       manual: true,
     },
     {
-      title: "📢 Important Update",
-      body: "We have important updates for you. Check the app now!",
-      type: "admin_broadcast",
-      category: "Admin",
+      title: '📢 Important Update',
+      body: 'We have important updates for you. Check the app now!',
+      type: 'admin_broadcast',
+      category: 'Admin',
       manual: true,
     },
     // Auto-Triggered Notifications (System Events)
     {
-      title: "✅ Listing Approved",
-      body: "Your listing has been approved and is now live!",
-      type: "listing_approved",
-      category: "Listing",
+      title: '✅ Listing Approved',
+      body: 'Your listing has been approved and is now live!',
+      type: 'listing_approved',
+      category: 'Listing',
       manual: false,
-      description: "Sent automatically when listing is approved",
+      description: 'Sent automatically when listing is approved',
     },
     {
-      title: "⏰ Listing Expiring Soon",
-      body: "Your listing will expire in 3 days. Renew now!",
-      type: "expiring_soon",
-      category: "Listing",
+      title: '⏰ Listing Expiring Soon',
+      body: 'Your listing will expire in 3 days. Renew now!',
+      type: 'expiring_soon',
+      category: 'Listing',
       manual: false,
-      description: "Sent automatically 3 days before expiry",
+      description: 'Sent automatically 3 days before expiry',
     },
     {
-      title: "✅ Payment Successful",
-      body: "Your payment has been processed successfully!",
-      type: "payment_success",
-      category: "Payment",
+      title: '✅ Payment Successful',
+      body: 'Your payment has been processed successfully!',
+      type: 'payment_success',
+      category: 'Payment',
       manual: false,
-      description: "Sent automatically after payment completes",
+      description: 'Sent automatically after payment completes',
     },
     {
-      title: "📄 Invoice Generated",
-      body: "Your invoice is ready. Tap to view.",
-      type: "invoice_generated",
-      category: "Payment",
+      title: '📄 Invoice Generated',
+      body: 'Your invoice is ready. Tap to view.',
+      type: 'invoice_generated',
+      category: 'Payment',
       manual: false,
-      description: "Sent automatically when invoice is created",
+      description: 'Sent automatically when invoice is created',
     },
     {
-      title: "📅 Subscription Renewal",
-      body: "Your subscription expires in 5 days. Renew now!",
-      type: "subscription_renewal",
-      category: "Subscription",
+      title: '📅 Subscription Renewal',
+      body: 'Your subscription expires in 5 days. Renew now!',
+      type: 'subscription_renewal',
+      category: 'Subscription',
       manual: false,
-      description: "Sent automatically 5 days before renewal",
+      description: 'Sent automatically 5 days before renewal',
     },
     {
-      title: "✅ Account Verified",
-      body: "Your account has been verified successfully!",
-      type: "account_update",
-      category: "Account",
+      title: '✅ Account Verified',
+      body: 'Your account has been verified successfully!',
+      type: 'account_update',
+      category: 'Account',
     },
   ];
 
@@ -360,9 +338,7 @@ export default function PushNotificationsView() {
   return (
     <div>
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
-        <h1 className="text-3xl sm:text-4xl font-black mb-2">
-          Push Notifications
-        </h1>
+        <h1 className="text-3xl sm:text-4xl font-black mb-2">Push Notifications</h1>
         <p className="text-slate-300">Send push notifications to your users</p>
       </div>
 
@@ -373,12 +349,8 @@ export default function PushNotificationsView() {
             <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-blue-100 text-sm font-medium">
-                    Active Devices
-                  </p>
-                  <p className="text-3xl font-bold mt-1">
-                    {stats.activeTokens.toLocaleString()}
-                  </p>
+                  <p className="text-blue-100 text-sm font-medium">Active Devices</p>
+                  <p className="text-3xl font-bold mt-1">{stats.activeTokens.toLocaleString()}</p>
                 </div>
                 <Bell size={32} className="opacity-80" />
               </div>
@@ -388,9 +360,7 @@ export default function PushNotificationsView() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-green-100 text-sm font-medium">Buyers</p>
-                  <p className="text-3xl font-bold mt-1">
-                    {stats.buyers.toLocaleString()}
-                  </p>
+                  <p className="text-3xl font-bold mt-1">{stats.buyers.toLocaleString()}</p>
                 </div>
                 <ShoppingBag size={32} className="opacity-80" />
               </div>
@@ -400,9 +370,7 @@ export default function PushNotificationsView() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-purple-100 text-sm font-medium">Sellers</p>
-                  <p className="text-3xl font-bold mt-1">
-                    {stats.sellers.toLocaleString()}
-                  </p>
+                  <p className="text-3xl font-bold mt-1">{stats.sellers.toLocaleString()}</p>
                 </div>
                 <Users size={32} className="opacity-80" />
               </div>
@@ -411,12 +379,8 @@ export default function PushNotificationsView() {
             <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-orange-100 text-sm font-medium">
-                    Total Sent
-                  </p>
-                  <p className="text-3xl font-bold mt-1">
-                    {stats.totalSent.toLocaleString()}
-                  </p>
+                  <p className="text-orange-100 text-sm font-medium">Total Sent</p>
+                  <p className="text-3xl font-bold mt-1">{stats.totalSent.toLocaleString()}</p>
                 </div>
                 <TrendingUp size={32} className="opacity-80" />
               </div>
@@ -425,12 +389,8 @@ export default function PushNotificationsView() {
             <div className="bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl p-6 text-white shadow-lg">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-slate-200 text-sm font-medium">
-                    Total Devices
-                  </p>
-                  <p className="text-3xl font-bold mt-1">
-                    {stats.totalTokens.toLocaleString()}
-                  </p>
+                  <p className="text-slate-200 text-sm font-medium">Total Devices</p>
+                  <p className="text-3xl font-bold mt-1">{stats.totalTokens.toLocaleString()}</p>
                 </div>
                 <Bell size={32} className="opacity-80" />
               </div>
@@ -452,9 +412,7 @@ export default function PushNotificationsView() {
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">
                   📤 Manual Templates
-                  <span className="ml-2 text-xs font-normal text-slate-500">
-                    (You send these)
-                  </span>
+                  <span className="ml-2 text-xs font-normal text-slate-500">(You send these)</span>
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2">
                   {quickTemplates
@@ -502,9 +460,7 @@ export default function PushNotificationsView() {
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <div className="font-semibold text-slate-600">
-                              {template.title}
-                            </div>
+                            <div className="font-semibold text-slate-600">{template.title}</div>
                             <div className="text-xs text-slate-400 mt-1 line-clamp-1">
                               {template.body}
                             </div>
@@ -526,36 +482,34 @@ export default function PushNotificationsView() {
 
             {/* Target Audience */}
             <div className="mb-4">
-              <label className="block text-sm font-bold text-slate-700 mb-2">
-                Target Audience
-              </label>
+              <label className="block text-sm font-bold text-slate-700 mb-2">Target Audience</label>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setUserType("all")}
+                  onClick={() => setUserType('all')}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition ${
-                    userType === "all"
-                      ? "bg-blue-600 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    userType === 'all'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   All Users
                 </button>
                 <button
-                  onClick={() => setUserType("buyer")}
+                  onClick={() => setUserType('buyer')}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition ${
-                    userType === "buyer"
-                      ? "bg-green-600 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    userType === 'buyer'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   Buyers
                 </button>
                 <button
-                  onClick={() => setUserType("seller")}
+                  onClick={() => setUserType('seller')}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition ${
-                    userType === "seller"
-                      ? "bg-purple-600 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    userType === 'seller'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
                   Sellers
@@ -577,9 +531,7 @@ export default function PushNotificationsView() {
                 className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none"
                 maxLength={100}
               />
-              <div className="text-xs text-slate-500 mt-1">
-                {title.length}/100
-              </div>
+              <div className="text-xs text-slate-500 mt-1">{title.length}/100</div>
             </div>
 
             {/* Body */}
@@ -596,9 +548,7 @@ export default function PushNotificationsView() {
                 className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
                 maxLength={200}
               />
-              <div className="text-xs text-slate-500 mt-1">
-                {body.length}/200
-              </div>
+              <div className="text-xs text-slate-500 mt-1">{body.length}/200</div>
             </div>
 
             <div className="mb-4">
@@ -616,9 +566,7 @@ export default function PushNotificationsView() {
                 className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
               />
               {isUploadingImage ? (
-                <div className="mt-2 text-xs text-slate-500">
-                  Uploading image...
-                </div>
+                <div className="mt-2 text-xs text-slate-500">Uploading image...</div>
               ) : null}
               {imageUrl ? (
                 <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
@@ -692,9 +640,7 @@ export default function PushNotificationsView() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
-                    Radius (km)
-                  </label>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Radius (km)</label>
                   <input
                     type="number"
                     min="1"
@@ -768,18 +714,14 @@ export default function PushNotificationsView() {
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
-                        <div className="font-bold text-slate-900">
-                          {log.title}
-                        </div>
-                        <div className="text-sm text-slate-600 mt-1">
-                          {log.body}
-                        </div>
+                        <div className="font-bold text-slate-900">{log.title}</div>
+                        <div className="text-sm text-slate-600 mt-1">{log.body}</div>
                       </div>
                       <span
                         className={`px-2 py-1 rounded text-xs font-bold ${
-                          log.status === "sent"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-red-100 text-red-700"
+                          log.status === 'sent'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-700'
                         }`}
                       >
                         {log.status}
@@ -788,8 +730,7 @@ export default function PushNotificationsView() {
                     <div className="flex items-center justify-between text-xs text-slate-500">
                       <div className="flex items-center gap-3">
                         <span className="font-semibold">
-                          👥{" "}
-                          {log.userType === "all" ? "All Users" : log.userType}
+                          👥 {log.userType === 'all' ? 'All Users' : log.userType}
                         </span>
                         <span>📤 {log.sentCount} sent</span>
                       </div>
