@@ -18,7 +18,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import { ErrorBoundary } from '@/shared/components/ErrorBoundary';
-import { queryClient } from '@/lib/query-client';
+import { getApiUrl, queryClient } from '@/lib/query-client';
 import { AuthProvider } from '@/shared/contexts/auth-context';
 import { ListingsProvider } from '@/shared/contexts/listings-context';
 import { MessagesProvider } from '@/shared/contexts/messages-context';
@@ -27,7 +27,6 @@ import { UserInterestsProvider } from '@/shared/contexts/user-interests-context'
 import { NotificationsProvider } from '@/shared/contexts/notifications-context';
 import { NotificationCenter } from '@/shared/components/NotificationCenter';
 import { maybeHandleDeferredListingDeepLink } from '@/lib/deferred-listing-deeplink';
-import { getApiUrl } from '@/lib/query-client';
 import { getAppDownloadUrl } from '@/lib/config';
 
 // Keep the splash screen visible while we fetch resources
