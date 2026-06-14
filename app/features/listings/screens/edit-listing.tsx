@@ -1536,26 +1536,26 @@ export default function EditListingScreen() {
             {showPriceUnitPicker && (
               <View style={styles.pickerOptions}>
                 {backendPriceUnits.map((unit: PriceUnit) => (
-                    <Pressable
-                      key={unit}
-                      style={[styles.pickerOption, unit === priceUnit && styles.pickerOptionActive]}
-                      onPress={() => {
-                        setPriceUnit(unit);
-                        setShowPriceUnitPicker(false);
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      }}
+                  <Pressable
+                    key={unit}
+                    style={[styles.pickerOption, unit === priceUnit && styles.pickerOptionActive]}
+                    onPress={() => {
+                      setPriceUnit(unit);
+                      setShowPriceUnitPicker(false);
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.pickerOptionText,
+                        unit === priceUnit && styles.pickerOptionTextActive,
+                      ]}
                     >
-                      <Text
-                        style={[
-                          styles.pickerOptionText,
-                          unit === priceUnit && styles.pickerOptionTextActive,
-                        ]}
-                      >
-                        {unit}
-                      </Text>
-                      {unit === priceUnit && <Feather name="check" size={20} color="#FFFFFF" />}
-                    </Pressable>
-                  ))}
+                      {unit}
+                    </Text>
+                    {unit === priceUnit && <Feather name="check" size={20} color="#FFFFFF" />}
+                  </Pressable>
+                ))}
               </View>
             )}
           </View>

@@ -48,10 +48,15 @@ const parseSourceIds = (rawValue: string | string[] | undefined): string[] => {
 
 export default function CreateDealScreen() {
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ dealType?: DealType; sourceListings?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    dealType?: DealType;
+    sourceListings?: string | string[];
+  }>();
   const { user, isAuthenticated } = useAuth();
   const { listings, updateListing, refreshListings } = useListings();
-  const [dealType, setDealType] = useState<DealType>(params.dealType === 'combo' ? 'combo' : 'normal');
+  const [dealType, setDealType] = useState<DealType>(
+    params.dealType === 'combo' ? 'combo' : 'normal'
+  );
   const [offerPrice, setOfferPrice] = useState('');
   const [dealWindowDays, setDealWindowDays] = useState('7');
   const [dealRecurrence, setDealRecurrence] = useState<DealRecurrence>('none');
@@ -71,7 +76,10 @@ export default function CreateDealScreen() {
   );
   const selectedIds = useMemo(() => parseSourceIds(params.sourceListings), [params.sourceListings]);
   const selectedListings = useMemo(
-    () => selectedIds.map((id) => ownedListings.find((item) => item.id === id)).filter(Boolean) as Listing[],
+    () =>
+      selectedIds
+        .map((id) => ownedListings.find((item) => item.id === id))
+        .filter(Boolean) as Listing[],
     [ownedListings, selectedIds]
   );
   const primaryListing = selectedListings[0];
@@ -105,16 +113,25 @@ export default function CreateDealScreen() {
       return false;
     }
     if (Number(offerPrice) >= Number(primaryListing.price || 0)) {
-      Alert.alert('Invalid deal price', 'Deal price must be lower than the original listing price.');
+      Alert.alert(
+        'Invalid deal price',
+        'Deal price must be lower than the original listing price.'
+      );
       return false;
     }
     if (postDealPriceMode === 'discount') {
       if (!postDealDiscountPrice.trim() || Number(postDealDiscountPrice) <= 0) {
-        Alert.alert('Missing post-deal price', 'Enter the price that should remain after the deal ends.');
+        Alert.alert(
+          'Missing post-deal price',
+          'Enter the price that should remain after the deal ends.'
+        );
         return false;
       }
       if (Number(postDealDiscountPrice) >= Number(primaryListing.price || 0)) {
-        Alert.alert('Invalid post-deal price', 'Post-deal price must stay below the original listing price.');
+        Alert.alert(
+          'Invalid post-deal price',
+          'Post-deal price must stay below the original listing price.'
+        );
         return false;
       }
     }
@@ -234,14 +251,17 @@ export default function CreateDealScreen() {
                 {dealType === 'combo' ? 'Choose Two Listings' : 'Choose Listing'}
               </Text>
               <Pressable onPress={chooseListings}>
-                <Text style={styles.linkText}>{selectedListings.length > 0 ? 'Change' : 'Select'}</Text>
+                <Text style={styles.linkText}>
+                  {selectedListings.length > 0 ? 'Change' : 'Select'}
+                </Text>
               </Pressable>
             </View>
             {selectedListings.length === 0 ? (
               <Pressable style={styles.selectorCard} onPress={chooseListings}>
                 <Feather name="tag" size={18} color={Colors.primary} />
                 <Text style={styles.selectorText}>
-                  Open My Listings and select {dealType === 'combo' ? 'two listings' : 'one listing'} to promote.
+                  Open My Listings and select{' '}
+                  {dealType === 'combo' ? 'two listings' : 'one listing'} to promote.
                 </Text>
               </Pressable>
             ) : (
@@ -258,7 +278,9 @@ export default function CreateDealScreen() {
                       <Text style={styles.listingMeta}>
                         Original price: ₹{Number(item.price || 0).toLocaleString('en-IN')}
                       </Text>
-                      <Text style={styles.listingMeta}>{item.location?.city || 'Location unavailable'}</Text>
+                      <Text style={styles.listingMeta}>
+                        {item.location?.city || 'Location unavailable'}
+                      </Text>
                     </View>
                   </View>
                 ))}
@@ -308,7 +330,9 @@ export default function CreateDealScreen() {
                       style={[styles.chip, dealRecurrence === value && styles.chipActive]}
                       onPress={() => setDealRecurrence(value)}
                     >
-                      <Text style={[styles.chipText, dealRecurrence === value && styles.chipTextActive]}>
+                      <Text
+                        style={[styles.chipText, dealRecurrence === value && styles.chipTextActive]}
+                      >
                         {value}
                       </Text>
                     </Pressable>
@@ -357,7 +381,12 @@ export default function CreateDealScreen() {
                       style={[styles.chip, postDealPriceMode === mode && styles.chipActive]}
                       onPress={() => setPostDealPriceMode(mode)}
                     >
-                      <Text style={[styles.chipText, postDealPriceMode === mode && styles.chipTextActive]}>
+                      <Text
+                        style={[
+                          styles.chipText,
+                          postDealPriceMode === mode && styles.chipTextActive,
+                        ]}
+                      >
                         {mode === 'original' ? 'Restore original price' : 'Keep discount price'}
                       </Text>
                     </Pressable>

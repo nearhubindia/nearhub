@@ -42,7 +42,9 @@ function getLocalDateKey(date: Date = new Date()): string {
 
 function sanitizeCachedCategories(value: unknown): Category[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((item): item is Category => typeof item === 'string' && item.trim().length > 0);
+  return value.filter(
+    (item): item is Category => typeof item === 'string' && item.trim().length > 0
+  );
 }
 
 export default function SearchScreen() {
@@ -77,11 +79,14 @@ export default function SearchScreen() {
   const availableCategories = useMemo(
     () =>
       Array.from(
-        new Set(categoryGroups.flatMap((group) => group.subcategories).filter((item) => Boolean(item)))
+        new Set(
+          categoryGroups.flatMap((group) => group.subcategories).filter((item) => Boolean(item))
+        )
       ),
     [categoryGroups]
   );
-  const initialCategory = categoryValue === 'All' ? 'All' : ((categoryValue || 'All') as Category | 'All');
+  const initialCategory =
+    categoryValue === 'All' ? 'All' : ((categoryValue || 'All') as Category | 'All');
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>(initialCategory);
   const [topCategoryTiles, setTopCategoryTiles] = useState<Category[]>(
     availableCategories.slice(0, TOP_CATEGORY_LIMIT)

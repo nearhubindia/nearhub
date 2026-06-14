@@ -61,7 +61,10 @@ export default function CreateEntryScreen() {
           </View>
         </Pressable>
 
-        <Pressable style={[styles.optionCard, styles.dealOptionCard]} onPress={() => router.push('/create-deal')}>
+        <Pressable
+          style={[styles.optionCard, styles.dealOptionCard]}
+          onPress={() => router.push('/create-deal')}
+        >
           <View style={styles.optionTopRow}>
             <View style={[styles.optionIconWrap, styles.dealIconWrap]}>
               <Feather name="tag" size={22} color="#0B5B43" />

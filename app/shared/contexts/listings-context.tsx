@@ -411,7 +411,8 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
               listing.maxDealBookings !== undefined && listing.maxDealBookings !== null
                 ? Number(listing.maxDealBookings)
                 : undefined,
-            postDealPriceMode: (listing.postDealPriceMode || undefined) as Listing['postDealPriceMode'],
+            postDealPriceMode: (listing.postDealPriceMode ||
+              undefined) as Listing['postDealPriceMode'],
             postDealDiscountPrice:
               listing.postDealDiscountPrice !== undefined && listing.postDealDiscountPrice !== null
                 ? Number(listing.postDealDiscountPrice)

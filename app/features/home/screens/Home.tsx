@@ -561,9 +561,7 @@ export default function HomeScreen() {
       .filter(([category]) => !orderedCategories.includes(category))
       .map(([category, count]) => ({ category, count }));
 
-    return [...backendOrdered, ...uncatalogued]
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 8);
+    return [...backendOrdered, ...uncatalogued].sort((a, b) => b.count - a.count).slice(0, 8);
   }, [filteredListingsByLocation, orderedCategories]);
 
   const homeListingsForGrid = useMemo(() => {
@@ -1209,7 +1207,6 @@ export default function HomeScreen() {
           </View>
         </View>
       )}
-
     </View>
   );
 }

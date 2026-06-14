@@ -2263,8 +2263,8 @@ export default function CreateScreen() {
 
               <Text style={styles.createHeroTitle}>Create Listing</Text>
               <Text style={styles.createHeroSubtitle}>
-                Build a listing with the standard NearHub posting flow. Every submission is
-                reviewed before it goes live.
+                Build a listing with the standard NearHub posting flow. Every submission is reviewed
+                before it goes live.
               </Text>
             </LinearGradient>
 
@@ -2295,9 +2295,7 @@ export default function CreateScreen() {
                 </View>
                 <View style={styles.createMetaPill}>
                   <Feather name="video" size={12} color={Colors.textSecondary} />
-                  <Text style={styles.createMetaText}>
-                    {videoUri ? 'Video added' : 'No video'}
-                  </Text>
+                  <Text style={styles.createMetaText}>{videoUri ? 'Video added' : 'No video'}</Text>
                 </View>
                 <View style={styles.createMetaPill}>
                   <Feather name="shield" size={12} color={Colors.textSecondary} />
@@ -2308,415 +2306,442 @@ export default function CreateScreen() {
 
             {/* Step 1: Listing Type */}
             <View style={styles.section}>
-            <View style={styles.stepHeader}>
-              <View style={styles.stepBadge}>
-                <Text style={styles.stepBadgeText}>1</Text>
-              </View>
-              <Text style={styles.sectionLabel}>What are you posting?</Text>
-            </View>
-            <View style={styles.typeGrid}>
-              <Pressable
-                style={[styles.typeButton, listingType === 'sell' && styles.typeButtonActive]}
-                onPress={() => setListingType('sell')}
-              >
-                <Feather
-                  name="tag"
-                  size={16}
-                  color={listingType === 'sell' ? '#fff' : Colors.textSecondary}
-                />
-                <Text style={[styles.typeText, listingType === 'sell' && styles.typeTextActive]}>
-                  Sell Product
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.typeButton, listingType === 'buy' && styles.typeButtonActive]}
-                onPress={() => setListingType('buy')}
-              >
-                <Feather
-                  name="shopping-cart"
-                  size={16}
-                  color={listingType === 'buy' ? '#fff' : Colors.textSecondary}
-                />
-                <Text style={[styles.typeText, listingType === 'buy' && styles.typeTextActive]}>
-                  Looking to Buy
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.typeButton, listingType === 'service' && styles.typeButtonActive]}
-                onPress={() => setListingType('service')}
-              >
-                <Feather
-                  name="tool"
-                  size={16}
-                  color={listingType === 'service' ? '#fff' : Colors.textSecondary}
-                />
-                <Text style={[styles.typeText, listingType === 'service' && styles.typeTextActive]}>
-                  Offer Service
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.typeButton, listingType === 'job' && styles.typeButtonActive]}
-                onPress={() => setListingType('job')}
-              >
-                <Feather
-                  name="briefcase"
-                  size={16}
-                  color={listingType === 'job' ? '#fff' : Colors.textSecondary}
-                />
-                <Text style={[styles.typeText, listingType === 'job' && styles.typeTextActive]}>
-                  Post Job
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-
-          {/* Step 2: Upload Photos */}
-          <View style={styles.section}>
-            <View style={styles.stepHeader}>
-              <View style={styles.stepBadge}>
-                <Text style={styles.stepBadgeText}>2</Text>
-              </View>
-              <Text style={styles.sectionLabel}>
-                Upload Photos {listingType === 'job' ? '(Optional)' : ''}
-              </Text>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.imageRow}
-            >
-              <Pressable style={styles.addImageButton} onPress={() => pickImage(false)}>
-                <Feather name="image" size={20} color="#fff" />
-                <Text style={styles.addImageText}>Gallery</Text>
-              </Pressable>
-              <Pressable style={styles.addImageButton} onPress={() => pickImage(true)}>
-                <Feather name="camera" size={20} color="#fff" />
-                <Text style={styles.addImageText}>Camera</Text>
-              </Pressable>
-              {images.map((uri, index) => (
-                <View key={index} style={styles.imageThumb}>
-                  <Image source={{ uri }} style={styles.thumbImage} contentFit="cover" />
-                  <Pressable style={styles.removeImage} onPress={() => removeImage(index)}>
-                    <Ionicons name="close-circle" size={18} color={Colors.accent} />
-                  </Pressable>
+              <View style={styles.stepHeader}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>1</Text>
                 </View>
-              ))}
-            </ScrollView>
-
-            {listingType === 'job' && images.length === 0 && (
-              <View
-                style={[
-                  styles.deduplicationBanner,
-                  { marginTop: 10, backgroundColor: 'rgba(7, 89, 230, 0.08)', borderLeftColor: Colors.primary },
-                ]}
-              >
-                <Feather name="info" size={16} color={Colors.primary} />
-                <Text style={[styles.deduplicationText, { color: Colors.primary }]}>
-                  No photos? We&apos;ll use our default job posting image.
-                </Text>
+                <Text style={styles.sectionLabel}>What are you posting?</Text>
               </View>
-            )}
-
-            {imageDeduplicationInfo && (
-              <View style={[styles.deduplicationBanner, { marginTop: 10 }]}>
-                <Feather name="check-circle" size={16} color={Colors.success} />
-                <Text style={styles.deduplicationText}>{imageDeduplicationInfo}</Text>
-              </View>
-            )}
-
-            {isCompressingImages && imageCompressionProgress && (
-              <View style={[styles.compressionBanner, { marginTop: 12 }]}>
-                <ActivityIndicator
-                  size="small"
-                  color={Colors.primary}
-                  style={{ marginRight: 10 }}
-                />
-                <View style={styles.compressionContent}>
-                  <Text style={styles.compressionText}>
-                    Optimizing image {imageCompressionProgress.current} of{' '}
-                    {imageCompressionProgress.total}...
+              <View style={styles.typeGrid}>
+                <Pressable
+                  style={[styles.typeButton, listingType === 'sell' && styles.typeButtonActive]}
+                  onPress={() => setListingType('sell')}
+                >
+                  <Feather
+                    name="tag"
+                    size={16}
+                    color={listingType === 'sell' ? '#fff' : Colors.textSecondary}
+                  />
+                  <Text style={[styles.typeText, listingType === 'sell' && styles.typeTextActive]}>
+                    Sell Product
                   </Text>
-                  <View style={styles.progressBar}>
-                    <View
-                      style={[
-                        styles.progressFill,
-                        {
-                          width: `${(imageCompressionProgress.current / imageCompressionProgress.total) * 100}%`,
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
+                </Pressable>
+                <Pressable
+                  style={[styles.typeButton, listingType === 'buy' && styles.typeButtonActive]}
+                  onPress={() => setListingType('buy')}
+                >
+                  <Feather
+                    name="shopping-cart"
+                    size={16}
+                    color={listingType === 'buy' ? '#fff' : Colors.textSecondary}
+                  />
+                  <Text style={[styles.typeText, listingType === 'buy' && styles.typeTextActive]}>
+                    Looking to Buy
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.typeButton, listingType === 'service' && styles.typeButtonActive]}
+                  onPress={() => setListingType('service')}
+                >
+                  <Feather
+                    name="tool"
+                    size={16}
+                    color={listingType === 'service' ? '#fff' : Colors.textSecondary}
+                  />
+                  <Text
+                    style={[styles.typeText, listingType === 'service' && styles.typeTextActive]}
+                  >
+                    Offer Service
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.typeButton, listingType === 'job' && styles.typeButtonActive]}
+                  onPress={() => setListingType('job')}
+                >
+                  <Feather
+                    name="briefcase"
+                    size={16}
+                    color={listingType === 'job' ? '#fff' : Colors.textSecondary}
+                  />
+                  <Text style={[styles.typeText, listingType === 'job' && styles.typeTextActive]}>
+                    Post Job
+                  </Text>
+                </Pressable>
               </View>
-            )}
-          </View>
-
-          {/* Step 3: Upload Video (Optional) */}
-          <View style={styles.section}>
-            <View style={styles.stepHeader}>
-              <View style={styles.stepBadge}>
-                <Text style={styles.stepBadgeText}>3</Text>
-              </View>
-              <Text style={styles.sectionLabel}>Add Video (Optional)</Text>
             </View>
 
-            <Text style={styles.sectionHint}>
-              Upload a short video to showcase your product in the Shorts feed
-            </Text>
-
-            {isCompressing ? (
-              <View style={styles.videoProcessingCard}>
-                <ActivityIndicator
-                  size="large"
-                  color={Colors.primary}
-                  style={{ marginBottom: 2 }}
-                />
-                <Text style={styles.videoProcessingTitle}>Compressing video...</Text>
-                <Text style={styles.videoProcessingPercent}>{compressionProgress}%</Text>
-                <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: `${compressionProgress}%` }]} />
+            {/* Step 2: Upload Photos */}
+            <View style={styles.section}>
+              <View style={styles.stepHeader}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>2</Text>
                 </View>
+                <Text style={styles.sectionLabel}>
+                  Upload Photos {listingType === 'job' ? '(Optional)' : ''}
+                </Text>
               </View>
-            ) : (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.imageRow}
               >
-                <Pressable style={styles.addVideoButton} onPress={() => setShowRecorder(true)}>
-                  <Feather name="camera" size={18} color="#fff" />
-                  <Text style={styles.addImageText}>Record</Text>
+                <Pressable style={styles.addImageButton} onPress={() => pickImage(false)}>
+                  <Feather name="image" size={20} color="#fff" />
+                  <Text style={styles.addImageText}>Gallery</Text>
                 </Pressable>
-                <Pressable style={styles.addVideoButton} onPress={pickVideo}>
-                  <Feather name="video" size={18} color="#fff" />
-                  <Text style={styles.addImageText}>Select</Text>
+                <Pressable style={styles.addImageButton} onPress={() => pickImage(true)}>
+                  <Feather name="camera" size={20} color="#fff" />
+                  <Text style={styles.addImageText}>Camera</Text>
                 </Pressable>
-                {videoUri && (
-                  <View style={styles.imageThumb}>
-                    {videoThumbnail ? (
-                      <Image
-                        source={{ uri: videoThumbnail }}
-                        style={styles.thumbImage}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <View
-                        style={[
-                          styles.thumbImage,
-                          {
-                            backgroundColor: Colors.surface,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          },
-                        ]}
-                      >
-                        <Feather name="film" size={24} color={Colors.textSecondary} />
-                      </View>
-                    )}
-                    <View style={styles.videoPlayOverlay}>
-                      <Feather name="play-circle" size={18} color="#FFFFFF" />
-                    </View>
-                    <Pressable
-                      style={styles.removeImage}
-                      onPress={() => {
-                        setVideoUri(null);
-                        setVideoThumbnail(null);
-                      }}
-                    >
+                {images.map((uri, index) => (
+                  <View key={index} style={styles.imageThumb}>
+                    <Image source={{ uri }} style={styles.thumbImage} contentFit="cover" />
+                    <Pressable style={styles.removeImage} onPress={() => removeImage(index)}>
                       <Ionicons name="close-circle" size={18} color={Colors.accent} />
                     </Pressable>
                   </View>
-                )}
+                ))}
               </ScrollView>
-            )}
-          </View>
 
-          {/* Step 4: Title */}
-          <View style={styles.section}>
-            <View style={styles.stepHeader}>
-              <View style={styles.stepBadge}>
-                <Text style={styles.stepBadgeText}>4</Text>
-              </View>
-              <Text style={styles.sectionLabel}>Title</Text>
+              {listingType === 'job' && images.length === 0 && (
+                <View
+                  style={[
+                    styles.deduplicationBanner,
+                    {
+                      marginTop: 10,
+                      backgroundColor: 'rgba(7, 89, 230, 0.08)',
+                      borderLeftColor: Colors.primary,
+                    },
+                  ]}
+                >
+                  <Feather name="info" size={16} color={Colors.primary} />
+                  <Text style={[styles.deduplicationText, { color: Colors.primary }]}>
+                    No photos? We&apos;ll use our default job posting image.
+                  </Text>
+                </View>
+              )}
+
+              {imageDeduplicationInfo && (
+                <View style={[styles.deduplicationBanner, { marginTop: 10 }]}>
+                  <Feather name="check-circle" size={16} color={Colors.success} />
+                  <Text style={styles.deduplicationText}>{imageDeduplicationInfo}</Text>
+                </View>
+              )}
+
+              {isCompressingImages && imageCompressionProgress && (
+                <View style={[styles.compressionBanner, { marginTop: 12 }]}>
+                  <ActivityIndicator
+                    size="small"
+                    color={Colors.primary}
+                    style={{ marginRight: 10 }}
+                  />
+                  <View style={styles.compressionContent}>
+                    <Text style={styles.compressionText}>
+                      Optimizing image {imageCompressionProgress.current} of{' '}
+                      {imageCompressionProgress.total}...
+                    </Text>
+                    <View style={styles.progressBar}>
+                      <View
+                        style={[
+                          styles.progressFill,
+                          {
+                            width: `${(imageCompressionProgress.current / imageCompressionProgress.total) * 100}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                  </View>
+                </View>
+              )}
             </View>
-            <TextInput
-              style={styles.input}
-              placeholder={
-                listingType === 'service'
-                  ? 'What services are you willing to provide?'
-                  : listingType === 'job'
-                    ? 'What type of job you are posting?'
-                    : 'What are you selling?'
-              }
-              placeholderTextColor={Colors.textTertiary}
-              value={title}
-              onChangeText={setTitle}
-              maxLength={80}
-            />
-          </View>
 
-          {/* Step 5: Price */}
-          <View style={styles.section}>
-            <View style={styles.stepHeader}>
-              <View style={styles.stepBadge}>
-                <Text style={styles.stepBadgeText}>5</Text>
+            {/* Step 3: Upload Video (Optional) */}
+            <View style={styles.section}>
+              <View style={styles.stepHeader}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>3</Text>
+                </View>
+                <Text style={styles.sectionLabel}>Add Video (Optional)</Text>
               </View>
-              <Text style={styles.sectionLabel}>
-                {listingType === 'job'
-                  ? 'Salary'
-                  : listingType === 'service'
-                    ? 'Service Rate'
-                    : 'Price'}
+
+              <Text style={styles.sectionHint}>
+                Upload a short video to showcase your product in the Shorts feed
               </Text>
+
+              {isCompressing ? (
+                <View style={styles.videoProcessingCard}>
+                  <ActivityIndicator
+                    size="large"
+                    color={Colors.primary}
+                    style={{ marginBottom: 2 }}
+                  />
+                  <Text style={styles.videoProcessingTitle}>Compressing video...</Text>
+                  <Text style={styles.videoProcessingPercent}>{compressionProgress}%</Text>
+                  <View style={styles.progressBar}>
+                    <View style={[styles.progressFill, { width: `${compressionProgress}%` }]} />
+                  </View>
+                </View>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.imageRow}
+                >
+                  <Pressable style={styles.addVideoButton} onPress={() => setShowRecorder(true)}>
+                    <Feather name="camera" size={18} color="#fff" />
+                    <Text style={styles.addImageText}>Record</Text>
+                  </Pressable>
+                  <Pressable style={styles.addVideoButton} onPress={pickVideo}>
+                    <Feather name="video" size={18} color="#fff" />
+                    <Text style={styles.addImageText}>Select</Text>
+                  </Pressable>
+                  {videoUri && (
+                    <View style={styles.imageThumb}>
+                      {videoThumbnail ? (
+                        <Image
+                          source={{ uri: videoThumbnail }}
+                          style={styles.thumbImage}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.thumbImage,
+                            {
+                              backgroundColor: Colors.surface,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            },
+                          ]}
+                        >
+                          <Feather name="film" size={24} color={Colors.textSecondary} />
+                        </View>
+                      )}
+                      <View style={styles.videoPlayOverlay}>
+                        <Feather name="play-circle" size={18} color="#FFFFFF" />
+                      </View>
+                      <Pressable
+                        style={styles.removeImage}
+                        onPress={() => {
+                          setVideoUri(null);
+                          setVideoThumbnail(null);
+                        }}
+                      >
+                        <Ionicons name="close-circle" size={18} color={Colors.accent} />
+                      </Pressable>
+                    </View>
+                  )}
+                </ScrollView>
+              )}
             </View>
-            <View style={styles.priceInput}>
-              <Text style={styles.currency}>₹</Text>
+
+            {/* Step 4: Title */}
+            <View style={styles.section}>
+              <View style={styles.stepHeader}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>4</Text>
+                </View>
+                <Text style={styles.sectionLabel}>Title</Text>
+              </View>
               <TextInput
-                style={[styles.input, styles.priceField]}
-                placeholder="0"
+                style={styles.input}
+                placeholder={
+                  listingType === 'service'
+                    ? 'What services are you willing to provide?'
+                    : listingType === 'job'
+                      ? 'What type of job you are posting?'
+                      : 'What are you selling?'
+                }
                 placeholderTextColor={Colors.textTertiary}
-                value={price}
-                onChangeText={setPrice}
-                keyboardType="numeric"
+                value={title}
+                onChangeText={setTitle}
+                maxLength={80}
               />
             </View>
 
-            <View style={styles.unitSelectorInline}>
-              <Text style={styles.unitInlineLabel}>Unit:</Text>
-              <View style={styles.unitChipsContainer}>
-                {backendPriceUnits.map((unit) => (
-                  <Pressable
-                    key={unit}
-                    style={[styles.unitChip, priceUnit === unit && styles.unitChipSelected]}
-                    onPress={() => setPriceUnit(unit)}
-                  >
-                    <Text
-                      style={[
-                        styles.unitChipText,
-                        priceUnit === unit && styles.unitChipTextSelected,
-                      ]}
-                    >
-                      {unit}
-                    </Text>
-                  </Pressable>
-                ))}
+            {/* Step 5: Price */}
+            <View style={styles.section}>
+              <View style={styles.stepHeader}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>5</Text>
+                </View>
+                <Text style={styles.sectionLabel}>
+                  {listingType === 'job'
+                    ? 'Salary'
+                    : listingType === 'service'
+                      ? 'Service Rate'
+                      : 'Price'}
+                </Text>
               </View>
-            </View>
-
-            {/* Offer Price Section */}
-            <View style={{ marginTop: 12 }}>
-              <Text style={styles.offerPriceLabel}>
-                {listingType === 'job' ? 'Incentives' : 'Offer Price (Optional)'}
-              </Text>
-              <Text style={styles.offerPriceHint}>
-                {listingType === 'job'
-                  ? 'Specify additional incentives or benefits (optional)'
-                  : 'Set a discounted price to attract more buyers'}
-              </Text>
               <View style={styles.priceInput}>
                 <Text style={styles.currency}>₹</Text>
                 <TextInput
                   style={[styles.input, styles.priceField]}
                   placeholder="0"
                   placeholderTextColor={Colors.textTertiary}
-                  value={offerPrice}
-                  onChangeText={setOfferPrice}
+                  value={price}
+                  onChangeText={setPrice}
                   keyboardType="numeric"
                 />
               </View>
-              {offerPrice && Number(offerPrice) > 0 && Number(price) > 0 && (
-                <View
-                  style={[
-                    styles.offerPriceFeedback,
-                    Number(offerPrice) >= Number(price)
-                      ? styles.offerPriceFeedbackInvalid
-                      : styles.offerPriceFeedbackValid,
-                  ]}
-                >
-                  {Number(offerPrice) >= Number(price) ? (
-                    <Text
-                      style={[styles.offerPriceFeedbackText, styles.offerPriceFeedbackTextInvalid]}
+
+              <View style={styles.unitSelectorInline}>
+                <Text style={styles.unitInlineLabel}>Unit:</Text>
+                <View style={styles.unitChipsContainer}>
+                  {backendPriceUnits.map((unit) => (
+                    <Pressable
+                      key={unit}
+                      style={[styles.unitChip, priceUnit === unit && styles.unitChipSelected]}
+                      onPress={() => setPriceUnit(unit)}
                     >
-                      {listingType === 'job'
-                        ? '⚠️ Incentives must be less than or equal to salary'
-                        : '⚠️ Offer price must be less than listed price'}
-                    </Text>
-                  ) : (
-                    <Text style={styles.offerPriceFeedbackText}>
-                      {listingType === 'job'
-                        ? `✓ Salary: ₹${Number(price).toLocaleString('en-IN')} + Incentives: ₹${offerPrice}`
-                        : `✓ Save ₹${(Number(price) - Number(offerPrice)).toLocaleString('en-IN')} for buyers`}
-                    </Text>
-                  )}
+                      <Text
+                        style={[
+                          styles.unitChipText,
+                          priceUnit === unit && styles.unitChipTextSelected,
+                        ]}
+                      >
+                        {unit}
+                      </Text>
+                    </Pressable>
+                  ))}
                 </View>
-              )}
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.stepHeader}>
-              <View style={styles.stepBadge}>
-                <Text style={styles.stepBadgeText}>6</Text>
               </View>
-              <Text style={styles.sectionLabel}>Category</Text>
-            </View>
-            <Text style={styles.formSubLabel}>Main Category</Text>
-            <View style={styles.chipRow}>
-              {visibleMainCategories.map((main) => (
-                <Pressable
-                  key={main}
-                  style={[styles.chip, mainCategory === main && styles.chipActive]}
-                  onPress={() => setMainCategory(main)}
-                >
-                  <Text style={[styles.chipText, mainCategory === main && styles.chipTextActive]}>
-                    {main}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
 
-            <Text style={styles.formSubLabel}>Subcategory</Text>
-            <View style={styles.chipRow}>
-              {visibleSubcategories.map((cat) => (
-                <Pressable
-                  key={cat}
-                  style={[styles.chip, category === cat && styles.chipActive]}
-                  onPress={() => setCategory(cat)}
-                >
-                  <Text style={[styles.chipText, category === cat && styles.chipTextActive]}>
-                    {cat}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          {/* Location Section */}
-          <View style={styles.section}>
-            <View style={styles.stepHeader}>
-              <View style={styles.stepBadge}>
-                <Text style={styles.stepBadgeText}>7</Text>
-              </View>
-              <Text style={styles.sectionLabel}>Where do you want to Post?</Text>
-            </View>
-            {locationCity || (latitude !== null && longitude !== null) ? (
-              <View style={styles.selectedLocationCard}>
-                <View style={styles.locationInfo}>
-                  <Feather name="map-pin" size={16} color={Colors.success} />
-                  <View style={styles.locationText}>
-                    <Text style={styles.locationName}>{locationCity || 'Current Location'}</Text>
-                    <Text style={styles.locationCity}>
-                      {[locationDistrict, locationState].filter(Boolean).join(', ') ||
-                        (latitude !== null && longitude !== null
-                          ? `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
-                          : 'Current location')}
-                    </Text>
-                    {pincode ? (
-                      <Text style={styles.locationPincode}>Pincode: {pincode}</Text>
-                    ) : null}
+              {/* Offer Price Section */}
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.offerPriceLabel}>
+                  {listingType === 'job' ? 'Incentives' : 'Offer Price (Optional)'}
+                </Text>
+                <Text style={styles.offerPriceHint}>
+                  {listingType === 'job'
+                    ? 'Specify additional incentives or benefits (optional)'
+                    : 'Set a discounted price to attract more buyers'}
+                </Text>
+                <View style={styles.priceInput}>
+                  <Text style={styles.currency}>₹</Text>
+                  <TextInput
+                    style={[styles.input, styles.priceField]}
+                    placeholder="0"
+                    placeholderTextColor={Colors.textTertiary}
+                    value={offerPrice}
+                    onChangeText={setOfferPrice}
+                    keyboardType="numeric"
+                  />
+                </View>
+                {offerPrice && Number(offerPrice) > 0 && Number(price) > 0 && (
+                  <View
+                    style={[
+                      styles.offerPriceFeedback,
+                      Number(offerPrice) >= Number(price)
+                        ? styles.offerPriceFeedbackInvalid
+                        : styles.offerPriceFeedbackValid,
+                    ]}
+                  >
+                    {Number(offerPrice) >= Number(price) ? (
+                      <Text
+                        style={[
+                          styles.offerPriceFeedbackText,
+                          styles.offerPriceFeedbackTextInvalid,
+                        ]}
+                      >
+                        {listingType === 'job'
+                          ? '⚠️ Incentives must be less than or equal to salary'
+                          : '⚠️ Offer price must be less than listed price'}
+                      </Text>
+                    ) : (
+                      <Text style={styles.offerPriceFeedbackText}>
+                        {listingType === 'job'
+                          ? `✓ Salary: ₹${Number(price).toLocaleString('en-IN')} + Incentives: ₹${offerPrice}`
+                          : `✓ Save ₹${(Number(price) - Number(offerPrice)).toLocaleString('en-IN')} for buyers`}
+                      </Text>
+                    )}
                   </View>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.stepHeader}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>6</Text>
                 </View>
+                <Text style={styles.sectionLabel}>Category</Text>
+              </View>
+              <Text style={styles.formSubLabel}>Main Category</Text>
+              <View style={styles.chipRow}>
+                {visibleMainCategories.map((main) => (
+                  <Pressable
+                    key={main}
+                    style={[styles.chip, mainCategory === main && styles.chipActive]}
+                    onPress={() => setMainCategory(main)}
+                  >
+                    <Text style={[styles.chipText, mainCategory === main && styles.chipTextActive]}>
+                      {main}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text style={styles.formSubLabel}>Subcategory</Text>
+              <View style={styles.chipRow}>
+                {visibleSubcategories.map((cat) => (
+                  <Pressable
+                    key={cat}
+                    style={[styles.chip, category === cat && styles.chipActive]}
+                    onPress={() => setCategory(cat)}
+                  >
+                    <Text style={[styles.chipText, category === cat && styles.chipTextActive]}>
+                      {cat}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Location Section */}
+            <View style={styles.section}>
+              <View style={styles.stepHeader}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>7</Text>
+                </View>
+                <Text style={styles.sectionLabel}>Where do you want to Post?</Text>
+              </View>
+              {locationCity || (latitude !== null && longitude !== null) ? (
+                <View style={styles.selectedLocationCard}>
+                  <View style={styles.locationInfo}>
+                    <Feather name="map-pin" size={16} color={Colors.success} />
+                    <View style={styles.locationText}>
+                      <Text style={styles.locationName}>{locationCity || 'Current Location'}</Text>
+                      <Text style={styles.locationCity}>
+                        {[locationDistrict, locationState].filter(Boolean).join(', ') ||
+                          (latitude !== null && longitude !== null
+                            ? `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+                            : 'Current location')}
+                      </Text>
+                      {pincode ? (
+                        <Text style={styles.locationPincode}>Pincode: {pincode}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      setPincodeSearchInput('');
+                      setLocationSuggestions([]);
+                      setPincodeSearchError(null);
+                      setCoordinateResolveError(null);
+                      setIsResolvingCoordinates(false);
+                      setLatitudeInput(latitude !== null ? String(latitude) : '');
+                      setLongitudeInput(longitude !== null ? String(longitude) : '');
+                      setShowLocationModal(true);
+                    }}
+                    style={styles.changeLocationButton}
+                  >
+                    <Text style={styles.changeLocationText}>Change</Text>
+                  </Pressable>
+                </View>
+              ) : (
                 <Pressable
+                  style={styles.selectLocationButton}
                   onPress={() => {
                     setPincodeSearchInput('');
                     setLocationSuggestions([]);
@@ -2727,304 +2752,292 @@ export default function CreateScreen() {
                     setLongitudeInput(longitude !== null ? String(longitude) : '');
                     setShowLocationModal(true);
                   }}
-                  style={styles.changeLocationButton}
                 >
-                  <Text style={styles.changeLocationText}>Change</Text>
+                  <Feather name="map-pin" size={16} color={Colors.primary} />
+                  <Text style={styles.selectLocationText}>Select Location</Text>
+                  <Feather name="chevron-right" size={16} color={Colors.textTertiary} />
                 </Pressable>
-              </View>
-            ) : (
-              <Pressable
-                style={styles.selectLocationButton}
-                onPress={() => {
-                  setPincodeSearchInput('');
-                  setLocationSuggestions([]);
-                  setPincodeSearchError(null);
-                  setCoordinateResolveError(null);
-                  setIsResolvingCoordinates(false);
-                  setLatitudeInput(latitude !== null ? String(latitude) : '');
-                  setLongitudeInput(longitude !== null ? String(longitude) : '');
-                  setShowLocationModal(true);
-                }}
-              >
-                <Feather name="map-pin" size={16} color={Colors.primary} />
-                <Text style={styles.selectLocationText}>Select Location</Text>
-                <Feather name="chevron-right" size={16} color={Colors.textTertiary} />
-              </Pressable>
-            )}
-          </View>
+              )}
+            </View>
 
-          {showConditionField && (
+            {showConditionField && (
+              <View style={styles.section}>
+                <View style={styles.stepHeader}>
+                  <View style={styles.stepBadge}>
+                    <Text style={styles.stepBadgeText}>8</Text>
+                  </View>
+                  <Text style={styles.sectionLabel}>Condition</Text>
+                </View>
+                <View style={styles.chipRow}>
+                  {CONDITIONS.map((c) => (
+                    <Pressable
+                      key={c.value}
+                      style={[styles.chip, condition === c.value && styles.chipActive]}
+                      onPress={() => setCondition(c.value)}
+                    >
+                      <Text
+                        style={[styles.chipText, condition === c.value && styles.chipTextActive]}
+                      >
+                        {c.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
+
             <View style={styles.section}>
               <View style={styles.stepHeader}>
                 <View style={styles.stepBadge}>
-                  <Text style={styles.stepBadgeText}>8</Text>
+                  <Text style={styles.stepBadgeText}>{descriptionStepNumber}</Text>
                 </View>
-                <Text style={styles.sectionLabel}>Condition</Text>
+                <Text style={styles.sectionLabel}>Description</Text>
               </View>
-              <View style={styles.chipRow}>
-                {CONDITIONS.map((c) => (
-                  <Pressable
-                    key={c.value}
-                    style={[styles.chip, condition === c.value && styles.chipActive]}
-                    onPress={() => setCondition(c.value)}
-                  >
-                    <Text style={[styles.chipText, condition === c.value && styles.chipTextActive]}>
-                      {c.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <RichTextEditor
+                value={description}
+                onChange={setDescription}
+                placeholder="Describe your item... (up to 1200 characters)"
+                showPreview
+              />
             </View>
-          )}
 
-          <View style={styles.section}>
-            <View style={styles.stepHeader}>
-              <View style={styles.stepBadge}>
-                <Text style={styles.stepBadgeText}>{descriptionStepNumber}</Text>
+            {/* Subscription Status */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <Feather name="shield" size={14} color={Colors.primary} />
+                <Text style={styles.sectionLabel}>Subscription Status</Text>
               </View>
-              <Text style={styles.sectionLabel}>Description</Text>
-            </View>
-            <RichTextEditor
-              value={description}
-              onChange={setDescription}
-              placeholder="Describe your item... (up to 1200 characters)"
-              showPreview
-            />
-          </View>
+              {isLoadingSubscription ? (
+                <View style={styles.subscriptionLoadingContainer}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.subscriptionLoadingText}>Checking subscription...</Text>
+                </View>
+              ) : allSubscriptions.length > 0 ? (
+                <View style={styles.subscriptionCard}>
+                  <View style={styles.subscriptionCardHeader}>
+                    <View style={styles.subscriptionStatusIcon}>
+                      <Feather name="check" size={13} color="#fff" />
+                    </View>
+                    <View style={styles.subscriptionHeaderTextWrap}>
+                      <Text style={styles.subscriptionCardTitle}>
+                        {subscriptionStats.isMultiple
+                          ? `Active Subscriptions (${allSubscriptions.length})`
+                          : `${allSubscriptions[0]?.tier?.name} Plan Active`}
+                      </Text>
+                      <Text style={styles.subscriptionCardSubtitle}>
+                        {subscriptionStats.isMultiple
+                          ? 'Combined listing quota from all plans'
+                          : `Expires ${new Date(allSubscriptions[0]?.expiresAt || new Date()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                      </Text>
+                    </View>
+                    {subscriptionStats.isMultiple && (
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setShowSubscriptionSelector(true);
+                        }}
+                        style={styles.subscriptionSelectButton}
+                      >
+                        <Text style={styles.subscriptionSelectButtonText}>Select</Text>
+                      </Pressable>
+                    )}
+                  </View>
 
-          {/* Subscription Status */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Feather name="shield" size={14} color={Colors.primary} />
-              <Text style={styles.sectionLabel}>Subscription Status</Text>
-            </View>
-            {isLoadingSubscription ? (
-              <View style={styles.subscriptionLoadingContainer}>
-                <ActivityIndicator size="small" color={Colors.primary} />
-                <Text style={styles.subscriptionLoadingText}>Checking subscription...</Text>
-              </View>
-            ) : allSubscriptions.length > 0 ? (
-              <View style={styles.subscriptionCard}>
-                <View style={styles.subscriptionCardHeader}>
-                  <View style={styles.subscriptionStatusIcon}>
-                    <Feather name="check" size={13} color="#fff" />
+                  <View style={styles.subscriptionStatsGrid}>
+                    <View style={styles.subscriptionStatItem}>
+                      <Text style={styles.subscriptionStatValue}>
+                        {subscriptionStats.totalUsed}
+                      </Text>
+                      <Text style={styles.subscriptionStatLabel}>
+                        {subscriptionStats.isMultiple ? 'Total Used' : 'Used'}
+                      </Text>
+                    </View>
+                    <View style={styles.subscriptionStatDivider} />
+                    <View style={styles.subscriptionStatItem}>
+                      <Text
+                        style={[styles.subscriptionStatValue, styles.subscriptionStatValueSuccess]}
+                      >
+                        {subscriptionStats.isUnlimited ? '∞' : subscriptionStats.totalAvailable}
+                      </Text>
+                      <Text style={styles.subscriptionStatLabel}>
+                        {subscriptionStats.isMultiple ? 'Total Left' : 'Available'}
+                      </Text>
+                    </View>
+                    <View style={styles.subscriptionStatDivider} />
+                    <View style={styles.subscriptionStatItem}>
+                      <Text
+                        style={[styles.subscriptionStatValue, styles.subscriptionStatValueDark]}
+                      >
+                        {subscriptionStats.isUnlimited ? '∞' : subscriptionStats.totalLimit}
+                      </Text>
+                      <Text style={styles.subscriptionStatLabel}>
+                        {subscriptionStats.isMultiple ? 'Combined' : 'Per Plan'}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.subscriptionHeaderTextWrap}>
-                    <Text style={styles.subscriptionCardTitle}>
-                      {subscriptionStats.isMultiple
-                        ? `Active Subscriptions (${allSubscriptions.length})`
-                        : `${allSubscriptions[0]?.tier?.name} Plan Active`}
-                    </Text>
-                    <Text style={styles.subscriptionCardSubtitle}>
-                      {subscriptionStats.isMultiple
-                        ? 'Combined listing quota from all plans'
-                        : `Expires ${new Date(allSubscriptions[0]?.expiresAt || new Date()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}
-                    </Text>
-                  </View>
+
                   {subscriptionStats.isMultiple && (
-                    <Pressable
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setShowSubscriptionSelector(true);
-                      }}
-                      style={styles.subscriptionSelectButton}
-                    >
-                      <Text style={styles.subscriptionSelectButtonText}>Select</Text>
-                    </Pressable>
+                    <View style={styles.subscriptionHintBanner}>
+                      <Feather name="info" size={12} color={Colors.primary} />
+                      <Text style={styles.subscriptionHintText}>
+                        Showing combined stats for all {allSubscriptions.length} subscriptions. Tap
+                        Select to choose one.
+                      </Text>
+                    </View>
+                  )}
+
+                  {subscriptionStats.isFull && (
+                    <View style={styles.subscriptionWarningRow}>
+                      <Feather name="alert-triangle" size={12} color="#C2410C" />
+                      <Text style={styles.subscriptionWarningText}>
+                        {subscriptionStats.isMultiple
+                          ? `All ${allSubscriptions.length} subscriptions are full. Upgrade to create more listings.`
+                          : "You've reached your listing limit. Upgrade to create more."}
+                      </Text>
+                      <Pressable
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          router.push('/subscriptions');
+                        }}
+                        style={styles.subscriptionWarningButton}
+                      >
+                        <Text style={styles.subscriptionWarningButtonText}>Upgrade</Text>
+                      </Pressable>
+                    </View>
                   )}
                 </View>
+              ) : (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push('/subscriptions');
+                  }}
+                  style={({ pressed }) => [
+                    styles.noSubscriptionCard,
+                    pressed && styles.noSubscriptionCardPressed,
+                  ]}
+                >
+                  <View style={styles.noSubscriptionHeader}>
+                    <View style={styles.noSubscriptionIconWrap}>
+                      <Feather
+                        name={hasStarterListingsAvailable ? 'gift' : 'shopping-bag'}
+                        size={14}
+                        color="#F57C00"
+                      />
+                    </View>
+                    <View style={styles.noSubscriptionTextWrap}>
+                      <Text style={styles.noSubscriptionTitle}>
+                        {hasStarterListingsAvailable ? 'Starter Pack Active' : 'Plan Needed'}
+                      </Text>
+                      <Text style={styles.noSubscriptionSubtitle}>
+                        {hasStarterListingsAvailable
+                          ? 'You can post now using welcome credits.'
+                          : 'Subscribe to unlock recurring listing quota.'}
+                      </Text>
+                    </View>
+                    <View style={styles.noSubscriptionActionPill}>
+                      <Text style={styles.noSubscriptionActionPillText}>
+                        {hasStarterListingsAvailable ? 'View Plans' : 'Choose Plan'}
+                      </Text>
+                    </View>
+                  </View>
 
-                <View style={styles.subscriptionStatsGrid}>
-                  <View style={styles.subscriptionStatItem}>
-                    <Text style={styles.subscriptionStatValue}>{subscriptionStats.totalUsed}</Text>
-                    <Text style={styles.subscriptionStatLabel}>
-                      {subscriptionStats.isMultiple ? 'Total Used' : 'Used'}
-                    </Text>
-                  </View>
-                  <View style={styles.subscriptionStatDivider} />
-                  <View style={styles.subscriptionStatItem}>
-                    <Text
-                      style={[styles.subscriptionStatValue, styles.subscriptionStatValueSuccess]}
-                    >
-                      {subscriptionStats.isUnlimited ? '∞' : subscriptionStats.totalAvailable}
-                    </Text>
-                    <Text style={styles.subscriptionStatLabel}>
-                      {subscriptionStats.isMultiple ? 'Total Left' : 'Available'}
-                    </Text>
-                  </View>
-                  <View style={styles.subscriptionStatDivider} />
-                  <View style={styles.subscriptionStatItem}>
-                    <Text style={[styles.subscriptionStatValue, styles.subscriptionStatValueDark]}>
-                      {subscriptionStats.isUnlimited ? '∞' : subscriptionStats.totalLimit}
-                    </Text>
-                    <Text style={styles.subscriptionStatLabel}>
-                      {subscriptionStats.isMultiple ? 'Combined' : 'Per Plan'}
-                    </Text>
-                  </View>
-                </View>
+                  {hasStarterListingsAvailable ? (
+                    <View style={styles.noSubscriptionStatsRow}>
+                      <View style={styles.noSubscriptionStatItem}>
+                        <Text style={styles.noSubscriptionStatValue}>
+                          {starterCredits?.listingsRemaining || 0}
+                        </Text>
+                        <Text style={styles.noSubscriptionStatLabel}>Listings Left</Text>
+                      </View>
+                      <View style={styles.noSubscriptionStatDivider} />
+                      <View style={styles.noSubscriptionStatItem}>
+                        <Text style={styles.noSubscriptionStatValue}>
+                          {starterCredits?.boostsRemaining || 0}
+                        </Text>
+                        <Text style={styles.noSubscriptionStatLabel}>Boosts Left</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.noSubscriptionFeatureRow}>
+                      <View style={styles.noSubscriptionFeaturePill}>
+                        <Feather name="star" size={11} color={Colors.primary} />
+                        <Text style={styles.noSubscriptionFeatureText}>Boost visibility</Text>
+                      </View>
+                      <View style={styles.noSubscriptionFeaturePill}>
+                        <Feather name="video" size={11} color={Colors.primary} />
+                        <Text style={styles.noSubscriptionFeatureText}>Video listings</Text>
+                      </View>
+                    </View>
+                  )}
 
-                {subscriptionStats.isMultiple && (
-                  <View style={styles.subscriptionHintBanner}>
-                    <Feather name="info" size={12} color={Colors.primary} />
-                    <Text style={styles.subscriptionHintText}>
-                      Showing combined stats for all {allSubscriptions.length} subscriptions. Tap
-                      Select to choose one.
-                    </Text>
-                  </View>
-                )}
-
-                {subscriptionStats.isFull && (
-                  <View style={styles.subscriptionWarningRow}>
-                    <Feather name="alert-triangle" size={12} color="#C2410C" />
-                    <Text style={styles.subscriptionWarningText}>
-                      {subscriptionStats.isMultiple
-                        ? `All ${allSubscriptions.length} subscriptions are full. Upgrade to create more listings.`
-                        : "You've reached your listing limit. Upgrade to create more."}
-                    </Text>
-                    <Pressable
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        router.push('/subscriptions');
-                      }}
-                      style={styles.subscriptionWarningButton}
-                    >
-                      <Text style={styles.subscriptionWarningButtonText}>Upgrade</Text>
-                    </Pressable>
-                  </View>
-                )}
-              </View>
-            ) : (
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push('/subscriptions');
-                }}
-                style={({ pressed }) => [
-                  styles.noSubscriptionCard,
-                  pressed && styles.noSubscriptionCardPressed,
-                ]}
-              >
-                <View style={styles.noSubscriptionHeader}>
-                  <View style={styles.noSubscriptionIconWrap}>
-                    <Feather
-                      name={hasStarterListingsAvailable ? 'gift' : 'shopping-bag'}
-                      size={14}
-                      color="#F57C00"
-                    />
-                  </View>
-                  <View style={styles.noSubscriptionTextWrap}>
-                    <Text style={styles.noSubscriptionTitle}>
-                      {hasStarterListingsAvailable ? 'Starter Pack Active' : 'Plan Needed'}
-                    </Text>
-                    <Text style={styles.noSubscriptionSubtitle}>
+                  <View style={styles.noSubscriptionFooter}>
+                    <Text style={styles.noSubscriptionFooterText}>
                       {hasStarterListingsAvailable
-                        ? 'You can post now using welcome credits.'
-                        : 'Subscribe to unlock recurring listing quota.'}
+                        ? 'Subscribe anytime for higher limits and premium boosts.'
+                        : 'Tap to compare plans and get started.'}
                     </Text>
                   </View>
-                  <View style={styles.noSubscriptionActionPill}>
-                    <Text style={styles.noSubscriptionActionPillText}>
-                      {hasStarterListingsAvailable ? 'View Plans' : 'Choose Plan'}
-                    </Text>
-                  </View>
-                </View>
+                </Pressable>
+              )}
+            </View>
 
-                {hasStarterListingsAvailable ? (
-                  <View style={styles.noSubscriptionStatsRow}>
-                    <View style={styles.noSubscriptionStatItem}>
-                      <Text style={styles.noSubscriptionStatValue}>
-                        {starterCredits?.listingsRemaining || 0}
-                      </Text>
-                      <Text style={styles.noSubscriptionStatLabel}>Listings Left</Text>
-                    </View>
-                    <View style={styles.noSubscriptionStatDivider} />
-                    <View style={styles.noSubscriptionStatItem}>
-                      <Text style={styles.noSubscriptionStatValue}>
-                        {starterCredits?.boostsRemaining || 0}
-                      </Text>
-                      <Text style={styles.noSubscriptionStatLabel}>Boosts Left</Text>
-                    </View>
+            {user && (
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Posting as</Text>
+                <View style={styles.userInfoCard}>
+                  <View style={styles.userAvatar}>
+                    <Feather name="user" size={16} color={Colors.primary} />
                   </View>
-                ) : (
-                  <View style={styles.noSubscriptionFeatureRow}>
-                    <View style={styles.noSubscriptionFeaturePill}>
-                      <Feather name="star" size={11} color={Colors.primary} />
-                      <Text style={styles.noSubscriptionFeatureText}>Boost visibility</Text>
-                    </View>
-                    <View style={styles.noSubscriptionFeaturePill}>
-                      <Feather name="video" size={11} color={Colors.primary} />
-                      <Text style={styles.noSubscriptionFeatureText}>Video listings</Text>
-                    </View>
+                  <View style={styles.userDetails}>
+                    <Text style={styles.userName}>{user.name}</Text>
+                    <Text style={styles.userPhone}>+91 {user.phone}</Text>
                   </View>
-                )}
-
-                <View style={styles.noSubscriptionFooter}>
-                  <Text style={styles.noSubscriptionFooterText}>
-                    {hasStarterListingsAvailable
-                      ? 'Subscribe anytime for higher limits and premium boosts.'
-                      : 'Tap to compare plans and get started.'}
-                  </Text>
+                  <Feather name="check-circle" size={16} color={Colors.success} />
                 </View>
-              </Pressable>
-            )}
-          </View>
-
-          {user && (
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Posting as</Text>
-              <View style={styles.userInfoCard}>
-                <View style={styles.userAvatar}>
-                  <Feather name="user" size={16} color={Colors.primary} />
-                </View>
-                <View style={styles.userDetails}>
-                  <Text style={styles.userName}>{user.name}</Text>
-                  <Text style={styles.userPhone}>+91 {user.phone}</Text>
-                </View>
-                <Feather name="check-circle" size={16} color={Colors.success} />
               </View>
-            </View>
-          )}
+            )}
 
-          <View style={styles.publishPanel}>
-            <View style={styles.publishPanelTopRow}>
-              <Text style={styles.publishPanelTitle}>Ready to publish?</Text>
-              <Text style={styles.publishPanelCount}>
-                {completedSteps}/{totalSteps}
-              </Text>
-            </View>
-            <View style={styles.publishWarningRow}>
-              <Feather name="alert-triangle" size={13} color="#B45309" />
-              <Text style={styles.publishWarningText}>
-                Your listing will appear after admin verification.
-              </Text>
-            </View>
-            <Pressable
-              style={({ pressed }) => [
-                styles.submitButton,
-                pressed && styles.submitPressed,
-                isSubmitting && styles.submitDisabled,
-              ]}
-              onPress={handleSubmit}
-              disabled={isSubmitting}
-            >
-              <LinearGradient
-                colors={['#003A9B', '#0759E6', '#FFB04A']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.submitGradient}
+            <View style={styles.publishPanel}>
+              <View style={styles.publishPanelTopRow}>
+                <Text style={styles.publishPanelTitle}>Ready to publish?</Text>
+                <Text style={styles.publishPanelCount}>
+                  {completedSteps}/{totalSteps}
+                </Text>
+              </View>
+              <View style={styles.publishWarningRow}>
+                <Feather name="alert-triangle" size={13} color="#B45309" />
+                <Text style={styles.publishWarningText}>
+                  Your listing will appear after admin verification.
+                </Text>
+              </View>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.submitButton,
+                  pressed && styles.submitPressed,
+                  isSubmitting && styles.submitDisabled,
+                ]}
+                onPress={handleSubmit}
+                disabled={isSubmitting}
               >
-                {isSubmitting ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <>
-                    <Feather name="send" size={16} color="#fff" />
-                    <Text style={styles.submitText}>Post Listing</Text>
-                  </>
-                )}
-              </LinearGradient>
-            </Pressable>
+                <LinearGradient
+                  colors={['#003A9B', '#0759E6', '#FFB04A']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.submitGradient}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Feather name="send" size={16} color="#fff" />
+                      <Text style={styles.submitText}>Post Listing</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </Pressable>
+            </View>
           </View>
-        </View>
         </ScrollView>
 
         {/* Subscription Picker Modal */}

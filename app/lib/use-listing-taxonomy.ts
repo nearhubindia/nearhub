@@ -9,9 +9,7 @@ import {
 
 const FALLBACK_PRICE_UNITS = PRICE_UNITS.default;
 
-function isValidGroup(
-  value: unknown
-): value is { mainCategory: string; subcategories: string[] } {
+function isValidGroup(value: unknown): value is { mainCategory: string; subcategories: string[] } {
   if (!value || typeof value !== 'object') return false;
   const entry = value as { mainCategory?: unknown; subcategories?: unknown };
   return (

@@ -140,10 +140,7 @@ export function isDealExpired(input: DealTimingInput, nowMs: number): boolean {
   return nowMs > endMs;
 }
 
-export function countdownPartsFromMs(
-  endAt: number | undefined,
-  nowMs: number
-): CountdownPart[] {
+export function countdownPartsFromMs(endAt: number | undefined, nowMs: number): CountdownPart[] {
   if (!endAt || endAt <= nowMs) {
     return [
       { label: 'D', value: '00' },

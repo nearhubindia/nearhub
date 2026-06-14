@@ -130,7 +130,10 @@ function DealCard({
   saved: boolean;
   onBook: (id: string) => void;
 }) {
-  const sale = getDiscountPercent({ price: item.originalPrice || item.price, offerPrice: item.price });
+  const sale = getDiscountPercent({
+    price: item.originalPrice || item.price,
+    offerPrice: item.price,
+  });
   const comboTitle =
     item.comboItems && item.comboItems.length >= 2
       ? `${item.comboItems[0]} + ${item.comboItems[1]}`
@@ -138,7 +141,9 @@ function DealCard({
 
   return (
     <View style={[styles.card, compact && styles.compactCard]}>
-      <Pressable onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}>
+      <Pressable
+        onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
+      >
         <View style={[styles.cardMedia, compact && styles.compactCardMedia]}>
           <Image source={{ uri: item.image }} style={styles.cardImage} contentFit="cover" />
           {sale ? (
@@ -179,8 +184,15 @@ function DealCard({
           ) : null}
         </View>
         <View style={styles.distanceRow}>
-          <Feather name="map-pin" size={12} color={compact ? Colors.textSecondary : Colors.textTertiary} />
-          <Text style={[styles.distanceText, compact && styles.compactDistanceText]} numberOfLines={1}>
+          <Feather
+            name="map-pin"
+            size={12}
+            color={compact ? Colors.textSecondary : Colors.textTertiary}
+          />
+          <Text
+            style={[styles.distanceText, compact && styles.compactDistanceText]}
+            numberOfLines={1}
+          >
             {item.distance}
           </Text>
         </View>
@@ -230,7 +242,10 @@ function ComboDealCard({
   bookingId: string | null;
   onBook: (id: string) => void;
 }) {
-  const comboImages = [item.images[0] || item.image, item.images[1] || item.images[0] || item.image];
+  const comboImages = [
+    item.images[0] || item.image,
+    item.images[1] || item.images[0] || item.image,
+  ];
   const comboTitle =
     item.comboItems && item.comboItems.length >= 2
       ? `${item.comboItems[0]} + ${item.comboItems[1]}`
@@ -238,7 +253,9 @@ function ComboDealCard({
 
   return (
     <View style={styles.comboCard}>
-      <Pressable onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}>
+      <Pressable
+        onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
+      >
         <View style={styles.comboMedia}>
           <View style={styles.comboSectionGrid}>
             {comboImages.map((image, index) => (
@@ -432,7 +449,11 @@ export default function DealsScreen() {
           title="Today's Deals"
         />
         {todaysDeals.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalRail}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalRail}
+          >
             {todaysDeals.map((item) => (
               <View key={item.id} style={styles.railCardWrap}>
                 <DealCard

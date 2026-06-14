@@ -76,12 +76,10 @@ export const DEFAULT_CATEGORY_GROUPS: CategoryGroup[] = Object.entries(CATEGORY_
 export function getCategoryGroupsForListingType(listingType: ListingFormType): CategoryGroup[] {
   const allowed = new Set(LISTING_TYPE_ALLOWED_SUBCATEGORIES[listingType] ?? CATEGORIES);
 
-  return DEFAULT_CATEGORY_GROUPS
-    .map(({ mainCategory, subcategories }) => ({
-      mainCategory,
-      subcategories: subcategories.filter((subcategory) => allowed.has(subcategory)),
-    }))
-    .filter((group) => group.subcategories.length > 0);
+  return DEFAULT_CATEGORY_GROUPS.map(({ mainCategory, subcategories }) => ({
+    mainCategory,
+    subcategories: subcategories.filter((subcategory) => allowed.has(subcategory)),
+  })).filter((group) => group.subcategories.length > 0);
 }
 
 export function getMainCategoryForSubcategory(

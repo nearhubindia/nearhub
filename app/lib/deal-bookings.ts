@@ -55,4 +55,3 @@ export async function fetchMyDealBookings(userId: string, userPhone?: string) {
 
   return Array.isArray(payload.bookings) ? payload.bookings : [];
 }
-

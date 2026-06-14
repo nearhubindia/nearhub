@@ -21,10 +21,12 @@ export default function CategoriesScreen() {
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const categoryItems = React.useMemo(
     () =>
-      Array.from(new Set(categoryGroups.flatMap((group) => group.subcategories))).map((category) => ({
-        key: category,
-        label: category,
-      })),
+      Array.from(new Set(categoryGroups.flatMap((group) => group.subcategories))).map(
+        (category) => ({
+          key: category,
+          label: category,
+        })
+      ),
     [categoryGroups]
   );
 

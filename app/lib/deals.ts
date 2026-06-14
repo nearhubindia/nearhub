@@ -60,11 +60,7 @@ export function isHotelDeal(listing: Listing): boolean {
 }
 
 export function isNewProductDeal(listing: Listing): boolean {
-  return (
-    isProductListing(listing) &&
-    listing.condition === 'new' &&
-    hasValidOfferPrice(listing)
-  );
+  return isProductListing(listing) && listing.condition === 'new' && hasValidOfferPrice(listing);
 }
 
 export function matchesProductState(listing: Listing, filter: ProductStateFilter): boolean {

@@ -51,7 +51,10 @@ export function getCategoryDisplayMeta(category: string) {
   const hash = hashString(normalized || 'other');
 
   return {
-    color: CATEGORY_COLORS[normalized] || FALLBACK_COLORS[hash % FALLBACK_COLORS.length] || Colors.primary,
+    color:
+      CATEGORY_COLORS[normalized] ||
+      FALLBACK_COLORS[hash % FALLBACK_COLORS.length] ||
+      Colors.primary,
     icon: CATEGORY_ICONS[normalized]?.name || FALLBACK_ICONS[hash % FALLBACK_ICONS.length],
     picture: CATEGORY_PICTURES[normalized] || FALLBACK_EMOJIS[hash % FALLBACK_EMOJIS.length],
     pictureImage: CATEGORY_PICTURE_IMAGES[normalized] || '',

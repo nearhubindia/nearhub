@@ -30,11 +30,7 @@ import MediaCarousel from '@/shared/components/MediaCarousel';
 import RichTextPreview from '@/shared/components/RichTextPreview';
 import { createResponsiveStyles } from '@/lib/responsive';
 import { bookDeal } from '@/lib/deal-bookings';
-import {
-  countdownPartsFromMs,
-  formatDealStatus,
-  getEffectiveDealWindow,
-} from '@/lib/deal-timer';
+import { countdownPartsFromMs, formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
 
 const { width } = Dimensions.get('window');
 
@@ -646,7 +642,10 @@ export default function ListingDetailScreen() {
     listing.isDeal && dealWindow && nowMs >= dealWindow.startMs && nowMs <= dealWindow.endMs
   );
   const comboTitle =
-    listing.isDeal && listing.dealType === 'combo' && listing.comboItems && listing.comboItems.length >= 2
+    listing.isDeal &&
+    listing.dealType === 'combo' &&
+    listing.comboItems &&
+    listing.comboItems.length >= 2
       ? `${listing.comboItems[0]} + ${listing.comboItems[1]}`
       : listing.title;
 

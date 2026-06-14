@@ -162,7 +162,10 @@ export default function DealBookingsScreen() {
                   <Text style={styles.secondaryButtonText}>Open listing</Text>
                 </Pressable>
                 <Pressable
-                  style={[styles.primaryButton, openingVoucherId === item.id && styles.disabledButton]}
+                  style={[
+                    styles.primaryButton,
+                    openingVoucherId === item.id && styles.disabledButton,
+                  ]}
                   onPress={() => showVoucherCode(item)}
                 >
                   <Feather name="file-text" size={14} color="#fff" />
