@@ -156,6 +156,12 @@ function normalizeStatus(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
+function normalizePurchaseLimitType(value: unknown): 'ONE_TIME' | 'UNLIMITED' | '' {
+  if (typeof value !== 'string') return '';
+  const normalized = value.trim().toUpperCase();
+  return normalized === 'ONE_TIME' || normalized === 'UNLIMITED' ? normalized : '';
+}
+
 function isDirectBrowserNavigationRequest(req: Request): boolean {
   if (req.method !== 'GET') return false;
 
@@ -1001,6 +1007,22 @@ export function registerListingRoutes(app: Express) {
       );
       sanitizedUpdates.maxDealBookings = normalizeOptionalNumber(sanitizedUpdates.maxDealBookings);
       sanitizedUpdates.dealBookingsUsed = normalizeOptionalNumber(sanitizedUpdates.dealBookingsUsed);
+      if (sanitizedUpdates.isDeal === true || (existingListing.isDeal && sanitizedUpdates.isDeal !== false)) {
+        const nextPurchaseLimitType =
+          sanitizedUpdates.purchaseLimitType !== undefined
+            ? normalizePurchaseLimitType(sanitizedUpdates.purchaseLimitType)
+            : normalizePurchaseLimitType((existingListing as any).purchaseLimitType);
+        if (!nextPurchaseLimitType) {
+          return res.status(400).json({
+            success: false,
+            error: 'Please select a purchase limit type.',
+            code: 'PURCHASE_LIMIT_REQUIRED',
+          });
+        }
+        sanitizedUpdates.purchaseLimitType = nextPurchaseLimitType;
+      } else if (sanitizedUpdates.isDeal === false) {
+        sanitizedUpdates.purchaseLimitType = null;
+      }
       delete sanitizedUpdates.postDealPriceMode;
       delete sanitizedUpdates.postDealDiscountPrice;
 

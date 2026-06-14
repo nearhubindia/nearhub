@@ -28,6 +28,12 @@ type Listing = {
   dealEndAt?: string;
   maxDealBookings?: number;
   dealBookingsUsed?: number;
+  purchaseLimitType?: string;
+};
+
+type DealBooking = {
+  listingId?: string;
+  status?: string;
 };
 
 function toApiAbsoluteUrl(pathOrUrl: string): string {
@@ -74,7 +80,25 @@ export default function OrderSummaryPage(): ReactElement {
         dealEndAt: String(raw?.dealEndAt || raw?.deal_end_at || ''),
         maxDealBookings: Number(raw?.maxDealBookings ?? raw?.max_deal_bookings ?? 0) || 0,
         dealBookingsUsed: Number(raw?.dealBookingsUsed ?? raw?.deal_bookings_used ?? 0) || 0,
+        purchaseLimitType: String(raw?.purchaseLimitType || raw?.purchase_limit_type || ''),
       } as Listing;
+    },
+  });
+
+  const bookingsQuery = useQuery({
+    queryKey: ['my-deal-bookings', userId],
+    enabled: Boolean(userId),
+    queryFn: async () => {
+      const response = await fetch(`${getApiUrl()}/api/deals/my-bookings`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId,
+          ...(userPhone ? { 'x-user-phone': userPhone } : {}),
+        },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.success) return [] as DealBooking[];
+      return Array.isArray(payload.bookings) ? (payload.bookings as DealBooking[]) : [];
     },
   });
 
@@ -98,12 +122,22 @@ export default function OrderSummaryPage(): ReactElement {
   const slots = Number(listing?.maxDealBookings || 0);
   const used = Number(listing?.dealBookingsUsed || 0);
   const isSoldOut = slots > 0 && used >= slots;
+  const purchaseLimitType = String(listing?.purchaseLimitType || '').toUpperCase();
+  const hasAlreadyPurchased =
+    purchaseLimitType === 'ONE_TIME' &&
+    (bookingsQuery.data || []).some(
+      (booking) =>
+        String(booking.listingId || '') === id &&
+        ['booked', 'redeemed'].includes(String(booking.status || '').toLowerCase())
+    );
+  const oneTimePurchaseMessage =
+    'You have already purchased this deal. This offer is limited to one purchase per customer.';
 
   if (!id) return <Navigate to="/deals" replace />;
   if (!userId) return <Navigate to="/auth/register" replace />;
 
   const confirmPurchase = async () => {
-    if (!listing || !isDealActive || isSoldOut) return;
+    if (!listing || !isDealActive || isSoldOut || hasAlreadyPurchased) return;
     setIsPurchasing(true);
     setMessage('');
     try {
@@ -267,11 +301,16 @@ export default function OrderSummaryPage(): ReactElement {
                   This deal is sold out.
                 </p>
               ) : null}
+              {hasAlreadyPurchased ? (
+                <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                  {oneTimePurchaseMessage}
+                </p>
+              ) : null}
 
               <button
                 type="button"
                 onClick={() => void confirmPurchase()}
-                disabled={isPurchasing || !isDealActive || isSoldOut}
+                disabled={isPurchasing || !isDealActive || isSoldOut || hasAlreadyPurchased}
                 className="mt-5 flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#1e5da8] px-4 text-xs font-black text-white shadow-sm disabled:opacity-60"
               >
                 <Ticket size={17} /> {isPurchasing ? 'Purchasing...' : 'Confirm Purchase'}

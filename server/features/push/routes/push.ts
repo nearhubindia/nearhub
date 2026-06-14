@@ -3,7 +3,7 @@
  * Handles push token registration and notification sending
  */
 
-import type { Express, Request, Response } from 'express';
+import type { Express, Request, Response } from "express";
 import {
   registerPushToken,
   sendPushToUser,
@@ -12,38 +12,42 @@ import {
   updateUserType,
   deactivatePushToken,
   getNotificationStats,
-} from '../../../shared/services/push-notifications';
-import { db } from '../../../data/db';
-import { notificationLogs, pushTokens } from '../../admin/models/admin-settings';
-import { desc, eq } from 'drizzle-orm';
-import { getRequestUserId } from '../../../lib/request-user';
-import { users } from '../../users/models/users';
-import { normalizePhone } from '../../users/services/user-profiles';
+} from "../../../shared/services/push-notifications";
+import { db } from "../../../data/db";
+import {
+  notificationLogs,
+  pushTokens,
+} from "../../admin/models/admin-settings";
+import { desc, eq } from "drizzle-orm";
+import { getRequestUserId } from "../../../lib/request-user";
+import { users } from "../../users/models/users";
+import { normalizePhone } from "../../users/services/user-profiles";
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function normalizeUuid(value: unknown): string {
-  if (typeof value !== 'string') return '';
+  if (typeof value !== "string") return "";
   const trimmed = value.trim();
-  if (!trimmed) return '';
-  return UUID_REGEX.test(trimmed) ? trimmed : '';
+  if (!trimmed) return "";
+  return UUID_REGEX.test(trimmed) ? trimmed : "";
 }
 
 function normalizeRawId(value: unknown): string {
-  if (typeof value !== 'string') return '';
+  if (typeof value !== "string") return "";
   return value.trim();
 }
 
 async function resolveUserIdFromCandidate(candidate: string): Promise<string> {
   const normalized = normalizeRawId(candidate);
-  if (!normalized) return '';
+  if (!normalized) return "";
 
   if (UUID_REGEX.test(normalized)) {
     const byId = await db.query.users.findFirst({
       where: eq(users.id, normalized),
       columns: { id: true },
     });
-    return byId?.id || '';
+    return byId?.id || "";
   }
 
   const mobile = normalizePhone(normalized);
@@ -59,7 +63,7 @@ async function resolveUserIdFromCandidate(candidate: string): Promise<string> {
     where: eq(users.username, normalized),
     columns: { id: true },
   });
-  return byUsername?.id || '';
+  return byUsername?.id || "";
 }
 
 export function registerPushNotificationRoutes(app: Express) {
@@ -67,25 +71,28 @@ export function registerPushNotificationRoutes(app: Express) {
    * POST /api/push/register
    * Register/update push token for a user
    */
-  app.post('/api/push/register', async (req: Request, res: Response) => {
+  app.post("/api/push/register", async (req: Request, res: Response) => {
     try {
       const { userId: rawUserId, token, platform, deviceId } = req.body;
       const strictHeaderUserId = getRequestUserId(req);
-      const rawHeaderUserId = normalizeRawId(req.get('x-user-id'));
+      const rawHeaderUserId = normalizeRawId(req.get("x-user-id"));
       const rawBodyUserId = normalizeRawId(rawUserId);
       const bodyUuidUserId = normalizeUuid(rawUserId);
 
       const headerResolvedUserId =
         strictHeaderUserId ||
-        (rawHeaderUserId ? await resolveUserIdFromCandidate(rawHeaderUserId) : '');
+        (rawHeaderUserId
+          ? await resolveUserIdFromCandidate(rawHeaderUserId)
+          : "");
       const bodyResolvedUserId =
-        bodyUuidUserId || (rawBodyUserId ? await resolveUserIdFromCandidate(rawBodyUserId) : '');
+        bodyUuidUserId ||
+        (rawBodyUserId ? await resolveUserIdFromCandidate(rawBodyUserId) : "");
       const userId = headerResolvedUserId || bodyResolvedUserId;
 
       if (!userId || !token || !platform) {
         return res.status(400).json({
           success: false,
-          message: 'Missing required fields: userId, token, platform',
+          message: "Missing required fields: userId, token, platform",
         });
       }
 
@@ -96,7 +103,7 @@ export function registerPushNotificationRoutes(app: Express) {
       ) {
         return res.status(403).json({
           success: false,
-          message: 'Token registration user mismatch',
+          message: "Token registration user mismatch",
         });
       }
 
@@ -105,19 +112,20 @@ export function registerPushNotificationRoutes(app: Express) {
       if (!result.success) {
         return res.status(400).json({
           success: false,
-          message: result.error || 'Failed to register token',
+          message: result.error || "Failed to register token",
         });
       }
 
       res.json({
         success: true,
-        message: 'Push token registered successfully',
+        message: "Push token registered successfully",
       });
     } catch (error) {
-      console.error('[Push API] Register error:', error);
+      console.error("[Push API] Register error:", error);
       res.status(500).json({
         success: false,
-        message: error instanceof Error ? error.message : 'Internal server error',
+        message:
+          error instanceof Error ? error.message : "Internal server error",
       });
     }
   });
@@ -126,14 +134,14 @@ export function registerPushNotificationRoutes(app: Express) {
    * POST /api/push/deactivate
    * Deactivate a push token
    */
-  app.post('/api/push/deactivate', async (req: Request, res: Response) => {
+  app.post("/api/push/deactivate", async (req: Request, res: Response) => {
     try {
       const { token } = req.body;
 
       if (!token) {
         return res.status(400).json({
           success: false,
-          message: 'Token is required',
+          message: "Token is required",
         });
       }
 
@@ -141,13 +149,13 @@ export function registerPushNotificationRoutes(app: Express) {
 
       res.json({
         success: true,
-        message: 'Token deactivated successfully',
+        message: "Token deactivated successfully",
       });
     } catch (error) {
-      console.error('[Push API] Deactivate error:', error);
+      console.error("[Push API] Deactivate error:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to deactivate token',
+        message: "Failed to deactivate token",
       });
     }
   });
@@ -156,51 +164,54 @@ export function registerPushNotificationRoutes(app: Express) {
    * POST /api/push/update-user-type
    * Update user type for push targeting
    */
-  app.post('/api/push/update-user-type', async (req: Request, res: Response) => {
-    try {
-      const { userId, userType } = req.body;
+  app.post(
+    "/api/push/update-user-type",
+    async (req: Request, res: Response) => {
+      try {
+        const { userId, userType } = req.body;
 
-      if (!userId || !userType) {
-        return res.status(400).json({
+        if (!userId || !userType) {
+          return res.status(400).json({
+            success: false,
+            message: "userId and userType are required",
+          });
+        }
+
+        if (!["buyer", "seller", "both"].includes(userType)) {
+          return res.status(400).json({
+            success: false,
+            message: "Invalid userType. Must be: buyer, seller, or both",
+          });
+        }
+
+        await updateUserType(userId, userType);
+
+        res.json({
+          success: true,
+          message: "User type updated successfully",
+        });
+      } catch (error) {
+        console.error("[Push API] Update user type error:", error);
+        res.status(500).json({
           success: false,
-          message: 'userId and userType are required',
+          message: "Failed to update user type",
         });
       }
-
-      if (!['buyer', 'seller', 'both'].includes(userType)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid userType. Must be: buyer, seller, or both',
-        });
-      }
-
-      await updateUserType(userId, userType);
-
-      res.json({
-        success: true,
-        message: 'User type updated successfully',
-      });
-    } catch (error) {
-      console.error('[Push API] Update user type error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to update user type',
-      });
-    }
-  });
+    },
+  );
 
   /**
    * POST /api/push/send
    * Send push notification to a single user
    */
-  app.post('/api/push/send', async (req: Request, res: Response) => {
+  app.post("/api/push/send", async (req: Request, res: Response) => {
     try {
       const { userId, title, body, data, sound, badge, channelId } = req.body;
 
       if (!userId || !title || !body) {
         return res.status(400).json({
           success: false,
-          message: 'userId, title, and body are required',
+          message: "userId, title, and body are required",
         });
       }
 
@@ -216,19 +227,19 @@ export function registerPushNotificationRoutes(app: Express) {
       if (!result.success) {
         return res.status(500).json({
           success: false,
-          message: result.error || 'Failed to send notification',
+          message: result.error || "Failed to send notification",
         });
       }
 
       res.json({
         success: true,
-        message: 'Notification sent successfully',
+        message: "Notification sent successfully",
       });
     } catch (error) {
-      console.error('[Push API] Send error:', error);
+      console.error("[Push API] Send error:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to send notification',
+        message: "Failed to send notification",
       });
     }
   });
@@ -237,14 +248,14 @@ export function registerPushNotificationRoutes(app: Express) {
    * POST /api/push/send-multiple
    * Send push notification to multiple users
    */
-  app.post('/api/push/send-multiple', async (req: Request, res: Response) => {
+  app.post("/api/push/send-multiple", async (req: Request, res: Response) => {
     try {
       const { userIds, title, body, data, sound, badge, channelId } = req.body;
 
       if (!userIds || !Array.isArray(userIds) || !title || !body) {
         return res.status(400).json({
           success: false,
-          message: 'userIds (array), title, and body are required',
+          message: "userIds (array), title, and body are required",
         });
       }
 
@@ -263,13 +274,13 @@ export function registerPushNotificationRoutes(app: Express) {
         errors: result.errors,
         message: result.success
           ? `Sent to ${result.sentCount} devices`
-          : 'Failed to send notifications',
+          : "Failed to send notifications",
       });
     } catch (error) {
-      console.error('[Push API] Send multiple error:', error);
+      console.error("[Push API] Send multiple error:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to send notifications',
+        message: "Failed to send notifications",
       });
     }
   });
@@ -278,7 +289,7 @@ export function registerPushNotificationRoutes(app: Express) {
    * POST /api/admin/push/broadcast
    * Broadcast push notification (admin only)
    */
-  app.post('/api/admin/push/broadcast', async (req: Request, res: Response) => {
+  app.post("/api/admin/push/broadcast", async (req: Request, res: Response) => {
     try {
       const {
         title,
@@ -291,6 +302,7 @@ export function registerPushNotificationRoutes(app: Express) {
         badge,
         channelId,
         dealUrl,
+        listingId,
         imageUrl,
         locations,
         pincodes,
@@ -302,27 +314,47 @@ export function registerPushNotificationRoutes(app: Express) {
       if (!title || !body || !notificationType) {
         return res.status(400).json({
           success: false,
-          message: 'title, body, and notificationType are required',
+          message: "title, body, and notificationType are required",
         });
       }
 
       const result = await broadcastPushNotification({
         title,
         body,
-        data,
-        userType: userType || 'all',
+        data: {
+          ...(data && typeof data === "object" ? data : {}),
+          ...(typeof listingId === "string" && listingId.trim()
+            ? {
+                listingId: listingId.trim(),
+                actionUrl: `/listing/${encodeURIComponent(listingId.trim())}`,
+              }
+            : {}),
+        },
+        userType: userType || "all",
         notificationType,
         sentBy: adminId,
         sound,
         badge,
         channelId,
-        dealUrl: typeof dealUrl === 'string' && dealUrl.trim() ? dealUrl.trim() : undefined,
-        imageUrl: typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : undefined,
+        listingId:
+          typeof listingId === "string" && listingId.trim()
+            ? listingId.trim()
+            : undefined,
+        dealUrl:
+          typeof dealUrl === "string" && dealUrl.trim()
+            ? dealUrl.trim()
+            : undefined,
+        imageUrl:
+          typeof imageUrl === "string" && imageUrl.trim()
+            ? imageUrl.trim()
+            : undefined,
         locations: Array.isArray(locations) ? locations : [],
         pincodes: Array.isArray(pincodes) ? pincodes : [],
-        centerLatitude: typeof centerLatitude === 'number' ? centerLatitude : undefined,
-        centerLongitude: typeof centerLongitude === 'number' ? centerLongitude : undefined,
-        radiusKm: typeof radiusKm === 'number' ? radiusKm : undefined,
+        centerLatitude:
+          typeof centerLatitude === "number" ? centerLatitude : undefined,
+        centerLongitude:
+          typeof centerLongitude === "number" ? centerLongitude : undefined,
+        radiusKm: typeof radiusKm === "number" ? radiusKm : undefined,
       });
 
       res.json({
@@ -333,13 +365,13 @@ export function registerPushNotificationRoutes(app: Express) {
           ? `Broadcast sent to ${result.sentCount} devices`
           : result.errors.length > 0
             ? result.errors[0]
-            : 'Failed to broadcast notification',
+            : "Failed to broadcast notification",
       });
     } catch (error) {
-      console.error('[Push API] Broadcast error:', error);
+      console.error("[Push API] Broadcast error:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to broadcast notification',
+        message: "Failed to broadcast notification",
       });
     }
   });
@@ -348,7 +380,7 @@ export function registerPushNotificationRoutes(app: Express) {
    * GET /api/admin/push/stats
    * Get push notification statistics
    */
-  app.get('/api/admin/push/stats', async (req: Request, res: Response) => {
+  app.get("/api/admin/push/stats", async (req: Request, res: Response) => {
     try {
       const stats = await getNotificationStats();
 
@@ -357,10 +389,10 @@ export function registerPushNotificationRoutes(app: Express) {
         data: stats,
       });
     } catch (error) {
-      console.error('[Push API] Stats error:', error);
+      console.error("[Push API] Stats error:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to get statistics',
+        message: "Failed to get statistics",
       });
     }
   });
@@ -369,10 +401,10 @@ export function registerPushNotificationRoutes(app: Express) {
    * GET /api/admin/push/logs
    * Get notification logs (admin only)
    */
-  app.get('/api/admin/push/logs', async (req: Request, res: Response) => {
+  app.get("/api/admin/push/logs", async (req: Request, res: Response) => {
     try {
-      const limit = parseInt((req.query.limit as string) || '50');
-      const offset = parseInt((req.query.offset as string) || '0');
+      const limit = parseInt((req.query.limit as string) || "50");
+      const offset = parseInt((req.query.offset as string) || "0");
 
       const logs = await db.query.notificationLogs.findMany({
         limit,
@@ -392,10 +424,10 @@ export function registerPushNotificationRoutes(app: Express) {
         },
       });
     } catch (error) {
-      console.error('[Push API] Logs error:', error);
+      console.error("[Push API] Logs error:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to get logs',
+        message: "Failed to get logs",
       });
     }
   });
@@ -404,11 +436,11 @@ export function registerPushNotificationRoutes(app: Express) {
    * GET /api/admin/push/tokens
    * Get all push tokens (admin only)
    */
-  app.get('/api/admin/push/tokens', async (req: Request, res: Response) => {
+  app.get("/api/admin/push/tokens", async (req: Request, res: Response) => {
     try {
-      const limit = parseInt((req.query.limit as string) || '100');
-      const offset = parseInt((req.query.offset as string) || '0');
-      const activeOnly = req.query.activeOnly === 'true';
+      const limit = parseInt((req.query.limit as string) || "100");
+      const offset = parseInt((req.query.offset as string) || "0");
+      const activeOnly = req.query.activeOnly === "true";
 
       const conditions = activeOnly ? eq(pushTokens.isActive, true) : undefined;
 
@@ -433,10 +465,10 @@ export function registerPushNotificationRoutes(app: Express) {
         },
       });
     } catch (error) {
-      console.error('[Push API] Tokens error:', error);
+      console.error("[Push API] Tokens error:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to get tokens',
+        message: "Failed to get tokens",
       });
     }
   });
@@ -445,35 +477,35 @@ export function registerPushNotificationRoutes(app: Express) {
    * POST /api/admin/push/test
    * Send test notification (admin only)
    */
-  app.post('/api/admin/push/test', async (req: Request, res: Response) => {
+  app.post("/api/admin/push/test", async (req: Request, res: Response) => {
     try {
       const { userId } = req.body;
 
       if (!userId) {
         return res.status(400).json({
           success: false,
-          message: 'userId is required',
+          message: "userId is required",
         });
       }
 
       const result = await sendPushToUser(userId, {
-        title: '🔔 Test Notification',
-        body: 'This is a test push notification from NearHub Admin',
+        title: "🔔 Test Notification",
+        body: "This is a test push notification from NearHub Admin",
         data: {
-          type: 'test',
+          type: "test",
           timestamp: new Date().toISOString(),
         },
       });
 
       res.json({
         success: result.success,
-        message: result.success ? 'Test notification sent' : result.error,
+        message: result.success ? "Test notification sent" : result.error,
       });
     } catch (error) {
-      console.error('[Push API] Test error:', error);
+      console.error("[Push API] Test error:", error);
       res.status(500).json({
         success: false,
-        message: 'Failed to send test notification',
+        message: "Failed to send test notification",
       });
     }
   });

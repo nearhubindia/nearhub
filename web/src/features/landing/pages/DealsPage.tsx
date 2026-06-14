@@ -1,25 +1,25 @@
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { Heart, Sparkles, Timer } from 'lucide-react';
-import { LandingFooter, LandingHeader } from '@/shared/components';
-import { getApiUrl } from '@/lib/config';
-import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
+import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { Heart, Sparkles, Timer } from "lucide-react";
+import { LandingFooter, LandingHeader } from "@/shared/components";
+import { getApiUrl } from "@/lib/config";
+import { formatDealStatus, getEffectiveDealWindow } from "@/lib/deal-timer";
 import {
   FALLBACK_LISTING_IMAGE,
   getListingImages,
   getPrimaryListingImage,
-} from '@/features/landing/lib/listing-images';
-import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
+} from "@/features/landing/lib/listing-images";
 import {
   SAVED_LISTING_IDS_KEY,
   countdownPartsFromMs,
+  discountPercentage,
   formatPriceInr,
   formatDistanceKm,
   parsePositiveNumber,
   readStoredStringSet,
   writeStoredStringSet,
-} from '@/features/landing/lib/landing-utils';
+} from "@/features/landing/lib/landing-utils";
 
 type DealListing = {
   id: string;
@@ -47,6 +47,8 @@ type DealListing = {
   deal_recurrence?: string;
   dealRecurrenceUntil?: string;
   deal_recurrence_until?: string;
+  purchaseLimitType?: string;
+  purchase_limit_type?: string;
   comboItems?: string[] | string;
   distanceKm?: number | string;
   distance_km?: number | string;
@@ -58,17 +60,22 @@ type ListingsResponse = {
   results?: DealListing[];
 };
 
+type DealsQueryResult = {
+  deals: DealListing[];
+  usedLocationFallback: boolean;
+};
+
 const FALLBACK_IMAGE = FALLBACK_LISTING_IMAGE;
 
 function formatTimeLeft(item: DealListing, nowMs: number): string {
   const end = getEffectiveDealWindow(item, nowMs)?.endMs || 0;
   const diff = end - nowMs;
-  if (!Number.isFinite(end) || diff <= 0) return 'Closed';
+  if (!Number.isFinite(end) || diff <= 0) return "Closed";
   const days = Math.floor(diff / 86_400_000);
   const hours = Math.floor((diff % 86_400_000) / 3_600_000);
   const minutes = Math.floor((diff % 3_600_000) / 60_000);
   const seconds = Math.floor((diff % 60_000) / 1000);
-  const pad = (value: number) => String(value).padStart(2, '0');
+  const pad = (value: number) => String(value).padStart(2, "0");
   return days > 0
     ? `${pad(days)}d : ${pad(hours)}h : ${pad(minutes)}m : ${pad(seconds)}s`
     : `${pad(hours)}h : ${pad(minutes)}m : ${pad(seconds)}s`;
@@ -76,36 +83,58 @@ function formatTimeLeft(item: DealListing, nowMs: number): string {
 
 function getComboSubtitle(item: DealListing): string {
   const raw = item.comboItems;
-  if (Array.isArray(raw)) return raw.slice(0, 2).join(' + ');
-  if (typeof raw === 'string') {
+  if (Array.isArray(raw)) return raw.slice(0, 2).join(" + ");
+  if (typeof raw === "string") {
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.slice(0, 2).join(' + ');
+      if (Array.isArray(parsed)) return parsed.slice(0, 2).join(" + ");
     } catch {
       return raw
         .split(/\r?\n|,/)
         .map((part) => part.trim())
         .filter(Boolean)
         .slice(0, 2)
-        .join(' + ');
+        .join(" + ");
     }
   }
-  return item.description || item.category || 'Combo offer';
+  return item.description || item.category || "Combo offer";
 }
 
 function getDealTypeLabel(item: DealListing): string {
-  return String(item.dealType || item.deal_type || '').toLowerCase() === 'combo'
-    ? 'Combo Deal'
-    : 'Deal';
+  return String(item.dealType || item.deal_type || "").toLowerCase() === "combo"
+    ? "Combo Deal"
+    : "Deal";
+}
+
+function getPurchaseLimitLabel(item: DealListing): string {
+  const normalized = String(
+    item.purchaseLimitType || item.purchase_limit_type || "",
+  ).toUpperCase();
+  if (normalized === "ONE_TIME") return "One Purchase Per Customer";
+  if (normalized === "UNLIMITED") return "Unlimited Purchases";
+  return "";
 }
 
 function isExpiredDeal(item: DealListing, nowMs: number): boolean {
-  return formatDealStatus(item, nowMs) === 'Deal expired';
+  return formatDealStatus(item, nowMs) === "Deal expired";
 }
 
 function isUpcomingDeal(item: DealListing, nowMs: number): boolean {
   const status = formatDealStatus(item, nowMs);
-  return status.startsWith('Deal starts') || status.startsWith('Next deal');
+  return status.startsWith("Deal starts") || status.startsWith("Next deal");
+}
+
+function normalizeDeals(items: DealListing[]): DealListing[] {
+  return items.filter((item) => {
+    const status = String(item.status || "active").toLowerCase();
+    const active = item.isActive ?? item.is_active ?? true;
+    const visibleStatus = status === "active" || status === "expired";
+    return (
+      Boolean(item.isDeal ?? item.is_deal) &&
+      visibleStatus &&
+      (Boolean(active) || status === "expired")
+    );
+  });
 }
 
 function DealCard({
@@ -125,11 +154,18 @@ function DealCard({
   const offer = parsePositiveNumber(item.offerPrice) || 0;
   const hasOffer = offer > 0 && price > 0 && offer < price;
   const displayPrice = hasOffer ? item.offerPrice : item.price;
+  const dealTag =
+    discountPercentage(hasOffer ? offer : undefined, price) ||
+    getDealTypeLabel(item);
   const images = getListingImages(item);
   const image = getPrimaryListingImage(item);
-  const comboImages = [images[0] || FALLBACK_IMAGE, images[1] || images[0] || FALLBACK_IMAGE];
+  const comboImages = [
+    images[0] || FALLBACK_IMAGE,
+    images[1] || images[0] || FALLBACK_IMAGE,
+  ];
   const dealStatus = formatDealStatus(item, nowMs);
   const distance = formatDistanceKm(item.distanceKm ?? item.distance_km);
+  const purchaseLimitLabel = getPurchaseLimitLabel(item);
 
   return (
     <article className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -137,8 +173,8 @@ function DealCard({
         <div
           className={`relative bg-slate-50 ${
             combo
-              ? 'h-32 overflow-hidden bg-white sm:h-40 xl:h-36'
-              : 'aspect-[1.05] sm:aspect-[1.22]'
+              ? "h-32 overflow-hidden bg-white sm:h-40 xl:h-36"
+              : "aspect-[1.05] sm:aspect-[1.22]"
           }`}
         >
           {combo ? (
@@ -178,8 +214,8 @@ function DealCard({
               />
             </div>
           )}
-          <span className="absolute left-1.5 top-1.5 rounded-full bg-[#181c33] px-1.5 py-0.5 text-[10px] font-bold text-white sm:left-3 sm:top-3 sm:px-2.5 sm:py-1 sm:text-xs">
-            {getDealTypeLabel(item)}
+          <span className="absolute left-0 top-0 z-10 rounded-br-sm bg-red-600 px-3 py-1.5 text-[13px] font-black leading-none text-white shadow-[8px_0_0_#d8c4b6] sm:left-3 sm:top-3 sm:rounded-full sm:px-2.5 sm:py-1 sm:text-xs sm:shadow-sm">
+            {dealTag}
           </span>
         </div>
       </Link>
@@ -188,11 +224,11 @@ function DealCard({
           type="button"
           onClick={() => onToggleSaved(item.id)}
           className="absolute -top-[calc(100%+0.25rem)] right-2 rounded-full bg-white/90 p-1 text-slate-800 shadow-sm sm:right-3 sm:p-1.5"
-          aria-label={saved ? 'Remove from favourites' : 'Save deal'}
+          aria-label={saved ? "Remove from favourites" : "Save deal"}
         >
           <Heart
             size={20}
-            className={`h-4 w-4 sm:h-5 sm:w-5 ${saved ? 'fill-rose-500 text-rose-500' : ''}`}
+            className={`h-4 w-4 sm:h-5 sm:w-5 ${saved ? "fill-rose-500 text-rose-500" : ""}`}
           />
         </button>
         <Link to={`/listing/${item.id}`} className="block">
@@ -217,21 +253,25 @@ function DealCard({
           <p className="mt-1.5 text-[10px] font-semibold text-slate-800 sm:mt-2 sm:text-sm">
             {distance}
           </p>
-          {dealStatus.startsWith('Ends in') ? (
+          {dealStatus.startsWith("Ends in") ? (
             <div className="mt-2 text-center sm:mt-3">
               <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#0759e6] sm:text-[11px] sm:tracking-[0.24em]">
                 DEAL ENDS IN
               </p>
               <div className="mt-2 flex items-center justify-center gap-1.5 sm:hidden">
                 {countdownPartsFromMs(
-                  item.dealEndAt ? new Date(item.dealEndAt).getTime() : undefined,
-                  nowMs
+                  item.dealEndAt
+                    ? new Date(item.dealEndAt).getTime()
+                    : undefined,
+                  nowMs,
                 ).map((part) => (
                   <div
                     key={part.label}
                     className="grid h-[38px] w-[clamp(32px,8.8vw,40px)] place-items-center rounded-xl bg-white text-center text-[#dc1633] shadow-sm ring-1 ring-[#f8d9dd]"
                   >
-                    <span className="block text-[12px] font-black leading-none">{part.value}</span>
+                    <span className="block text-[12px] font-black leading-none">
+                      {part.value}
+                    </span>
                     <span className="mt-0.5 block text-[7px] font-normal leading-none text-slate-500">
                       {part.label}
                     </span>
@@ -240,7 +280,7 @@ function DealCard({
               </div>
               <div className="mt-3 hidden items-center justify-center gap-2 sm:flex">
                 {formatTimeLeft(item, nowMs)
-                  .split(' : ')
+                  .split(" : ")
                   .map((value, index) => (
                     <span
                       key={index}
@@ -250,6 +290,11 @@ function DealCard({
                     </span>
                   ))}
               </div>
+              {purchaseLimitLabel ? (
+                <p className="mt-2 truncate text-[10px] font-bold text-slate-500 sm:text-xs">
+                  {purchaseLimitLabel}
+                </p>
+              ) : null}
               <Link
                 to={`/listing/${item.id}`}
                 className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-md bg-[#0759e6] px-3 text-xs font-black text-white transition hover:bg-[#0448bd]"
@@ -259,7 +304,7 @@ function DealCard({
             </div>
           ) : (
             <p className="mt-3 inline-flex items-center gap-1 text-xs font-black text-rose-500 sm:text-sm">
-              <Timer size={15} /> {dealStatus || 'Deal unavailable'}
+              <Timer size={15} /> {dealStatus || "Deal unavailable"}
             </p>
           )}
         </Link>
@@ -270,17 +315,21 @@ function DealCard({
 
 export default function DealsPage(): ReactElement {
   const [searchParams] = useSearchParams();
-  const query = searchParams.get('q') ?? '';
-  const latitudeParam = searchParams.get('latitude') ?? '';
-  const longitudeParam = searchParams.get('longitude') ?? '';
-  const storedGeoCoords = useMemo(() => readStoredWebGeoCoords(), []);
+  const query = searchParams.get("q") ?? "";
+  const locationParam = searchParams.get("location") ?? "";
+  const latitudeParam = searchParams.get("latitude") ?? "";
+  const longitudeParam = searchParams.get("longitude") ?? "";
   const requestGeoCoords = useMemo(() => {
-    const latitude = Number(latitudeParam || storedGeoCoords?.latitude);
-    const longitude = Number(longitudeParam || storedGeoCoords?.longitude);
-    return Number.isFinite(latitude) && Number.isFinite(longitude) ? { latitude, longitude } : null;
-  }, [latitudeParam, longitudeParam, storedGeoCoords]);
+    const latitude = Number(latitudeParam);
+    const longitude = Number(longitudeParam);
+    return locationParam.trim() &&
+      Number.isFinite(latitude) &&
+      Number.isFinite(longitude)
+      ? { latitude, longitude }
+      : null;
+  }, [latitudeParam, locationParam, longitudeParam]);
   const [savedIds, setSavedIds] = useState<Set<string>>(() =>
-    readStoredStringSet(SAVED_LISTING_IDS_KEY)
+    readStoredStringSet(SAVED_LISTING_IDS_KEY),
   );
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -295,36 +344,59 @@ export default function DealsPage(): ReactElement {
   }, []);
 
   const dealsQuery = useQuery({
-    queryKey: ['deals-page-listings', requestGeoCoords?.latitude, requestGeoCoords?.longitude],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        limit: '200',
-        dealsOnly: '1',
-        dealsPage: '1',
-        includeExpiredDeals: '1',
-      });
-      if (requestGeoCoords) {
-        params.set('latitude', String(requestGeoCoords.latitude));
-        params.set('longitude', String(requestGeoCoords.longitude));
-        params.set('radius', '50');
-      }
-      const response = await fetch(`${getApiUrl()}/api/listings?${params.toString()}`);
-      const payload = (await response.json()) as ListingsResponse;
-      if (!response.ok || payload.success === false) throw new Error('Failed to load deals');
-      return (payload.data || payload.results || []).filter((item) => {
-        const status = String(item.status || 'active').toLowerCase();
-        const active = item.isActive ?? item.is_active ?? true;
-        const visibleStatus = status === 'active' || status === 'expired';
-        return (
-          Boolean(item.isDeal ?? item.is_deal) &&
-          visibleStatus &&
-          (Boolean(active) || status === 'expired')
+    queryKey: [
+      "deals-page-listings",
+      requestGeoCoords?.latitude,
+      requestGeoCoords?.longitude,
+    ],
+    queryFn: async (): Promise<DealsQueryResult> => {
+      const buildParams = (withLocation: boolean) => {
+        const params = new URLSearchParams({
+          limit: "200",
+          dealsOnly: "1",
+          dealsPage: "1",
+          includeExpiredDeals: "1",
+        });
+        if (withLocation && requestGeoCoords) {
+          params.set("latitude", String(requestGeoCoords.latitude));
+          params.set("longitude", String(requestGeoCoords.longitude));
+          params.set("radius", "50");
+        }
+        return params;
+      };
+
+      const loadDeals = async (params: URLSearchParams) => {
+        const response = await fetch(
+          `${getApiUrl()}/api/listings?${params.toString()}`,
         );
-      });
+        const payload = (await response.json()) as ListingsResponse;
+        if (!response.ok || payload.success === false)
+          throw new Error("Failed to load deals");
+        return normalizeDeals(payload.data || payload.results || []);
+      };
+
+      if (requestGeoCoords) {
+        const nearbyDeals = await loadDeals(buildParams(true));
+        if (nearbyDeals.length > 0) {
+          return { deals: nearbyDeals, usedLocationFallback: false };
+        }
+      }
+
+      return {
+        deals: await loadDeals(buildParams(false)),
+        usedLocationFallback: Boolean(requestGeoCoords),
+      };
     },
     staleTime: 0,
-    refetchOnMount: 'always',
+    refetchOnMount: "always",
   });
+
+  useEffect(() => {
+    if (!dealsQuery.data?.usedLocationFallback) return;
+    window.alert(
+      "No products are available at this location. Showing all listings.",
+    );
+  }, [dealsQuery.data?.usedLocationFallback]);
 
   const toggleSaved = (id: string) => {
     const next = new Set(savedIds);
@@ -336,27 +408,33 @@ export default function DealsPage(): ReactElement {
 
   const filteredDeals = useMemo(() => {
     const search = query.trim().toLowerCase();
-    const deals = dealsQuery.data || [];
+    const deals = dealsQuery.data?.deals || [];
     if (!search) return deals;
     return deals.filter((item) =>
       [item.title, item.description, item.category, item.location]
-        .map((value) => String(value || '').toLowerCase())
-        .join(' ')
-        .includes(search)
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ")
+        .includes(search),
     );
   }, [dealsQuery.data, query]);
 
   const activeDeals = filteredDeals.filter(
-    (item) => !isExpiredDeal(item, nowMs) && !isUpcomingDeal(item, nowMs)
+    (item) => !isExpiredDeal(item, nowMs) && !isUpcomingDeal(item, nowMs),
   );
-  const upcomingDeals = filteredDeals.filter((item) => isUpcomingDeal(item, nowMs));
-  const expiredDeals = filteredDeals.filter((item) => isExpiredDeal(item, nowMs));
+  const upcomingDeals = filteredDeals.filter((item) =>
+    isUpcomingDeal(item, nowMs),
+  );
+  const expiredDeals = filteredDeals.filter((item) =>
+    isExpiredDeal(item, nowMs),
+  );
 
   const allDeals = activeDeals.filter(
-    (item) => String(item.dealType || item.deal_type || '').toLowerCase() !== 'combo'
+    (item) =>
+      String(item.dealType || item.deal_type || "").toLowerCase() !== "combo",
   );
   const comboDeals = activeDeals.filter(
-    (item) => String(item.dealType || item.deal_type || '').toLowerCase() === 'combo'
+    (item) =>
+      String(item.dealType || item.deal_type || "").toLowerCase() === "combo",
   );
 
   return (
@@ -379,7 +457,9 @@ export default function DealsPage(): ReactElement {
         </section>
 
         {dealsQuery.isLoading ? (
-          <p className="mt-8 text-sm font-semibold text-slate-500">Loading deals...</p>
+          <p className="mt-8 text-sm font-semibold text-slate-500">
+            Loading deals...
+          </p>
         ) : null}
         {dealsQuery.isError ? (
           <p className="mt-8 text-sm font-semibold text-rose-600">
@@ -441,7 +521,11 @@ export default function DealsPage(): ReactElement {
                   saved={savedIds.has(item.id)}
                   onToggleSaved={toggleSaved}
                   nowMs={nowMs}
-                  combo={String(item.dealType || item.deal_type || '').toLowerCase() === 'combo'}
+                  combo={
+                    String(
+                      item.dealType || item.deal_type || "",
+                    ).toLowerCase() === "combo"
+                  }
                 />
               ))}
             </div>
@@ -475,7 +559,11 @@ export default function DealsPage(): ReactElement {
                   saved={savedIds.has(item.id)}
                   onToggleSaved={toggleSaved}
                   nowMs={nowMs}
-                  combo={String(item.dealType || item.deal_type || '').toLowerCase() === 'combo'}
+                  combo={
+                    String(
+                      item.dealType || item.deal_type || "",
+                    ).toLowerCase() === "combo"
+                  }
                 />
               ))}
             </div>

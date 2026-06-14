@@ -102,6 +102,7 @@ type SourceListingResponse = {
 
 type Mode = 'listing' | 'deal';
 type DealType = 'normal' | 'combo';
+type PurchaseLimitType = 'ONE_TIME' | 'UNLIMITED' | '';
 type DealRecurrence = 'none' | 'daily' | 'weekly' | 'monthly';
 type PostDealPriceMode = 'original' | 'discount';
 type PostIntent = 'sell' | 'buy' | 'service' | 'job';
@@ -440,6 +441,7 @@ export default function CreateListingPage(): ReactElement {
   const [dealType, setDealType] = useState<DealType>(() =>
     searchParams.get('dealType')?.toLowerCase() === 'combo' ? 'combo' : 'normal'
   );
+  const [purchaseLimitType, setPurchaseLimitType] = useState<PurchaseLimitType>('');
   const [dealStartDate, setDealStartDate] = useState(todayDateValue());
   const [dealStartTime, setDealStartTime] = useState(nowTimeValue());
   const [dealEndDate, setDealEndDate] = useState(oneWeekLaterDateValue());
@@ -1269,6 +1271,10 @@ export default function CreateListingPage(): ReactElement {
         return;
       }
     }
+    if (mode === 'deal' && !purchaseLimitType) {
+      setMessage('Please select a purchase limit type.');
+      return;
+    }
 
     setIsSubmitting(true);
     setMessage('');
@@ -1327,6 +1333,7 @@ export default function CreateListingPage(): ReactElement {
                   : undefined,
               dealCycleQuantity: dealRecurrence !== 'none' ? Number(stock) : undefined,
               maxDealBookings: Number(stock),
+              purchaseLimitType,
               dealBookingsUsed: 0,
               dealTerms: 'Voucher can be redeemed while stock is available.',
               voucherEnabled: true,
@@ -1389,6 +1396,7 @@ export default function CreateListingPage(): ReactElement {
               : undefined,
           dealCycleQuantity: isDeal && dealRecurrence !== 'none' ? Number(stock) : undefined,
           maxDealBookings: isDeal ? Number(stock) : undefined,
+          purchaseLimitType: isDeal && purchaseLimitType ? purchaseLimitType : undefined,
           comboItems: isDeal ? [] : undefined,
           dealTerms: isDeal ? 'Voucher can be redeemed while stock is available.' : undefined,
           voucherEnabled: isDeal ? true : undefined,
@@ -2734,12 +2742,61 @@ export default function CreateListingPage(): ReactElement {
                       ) : null}
                     </div>
                   </Section>
+
+                  <Section number={9} title="Purchase Rules">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {[
+                        {
+                          value: 'ONE_TIME' as const,
+                          label: 'One Time Purchase Per Customer',
+                          hint: 'A customer can purchase this deal only once.',
+                        },
+                        {
+                          value: 'UNLIMITED' as const,
+                          label: 'Unlimited Purchases Per Customer',
+                          hint: 'A customer can purchase this deal multiple times.',
+                        },
+                      ].map((option) => {
+                        const selected = purchaseLimitType === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setPurchaseLimitType(option.value)}
+                            className={classNames(
+                              'rounded-2xl border p-4 text-left transition',
+                              selected
+                                ? 'border-[#1f63b2] bg-[#eef4ff] text-[#123d68] ring-4 ring-[#1f63b2]/10'
+                                : 'border-slate-200 bg-white text-slate-700'
+                            )}
+                          >
+                            <span className="flex items-start gap-2 text-sm font-normal">
+                              <span
+                                className={classNames(
+                                  'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
+                                  selected ? 'border-[#1f63b2]' : 'border-slate-300'
+                                )}
+                              >
+                                {selected ? (
+                                  <span className="h-2 w-2 rounded-full bg-[#1f63b2]" />
+                                ) : null}
+                              </span>
+                              {option.label}
+                            </span>
+                            <span className="mt-2 block pl-6 text-xs font-normal leading-5 text-slate-500">
+                              {option.hint}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Section>
                 </>
               ) : null}
 
               {dealStep === 4 ? (
                 <>
-                  <Section number={9} title="After Deal Ends">
+                  <Section number={10} title="After Deal Ends">
                     <div className="grid gap-3 sm:grid-cols-2">
                       {[
                         {

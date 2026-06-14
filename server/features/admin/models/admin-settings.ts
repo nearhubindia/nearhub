@@ -827,6 +827,7 @@ export const listings = pgTable('listings', {
   dealLastCycleKey: varchar('deal_last_cycle_key', { length: 40 }),
   maxDealBookings: integer('max_deal_bookings'),
   dealBookingsUsed: integer('deal_bookings_used').notNull().default(0),
+  purchaseLimitType: varchar('purchase_limit_type', { length: 20 }), // ONE_TIME | UNLIMITED
   comboItems: text('combo_items'), // JSON array of combo/freebie items
   dealTerms: text('deal_terms'),
   voucherEnabled: boolean('voucher_enabled').notNull().default(true),

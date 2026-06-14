@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   Search,
@@ -18,14 +18,13 @@ import {
   LogIn,
   LogOut,
   Menu,
-  MessageCircle,
   Package,
   Settings,
   UserRoundPen,
   X,
   type LucideIcon,
-} from 'lucide-react';
-import { getApiUrl } from '@/lib/config';
+} from "lucide-react";
+import { getApiUrl } from "@/lib/config";
 import {
   clearStoredWebAuth,
   getMeaningfulWebUserName,
@@ -33,13 +32,13 @@ import {
   WEB_AUTH_CHANGED_EVENT,
   writeStoredWebUser,
   type StoredWebUser,
-} from '@/lib/web-auth-storage';
-import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
-import { Logo } from './Logo';
-import { Container } from './Container';
+} from "@/lib/web-auth-storage";
+import { readStoredWebGeoCoords } from "@/lib/web-geo-storage";
+import { Logo } from "./Logo";
+import { Container } from "./Container";
 
-type NavKey = 'home' | 'features' | 'browse' | 'deals' | 'contact';
-const HEADER_PERSIST_KEY = 'nearhub:header:inputs:v1';
+type NavKey = "home" | "features" | "browse" | "deals" | "contact";
+const HEADER_PERSIST_KEY = "nearhub:header:inputs:v1";
 
 interface LandingHeaderProps {
   active: NavKey;
@@ -60,10 +59,10 @@ type InAppNotification = {
 function isTransientLocationValue(value: string): boolean {
   const normalized = value.trim().toLowerCase();
   return (
-    normalized === 'detecting location...' ||
-    normalized === 'location unavailable' ||
-    normalized === 'allow location access' ||
-    normalized === 'current location lookup failed'
+    normalized === "detecting location..." ||
+    normalized === "location unavailable" ||
+    normalized === "allow location access" ||
+    normalized === "current location lookup failed"
   );
 }
 
@@ -89,20 +88,36 @@ function readPersistedHeaderState(key: string): {
 
 function navLinkClass(isActive: boolean): string {
   return isActive
-    ? 'relative text-[#0759e6] after:absolute after:-bottom-3 after:left-0 after:h-0.5 after:w-full after:rounded-full after:bg-[#0759e6]'
-    : 'text-slate-700 transition hover:text-[#0759e6]';
+    ? "relative text-[#0759e6] after:absolute after:-bottom-3 after:left-0 after:h-0.5 after:w-full after:rounded-full after:bg-[#0759e6]"
+    : "text-slate-700 transition hover:text-[#0759e6]";
 }
 
 function formatNotificationTime(timestamp?: string): string {
-  if (!timestamp) return 'Just now';
+  if (!timestamp) return "Just now";
   const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return 'Just now';
-  return date.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
+  if (Number.isNaN(date.getTime())) return "Just now";
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
   });
+}
+
+function normalizeNotificationRoute(value?: string | null): string {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "";
+
+  try {
+    const parsed = new URL(rawValue, window.location.origin);
+    if (parsed.origin === window.location.origin) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+  } catch {
+    // Fall back to app-relative handling below.
+  }
+
+  return rawValue.startsWith("/") ? rawValue : `/${rawValue}`;
 }
 
 function getInitialHeaderState(
@@ -112,7 +127,7 @@ function getInitialHeaderState(
     location?: string;
     geo?: { latitude: number; longitude: number } | null;
   } | null,
-  fallbackGeo: { latitude: number; longitude: number } | null
+  fallbackGeo: { latitude: number; longitude: number } | null,
 ): {
   query: string;
   location: string;
@@ -120,19 +135,20 @@ function getInitialHeaderState(
   locationQuery: string;
 } {
   const params = new URLSearchParams(search);
-  const persistedQuery = persisted?.query || '';
-  const persistedLocation = persisted?.location || '';
+  const persistedQuery = persisted?.query || "";
+  const persistedLocation = persisted?.location || "";
   const persistedGeo = persisted?.geo || null;
 
-  const query = params.get('q') || persistedQuery;
+  const query = params.get("q") || persistedQuery;
 
-  const locationParam = params.get('location') || '';
+  const locationParam = params.get("location") || "";
   const location = isTransientLocationValue(locationParam)
-    ? ''
-    : locationParam || (isTransientLocationValue(persistedLocation) ? '' : persistedLocation);
+    ? ""
+    : locationParam ||
+      (isTransientLocationValue(persistedLocation) ? "" : persistedLocation);
 
-  const lat = params.get('latitude');
-  const lon = params.get('longitude');
+  const lat = params.get("latitude");
+  const lon = params.get("longitude");
   const geoCoords =
     lat && lon && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon))
       ? { latitude: Number(lat), longitude: Number(lon) }
@@ -151,30 +167,42 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [notificationMessage, setNotificationMessage] = useState('');
+  const [notificationMessage, setNotificationMessage] = useState("");
   const [user, setUser] = useState<StoredWebUser | null>(null);
   const navigate = useNavigate();
   const routerLocation = useLocation();
-  const appendSearch = (path: string) => `${path}${routerLocation.search || ''}`;
+  const appendSearch = (path: string) =>
+    `${path}${routerLocation.search || ""}`;
   const storedGeoCoords = useMemo(() => readStoredWebGeoCoords(), []);
-  const persistedHeaderState = useMemo(() => readPersistedHeaderState(HEADER_PERSIST_KEY), []);
+  const persistedHeaderState = useMemo(
+    () => readPersistedHeaderState(HEADER_PERSIST_KEY),
+    [],
+  );
   const initialHeaderState = useMemo(
-    () => getInitialHeaderState(routerLocation.search, persistedHeaderState, storedGeoCoords),
-    [persistedHeaderState, routerLocation.search, storedGeoCoords]
+    () =>
+      getInitialHeaderState(
+        routerLocation.search,
+        persistedHeaderState,
+        storedGeoCoords,
+      ),
+    [persistedHeaderState, routerLocation.search, storedGeoCoords],
   );
 
   // Search & location (moved from pages)
   const [query, setQuery] = useState(() => initialHeaderState.query);
   const [location, setLocation] = useState(() => initialHeaderState.location);
-  const [geoCoords, setGeoCoords] = useState<{ latitude: number; longitude: number } | null>(
-    () => initialHeaderState.geoCoords
-  );
+  const [geoCoords, setGeoCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(() => initialHeaderState.geoCoords);
   const [isLocating, setIsLocating] = useState(false);
   const [suggestions, setSuggestions] = useState<
     Array<{ display: string; lat?: number; lon?: number }>
   >([]);
   const [isLocationFocused, setIsLocationFocused] = useState(false);
-  const [locationQuery, setLocationQuery] = useState(() => initialHeaderState.locationQuery);
+  const [locationQuery, setLocationQuery] = useState(
+    () => initialHeaderState.locationQuery,
+  );
   const suggestionRequestRef = useRef(0);
   const locationInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -187,10 +215,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
       localStorage.setItem(
         HEADER_PERSIST_KEY,
         JSON.stringify({
-          query: next.query || '',
-          location: next.location || '',
+          query: next.query || "",
+          location: next.location || "",
           geo: next.geo || null,
-        })
+        }),
       );
     } catch {
       // ignore quota/security errors
@@ -203,41 +231,46 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
     };
 
     refreshUser();
-    window.addEventListener('storage', refreshUser);
+    window.addEventListener("storage", refreshUser);
     window.addEventListener(WEB_AUTH_CHANGED_EVENT, refreshUser);
     return () => {
-      window.removeEventListener('storage', refreshUser);
+      window.removeEventListener("storage", refreshUser);
       window.removeEventListener(WEB_AUTH_CHANGED_EVENT, refreshUser);
     };
   }, []);
 
-  const userId = String(user?.id || '').trim();
-  const userPhone = String(user?.phone || '').trim();
+  const userId = String(user?.id || "").trim();
+  const userPhone = String(user?.phone || "").trim();
   const userName = getMeaningfulWebUserName(user?.name);
-  const isLoggedIn = useMemo(() => Boolean(userId || userPhone), [userId, userPhone]);
-  const userLabel = userName || userPhone || 'User';
-  const userAvatarUrl = String(user?.avatarUrl || '').trim();
+  const isLoggedIn = useMemo(
+    () => Boolean(userId || userPhone),
+    [userId, userPhone],
+  );
+  const userLabel = userName || userPhone || "User";
+  const userAvatarUrl = String(user?.avatarUrl || "").trim();
   const userInitial = userLabel.charAt(0).toUpperCase();
   const notificationHeaders = useMemo(
     () => ({
-      'Content-Type': 'application/json',
-      'x-user-id': userId,
-      ...(userPhone ? { 'x-user-phone': userPhone } : {}),
+      "Content-Type": "application/json",
+      "x-user-id": userId,
+      ...(userPhone ? { "x-user-phone": userPhone } : {}),
     }),
-    [userId, userPhone]
+    [userId, userPhone],
   );
 
   const notificationsQuery = useQuery({
-    queryKey: ['header-push-notifications', userId],
+    queryKey: ["header-push-notifications", userId],
     enabled: Boolean(userId),
     queryFn: async () => {
       const response = await fetch(
         `${getApiUrl()}/api/notifications?userId=${encodeURIComponent(userId)}&limit=50`,
-        { headers: notificationHeaders }
+        { headers: notificationHeaders },
       );
       const payload = await response.json();
       if (!response.ok || !payload.success) {
-        throw new Error(payload.message || payload.error || 'Failed to load notifications');
+        throw new Error(
+          payload.message || payload.error || "Failed to load notifications",
+        );
       }
       return (payload.data || []) as InAppNotification[];
     },
@@ -245,18 +278,20 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
   });
 
   const profileQuery = useQuery({
-    queryKey: ['header-user-profile', userId],
+    queryKey: ["header-user-profile", userId],
     enabled: Boolean(userId),
     queryFn: async () => {
       const response = await fetch(`${getApiUrl()}/api/users/profile`, {
         headers: notificationHeaders,
       });
-      const payload = (await response.json().catch(() => ({}))) as StoredWebUser & {
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as StoredWebUser & {
         success?: boolean;
         error?: string;
       };
       if (!response.ok) {
-        throw new Error(payload.error || 'Failed to load profile');
+        throw new Error(payload.error || "Failed to load profile");
       }
       return payload;
     },
@@ -282,7 +317,8 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
       mergedUser.gstin !== user.gstin ||
       mergedUser.latitude !== user.latitude ||
       mergedUser.longitude !== user.longitude ||
-      JSON.stringify(mergedUser.preferences || {}) !== JSON.stringify(user.preferences || {});
+      JSON.stringify(mergedUser.preferences || {}) !==
+        JSON.stringify(user.preferences || {});
 
     if (hasChanged) {
       writeStoredWebUser(mergedUser);
@@ -292,15 +328,15 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
   const submitSearch = (event?: React.FormEvent<HTMLFormElement>) => {
     if (event) event.preventDefault();
     const params = new URLSearchParams();
-    if (query.trim()) params.set('q', query.trim());
-    if (location.trim()) params.set('location', location.trim());
+    if (query.trim()) params.set("q", query.trim());
+    if (location.trim()) params.set("location", location.trim());
     if (geoCoords) {
-      params.set('latitude', String(geoCoords.latitude));
-      params.set('longitude', String(geoCoords.longitude));
-      params.set('radius', '50');
+      params.set("latitude", String(geoCoords.latitude));
+      params.set("longitude", String(geoCoords.longitude));
+      params.set("radius", "50");
     }
     persistHeaderState({ query, location, geo: geoCoords });
-    navigate(`/search${params.toString() ? `?${params.toString()}` : ''}`);
+    navigate(`/search${params.toString() ? `?${params.toString()}` : ""}`);
   };
 
   // Location autocomplete using internal city search API
@@ -316,7 +352,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
     const timer = window.setTimeout(async () => {
       try {
         const res = await fetch(
-          `${getApiUrl()}/api/location/cities/search?q=${encodeURIComponent(q)}&limit=6`
+          `${getApiUrl()}/api/location/cities/search?q=${encodeURIComponent(q)}&limit=6`,
         );
         if (!res.ok) return;
         const payload = await res.json().catch(() => ({}));
@@ -338,7 +374,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
           data
             .filter(
               (
-                entry
+                entry,
               ): entry is {
                 locationName?: string;
                 city?: string;
@@ -346,13 +382,13 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                 pincode?: string;
                 latitude?: number | string;
                 longitude?: number | string;
-              } => Boolean(entry)
+              } => Boolean(entry),
             )
             .map((entry) => ({
-              display: `${entry.locationName || ''}${entry.city ? `, ${entry.city}` : ''}${entry.state ? `, ${entry.state}` : ''}${entry.pincode ? ` - ${entry.pincode}` : ''}`,
+              display: `${entry.locationName || ""}${entry.city ? `, ${entry.city}` : ""}${entry.state ? `, ${entry.state}` : ""}${entry.pincode ? ` - ${entry.pincode}` : ""}`,
               lat: Number(entry.latitude) || undefined,
               lon: Number(entry.longitude) || undefined,
-            }))
+            })),
         );
       } catch {
         // ignore
@@ -378,8 +414,8 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
         try {
           const response = await fetch(
             `${getApiUrl()}/api/location/reverse-geocode?latitude=${encodeURIComponent(
-              String(latitude)
-            )}&longitude=${encodeURIComponent(String(longitude))}`
+              String(latitude),
+            )}&longitude=${encodeURIComponent(String(longitude))}`,
           );
           const payload = (await response.json().catch(() => ({}))) as {
             success?: boolean;
@@ -392,10 +428,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
             };
           };
           const resolvedLocation = payload.data
-            ? `${payload.data.locationName || payload.data.locality || payload.data.city || ''}`
-            : '';
+            ? `${payload.data.locationName || payload.data.locality || payload.data.city || ""}`
+            : "";
 
-          const nextLocation = resolvedLocation || 'Current location';
+          const nextLocation = resolvedLocation || "Current location";
           setLocation(nextLocation);
           setLocationQuery(nextLocation);
           persistHeaderState({
@@ -413,20 +449,27 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
         setGeoCoords(null);
         setIsLocating(false);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 },
     );
   };
 
   const pushNotifications = useMemo(
     () =>
       [...(notificationsQuery.data || [])]
-        .filter((item) => item.category !== 'message' && item.category !== 'deal_purchase')
+        .filter(
+          (item) =>
+            item.category !== "message" && item.category !== "deal_purchase",
+        )
         .sort(
-          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          (a, b) =>
+            new Date(b.createdAt || 0).getTime() -
+            new Date(a.createdAt || 0).getTime(),
         ),
-    [notificationsQuery.data]
+    [notificationsQuery.data],
   );
-  const unreadNotificationCount = pushNotifications.filter((item) => !item.isRead).length;
+  const unreadNotificationCount = pushNotifications.filter(
+    (item) => !item.isRead,
+  ).length;
 
   const handleLogout = () => {
     clearStoredWebAuth();
@@ -437,50 +480,60 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
 
   const markNotificationRead = async (notificationId: string) => {
     if (!userId) return;
-    setNotificationMessage('');
+    setNotificationMessage("");
     try {
       const response = await fetch(
         `${getApiUrl()}/api/notifications/${encodeURIComponent(notificationId)}/read`,
         {
-          method: 'POST',
+          method: "POST",
           headers: notificationHeaders,
           body: JSON.stringify({ userId }),
-        }
+        },
       );
       const payload = await response.json();
       if (!response.ok || !payload.success) {
         setNotificationMessage(
-          payload.message || payload.error || 'Failed to mark notification read'
+          payload.message ||
+            payload.error ||
+            "Failed to mark notification read",
         );
         return;
       }
-      await queryClient.invalidateQueries({ queryKey: ['header-push-notifications', userId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["header-push-notifications", userId],
+      });
     } catch {
-      setNotificationMessage('Failed to mark notification read');
+      setNotificationMessage("Failed to mark notification read");
     }
   };
 
   const menuItems: Array<{ label: string; to: string; icon: LucideIcon }> = [
-    { label: 'My Profile', to: '/profile', icon: UserRoundPen },
-    { label: 'My Listings', to: '/my-listings', icon: ListChecks },
-    { label: 'Bookings', to: '/bookings', icon: Package },
-    { label: 'Favourites', to: '/saved', icon: Heart },
-    { label: 'Messages', to: '/messages', icon: MessageCircle },
-    { label: 'Deals Purchased', to: '/deal-inbox', icon: Inbox },
-    { label: 'Subscriptions', to: '/subscriptions', icon: CreditCard },
-    { label: 'Invoices', to: '/invoices', icon: FileText },
-    { label: 'Settings', to: '/settings', icon: Settings },
+    { label: "My Profile", to: "/profile", icon: UserRoundPen },
+    { label: "My Listings", to: "/my-listings", icon: ListChecks },
+    { label: "Bookings", to: "/bookings", icon: Package },
+    { label: "Favourites", to: "/saved", icon: Heart },
+    { label: "Deals Purchased", to: "/deal-inbox", icon: Inbox },
+    { label: "Subscriptions", to: "/subscriptions", icon: CreditCard },
+    { label: "Invoices", to: "/invoices", icon: FileText },
+    { label: "Settings", to: "/settings", icon: Settings },
   ];
 
   return (
     <header className="fixed left-0 right-0 top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
-      <Container className="flex h-[82px] min-w-0 items-center justify-between gap-2 sm:gap-4">
-        <Link to="/" onClick={() => setIsMenuOpen(false)} className="min-w-0 shrink">
+      <Container className="flex h-[72px] min-w-0 items-center justify-between gap-2 px-3 sm:h-[82px] sm:gap-4">
+        <Link
+          to="/"
+          onClick={() => setIsMenuOpen(false)}
+          className="min-w-0 shrink"
+        >
           <Logo size="sm" className="sm:hidden" />
           <Logo size="md" className="hidden sm:flex" />
         </Link>
 
-        <form onSubmit={submitSearch} className="hidden flex-1 items-center gap-4 md:flex">
+        <form
+          onSubmit={submitSearch}
+          className="hidden flex-1 items-center gap-4 md:flex"
+        >
           <div className="relative flex items-center">
             <MapPin
               size={14}
@@ -502,7 +555,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                 window.setTimeout(() => setIsLocationFocused(false), 150);
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === "Enter") {
                   e.preventDefault();
                   submitSearch();
                 }
@@ -519,7 +572,9 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
             >
               <Pin size={14} className="text-[#0759e6]" />
             </button>
-            {isLocationFocused && locationQuery.trim() && suggestions.length > 0 ? (
+            {isLocationFocused &&
+            locationQuery.trim() &&
+            suggestions.length > 0 ? (
               <div className="absolute left-0 top-[110%] z-50 w-56 rounded-md border border-slate-200 bg-white shadow-lg">
                 {suggestions.map((s, idx) => (
                   <button
@@ -531,10 +586,17 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                       setIsLocationFocused(false);
                       const nextGeo =
                         s.lat && s.lon
-                          ? { latitude: Number(s.lat), longitude: Number(s.lon) }
+                          ? {
+                              latitude: Number(s.lat),
+                              longitude: Number(s.lon),
+                            }
                           : null;
                       setGeoCoords(nextGeo);
-                      persistHeaderState({ query, location: s.display, geo: nextGeo });
+                      persistHeaderState({
+                        query,
+                        location: s.display,
+                        geo: nextGeo,
+                      });
                     }}
                     className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
                   >
@@ -554,7 +616,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === "Enter") {
                   e.preventDefault();
                   submitSearch();
                 }
@@ -566,16 +628,28 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
         </form>
 
         <nav className="hidden items-center gap-8 text-[15px] font-semibold md:flex">
-          <Link to={appendSearch('/')} className={navLinkClass(active === 'home')}>
+          <Link
+            to={appendSearch("/")}
+            className={navLinkClass(active === "home")}
+          >
             Home
           </Link>
-          <Link to={appendSearch('/search')} className={navLinkClass(active === 'browse')}>
+          <Link
+            to={appendSearch("/search")}
+            className={navLinkClass(active === "browse")}
+          >
             Search
           </Link>
-          <Link to={appendSearch('/deals')} className={navLinkClass(active === 'deals')}>
+          <Link
+            to={appendSearch("/deals")}
+            className={navLinkClass(active === "deals")}
+          >
             Deals
           </Link>
-          <Link to={appendSearch('/contact')} className={navLinkClass(active === 'contact')}>
+          <Link
+            to={appendSearch("/contact")}
+            className={navLinkClass(active === "contact")}
+          >
             Contact
           </Link>
           <Link
@@ -599,14 +673,18 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                 <Bell size={19} />
                 {unreadNotificationCount > 0 ? (
                   <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-black leading-none text-white">
-                    {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                    {unreadNotificationCount > 99
+                      ? "99+"
+                      : unreadNotificationCount}
                   </span>
                 ) : null}
               </button>
               {isNotificationsOpen ? (
                 <div className="absolute right-0 z-50 mt-2 w-80 rounded-md border border-slate-200 bg-white p-3 shadow-xl">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-sm font-black text-slate-950">Notifications</p>
+                    <p className="text-sm font-black text-slate-950">
+                      Notifications
+                    </p>
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-600">
                       {unreadNotificationCount} unread
                     </span>
@@ -626,13 +704,17 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                       Failed to load notifications.
                     </p>
                   ) : null}
-                  {!notificationsQuery.isLoading && pushNotifications.length === 0 ? (
+                  {!notificationsQuery.isLoading &&
+                  pushNotifications.length === 0 ? (
                     <p className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-5 text-center text-sm font-semibold text-slate-600">
                       No notifications yet.
                     </p>
                   ) : null}
                   <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
                     {pushNotifications.map((notification) => {
+                      const actionRoute = normalizeNotificationRoute(
+                        notification.actionUrl,
+                      );
                       const content = (
                         <div className="flex min-w-0 gap-2.5">
                           {notification.imageUrl ? (
@@ -642,7 +724,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                               className="h-12 w-12 shrink-0 rounded-md border border-slate-200 bg-slate-50 object-cover"
                               loading="lazy"
                               onError={(event) => {
-                                event.currentTarget.src = '/nearhub.png';
+                                event.currentTarget.src = "/nearhub.png";
                               }}
                             />
                           ) : null}
@@ -670,13 +752,13 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                           key={notification.id}
                           className={`rounded-md border p-3 ${
                             notification.isRead
-                              ? 'border-slate-200 bg-white'
-                              : 'border-[#0759e6]/25 bg-blue-50/45'
+                              ? "border-slate-200 bg-white"
+                              : "border-[#0759e6]/25 bg-blue-50/45"
                           }`}
                         >
-                          {notification.actionUrl ? (
+                          {actionRoute ? (
                             <Link
-                              to={notification.actionUrl}
+                              to={actionRoute}
                               onClick={() => {
                                 setIsNotificationsOpen(false);
                                 if (!notification.isRead)
@@ -692,7 +774,9 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                           {!notification.isRead ? (
                             <button
                               type="button"
-                              onClick={() => void markNotificationRead(notification.id)}
+                              onClick={() =>
+                                void markNotificationRead(notification.id)
+                              }
                               className="mt-2 inline-flex items-center gap-1 text-[11px] font-black text-[#0759e6] hover:underline"
                             >
                               <CheckCircle2 size={13} /> Mark read
@@ -717,7 +801,11 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
             >
               <span className="relative grid h-8 w-8 place-items-center overflow-hidden rounded-full bg-slate-100 text-xs font-black text-[#0759e6] ring-1 ring-slate-200">
                 {isLoggedIn && userAvatarUrl ? (
-                  <img src={userAvatarUrl} alt={userLabel} className="h-full w-full object-cover" />
+                  <img
+                    src={userAvatarUrl}
+                    alt={userLabel}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   <CircleUserRound size={18} />
                 )}
@@ -725,7 +813,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                   <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
                 ) : null}
               </span>
-              {isLoggedIn ? userLabel : 'User'}
+              {isLoggedIn ? userLabel : "User"}
             </button>
             {isUserMenuOpen ? (
               <div className="absolute right-0 z-50 mt-3 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_22px_50px_-26px_rgba(15,23,42,0.55)]">
@@ -744,9 +832,11 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-slate-950">{userLabel}</p>
+                        <p className="truncate text-sm font-black text-slate-950">
+                          {userLabel}
+                        </p>
                         <p className="truncate text-xs font-semibold text-slate-500">
-                          {userPhone ? `+91 ${userPhone}` : 'NearHub account'}
+                          {userPhone ? `+91 ${userPhone}` : "NearHub account"}
                         </p>
                       </div>
                     </div>
@@ -764,7 +854,9 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500 transition group-hover:bg-blue-50 group-hover:text-[#0759e6]">
                               <Icon size={16} />
                             </span>
-                            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                            <span className="min-w-0 flex-1 truncate">
+                              {item.label}
+                            </span>
                             <ChevronRight
                               size={17}
                               className="text-slate-400 transition group-hover:text-[#0759e6]"
@@ -798,7 +890,9 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                     <span className="grid h-8 w-8 place-items-center rounded-full bg-blue-50">
                       <LogIn size={16} />
                     </span>
-                    <span className="min-w-0 flex-1 truncate">Sign In / Register</span>
+                    <span className="min-w-0 flex-1 truncate">
+                      Sign In / Register
+                    </span>
                     <ChevronRight size={17} />
                   </Link>
                 )}
@@ -808,28 +902,29 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
         </nav>
 
         <div className="ml-auto flex items-center gap-2 md:hidden">
-          {active === 'home' ? (
-            <button
-              type="button"
-              onClick={detectLocation}
-              disabled={isLocating}
-              className="flex h-10 min-w-0 max-w-[150px] flex-1 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 text-left shadow-sm disabled:opacity-60 min-[390px]:max-w-[170px] sm:h-12 sm:max-w-[190px] sm:gap-2 sm:px-3"
-              aria-label="Detect location"
-            >
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#0759e6] text-white sm:h-8 sm:w-8">
-                <MapPin size={19} />
+          <button
+            type="button"
+            onClick={detectLocation}
+            disabled={isLocating}
+            className="flex h-11 min-w-0 max-w-[142px] flex-1 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 text-left shadow-sm disabled:opacity-60 min-[390px]:max-w-[162px] sm:h-12 sm:max-w-[190px] sm:px-3"
+            aria-label="Detect location"
+          >
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#0759e6] text-white">
+              <MapPin size={17} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-bold leading-4 text-slate-950">
+                {isLocating ? "Locating..." : location || "Anakapalle"}
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-bold leading-4 text-slate-950 sm:text-sm">
-                  {isLocating ? 'Locating...' : location || 'Anakapalle'}
-                </span>
-                <span className="block truncate text-[10px] font-semibold leading-4 text-slate-500 sm:text-xs">
-                  Within 50 km
-                </span>
+              <span className="block truncate text-[10px] font-semibold leading-3 text-slate-500">
+                Within 50 km
               </span>
-              <ChevronDown size={16} className="hidden shrink-0 text-slate-500 min-[390px]:block" />
-            </button>
-          ) : null}
+            </span>
+            <ChevronDown
+              size={15}
+              className="hidden shrink-0 text-slate-500 min-[390px]:block"
+            />
+          </button>
           <button
             type="button"
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-800"
@@ -845,29 +940,31 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
         <div className="border-t border-slate-200 bg-white px-4 py-3 md:hidden">
           <Container className="flex flex-col gap-2 text-sm font-semibold">
             <Link
-              to={appendSearch('/search')}
+              to={appendSearch("/search")}
               className="rounded-md px-3 py-2 text-slate-800"
               onClick={() => setIsMenuOpen(false)}
             >
               Search
             </Link>
             <Link
-              to={appendSearch('/contact')}
+              to={appendSearch("/contact")}
               className="rounded-md px-3 py-2 text-slate-800"
               onClick={() => setIsMenuOpen(false)}
             >
               Contact
             </Link>
             <Link
-              to={isLoggedIn ? '/bookings' : '/auth/register'}
+              to={isLoggedIn ? "/bookings" : "/auth/register"}
               className="rounded-md px-3 py-2 text-slate-800"
               onClick={() => setIsMenuOpen(false)}
             >
-              {isLoggedIn ? 'Bookings' : 'Sign In'}
+              {isLoggedIn ? "Bookings" : "Sign In"}
             </Link>
             {isLoggedIn
               ? menuItems
-                  .filter((item) => item.to !== '/bookings' && item.to !== '/profile')
+                  .filter(
+                    (item) => item.to !== "/bookings" && item.to !== "/profile",
+                  )
                   .map((item) => (
                     <Link
                       key={item.label}
@@ -886,7 +983,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                 onClick={() => {
                   handleLogout();
                   setIsMenuOpen(false);
-                  navigate('/auth/register');
+                  navigate("/auth/register");
                 }}
               >
                 Logout

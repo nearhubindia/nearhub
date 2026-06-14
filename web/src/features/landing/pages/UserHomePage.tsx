@@ -1,24 +1,26 @@
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { Link } from "react-router-dom";
 import {
   Bell,
   ChevronRight,
+  Grid2X2,
   Flame,
-  Gift,
   Heart,
   History,
   MapPin,
-  PackagePlus,
   Search,
   Tag,
-} from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { LandingFooter, LandingHeader, Container } from '@/shared/components';
-import { getApiUrl } from '@/lib/config';
-import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
-import { FALLBACK_LISTING_IMAGE, getListingImages } from '@/features/landing/lib/listing-images';
-import { readStoredWebUser } from '@/lib/web-auth-storage';
-import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
+} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { LandingFooter, LandingHeader, Container } from "@/shared/components";
+import { getApiUrl } from "@/lib/config";
+import { formatDealStatus, getEffectiveDealWindow } from "@/lib/deal-timer";
+import {
+  FALLBACK_LISTING_IMAGE,
+  getListingImages,
+} from "@/features/landing/lib/listing-images";
+import { readStoredWebUser } from "@/lib/web-auth-storage";
+import { readStoredWebGeoCoords } from "@/lib/web-geo-storage";
 import {
   SAVED_LISTING_IDS_KEY,
   countdownPartsFromMs,
@@ -28,7 +30,7 @@ import {
   parsePositiveNumber,
   readStoredStringSet,
   writeStoredStringSet,
-} from '@/features/landing/lib/landing-utils';
+} from "@/features/landing/lib/landing-utils";
 
 type Listing = {
   id: string;
@@ -66,6 +68,8 @@ type Listing = {
   max_deal_bookings?: number | string;
   dealBookingsUsed?: number | string;
   deal_bookings_used?: number | string;
+  purchaseLimitType?: string;
+  purchase_limit_type?: string;
   status?: string;
   isActive?: boolean;
   is_active?: boolean;
@@ -89,6 +93,7 @@ type ProductCardData = {
   badge?: string;
   dealEndsAt?: number;
   dealStatus?: string;
+  purchaseLimitType?: "ONE_TIME" | "UNLIMITED";
   comboItems?: string[];
 };
 
@@ -109,11 +114,40 @@ type NotificationsResponse = {
   data?: InAppNotification[];
 };
 
-const FALLBACK_IMAGE = FALLBACK_LISTING_IMAGE;
-const HERO_BANNERS = ['/banner1.png', '/banner2.png'];
-const EMPTY_LISTINGS: Listing[] = [];
+type ListingsQueryResult = {
+  listings: Listing[];
+  usedLocationFallback: boolean;
+};
 
-function parseComboItems(value: string[] | string | undefined): string[] | undefined {
+const FALLBACK_IMAGE = FALLBACK_LISTING_IMAGE;
+const HERO_BANNERS = ["/banner1.png", "/banner2.png"];
+const EMPTY_LISTINGS: Listing[] = [];
+const HIDDEN_LISTING_STATUSES = new Set([
+  "draft",
+  "pending",
+  "rejected",
+  "sold",
+  "deleted",
+]);
+
+function normalizePurchaseLimitType(
+  value: unknown,
+): "ONE_TIME" | "UNLIMITED" | undefined {
+  const normalized = String(value || "").toUpperCase();
+  return normalized === "ONE_TIME" || normalized === "UNLIMITED"
+    ? normalized
+    : undefined;
+}
+
+function purchaseLimitLabel(value?: "ONE_TIME" | "UNLIMITED"): string {
+  if (value === "ONE_TIME") return "One Purchase Per Customer";
+  if (value === "UNLIMITED") return "Unlimited Purchases";
+  return "";
+}
+
+function parseComboItems(
+  value: string[] | string | undefined,
+): string[] | undefined {
   if (Array.isArray(value)) return value.filter(Boolean).map(String);
   if (!value) return undefined;
 
@@ -134,7 +168,35 @@ function parseComboItems(value: string[] | string | undefined): string[] | undef
 function formatCountdown(endAt: number | undefined, nowMs: number): string {
   return countdownPartsFromMs(endAt, nowMs)
     .map((part) => part.value)
-    .join(' : ');
+    .join(" : ");
+}
+
+function MobileCountdownTiles({
+  endAt,
+  nowMs,
+  className = "",
+}: {
+  endAt: number | undefined;
+  nowMs: number;
+  className?: string;
+}): ReactElement {
+  return (
+    <div className={`grid grid-cols-4 gap-1 ${className}`}>
+      {countdownPartsFromMs(endAt, nowMs).map((part) => (
+        <div
+          key={part.label}
+          className="grid h-[38px] min-w-0 place-items-center rounded-lg bg-white text-center text-[#ef3045] shadow-sm ring-1 ring-[#ffd7dc]"
+        >
+          <span className="block text-[11px] font-black leading-none">
+            {part.value}
+          </span>
+          <span className="mt-0.5 block text-[6px] font-bold uppercase leading-none text-slate-500">
+            {part.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function isDeal(item: Listing): boolean {
@@ -160,44 +222,77 @@ function isDealActive(item: Listing, nowMs: number): boolean {
 function isDealExpired(item: Listing, nowMs: number): boolean {
   if (!isDeal(item)) return false;
   const endAt = getDealEndMs(item, nowMs);
-  return typeof endAt === 'number' && Number.isFinite(endAt) ? nowMs > endAt : false;
+  return typeof endAt === "number" && Number.isFinite(endAt)
+    ? nowMs > endAt
+    : false;
 }
 
 function isDealUpcoming(item: Listing, nowMs: number): boolean {
   if (!isDeal(item)) return false;
   const startAt = getDealStartMs(item, nowMs);
-  return typeof startAt === 'number' && Number.isFinite(startAt) ? nowMs < startAt : false;
+  return typeof startAt === "number" && Number.isFinite(startAt)
+    ? nowMs < startAt
+    : false;
 }
 function numberValue(value: number | string | undefined): number {
-  const parsed = typeof value === 'string' ? Number(value) : Number(value || 0);
+  const parsed = typeof value === "string" ? Number(value) : Number(value || 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isVisibleListing(item: Listing): boolean {
+  const status = String(item.status || "active")
+    .trim()
+    .toLowerCase();
+  const isActive = item.isActive ?? item.is_active ?? true;
+  return Boolean(isActive) && !HIDDEN_LISTING_STATUSES.has(status);
+}
+
+function normalizeListings(items: Listing[]): Listing[] {
+  return items
+    .map((item) => ({
+      ...item,
+      isDeal: Boolean(item.isDeal ?? item.is_deal),
+      isActive: item.isActive ?? item.is_active ?? true,
+      status: String(item.status || "active").toLowerCase(),
+      dealType: String(item.dealType || item.deal_type || "").toLowerCase(),
+      dealStatus: String(
+        item.dealStatus || item.deal_status || "",
+      ).toLowerCase(),
+    }))
+    .filter(isVisibleListing);
 }
 
 function isDealStockCompleted(item: Listing): boolean {
   const maxSlots =
     numberValue(item.dealCycleQuantity ?? item.deal_cycle_quantity) ||
     numberValue(item.maxDealBookings ?? item.max_deal_bookings);
-  const usedSlots = numberValue(item.dealBookingsUsed ?? item.deal_bookings_used);
+  const usedSlots = numberValue(
+    item.dealBookingsUsed ?? item.deal_bookings_used,
+  );
   return maxSlots > 0 && usedSlots >= maxSlots;
 }
 
 function isDealMarkedCompleted(item: Listing): boolean {
-  const status = String(item.dealStatus ?? item.deal_status ?? item.status ?? '').toLowerCase();
+  const status = String(
+    item.dealStatus ?? item.deal_status ?? item.status ?? "",
+  ).toLowerCase();
   return [
-    'completed',
-    'complete',
-    'closed',
-    'expired',
-    'sold_out',
-    'sold-out',
-    'stock_completed',
+    "completed",
+    "complete",
+    "closed",
+    "expired",
+    "sold_out",
+    "sold-out",
+    "stock_completed",
   ].includes(status);
 }
 
 function isDealCompleted(item: Listing, nowMs: number): boolean {
   return (
     isDeal(item) &&
-    (isDealExpired(item, nowMs) || isDealStockCompleted(item) || isDealMarkedCompleted(item))
+    (isDealExpired(item, nowMs) ||
+      isDealStockCompleted(item) ||
+      isDealMarkedCompleted(item))
   );
 }
 
@@ -206,29 +301,35 @@ function isDealAvailableForDealSections(item: Listing, nowMs: number): boolean {
 }
 
 function getPostDealPriceMode(item: Listing): string {
-  return String(item.postDealPriceMode || item.post_deal_price_mode || 'original').toLowerCase();
+  return String(
+    item.postDealPriceMode || item.post_deal_price_mode || "original",
+  ).toLowerCase();
 }
 
 function getDisplayPrices(
   item: Listing,
-  nowMs: number
+  nowMs: number,
 ): { displayPrice: number | undefined; originalPrice: number | undefined } {
   const offerPrice = parsePositiveNumber(item.offerPrice);
   const price = parsePositiveNumber(item.price);
   const postDealDiscountPrice = parsePositiveNumber(
-    item.postDealDiscountPrice ?? item.post_deal_discount_price
+    item.postDealDiscountPrice ?? item.post_deal_discount_price,
   );
   if (!price) return { displayPrice: offerPrice, originalPrice: undefined };
-  if (!offerPrice || offerPrice >= price) return { displayPrice: price, originalPrice: undefined };
+  if (!offerPrice || offerPrice >= price)
+    return { displayPrice: price, originalPrice: undefined };
   if (!isDeal(item)) return { displayPrice: offerPrice, originalPrice: price };
 
   const endAt = getDealEndMs(item, nowMs);
-  if (!endAt || nowMs <= endAt) return { displayPrice: offerPrice, originalPrice: price };
-  if (getPostDealPriceMode(item) !== 'discount')
+  if (!endAt || nowMs <= endAt)
+    return { displayPrice: offerPrice, originalPrice: price };
+  if (getPostDealPriceMode(item) !== "discount")
     return { displayPrice: price, originalPrice: undefined };
 
   const afterDealPrice =
-    postDealDiscountPrice && postDealDiscountPrice < price ? postDealDiscountPrice : offerPrice;
+    postDealDiscountPrice && postDealDiscountPrice < price
+      ? postDealDiscountPrice
+      : offerPrice;
   return { displayPrice: afterDealPrice, originalPrice: price };
 }
 
@@ -238,22 +339,31 @@ function mapListing(item: Listing, nowMs: number): ProductCardData {
 
   return {
     id: item.id,
-    title: item.title || 'Untitled listing',
-    category: item.category || 'General',
-    location: item.location || 'Nearby',
+    title: item.title || "Untitled listing",
+    category: item.category || "General",
+    location: item.location || "Nearby",
     image: images[0] || FALLBACK_IMAGE,
     images,
     price: displayPrice,
     originalPrice,
     distance: formatDistanceKm(item.distanceKm ?? item.distance_km),
-    badge: isDealActive(item, nowMs) ? 'Deal' : undefined,
+    badge: isDealActive(item, nowMs) ? "Deal" : undefined,
     dealEndsAt: getDealEndMs(item, nowMs),
     dealStatus: formatDealStatus(item, nowMs),
+    purchaseLimitType: normalizePurchaseLimitType(
+      item.purchaseLimitType ?? item.purchase_limit_type,
+    ),
     comboItems: parseComboItems(item.comboItems),
   };
 }
 
-function EmptyState({ message, to }: { message: string; to?: string }): ReactElement {
+function EmptyState({
+  message,
+  to,
+}: {
+  message: string;
+  to?: string;
+}): ReactElement {
   return (
     <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
       <p className="text-sm font-normal text-slate-600">{message}</p>
@@ -275,7 +385,7 @@ function ProductCard({
   onToggleSaved,
   showCountdown = false,
   combo = false,
-  mobileVariant = 'default',
+  mobileVariant = "default",
   nowMs,
 }: {
   product: ProductCardData;
@@ -283,53 +393,62 @@ function ProductCard({
   onToggleSaved: (id: string) => void;
   showCountdown?: boolean;
   combo?: boolean;
-  mobileVariant?: 'default' | 'overlay' | 'deal';
+  mobileVariant?: "default" | "overlay" | "deal";
   nowMs: number;
 }): ReactElement {
   const sale = discountPercentage(product.price, product.originalPrice);
   const comboImages = combo
     ? [
         product.images[0] || product.image,
-        product.images[1] || product.images[0] || product.image || FALLBACK_IMAGE,
+        product.images[1] ||
+          product.images[0] ||
+          product.image ||
+          FALLBACK_IMAGE,
       ]
     : [];
   const comboTitle =
     combo && product.comboItems && product.comboItems.length >= 2
       ? `${product.comboItems[0]} + ${product.comboItems[1]}`
       : product.title;
+  const dealTag = sale || product.badge || (showCountdown ? "Deal" : null);
   const mobileCardWidth =
-    mobileVariant === 'default'
-      ? ''
-      : 'w-[calc((100vw-2rem-0.5rem)/2)] shrink-0 sm:w-[176px] md:w-auto md:shrink';
+    mobileVariant === "overlay"
+      ? "max-md:h-[150px] max-md:w-[124px] max-md:shrink-0 md:w-auto md:shrink"
+      : mobileVariant === "deal"
+        ? "max-md:h-[300px] max-md:w-[124px] max-md:shrink-0 md:w-auto md:shrink"
+        : "";
   const mobileShell =
-    mobileVariant === 'overlay'
-      ? 'max-md:relative max-md:rounded-xl max-md:border-slate-300 max-md:bg-slate-950'
-      : mobileVariant === 'deal'
-        ? 'max-md:rounded-xl max-md:border-slate-300'
-        : '';
+    mobileVariant === "overlay"
+      ? "max-md:relative max-md:rounded-2xl max-md:border-slate-300 max-md:bg-slate-950"
+      : mobileVariant === "deal"
+        ? "max-md:rounded-2xl max-md:border-slate-300"
+        : "";
   const imageShape =
-    mobileVariant === 'overlay'
-      ? 'max-md:aspect-[1.12] max-md:overflow-hidden max-md:rounded-xl'
-      : mobileVariant === 'deal'
-        ? 'max-md:aspect-[0.92]'
-        : '';
+    mobileVariant === "overlay"
+      ? "max-md:h-full max-md:overflow-hidden max-md:rounded-2xl"
+      : mobileVariant === "deal"
+        ? "max-md:h-[106px]"
+        : "";
 
   return (
     <article
       className={`group overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${mobileCardWidth} ${mobileShell} ${
-        combo ? 'h-full' : ''
+        combo ? "h-full" : ""
       }`}
     >
       <Link to={`/listing/${encodeURIComponent(product.id)}`} className="block">
         <div
           className={`relative bg-slate-100 ${imageShape} ${
-            combo ? 'aspect-[1.72]' : 'aspect-[1.02] sm:aspect-[1.14]'
+            combo ? "aspect-[1.72]" : "aspect-[1.02] sm:aspect-[1.14]"
           }`}
         >
           {combo ? (
             <div className="grid h-full grid-cols-2 gap-px bg-slate-200">
               {comboImages.map((image, index) => (
-                <div key={`${product.id}-combo-image-${index}`} className="min-w-0 bg-slate-50">
+                <div
+                  key={`${product.id}-combo-image-${index}`}
+                  className="min-w-0 bg-slate-50"
+                >
                   <img
                     src={image}
                     alt={`${comboTitle} item ${index + 1}`}
@@ -353,10 +472,10 @@ function ProductCard({
               }}
             />
           )}
-          {sale ? (
+          {sale && !showCountdown ? (
             <span
               className={`absolute left-1.5 top-1.5 rounded-md bg-red-600 px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm sm:left-2 sm:top-2 sm:px-2 sm:py-1 sm:text-xs ${
-                mobileVariant !== 'default' ? 'max-md:hidden' : ''
+                mobileVariant !== "default" ? "max-md:hidden" : ""
               }`}
             >
               {sale}
@@ -364,14 +483,14 @@ function ProductCard({
           ) : null}
           {product.badge && !showCountdown ? (
             <span
-              className={`absolute top-1.5 rounded-md bg-emerald-500 px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm sm:top-2 sm:px-2 sm:py-1 sm:text-xs ${sale ? 'right-1.5 sm:right-2' : 'left-1.5 sm:left-2'}`}
+              className={`absolute top-1.5 rounded-md bg-emerald-500 px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm sm:top-2 sm:px-2 sm:py-1 sm:text-xs ${sale ? "right-1.5 sm:right-2" : "left-1.5 sm:left-2"}`}
             >
               {product.badge}
             </span>
           ) : null}
-          {product.badge && showCountdown ? (
-            <span className="absolute left-2 top-2 rounded-full bg-slate-900/85 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm md:hidden">
-              {product.badge}
+          {showCountdown && dealTag ? (
+            <span className="absolute left-0 top-0 z-10 rounded-br-sm bg-red-600 px-2 py-1 text-[10px] font-black leading-none text-white shadow-[6px_0_0_#d8c4b6] md:left-2 md:top-2 md:rounded-full md:px-2 md:py-0.5 md:text-[10px] md:shadow-sm">
+              {dealTag}
             </span>
           ) : null}
           {combo ? (
@@ -383,17 +502,19 @@ function ProductCard({
       </Link>
       <div
         className={`p-2 sm:p-3 ${
-          mobileVariant === 'overlay'
-            ? 'max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:z-10 max-md:bg-gradient-to-t max-md:from-black/90 max-md:via-black/60 max-md:to-transparent max-md:pt-9'
-            : ''
-        } ${mobileVariant === 'deal' ? 'max-md:p-2' : ''}`}
+          mobileVariant === "overlay"
+            ? "max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:z-10 max-md:bg-gradient-to-t max-md:from-black/90 max-md:via-black/65 max-md:to-transparent max-md:p-3 max-md:pt-12"
+            : ""
+        } ${mobileVariant === "deal" ? "max-md:p-2" : ""}`}
       >
-        <div className="flex min-h-8 items-start justify-between gap-1.5 sm:min-h-10 sm:gap-2">
+        <div className="flex min-h-6 items-start justify-between gap-1 sm:min-h-10 sm:gap-2">
           <Link
             to={`/listing/${encodeURIComponent(product.id)}`}
             className={`line-clamp-2 text-xs font-normal leading-snug text-slate-950 hover:text-[#0858d8] sm:text-sm ${
-              mobileVariant === 'overlay' ? 'max-md:text-white max-md:hover:text-white' : ''
-            } ${mobileVariant === 'deal' ? 'max-md:text-[13px] max-md:font-bold' : ''}`}
+              mobileVariant === "overlay"
+                ? "max-md:text-white max-md:hover:text-white"
+                : ""
+            } ${mobileVariant === "deal" ? "max-md:text-[11px] max-md:font-bold" : ""}`}
           >
             {comboTitle}
           </Link>
@@ -401,31 +522,35 @@ function ProductCard({
             type="button"
             onClick={() => onToggleSaved(product.id)}
             className={`shrink-0 rounded-full p-0.5 text-slate-500 transition hover:bg-slate-100 hover:text-red-600 sm:p-1 ${
-              mobileVariant === 'overlay' ? 'max-md:text-white max-md:hover:bg-white/10' : ''
+              mobileVariant === "overlay"
+                ? "max-md:text-white max-md:hover:bg-white/10"
+                : ""
             }`}
-            aria-label={saved ? 'Remove from favourites' : 'Save listing'}
+            aria-label={saved ? "Remove from favourites" : "Save listing"}
           >
             <Heart
               size={16}
-              className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${saved ? 'fill-red-500 text-red-500' : ''}`}
+              className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${saved ? "fill-red-500 text-red-500" : ""}`}
             />
           </button>
         </div>
         {combo ? (
-          <p className="mt-1 line-clamp-1 text-xs font-normal text-slate-500">{product.title}</p>
+          <p className="mt-1 line-clamp-1 text-xs font-normal text-slate-500">
+            {product.title}
+          </p>
         ) : null}
-        <div className="mt-1.5 flex flex-wrap items-baseline gap-1.5 sm:mt-2 sm:gap-2">
+        <div className="mt-1 flex flex-wrap items-baseline gap-1 sm:mt-2 sm:gap-2">
           <span
             className={`text-sm font-medium text-[#0759e6] sm:text-base ${
-              mobileVariant === 'overlay' ? 'max-md:text-white' : ''
-            } ${mobileVariant === 'deal' ? 'max-md:text-[13px] max-md:font-black max-md:text-slate-950' : ''}`}
+              mobileVariant === "overlay" ? "max-md:text-white" : ""
+            } ${mobileVariant === "deal" ? "max-md:text-[12px] max-md:font-black max-md:text-slate-950" : ""}`}
           >
             {formatPriceInr(product.price)}
           </span>
           {product.originalPrice ? (
             <span
               className={`text-[10px] font-normal text-slate-400 line-through sm:text-xs ${
-                mobileVariant === 'overlay' ? 'max-md:text-white/60' : ''
+                mobileVariant === "overlay" ? "max-md:text-white/60" : ""
               }`}
             >
               {formatPriceInr(product.originalPrice)}
@@ -434,42 +559,50 @@ function ProductCard({
         </div>
         <div
           className={`mt-1.5 flex items-center gap-1 text-[10px] font-normal text-slate-600 sm:mt-2 sm:text-xs ${
-            mobileVariant === 'overlay' ? 'max-md:text-white' : ''
-          } ${mobileVariant === 'deal' ? 'max-md:mt-1 max-md:text-[11px]' : ''}`}
+            mobileVariant === "overlay" ? "max-md:text-white" : ""
+          } ${mobileVariant === "deal" ? "max-md:mt-0 max-md:text-[10px]" : ""}`}
         >
           <MapPin size={12} className="h-[11px] w-[11px] sm:h-3 sm:w-3" />
           <span className="truncate">{product.distance}</span>
         </div>
         {showCountdown && product.dealStatus ? (
-          product.dealStatus.startsWith('Ends in') ? (
-            <div className="mt-2 text-center sm:mt-3">
-              <div className="flex items-center gap-1.5 border-t border-slate-100 pt-2 text-[12px] font-black text-red-500 md:hidden">
-                <History size={14} className="shrink-0" />
-                <span className="truncate">{formatCountdown(product.dealEndsAt, nowMs)}</span>
-              </div>
+          product.dealStatus.startsWith("Ends in") ? (
+            <div className="mt-1.5 text-center sm:mt-3">
+              <MobileCountdownTiles
+                endAt={product.dealEndsAt}
+                nowMs={nowMs}
+                className="border-t border-slate-100 pt-1 md:hidden"
+              />
               <div className="max-md:hidden">
                 <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#0759e6]">
                   DEAL ENDS IN
                 </p>
                 <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                  {countdownPartsFromMs(product.dealEndsAt, nowMs).map((part) => (
-                    <div
-                      key={part.label}
-                      className="grid h-[36px] min-w-[36px] w-[36px] place-items-center rounded-lg bg-white text-center text-[#dc1633] shadow-sm ring-1 ring-[#f8d9dd]"
-                    >
-                      <span className="block text-[10px] font-medium leading-none">
-                        {part.value}
-                      </span>
-                      <span className="mt-0.5 block text-[7px] font-normal leading-none text-slate-500">
-                        {part.label}
-                      </span>
-                    </div>
-                  ))}
+                  {countdownPartsFromMs(product.dealEndsAt, nowMs).map(
+                    (part) => (
+                      <div
+                        key={part.label}
+                        className="grid h-[36px] min-w-[36px] w-[36px] place-items-center rounded-lg bg-white text-center text-[#dc1633] shadow-sm ring-1 ring-[#f8d9dd]"
+                      >
+                        <span className="block text-[10px] font-medium leading-none">
+                          {part.value}
+                        </span>
+                        <span className="mt-0.5 block text-[7px] font-normal leading-none text-slate-500">
+                          {part.label}
+                        </span>
+                      </div>
+                    ),
+                  )}
                 </div>
               </div>
+              {purchaseLimitLabel(product.purchaseLimitType) ? (
+                <p className="mt-1 truncate text-[9px] font-medium text-slate-500 md:text-[11px]">
+                  {purchaseLimitLabel(product.purchaseLimitType)}
+                </p>
+              ) : null}
               <Link
                 to={`/order-summary/${encodeURIComponent(product.id)}`}
-                className="mt-2 inline-flex h-8 w-full items-center justify-center rounded-md bg-[#0759e6] px-3 text-xs font-medium text-white transition hover:bg-[#0448bd] sm:mt-3 sm:h-9"
+                className="mt-1 inline-flex h-7 w-full items-center justify-center rounded-lg bg-[#0759e6] px-2 text-[11px] font-medium text-white transition hover:bg-[#0448bd] sm:mt-3 sm:h-9 sm:text-sm"
               >
                 Book Deal
               </Link>
@@ -505,9 +638,9 @@ function ComboDealCard({
       : product.title;
 
   return (
-    <article className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+    <article className="h-[300px] w-[124px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md md:h-auto md:w-auto md:shrink">
       <Link to={`/listing/${encodeURIComponent(product.id)}`} className="block">
-        <div className="relative h-44 overflow-hidden bg-white sm:h-40 xl:h-36">
+        <div className="relative h-[100px] overflow-hidden bg-white sm:h-40 xl:h-36">
           <div className="grid h-full grid-cols-2 gap-px bg-slate-200">
             {comboImages.map((image, index) => (
               <div
@@ -526,63 +659,84 @@ function ComboDealCard({
               </div>
             ))}
           </div>
-          {sale ? (
-            <span className="absolute left-2 top-2 rounded-md bg-red-600 px-2 py-1 text-xs font-medium text-white shadow-sm">
-              {sale}
+          {product.badge || sale ? (
+            <span className="absolute left-0 top-0 z-10 rounded-br-sm bg-red-600 px-2 py-1 text-[10px] font-black leading-none text-white shadow-[6px_0_0_#d8c4b6] md:left-2 md:top-2 md:rounded-full md:px-2 md:py-0.5 md:text-[10px] md:shadow-sm">
+              {sale || product.badge}
             </span>
           ) : null}
-          <span className="absolute left-1/2 top-1/2 grid h-10 w-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[3px] border-white bg-red-600 text-2xl font-medium leading-none text-white shadow-lg">
+          <span className="absolute left-1/2 top-1/2 grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white text-lg font-black leading-none text-[#0759e6] shadow-sm">
             +
+          </span>
+          <span className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-white/90 text-slate-950 shadow-sm">
+            <Heart size={18} />
           </span>
         </div>
       </Link>
 
-      <div className="px-3 pb-4 pt-3">
-        <div className="flex min-h-8 items-start justify-between gap-3">
+      <div className="px-2 pb-2 pt-2">
+        <div className="flex min-h-6 items-start justify-between gap-1">
           <Link
             to={`/listing/${encodeURIComponent(product.id)}`}
-            className="line-clamp-2 text-sm font-normal leading-snug text-slate-950 hover:text-[#0759e6]"
+            className="line-clamp-2 text-[11px] font-bold leading-snug text-slate-950 hover:text-[#0759e6]"
           >
             {comboTitle}
           </Link>
         </div>
+        <p className="mt-0.5 line-clamp-2 min-h-6 text-[10px] font-normal leading-3 text-slate-500">
+          {product.title}
+        </p>
 
-        <div className="mt-2 flex flex-wrap items-baseline gap-2">
-          <span className="text-xl font-medium leading-none text-[#0759e6]">
+        <div className="mt-1 flex flex-wrap items-baseline gap-1.5">
+          <span className="text-[12px] font-black leading-none text-slate-950 sm:text-xl">
             {formatPriceInr(product.price)}
           </span>
           {product.originalPrice ? (
-            <span className="text-xs font-normal text-slate-400 line-through">
+            <span className="text-[10px] font-normal text-slate-400 line-through">
               {formatPriceInr(product.originalPrice)}
             </span>
           ) : null}
         </div>
 
-        <div className="mt-5 text-center">
-          <p className="text-xs font-normal text-[#0759e6]">Deal status</p>
-          {product.dealStatus?.startsWith('Ends in') ? (
-            <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
-              {countdownPartsFromMs(product.dealEndsAt, nowMs).map((part) => (
-                <div
-                  key={part.label}
-                  className="grid h-[32px] min-w-[32px] w-[32px] place-items-center rounded-lg bg-white text-center text-[#dc1633] shadow-sm ring-1 ring-[#f8d9dd]"
-                >
-                  <span className="block text-[9px] font-medium leading-none">{part.value}</span>
-                  <span className="mt-0.5 block text-[6px] font-normal leading-none text-slate-500">
-                    {part.label}
-                  </span>
-                </div>
-              ))}
-            </div>
+        <div className="mt-1.5 text-center">
+          {product.dealStatus?.startsWith("Ends in") ? (
+            <MobileCountdownTiles
+              endAt={product.dealEndsAt}
+              nowMs={nowMs}
+              className="border-t border-slate-100 pt-1 md:hidden"
+            />
           ) : (
-            <p className="mt-1 font-mono text-lg font-medium tracking-wide text-red-600">
+            <p className="mt-1 font-mono text-sm font-medium tracking-wide text-red-600">
               {product.dealStatus || formatCountdown(product.dealEndsAt, nowMs)}
             </p>
           )}
-          {product.dealStatus?.startsWith('Ends in') ? (
+          {product.dealStatus?.startsWith("Ends in") ? (
+            <div className="max-md:hidden">
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
+                {countdownPartsFromMs(product.dealEndsAt, nowMs).map((part) => (
+                  <div
+                    key={part.label}
+                    className="grid h-[32px] min-w-[32px] w-[32px] place-items-center rounded-lg bg-white text-center text-[#dc1633] shadow-sm ring-1 ring-[#f8d9dd]"
+                  >
+                    <span className="block text-[9px] font-medium leading-none">
+                      {part.value}
+                    </span>
+                    <span className="mt-0.5 block text-[6px] font-normal leading-none text-slate-500">
+                      {part.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {purchaseLimitLabel(product.purchaseLimitType) ? (
+            <p className="mt-1 truncate text-[9px] font-medium text-slate-500 md:text-[11px]">
+              {purchaseLimitLabel(product.purchaseLimitType)}
+            </p>
+          ) : null}
+          {product.dealStatus?.startsWith("Ends in") ? (
             <Link
               to={`/order-summary/${encodeURIComponent(product.id)}`}
-              className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-md bg-[#0759e6] px-3 text-xs font-medium text-white transition hover:bg-[#0448bd]"
+              className="mt-1 inline-flex h-7 w-full items-center justify-center rounded-lg bg-[#0759e6] px-2 text-[11px] font-medium text-white transition hover:bg-[#0448bd] md:mt-3 md:h-9"
             >
               Book Deal
             </Link>
@@ -605,19 +759,21 @@ function SectionHeader({
   to: string;
 }): ReactElement {
   return (
-    <div className="mb-5 flex items-start justify-between gap-4">
+    <div className="mb-3 flex items-center justify-between gap-4 md:mb-5 md:items-start">
       <div>
-        <h2 className="flex items-center gap-2 text-xl font-medium text-slate-950">
+        <h2 className="flex items-center gap-2 text-[22px] font-semibold text-slate-950 md:text-xl md:font-medium">
           {icon}
           {title}
         </h2>
-        {subtitle ? <p className="mt-1 text-sm font-normal text-slate-500">{subtitle}</p> : null}
+        {subtitle ? (
+          <p className="mt-1 text-sm font-normal text-slate-500">{subtitle}</p>
+        ) : null}
       </div>
       <Link
         to={to}
-        className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-[#0759e6] hover:underline"
+        className="inline-flex shrink-0 items-center gap-1 text-base font-semibold text-[#0759e6] hover:underline md:text-sm md:font-medium"
       >
-        View All <ChevronRight size={17} />
+        View All <ChevronRight size={17} className="max-md:hidden" />
       </Link>
     </div>
   );
@@ -625,21 +781,21 @@ function SectionHeader({
 
 export default function UserHomePage(): ReactElement {
   const [activeBanner, setActiveBanner] = useState(0);
-  const [activeCategory, setActiveCategory] = useState('All');
+  const [activeCategory, setActiveCategory] = useState("All");
   const [savedIds, setSavedIds] = useState<Set<string>>(() =>
-    readStoredStringSet(SAVED_LISTING_IDS_KEY)
+    readStoredStringSet(SAVED_LISTING_IDS_KEY),
   );
   const [nowMs, setNowMs] = useState(() => Date.now());
   const user = readStoredWebUser();
-  const userId = String(user?.id || '').trim();
-  const userPhone = String(user?.phone || '').trim();
+  const userId = String(user?.id || "").trim();
+  const userPhone = String(user?.phone || "").trim();
   const notificationHeaders = useMemo(
     () => ({
-      'Content-Type': 'application/json',
-      'x-user-id': userId,
-      ...(userPhone ? { 'x-user-phone': userPhone } : {}),
+      "Content-Type": "application/json",
+      "x-user-id": userId,
+      ...(userPhone ? { "x-user-phone": userPhone } : {}),
     }),
-    [userId, userPhone]
+    [userId, userPhone],
   );
 
   useEffect(() => {
@@ -657,50 +813,65 @@ export default function UserHomePage(): ReactElement {
   const storedGeoCoords = useMemo(() => readStoredWebGeoCoords(), []);
 
   const listingsQuery = useQuery({
-    queryKey: ['nearhub-home-feed', storedGeoCoords?.latitude, storedGeoCoords?.longitude],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        limit: '100',
-      });
+    queryKey: [
+      "nearhub-home-feed",
+      storedGeoCoords?.latitude,
+      storedGeoCoords?.longitude,
+    ],
+    queryFn: async (): Promise<ListingsQueryResult> => {
+      const fetchListings = async (params: URLSearchParams) => {
+        const response = await fetch(
+          `${getApiUrl()}/api/listings?${params.toString()}`,
+        );
+        if (!response.ok) {
+          throw new Error("Failed to load listings");
+        }
+
+        const payload = (await response.json()) as ListingsResponse;
+        return normalizeListings(payload.data || payload.results || []);
+      };
+
+      const baseParams = new URLSearchParams({ limit: "100" });
 
       if (storedGeoCoords) {
-        params.set('latitude', String(storedGeoCoords.latitude));
-        params.set('longitude', String(storedGeoCoords.longitude));
-        params.set('radius', '50');
+        const nearbyParams = new URLSearchParams(baseParams);
+        nearbyParams.set("latitude", String(storedGeoCoords.latitude));
+        nearbyParams.set("longitude", String(storedGeoCoords.longitude));
+        nearbyParams.set("radius", "50");
+
+        const nearbyListings = await fetchListings(nearbyParams);
+        if (nearbyListings.length > 0) {
+          return { listings: nearbyListings, usedLocationFallback: false };
+        }
       }
 
-      const response = await fetch(`${getApiUrl()}/api/listings?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error('Failed to load listings');
-      }
-
-      const payload = (await response.json()) as ListingsResponse;
-      return (payload.data || payload.results || [])
-        .map((item) => ({
-          ...item,
-          isDeal: Boolean(item.isDeal ?? item.is_deal),
-          isActive: item.isActive ?? item.is_active ?? true,
-          status: String(item.status || 'active').toLowerCase(),
-          dealType: String(item.dealType || item.deal_type || '').toLowerCase(),
-          dealStatus: String(item.dealStatus || item.deal_status || '').toLowerCase(),
-        }))
-        .filter((item) => Boolean(item.isActive) && item.status === 'active');
+      return {
+        listings: await fetchListings(baseParams),
+        usedLocationFallback: Boolean(storedGeoCoords),
+      };
     },
     staleTime: 0,
-    refetchOnMount: 'always',
+    refetchOnMount: "always",
   });
 
+  useEffect(() => {
+    if (!listingsQuery.data?.usedLocationFallback) return;
+    window.alert(
+      "No products are available at this location. Showing all listings.",
+    );
+  }, [listingsQuery.data?.usedLocationFallback]);
+
   const notificationsQuery = useQuery({
-    queryKey: ['header-push-notifications', userId],
+    queryKey: ["header-push-notifications", userId],
     enabled: Boolean(userId),
     queryFn: async () => {
       const response = await fetch(
         `${getApiUrl()}/api/notifications?userId=${encodeURIComponent(userId)}&limit=50`,
-        { headers: notificationHeaders }
+        { headers: notificationHeaders },
       );
       const payload = (await response.json()) as NotificationsResponse;
       if (!response.ok || payload.success === false) {
-        throw new Error('Failed to load notifications');
+        throw new Error("Failed to load notifications");
       }
       return payload.data || [];
     },
@@ -710,43 +881,58 @@ export default function UserHomePage(): ReactElement {
   const unreadNotificationCount = useMemo(
     () =>
       (notificationsQuery.data || []).filter(
-        (item) => !item.isRead && item.category !== 'message' && item.category !== 'deal_purchase'
+        (item) =>
+          !item.isRead &&
+          item.category !== "message" &&
+          item.category !== "deal_purchase",
       ).length,
-    [notificationsQuery.data]
+    [notificationsQuery.data],
   );
 
-  const liveListings = listingsQuery.data ?? EMPTY_LISTINGS;
+  const liveListings = listingsQuery.data?.listings ?? EMPTY_LISTINGS;
   const regularListings = useMemo(
-    () => liveListings.filter((item) => !isDeal(item) || isDealCompleted(item, nowMs)),
-    [liveListings, nowMs]
+    () =>
+      liveListings.filter(
+        (item) => !isDeal(item) || isDealCompleted(item, nowMs),
+      ),
+    [liveListings, nowMs],
   );
   const dealListings = useMemo(
-    () => liveListings.filter((item) => isDealAvailableForDealSections(item, nowMs)),
-    [liveListings, nowMs]
+    () =>
+      liveListings.filter((item) =>
+        isDealAvailableForDealSections(item, nowMs),
+      ),
+    [liveListings, nowMs],
   );
 
   const upcomingDealListings = useMemo(
     () => dealListings.filter((item) => isDealUpcoming(item, nowMs)),
-    [dealListings, nowMs]
+    [dealListings, nowMs],
   );
 
   const upcomingDeals = useMemo(
     () => upcomingDealListings.map((item) => mapListing(item, nowMs)),
-    [upcomingDealListings, nowMs]
+    [upcomingDealListings, nowMs],
   );
 
   const expiredDealListings = useMemo(
-    () => liveListings.filter((item) => isDeal(item) && isDealExpired(item, nowMs)),
-    [liveListings, nowMs]
+    () =>
+      liveListings.filter((item) => isDeal(item) && isDealExpired(item, nowMs)),
+    [liveListings, nowMs],
   );
 
   const trending = useMemo(() => {
     return [...regularListings]
       .sort((a, b) => {
-        const aScore = Number(a.likeCount || 0) * 2 + Number(a.chatCount || 0) * 3;
-        const bScore = Number(b.likeCount || 0) * 2 + Number(b.chatCount || 0) * 3;
+        const aScore =
+          Number(a.likeCount || 0) * 2 + Number(a.chatCount || 0) * 3;
+        const bScore =
+          Number(b.likeCount || 0) * 2 + Number(b.chatCount || 0) * 3;
         if (bScore !== aScore) return bScore - aScore;
-        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        return (
+          new Date(b.createdAt || 0).getTime() -
+          new Date(a.createdAt || 0).getTime()
+        );
       })
       .slice(0, 6)
       .map((item) => mapListing(item, nowMs));
@@ -755,10 +941,16 @@ export default function UserHomePage(): ReactElement {
   const todaysDeals = useMemo(() => {
     return dealListings
       .filter((item) => {
-        const dealType = String(item.dealType || item.deal_type || '').toLowerCase();
-        return dealType !== 'combo' && isDealActive(item, nowMs);
+        const dealType = String(
+          item.dealType || item.deal_type || "",
+        ).toLowerCase();
+        return dealType !== "combo" && isDealActive(item, nowMs);
       })
-      .sort((a, b) => Number(getDealEndMs(a, nowMs) || 0) - Number(getDealEndMs(b, nowMs) || 0))
+      .sort(
+        (a, b) =>
+          Number(getDealEndMs(a, nowMs) || 0) -
+          Number(getDealEndMs(b, nowMs) || 0),
+      )
       .slice(0, 6)
       .map((item) => mapListing(item, nowMs));
   }, [dealListings, nowMs]);
@@ -767,8 +959,8 @@ export default function UserHomePage(): ReactElement {
     return dealListings
       .filter(
         (item) =>
-          String(item.dealType || item.deal_type || '').toLowerCase() === 'combo' &&
-          isDealActive(item, nowMs)
+          String(item.dealType || item.deal_type || "").toLowerCase() ===
+            "combo" && isDealActive(item, nowMs),
       )
       .slice(0, 4)
       .map((item) => mapListing(item, nowMs));
@@ -776,23 +968,27 @@ export default function UserHomePage(): ReactElement {
 
   const expiredDeals = useMemo(() => {
     return expiredDealListings
-      .sort((a, b) => Number(getDealEndMs(b, nowMs) || 0) - Number(getDealEndMs(a, nowMs) || 0))
+      .sort(
+        (a, b) =>
+          Number(getDealEndMs(b, nowMs) || 0) -
+          Number(getDealEndMs(a, nowMs) || 0),
+      )
       .slice(0, 6)
       .map((item) => mapListing(item, nowMs));
   }, [expiredDealListings, nowMs]);
 
   const categoryProducts = useMemo(
     () => regularListings.map((item) => mapListing(item, nowMs)),
-    [regularListings, nowMs]
+    [regularListings, nowMs],
   );
 
   const categories = useMemo(() => {
     const counts = new Map<string, number>();
     categoryProducts.forEach((product) =>
-      counts.set(product.category, (counts.get(product.category) || 0) + 1)
+      counts.set(product.category, (counts.get(product.category) || 0) + 1),
     );
     return [
-      { label: 'All', count: categoryProducts.length },
+      { label: "All", count: categoryProducts.length },
       ...Array.from(counts.entries())
         .sort((a, b) => b[1] - a[1])
         .map(([label, count]) => ({ label, count })),
@@ -800,9 +996,11 @@ export default function UserHomePage(): ReactElement {
   }, [categoryProducts]);
 
   const visibleCategoryProducts =
-    activeCategory === 'All'
+    activeCategory === "All"
       ? categoryProducts.slice(0, 8)
-      : categoryProducts.filter((item) => item.category === activeCategory).slice(0, 8);
+      : categoryProducts
+          .filter((item) => item.category === activeCategory)
+          .slice(0, 8);
 
   const toggleSaved = (id: string) => {
     const next = new Set(savedIds);
@@ -813,12 +1011,12 @@ export default function UserHomePage(): ReactElement {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-950">
+    <div className="min-h-screen bg-white pb-[66px] text-slate-950 md:pb-0">
       <LandingHeader active="home" />
       <main>
-        <section className="w-full px-2 pt-[5.25rem] sm:hidden">
+        <section className="w-full px-4 pt-[82px] sm:hidden">
           <form action="/search" className="flex items-center gap-3">
-            <label className="flex h-14 min-w-0 flex-1 items-center gap-3 rounded-full border border-slate-200 bg-white px-4 text-base font-semibold text-slate-500 shadow-sm">
+            <label className="flex h-[58px] min-w-0 flex-1 items-center gap-3 rounded-full border border-slate-200 bg-white px-4 text-base font-semibold text-slate-500 shadow-sm">
               <Search size={22} className="shrink-0 text-slate-500" />
               <input
                 name="q"
@@ -836,33 +1034,35 @@ export default function UserHomePage(): ReactElement {
             </label>
             <Link
               to="/notifications"
-              className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full text-[#0759e6] transition hover:bg-blue-50"
+              className="relative grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full text-[#0759e6] transition hover:bg-blue-50"
               aria-label="Notifications"
             >
-              <Bell size={30} />
+              <Bell size={29} />
               {unreadNotificationCount > 0 ? (
                 <span className="absolute right-1 top-1 grid h-5 min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-black leading-none text-white">
-                  {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                  {unreadNotificationCount > 99
+                    ? "99+"
+                    : unreadNotificationCount}
                 </span>
               ) : null}
             </Link>
           </form>
         </section>
-        <section className="w-full px-2 pt-3 sm:px-4 sm:pt-[5.25rem]">
-          <div className="relative aspect-[3/1] w-full overflow-hidden rounded-md bg-[#020b3b] shadow-sm">
+        <section className="w-full px-4 pt-5 sm:px-4 sm:pt-[5.25rem]">
+          <div className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl bg-[#020b3b] shadow-sm sm:aspect-[3/1]">
             <img
               src={HERO_BANNERS[activeBanner]}
               alt="NearHub AI-powered local marketplace"
               className="absolute inset-0 h-full w-full object-contain object-center"
               loading="eager"
             />
-            <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">
+            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2 sm:bottom-4">
               {HERO_BANNERS.map((banner, index) => (
                 <button
                   key={banner}
                   type="button"
                   onClick={() => setActiveBanner(index)}
-                  className={`h-3 w-3 rounded-full ${activeBanner === index ? 'bg-[#0759e6]' : 'bg-white/85'}`}
+                  className={`h-3 w-3 rounded-full ${activeBanner === index ? "bg-[#0759e6]" : "bg-white/85"}`}
                   aria-label={`Show banner ${index + 1}`}
                 />
               ))}
@@ -870,7 +1070,7 @@ export default function UserHomePage(): ReactElement {
           </div>
         </section>
 
-        <Container className="pb-8 pt-3 font-inter font-normal sm:pt-5">
+        <Container className="px-4 pb-8 pt-4 font-inter font-normal sm:pt-5">
           {listingsQuery.isLoading ? (
             <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-normal text-slate-600">
               Loading listings...
@@ -883,14 +1083,14 @@ export default function UserHomePage(): ReactElement {
             </div>
           ) : null}
 
-          <section className="mt-3 sm:mt-5">
+          <section className="mt-0 sm:mt-5">
             <SectionHeader
-              icon={<Flame className="fill-red-500 font-poppins text-red-500" size={22} />}
-              title="Trending Near You"
+              icon={<MapPin className="text-[#0759e6]" size={24} />}
+              title="Near You"
               to="/search"
             />
             {trending.length > 0 ? (
-              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
+              <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
                 {trending.map((product) => (
                   <ProductCard
                     key={product.id}
@@ -903,18 +1103,21 @@ export default function UserHomePage(): ReactElement {
                 ))}
               </div>
             ) : (
-              <EmptyState message="No listings are available yet." to="/create-listing" />
+              <EmptyState
+                message="No listings are available yet."
+                to="/create-listing"
+              />
             )}
           </section>
 
-          <section className="mt-9">
+          <section className="mt-5 md:mt-9">
             <SectionHeader
-              icon={<Tag className="text-[#0759e6]" size={22} />}
-              title="Today's Deals"
+              icon={<Tag className="text-[#0759e6]" size={24} />}
+              title="Deals"
               to="/deals"
             />
             {todaysDeals.length > 0 ? (
-              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
+              <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
                 {todaysDeals.map((product) => (
                   <ProductCard
                     key={`deal-${product.id}`}
@@ -932,15 +1135,37 @@ export default function UserHomePage(): ReactElement {
             )}
           </section>
 
-          <section className="mt-9">
+          <section className="mt-5 md:mt-9">
             <SectionHeader
-              icon={<Flame className="fill-orange-400 text-orange-500" size={22} />}
+              icon={<Tag className="text-[#0759e6]" size={24} />}
+              title="Combo Deals"
+              to="/deals"
+            />
+            {comboDeals.length > 0 ? (
+              <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-4 [&::-webkit-scrollbar]:hidden">
+                {comboDeals.map((product) => (
+                  <ComboDealCard
+                    key={`combo-${product.id}`}
+                    product={product}
+                    nowMs={nowMs}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState message="No combo deals are available right now." />
+            )}
+          </section>
+
+          <section className="mt-5 md:mt-9">
+            <SectionHeader
+              icon={
+                <Flame className="fill-orange-400 text-orange-500" size={24} />
+              }
               title="Upcoming Deals"
-              subtitle="Deals starting soon near you"
               to="/deals"
             />
             {upcomingDeals.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
+              <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
                 {upcomingDeals.map((product) => (
                   <ProductCard
                     key={`upcoming-${product.id}`}
@@ -948,6 +1173,7 @@ export default function UserHomePage(): ReactElement {
                     saved={savedIds.has(product.id)}
                     onToggleSaved={toggleSaved}
                     showCountdown
+                    mobileVariant="deal"
                     nowMs={nowMs}
                   />
                 ))}
@@ -957,33 +1183,14 @@ export default function UserHomePage(): ReactElement {
             )}
           </section>
 
-          <section className="mt-9">
+          <section className="mt-5 md:mt-9">
             <SectionHeader
-              icon={<Gift className="fill-orange-500 text-orange-500" size={22} />}
-              title="Combo Deals You'll Love"
-              subtitle="Save more with handpicked product bundles near you"
-              to="/deals"
-            />
-            {comboDeals.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {comboDeals.map((product) => (
-                  <ComboDealCard key={`combo-${product.id}`} product={product} nowMs={nowMs} />
-                ))}
-              </div>
-            ) : (
-              <EmptyState message="No combo deals are available right now." />
-            )}
-          </section>
-
-          <section className="mt-9">
-            <SectionHeader
-              icon={<History className="text-slate-500" size={22} />}
+              icon={<History className="text-[#0759e6]" size={24} />}
               title="Expired Deals"
-              subtitle="Closed offers are still visible for price reference"
               to="/deals"
             />
             {expiredDeals.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
+              <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
                 {expiredDeals.map((product) => (
                   <ProductCard
                     key={`expired-${product.id}`}
@@ -991,6 +1198,7 @@ export default function UserHomePage(): ReactElement {
                     saved={savedIds.has(product.id)}
                     onToggleSaved={toggleSaved}
                     showCountdown
+                    mobileVariant="deal"
                     nowMs={nowMs}
                   />
                 ))}
@@ -1000,26 +1208,26 @@ export default function UserHomePage(): ReactElement {
             )}
           </section>
 
-          <section className="mt-9">
+          <section className="mt-5 md:mt-9">
             <SectionHeader
-              icon={<PackagePlus className="text-[#0759e6]" size={22} />}
+              icon={<Grid2X2 className="text-[#0759e6]" size={24} />}
               title="Categories"
               to="/search"
             />
-            <div className="mb-5 flex flex-wrap gap-3">
+            <div className="-mx-4 mb-5 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 [&::-webkit-scrollbar]:hidden">
               {categories.map((category) => (
                 <button
                   key={category.label}
                   type="button"
                   onClick={() => setActiveCategory(category.label)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-normal transition ${
+                  className={`h-10 shrink-0 rounded-full border px-5 text-sm font-medium transition md:h-auto md:px-3 md:py-1.5 md:text-xs md:font-normal ${
                     activeCategory === category.label
-                      ? 'border-[#0759e6] bg-[#0759e6] text-white'
-                      : 'border-slate-200 bg-white text-slate-950 hover:border-[#0759e6]'
+                      ? "border-[#0759e6] bg-blue-50 text-[#0759e6]"
+                      : "border-slate-200 bg-white text-slate-500 hover:border-[#0759e6]"
                   }`}
                 >
                   {category.label}
-                  {category.count ? ` (${category.count})` : ''}
+                  {category.count ? ` (${category.count})` : ""}
                 </button>
               ))}
             </div>

@@ -3,12 +3,20 @@
  * Sends push notifications using Expo Push Notification Service
  */
 
-import { Expo, ExpoPushMessage, ExpoPushTicket, ExpoPushErrorReceipt } from 'expo-server-sdk';
-import { db } from '../../data/db';
-import { pushTokens, notificationLogs } from '../../features/admin/models/admin-settings';
-import { eq, and, inArray, ilike, or, sql } from 'drizzle-orm';
-import { users } from '../../features/users/models/users';
-import { listings } from '../../features/admin/models/admin-settings';
+import {
+  Expo,
+  ExpoPushMessage,
+  ExpoPushTicket,
+  ExpoPushErrorReceipt,
+} from "expo-server-sdk";
+import { db } from "../../data/db";
+import {
+  pushTokens,
+  notificationLogs,
+} from "../../features/admin/models/admin-settings";
+import { eq, and, inArray, ilike, or, sql } from "drizzle-orm";
+import { users } from "../../features/users/models/users";
+import { listings } from "../../features/admin/models/admin-settings";
 
 // Create Expo SDK client
 const expo = new Expo({
@@ -20,16 +28,17 @@ export interface SendPushNotificationOptions {
   body: string;
   data?: Record<string, any>;
   dealUrl?: string;
+  listingId?: string;
   imageUrl?: string;
-  sound?: 'default' | null;
+  sound?: "default" | null;
   badge?: number;
   channelId?: string;
-  priority?: 'default' | 'normal' | 'high';
+  priority?: "default" | "normal" | "high";
   ttl?: number; // Time to live in seconds
 }
 
 export interface BroadcastOptions extends SendPushNotificationOptions {
-  userType?: 'buyer' | 'seller' | 'all';
+  userType?: "buyer" | "seller" | "all";
   notificationType: string;
   sentBy?: string; // Admin user ID
   locations?: string[];
@@ -44,7 +53,7 @@ export interface BroadcastOptions extends SendPushNotificationOptions {
  */
 export async function sendPushToUser(
   userId: string,
-  options: SendPushNotificationOptions
+  options: SendPushNotificationOptions,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Get user's push tokens
@@ -54,12 +63,12 @@ export async function sendPushToUser(
 
     if (tokens.length === 0) {
       console.log(`[Push] No active tokens found for user ${userId}`);
-      return { success: false, error: 'No active push tokens' };
+      return { success: false, error: "No active push tokens" };
     }
 
     const messages = createPushMessages(
       tokens.map((t: any) => t.token),
-      options
+      options,
     );
 
     const result = await sendPushMessages(messages);
@@ -70,21 +79,21 @@ export async function sendPushToUser(
       title: options.title,
       body: options.body,
       data: JSON.stringify(options.data || {}),
-      notificationType: options.data?.type || 'general',
-      status: result.success ? 'sent' : 'failed',
+      notificationType: options.data?.type || "general",
+      status: result.success ? "sent" : "failed",
       sentCount: result.sentCount,
-      errorMessage: result.errors.join(', ') || null,
+      errorMessage: result.errors.join(", ") || null,
     });
 
     return {
       success: result.success,
-      error: result.errors.length > 0 ? result.errors.join(', ') : undefined,
+      error: result.errors.length > 0 ? result.errors.join(", ") : undefined,
     };
   } catch (error) {
-    console.error('[Push] Error sending notification to user:', error);
+    console.error("[Push] Error sending notification to user:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 }
@@ -94,22 +103,29 @@ export async function sendPushToUser(
  */
 export async function sendPushToUsers(
   userIds: string[],
-  options: SendPushNotificationOptions
+  options: SendPushNotificationOptions,
 ): Promise<{ success: boolean; sentCount: number; errors: string[] }> {
   try {
     // Get all active tokens for these users
     const tokens = await db.query.pushTokens.findMany({
-      where: and(inArray(pushTokens.userId, userIds), eq(pushTokens.isActive, true)),
+      where: and(
+        inArray(pushTokens.userId, userIds),
+        eq(pushTokens.isActive, true),
+      ),
     });
 
     if (tokens.length === 0) {
       console.log(`[Push] No active tokens found for ${userIds.length} users`);
-      return { success: false, sentCount: 0, errors: ['No active push tokens'] };
+      return {
+        success: false,
+        sentCount: 0,
+        errors: ["No active push tokens"],
+      };
     }
 
     const messages = createPushMessages(
       tokens.map((t: any) => t.token),
-      options
+      options,
     );
 
     const result = await sendPushMessages(messages);
@@ -122,21 +138,21 @@ export async function sendPushToUsers(
           title: options.title,
           body: options.body,
           data: JSON.stringify(options.data || {}),
-          notificationType: options.data?.type || 'general',
-          status: result.success ? 'sent' : 'failed',
+          notificationType: options.data?.type || "general",
+          status: result.success ? "sent" : "failed",
           sentCount: 1,
-          errorMessage: result.errors.join(', ') || null,
-        })
-      )
+          errorMessage: result.errors.join(", ") || null,
+        }),
+      ),
     );
 
     return result;
   } catch (error) {
-    console.error('[Push] Error sending notifications to users:', error);
+    console.error("[Push] Error sending notifications to users:", error);
     return {
       success: false,
       sentCount: 0,
-      errors: [error instanceof Error ? error.message : 'Unknown error'],
+      errors: [error instanceof Error ? error.message : "Unknown error"],
     };
   }
 }
@@ -145,12 +161,12 @@ export async function sendPushToUsers(
  * Broadcast push notification to all users or specific user type
  */
 export async function broadcastPushNotification(
-  options: BroadcastOptions
+  options: BroadcastOptions,
 ): Promise<{ success: boolean; sentCount: number; errors: string[] }> {
   try {
     const userIds = await resolveTargetUserIds(options);
     const conditions = [eq(pushTokens.isActive, true)];
-    if (options.userType && options.userType !== 'all') {
+    if (options.userType && options.userType !== "all") {
       conditions.push(eq(pushTokens.userType, options.userType));
     }
     if (userIds.length > 0) {
@@ -163,16 +179,20 @@ export async function broadcastPushNotification(
 
     if (tokens.length === 0) {
       console.log(`[Push] No active tokens found for broadcast`);
-      return { success: false, sentCount: 0, errors: ['No active push tokens'] };
+      return {
+        success: false,
+        sentCount: 0,
+        errors: ["No active push tokens"],
+      };
     }
 
     console.log(
-      `[Push] Broadcasting to ${tokens.length} devices (${options.userType || 'all'} users)`
+      `[Push] Broadcasting to ${tokens.length} devices (${options.userType || "all"} users)`,
     );
 
     const messages = createPushMessages(
       tokens.map((t: any) => t.token),
-      options
+      options,
     );
 
     const result = await sendPushMessages(messages);
@@ -180,34 +200,36 @@ export async function broadcastPushNotification(
     // Log broadcast notification
     await logNotification({
       userId: null,
-      userType: options.userType || 'all',
+      userType: options.userType || "all",
       title: options.title,
       body: options.body,
       data: JSON.stringify(options.data || {}),
       notificationType: options.notificationType,
-      status: result.success ? 'sent' : 'failed',
+      status: result.success ? "sent" : "failed",
       sentCount: result.sentCount,
       sentBy: options.sentBy,
-      errorMessage: result.errors.join(', ') || null,
+      errorMessage: result.errors.join(", ") || null,
     });
 
     return result;
   } catch (error) {
-    console.error('[Push] Error broadcasting notification:', error);
+    console.error("[Push] Error broadcasting notification:", error);
     return {
       success: false,
       sentCount: 0,
-      errors: [error instanceof Error ? error.message : 'Unknown error'],
+      errors: [error instanceof Error ? error.message : "Unknown error"],
     };
   }
 }
 
-async function resolveTargetUserIds(options: BroadcastOptions): Promise<string[]> {
+async function resolveTargetUserIds(
+  options: BroadcastOptions,
+): Promise<string[]> {
   const locations = (options.locations || [])
-    .map((value) => String(value || '').trim())
+    .map((value) => String(value || "").trim())
     .filter(Boolean);
   const pincodes = (options.pincodes || [])
-    .map((value) => String(value || '').trim())
+    .map((value) => String(value || "").trim())
     .filter(Boolean);
   const centerLatitude = Number(options.centerLatitude);
   const centerLongitude = Number(options.centerLongitude);
@@ -227,10 +249,10 @@ async function resolveTargetUserIds(options: BroadcastOptions): Promise<string[]
 
   if (locations.length > 0) {
     const userLocationConditions = locations.map((location) =>
-      ilike(users.location, `%${location}%`)
+      ilike(users.location, `%${location}%`),
     );
     const listingLocationConditions = locations.map((location) =>
-      ilike(listings.location, `%${location}%`)
+      ilike(listings.location, `%${location}%`),
     );
 
     const userLocationRows = await db
@@ -253,7 +275,9 @@ async function resolveTargetUserIds(options: BroadcastOptions): Promise<string[]
   }
 
   if (pincodes.length > 0) {
-    const pincodeConditions = pincodes.map((pincode) => ilike(listings.pincode, `%${pincode}%`));
+    const pincodeConditions = pincodes.map((pincode) =>
+      ilike(listings.pincode, `%${pincode}%`),
+    );
 
     const listingPincodeRows = await db
       .select({ sellerId: listings.sellerId })
@@ -273,7 +297,10 @@ async function resolveTargetUserIds(options: BroadcastOptions): Promise<string[]
   ) {
     const usersWithCoords = await db.query.users.findMany({
       columns: { id: true, latitude: true, longitude: true },
-      where: and(sql`${users.latitude} IS NOT NULL`, sql`${users.longitude} IS NOT NULL`),
+      where: and(
+        sql`${users.latitude} IS NOT NULL`,
+        sql`${users.longitude} IS NOT NULL`,
+      ),
     });
 
     const R = 6371;
@@ -306,12 +333,12 @@ export async function registerPushToken(
   userId: string,
   token: string,
   platform: string,
-  deviceId?: string
+  deviceId?: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Validate token
     if (!Expo.isExpoPushToken(token)) {
-      return { success: false, error: 'Invalid Expo push token' };
+      return { success: false, error: "Invalid Expo push token" };
     }
 
     // Check if token already exists
@@ -342,7 +369,7 @@ export async function registerPushToken(
         platform,
         deviceId: deviceId || null,
         isActive: true,
-        userType: 'buyer', // Default, can be updated later
+        userType: "buyer", // Default, can be updated later
         lastUsedAt: new Date(),
       });
 
@@ -351,10 +378,10 @@ export async function registerPushToken(
 
     return { success: true };
   } catch (error) {
-    console.error('[Push] Error registering token:', error);
+    console.error("[Push] Error registering token:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 }
@@ -364,7 +391,7 @@ export async function registerPushToken(
  */
 export async function updateUserType(
   userId: string,
-  userType: 'buyer' | 'seller' | 'both'
+  userType: "buyer" | "seller" | "both",
 ): Promise<void> {
   await db
     .update(pushTokens)
@@ -387,27 +414,38 @@ export async function deactivatePushToken(token: string): Promise<void> {
  */
 function createPushMessages(
   tokens: string[],
-  options: SendPushNotificationOptions
+  options: SendPushNotificationOptions,
 ): ExpoPushMessage[] {
   // Validate tokens
   const validTokens = tokens.filter((token) => Expo.isExpoPushToken(token));
 
   if (validTokens.length !== tokens.length) {
-    console.warn(`[Push] ${tokens.length - validTokens.length} invalid tokens filtered out`);
+    console.warn(
+      `[Push] ${tokens.length - validTokens.length} invalid tokens filtered out`,
+    );
   }
+
+  const listingId = String(
+    options.listingId || options.data?.listingId || "",
+  ).trim();
+  const listingUrl = listingId
+    ? `/listing/${encodeURIComponent(listingId)}`
+    : "";
+  const targetUrl = options.dealUrl || listingUrl;
 
   return validTokens.map((token) => ({
     to: token,
-    sound: options.sound !== null ? options.sound || 'default' : undefined,
+    sound: options.sound !== null ? options.sound || "default" : undefined,
     title: options.title,
     body: options.body,
     data: {
       ...(options.data || {}),
-      ...(options.dealUrl ? { dealUrl: options.dealUrl, url: options.dealUrl } : {}),
+      ...(listingId ? { listingId, actionUrl: listingUrl } : {}),
+      ...(targetUrl ? { dealUrl: targetUrl, url: targetUrl } : {}),
     },
     badge: options.badge,
-    channelId: options.channelId || 'default',
-    priority: options.priority || 'high',
+    channelId: options.channelId || "default",
+    priority: options.priority || "high",
     ttl: options.ttl,
     ...(options.imageUrl
       ? {
@@ -423,7 +461,7 @@ function createPushMessages(
  * Helper: Send push messages via Expo
  */
 async function sendPushMessages(
-  messages: ExpoPushMessage[]
+  messages: ExpoPushMessage[],
 ): Promise<{ success: boolean; sentCount: number; errors: string[] }> {
   const chunks = expo.chunkPushNotifications(messages);
   const tickets: ExpoPushTicket[] = [];
@@ -437,19 +475,26 @@ async function sendPushMessages(
       tickets.push(...ticketChunk);
 
       // Count successful sends
-      sentCount += ticketChunk.filter((ticket) => ticket.status === 'ok').length;
+      sentCount += ticketChunk.filter(
+        (ticket) => ticket.status === "ok",
+      ).length;
 
       // Collect errors
       ticketChunk.forEach((ticket, index) => {
-        if (ticket.status === 'error') {
+        if (ticket.status === "error") {
           const errorTicket = ticket as ExpoPushErrorReceipt;
-          console.error(`[Push] Error sending to ${chunk[index].to}:`, errorTicket.message);
-          errors.push(`${errorTicket.message} (${errorTicket.details?.error || 'unknown'})`);
+          console.error(
+            `[Push] Error sending to ${chunk[index].to}:`,
+            errorTicket.message,
+          );
+          errors.push(
+            `${errorTicket.message} (${errorTicket.details?.error || "unknown"})`,
+          );
         }
       });
     } catch (error) {
-      console.error('[Push] Expo send error:', error);
-      errors.push(error instanceof Error ? error.message : 'Send failed');
+      console.error("[Push] Expo send error:", error);
+      errors.push(error instanceof Error ? error.message : "Send failed");
     }
   }
 
@@ -480,7 +525,7 @@ async function logNotification(data: {
   try {
     await db.insert(notificationLogs).values(data);
   } catch (error) {
-    console.error('[Push] Error logging notification:', error);
+    console.error("[Push] Error logging notification:", error);
   }
 }
 
@@ -498,14 +543,17 @@ export async function getNotificationStats(): Promise<{
   const activeTokensData = allTokens.filter((t: any) => t.isActive);
 
   const buyers = activeTokensData.filter(
-    (t: any) => t.userType === 'buyer' || t.userType === 'both'
+    (t: any) => t.userType === "buyer" || t.userType === "both",
   ).length;
   const sellers = activeTokensData.filter(
-    (t: any) => t.userType === 'seller' || t.userType === 'both'
+    (t: any) => t.userType === "seller" || t.userType === "both",
   ).length;
 
   const logs = await db.query.notificationLogs.findMany();
-  const totalSent = logs.reduce((sum: number, log: any) => sum + log.sentCount, 0);
+  const totalSent = logs.reduce(
+    (sum: number, log: any) => sum + log.sentCount,
+    0,
+  );
 
   return {
     totalTokens: allTokens.length,

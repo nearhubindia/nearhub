@@ -115,6 +115,9 @@ export function registerAdminListingsRoutes(app: Express) {
     expiresAt: listing.expiresAt?.toISOString(),
     images: parseJsonArrayField(listing.images),
     videos: parseJsonArrayField(listing.videos),
+    isDeal: listing.isDeal,
+    dealType: listing.dealType,
+    purchaseLimitType: listing.purchaseLimitType,
   });
 
   const hasLocalDeviceUri = (value: unknown): boolean => {
@@ -223,11 +226,18 @@ export function registerAdminListingsRoutes(app: Express) {
         typeof req.query.userId === 'string' && req.query.userId.trim()
           ? req.query.userId.trim()
           : undefined;
+      const purchaseLimitType =
+        typeof req.query.purchaseLimitType === 'string' && req.query.purchaseLimitType.trim()
+          ? req.query.purchaseLimitType.trim().toUpperCase()
+          : undefined;
 
       const filters = [];
       if (category) filters.push(eq(listings.category, category));
       if (status) filters.push(eq(listings.status, status));
       if (ownerId) filters.push(eq(listings.sellerId, ownerId));
+      if (purchaseLimitType === 'ONE_TIME' || purchaseLimitType === 'UNLIMITED') {
+        filters.push(eq(listings.purchaseLimitType, purchaseLimitType));
+      }
       const whereClause = filters.length > 0 ? and(...filters) : undefined;
 
       const baseListingQuery = db.select().from(listings);

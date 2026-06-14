@@ -13,6 +13,7 @@ import {
 } from '@/features/admin/constants/listing-taxonomy';
 
 type StoredUser = { id?: string; phone?: string; name?: string };
+type PurchaseLimitType = 'ONE_TIME' | 'UNLIMITED' | '';
 
 type ListingPayload = {
   success?: boolean;
@@ -49,6 +50,8 @@ type EditableListing = {
   is_deal?: boolean;
   dealType?: string;
   deal_type?: string;
+  purchaseLimitType?: string;
+  purchase_limit_type?: string;
   dealStartAt?: string;
   deal_start_at?: string;
   dealEndAt?: string;
@@ -150,6 +153,7 @@ export default function EditListingPage(): ReactElement {
   const [imagesText, setImagesText] = useState('');
   const [videosText, setVideosText] = useState('');
   const [dealType, setDealType] = useState('normal');
+  const [purchaseLimitType, setPurchaseLimitType] = useState<PurchaseLimitType>('');
   const [dealEndDate, setDealEndDate] = useState('');
   const [dealEndTime, setDealEndTime] = useState('');
   const [stock, setStock] = useState('');
@@ -229,6 +233,14 @@ export default function EditListingPage(): ReactElement {
             ? 'combo'
             : 'normal'
         );
+        const nextPurchaseLimit = String(
+          listing.purchaseLimitType || listing.purchase_limit_type || ''
+        ).toUpperCase();
+        setPurchaseLimitType(
+          nextPurchaseLimit === 'ONE_TIME' || nextPurchaseLimit === 'UNLIMITED'
+            ? nextPurchaseLimit
+            : ''
+        );
         setDealEndDate(dealEnd.date);
         setDealEndTime(dealEnd.time);
         setStock(
@@ -307,6 +319,10 @@ export default function EditListingPage(): ReactElement {
         setMessage('Please choose deal end date and time.');
         return;
       }
+      if (!purchaseLimitType) {
+        setMessage('Please select a purchase limit type.');
+        return;
+      }
     }
 
     setIsSaving(true);
@@ -336,6 +352,7 @@ export default function EditListingPage(): ReactElement {
         videos,
         isDeal,
         dealType: isDeal ? dealType : undefined,
+        purchaseLimitType: isDeal ? purchaseLimitType : undefined,
         dealEndAt,
         maxDealBookings: isDeal ? Number(stock) : undefined,
         postDealPriceMode: isDeal ? postDealPriceMode : undefined,
@@ -634,6 +651,41 @@ export default function EditListingPage(): ReactElement {
                       className={textInputClass()}
                     />
                   </label>
+                  <div className="md:col-span-2">
+                    <span className="mb-2 block text-sm font-black text-slate-700">
+                      Purchase Limit Type *
+                    </span>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {[
+                        {
+                          value: 'ONE_TIME' as const,
+                          label: 'One Time Purchase Per Customer',
+                          hint: 'A customer can purchase this deal only once.',
+                        },
+                        {
+                          value: 'UNLIMITED' as const,
+                          label: 'Unlimited Purchases Per Customer',
+                          hint: 'A customer can purchase this deal multiple times.',
+                        },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setPurchaseLimitType(option.value)}
+                          className={`rounded-2xl border p-4 text-left transition ${
+                            purchaseLimitType === option.value
+                              ? 'border-[#1f63b2] bg-[#eef4ff] text-[#123d68] ring-4 ring-[#1f63b2]/10'
+                              : 'border-slate-200 bg-white text-slate-700'
+                          }`}
+                        >
+                          <span className="block text-sm font-black">{option.label}</span>
+                          <span className="mt-1 block text-xs font-semibold text-slate-500">
+                            {option.hint}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <label className="block">
                     <span className="mb-2 block text-sm font-black text-slate-700">
                       Deal End Date *

@@ -406,20 +406,47 @@ export function registerDealRoutes(app: Express): void {
             .where(eq(listings.id, listingId));
         }
 
-        const already = await tx
-          .select()
-          .from(dealBookings)
-          .where(
-            and(
-              eq(dealBookings.listingId, listingId),
-              eq(dealBookings.dealCycleKey, dealWindow.cycleKey),
-              eq(dealBookings.buyerId, buyerId),
-              inArray(dealBookings.status, ['booked', 'redeemed'])
+        const purchaseLimitType = String((listing as any).purchaseLimitType || '').toUpperCase();
+        if (purchaseLimitType === 'ONE_TIME') {
+          const alreadyPurchased = await tx
+            .select()
+            .from(dealBookings)
+            .where(
+              and(
+                eq(dealBookings.listingId, listingId),
+                eq(dealBookings.buyerId, buyerId),
+                inArray(dealBookings.status, ['booked', 'redeemed'])
+              )
             )
-          )
-          .limit(1);
-        if (already[0]) {
-          return [{ status: 409, body: { success: false, error: 'You already booked this deal' } }];
+            .limit(1);
+          if (alreadyPurchased[0]) {
+            return [
+              {
+                status: 409,
+                body: {
+                  success: false,
+                  error:
+                    'You have already purchased this deal. This offer is limited to one purchase per customer.',
+                },
+              },
+            ];
+          }
+        } else if (purchaseLimitType !== 'UNLIMITED') {
+          const already = await tx
+            .select()
+            .from(dealBookings)
+            .where(
+              and(
+                eq(dealBookings.listingId, listingId),
+                eq(dealBookings.dealCycleKey, dealWindow.cycleKey),
+                eq(dealBookings.buyerId, buyerId),
+                inArray(dealBookings.status, ['booked', 'redeemed'])
+              )
+            )
+            .limit(1);
+          if (already[0]) {
+            return [{ status: 409, body: { success: false, error: 'You already booked this deal' } }];
+          }
         }
 
         const maxSlots = Number((listing as any).dealCycleQuantity || listing.maxDealBookings || 0);

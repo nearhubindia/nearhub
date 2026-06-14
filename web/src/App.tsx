@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { CirclePercent, Home, PlusCircle, UserRound } from 'lucide-react';
+import { CirclePercent, Home, MessageCircle, Plus, UserRound } from 'lucide-react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { queryClient, enableQueryPersistence } from '@/lib/query-client';
 import './index.css';
@@ -62,36 +62,81 @@ function MobileBottomNav() {
   const items = [
     { label: 'Home', to: '/', icon: Home, active: pathname === '/' },
     {
+      label: 'Deals',
+      to: '/deals',
+      icon: CirclePercent,
+      active: pathname === '/deals' || pathname === '/deal-inbox' || pathname === '/bookings',
+    },
+    {
       label: 'Post',
       to: '/create-listing',
-      icon: PlusCircle,
+      icon: Plus,
       active: pathname === '/create-listing',
+      primary: true,
     },
-    { label: 'Deals For You', to: '/deals', icon: CirclePercent, active: pathname === '/deals' },
+    {
+      label: 'Chat',
+      to: '/messages',
+      icon: MessageCircle,
+      active: pathname === '/messages' || pathname.startsWith('/messages/'),
+    },
     { label: 'Profile', to: '/profile', icon: UserRound, active: pathname === '/profile' },
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-[70] grid h-[72px] grid-cols-4 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_24px_-22px_rgba(15,23,42,0.65)] md:hidden">
-      {items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.label}
-            to={item.to}
-            className={`flex min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
-              item.active ? 'text-[#0759e6]' : 'text-slate-500'
-            }`}
-            aria-label={item.label}
-          >
-            <Icon size={25} className={item.active ? 'stroke-[2.4]' : ''} />
-            <span className="max-w-full truncate px-1">{item.label}</span>
-          </Link>
-        );
-      })}
+    <nav className="fixed inset-x-0 bottom-0 z-[70] border-t border-slate-200 bg-white/95 shadow-[0_-14px_30px_-24px_rgba(15,23,42,0.7)] backdrop-blur-xl md:hidden">
+      <div className="grid h-[76px] grid-cols-5 items-center px-2 pb-[env(safe-area-inset-bottom)]">
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.label}
+              to={item.to}
+              className={`flex min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${
+                item.active ? 'text-[#0759e6]' : 'text-slate-400'
+              }`}
+              aria-label={item.label}
+            >
+              <span
+                className={`grid place-items-center ${
+                  item.primary
+                    ? 'h-11 w-11 rounded-full bg-[#0759e6] text-white shadow-[0_10px_24px_-12px_rgba(7,89,230,0.9)]'
+                    : item.active
+                      ? 'h-8 w-10 rounded-full bg-blue-50 text-[#0759e6]'
+                      : 'h-8 w-10 text-slate-400'
+                }`}
+              >
+                <Icon size={item.primary ? 24 : 22} strokeWidth={item.active ? 2.6 : 2.2} />
+              </span>
+              <span className="max-w-full truncate px-1 leading-none">{item.label}</span>
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }
+
+function SplashScreen() {
+  return (
+    <div className="nearhub-splash min-h-screen bg-[#f8fbff] text-slate-950">
+      <div className="nearhub-splash-panel">
+        <div className="nearhub-splash-logo-wrap" aria-hidden="true">
+          <img src="/nearhub.png" alt="" className="nearhub-splash-logo" />
+        </div>
+        <div className="nearhub-splash-copy">
+          <p className="nearhub-splash-kicker">Hyperlocal Classifieds App</p>
+          <h1>NearHub</h1>
+          <p>Discover trusted listings and local deals around you.</p>
+        </div>
+        <div className="nearhub-splash-progress" aria-label="Loading NearHub">
+          <span />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ScrollToTop() {
   const location = useLocation();
 
@@ -114,7 +159,7 @@ function RouteTransitionShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       className={
-        (isTransitioning ? 'route-transitioning' : 'route-transitioned') + ' pb-[72px] md:pb-0'
+        (isTransitioning ? 'route-transitioning' : 'route-transitioned') + ' pb-[76px] md:pb-0'
       }
     >
       {isTransitioning ? <div className="route-loading-bar" /> : null}
@@ -126,20 +171,21 @@ function RouteTransitionShell({ children }: { children: React.ReactNode }) {
 function App() {
   // enable simple localStorage persistence for react-query cache
   enableQueryPersistence();
+  const [showInitialSplash, setShowInitialSplash] = useState(true);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShowInitialSplash(false), 1800);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        {showInitialSplash ? <SplashScreen /> : null}
         <SeoManager />
         <ScrollToTop />
         <Suspense
-          fallback={
-            <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">
-              <div className="flex flex-col items-center gap-3">
-                <div className="route-loading-bar route-loading-bar--sized" />
-                <p className="text-sm font-medium text-slate-500">Loading page...</p>
-              </div>
-            </div>
-          }
+          fallback={<SplashScreen />}
         >
           <RouteTransitionShell>
             <Routes>

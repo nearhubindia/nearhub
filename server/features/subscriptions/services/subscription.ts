@@ -44,6 +44,7 @@ export interface CreateListingRequest {
   dealRecurrenceUntil?: string;
   dealCycleQuantity?: number;
   maxDealBookings?: number;
+  purchaseLimitType?: 'ONE_TIME' | 'UNLIMITED';
   comboItems?: string[];
   dealTerms?: string;
   voucherEnabled?: boolean;
