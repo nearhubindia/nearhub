@@ -105,9 +105,7 @@ export default function EditListingScreen() {
     listing?.visibilityMode === 'online' ? 'online' : 'local'
   );
   const [visibilityRadiusKm, setVisibilityRadiusKm] = useState(
-    listing?.visibilityMode === 'online'
-      ? String(listing?.visibilityRadiusKm || 50)
-      : '50'
+    listing?.visibilityMode === 'online' ? String(listing?.visibilityRadiusKm || 50) : '50'
   );
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [mapsLinkInput, setMapsLinkInput] = useState('');
@@ -1621,7 +1619,10 @@ export default function EditListingScreen() {
             <Text style={styles.label}>Visibility</Text>
             <View style={styles.visibilityRow}>
               <Pressable
-                style={[styles.visibilityChip, visibilityMode === 'local' && styles.visibilityChipActive]}
+                style={[
+                  styles.visibilityChip,
+                  visibilityMode === 'local' && styles.visibilityChipActive,
+                ]}
                 onPress={() => setVisibilityMode('local')}
               >
                 <Text
@@ -1634,7 +1635,10 @@ export default function EditListingScreen() {
                 </Text>
               </Pressable>
               <Pressable
-                style={[styles.visibilityChip, visibilityMode === 'online' && styles.visibilityChipActive]}
+                style={[
+                  styles.visibilityChip,
+                  visibilityMode === 'online' && styles.visibilityChipActive,
+                ]}
                 onPress={() => setVisibilityMode('online')}
               >
                 <Text
