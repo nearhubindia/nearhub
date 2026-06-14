@@ -22,12 +22,14 @@ async function getAnalyticsModule(): Promise<AnalyticsModule | null> {
 function normalizeScreenName(pathname: string): string {
   if (!pathname || pathname === '/') return 'home';
 
-  return pathname
-    .replace(/^\//, '')
-    .replace(/\//g, '_')
-    .replace(/[^a-zA-Z0-9_]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '') || 'unknown';
+  return (
+    pathname
+      .replace(/^\//, '')
+      .replace(/\//g, '_')
+      .replace(/[^a-zA-Z0-9_]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '') || 'unknown'
+  );
 }
 
 function normalizeEventParams(
@@ -38,7 +40,10 @@ function normalizeEventParams(
   return Object.fromEntries(
     Object.entries(params)
       .filter(([, value]) => value !== undefined && value !== null && value !== '')
-      .map(([key, value]) => [key, typeof value === 'boolean' ? String(value) : (value as string | number)])
+      .map(([key, value]) => [
+        key,
+        typeof value === 'boolean' ? String(value) : (value as string | number),
+      ])
   );
 }
 
@@ -49,11 +54,13 @@ export async function initializeFirebaseAnalytics(): Promise<void> {
   await analytics().setAnalyticsCollectionEnabled(true);
 }
 
-export async function setAnalyticsUser(user: {
-  id: string;
-  plan?: string;
-  city?: string;
-} | null): Promise<void> {
+export async function setAnalyticsUser(
+  user: {
+    id: string;
+    plan?: string;
+    city?: string;
+  } | null
+): Promise<void> {
   const analytics = await getAnalyticsModule();
   if (!analytics) return;
 
