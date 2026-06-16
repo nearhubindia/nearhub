@@ -221,6 +221,16 @@ function isMeaningfulText(value: unknown): boolean {
   return typeof value === 'string' && Boolean(value.trim());
 }
 
+function getPaymentOrigin(): string {
+  if (typeof window === 'undefined') return '';
+  return window.location.origin;
+}
+
+function isAllowedPaymentHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return normalized === 'nearhub.in' || normalized === 'www.nearhub.in';
+}
+
 export default function SubscriptionsPage(): ReactElement {
   const user = readStoredWebUser() as StoredUser | null;
   const userId = String(user?.id || '').trim();
@@ -522,6 +532,13 @@ export default function SubscriptionsPage(): ReactElement {
           checkout.payment?.razorpayOrderId
             ? `Payment order created for ${formatCurrency(Number(checkout.payment.amountInRupees || 0))}, but Razorpay key is missing. Complete payment configuration to activate this plan.`
             : checkout.message || 'Checkout started.'
+        );
+        return;
+      }
+
+      if (typeof window !== 'undefined' && !isAllowedPaymentHost(window.location.hostname)) {
+        setCheckoutMessage(
+          `Payments can only be completed from nearhub.in or www.nearhub.in. Current origin: ${getPaymentOrigin()}.`
         );
         return;
       }
