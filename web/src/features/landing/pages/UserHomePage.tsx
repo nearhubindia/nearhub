@@ -1054,7 +1054,7 @@ export default function UserHomePage(): ReactElement {
           <section className="mt-0 sm:mt-5">
             <SectionHeader
               icon={<MapPin className="text-[#0759e6]" size={24} />}
-              title="Near You"
+              title="Distance from You"
               to="/search"
             />
             {trending.length > 0 ? (

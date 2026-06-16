@@ -49,7 +49,7 @@ export function formatDistanceKm(value: number | string | undefined): string {
           : Math.round(Number(distance)).toString();
     return `${rounded.replace(/\.0$/, '')} km away`;
   }
-  return 'Nearby';
+  return 'Distance unavailable';
 }
 
 export function countdownPartsFromMs(
