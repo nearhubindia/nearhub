@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useClickAway } from '@/shared/hooks/useClickAway';
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 declare module '@tanstack/react-table' {
@@ -117,6 +118,9 @@ export function DataTable<TData, TValue>({
   });
   const [isColumnMenuOpen, setIsColumnMenuOpen] = React.useState(false);
   const columnMenuRef = React.useRef<HTMLDivElement | null>(null);
+  const closeColumnMenu = React.useCallback(() => {
+    setIsColumnMenuOpen(false);
+  }, []);
 
   const resolvedGlobalFilter = searchValue ?? internalGlobalFilter;
   const resolvedPageIndex = pageIndex ?? internalPagination.pageIndex;
@@ -225,16 +229,7 @@ export function DataTable<TData, TValue>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedGlobalFilter, internalColumnFilters]);
 
-  React.useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      if (columnMenuRef.current && !columnMenuRef.current.contains(event.target as Node)) {
-        setIsColumnMenuOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handlePointerDown);
-    return () => document.removeEventListener('mousedown', handlePointerDown);
-  }, []);
+  useClickAway(closeColumnMenu, isColumnMenuOpen, columnMenuRef);
 
   const visibleLeafColumns = table.getVisibleLeafColumns();
   const visibleColumnCount = Math.max(1, visibleLeafColumns.length);

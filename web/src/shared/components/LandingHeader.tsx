@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -38,6 +38,7 @@ import {
 import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
 import { Logo } from './Logo';
 import { Container } from './Container';
+import { useClickAway } from '@/shared/hooks/useClickAway';
 
 type NavKey = 'home' | 'features' | 'browse' | 'deals' | 'contact';
 const HEADER_PERSIST_KEY = 'nearhub:header:inputs:v1';
@@ -236,33 +237,24 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
     };
   }, []);
 
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-
-      const openDropdownRefs = [
-        locationInputRef.current,
-        locationSuggestionsPanelRef.current,
-        notificationsTriggerRef.current,
-        notificationsPanelRef.current,
-        userMenuTriggerRef.current,
-        userMenuPanelRef.current,
-        mobileMenuTriggerRef.current,
-        mobileMenuPanelRef.current,
-      ];
-
-      const clickedInsideOpenArea = openDropdownRefs.some((ref) => ref?.contains(target));
-      if (!clickedInsideOpenArea) {
-        setIsNotificationsOpen(false);
-        setIsUserMenuOpen(false);
-        setIsMenuOpen(false);
-      }
-    };
-
-    document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  const closeOpenOverlays = useCallback(() => {
+    setIsNotificationsOpen(false);
+    setIsUserMenuOpen(false);
+    setIsMenuOpen(false);
   }, []);
+
+  useClickAway(
+    closeOpenOverlays,
+    true,
+    locationInputRef,
+    locationSuggestionsPanelRef,
+    notificationsTriggerRef,
+    notificationsPanelRef,
+    userMenuTriggerRef,
+    userMenuPanelRef,
+    mobileMenuTriggerRef,
+    mobileMenuPanelRef
+  );
 
   const userId = String(user?.id || '').trim();
   const userPhone = String(user?.phone || '').trim();
