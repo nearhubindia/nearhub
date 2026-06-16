@@ -18,6 +18,7 @@ import {
   LogIn,
   LogOut,
   Menu,
+  MessageCircle,
   Package,
   Settings,
   UserRoundPen,
@@ -486,6 +487,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
   const menuItems: Array<{ label: string; to: string; icon: LucideIcon }> = [
     { label: 'My Profile', to: '/profile', icon: UserRoundPen },
     { label: 'My Listings', to: '/my-listings', icon: ListChecks },
+    { label: 'Messages', to: '/messages', icon: MessageCircle },
     { label: 'Bookings', to: '/bookings', icon: Package },
     { label: 'Favourites', to: '/saved', icon: Heart },
     { label: 'Deals Purchased', to: '/deal-inbox', icon: Inbox },
