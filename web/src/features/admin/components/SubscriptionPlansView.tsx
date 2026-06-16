@@ -356,12 +356,12 @@ export default function SubscriptionPlansView() {
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
-        <h1 className="text-3xl sm:text-4xl font-black mb-2">Subscription Tiers</h1>
+      <div className="border-b border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 p-4 text-white sm:p-6">
+        <h1 className="mb-2 text-2xl font-black sm:text-4xl">Subscription Tiers</h1>
         <p className="text-slate-300">Create and manage bundled subscription tiers with features</p>
       </div>
 
-      <div className="p-4 sm:p-6 space-y-8">
+      <div className="space-y-8 p-4 sm:p-6">
         <button
           onClick={openCreateModal}
           className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-500 px-6 py-2 font-bold text-white transition hover:scale-105 hover:bg-teal-600 hover:shadow-lg sm:w-auto"
@@ -388,24 +388,24 @@ export default function SubscriptionPlansView() {
 
         {/* Create/Edit Tier Modal */}
         {showCreateModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
-            <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 shadow-[0_24px_80px_-24px_rgba(2,6,23,0.65)]">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-2 backdrop-blur-sm sm:p-6">
+            <div className="relative w-full max-w-[min(96vw,56rem)] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-[0_24px_80px_-24px_rgba(2,6,23,0.65)] sm:rounded-3xl">
               <button
                 onClick={closeModal}
                 aria-label="Close modal"
-                className="absolute right-4 top-4 z-20 rounded-full bg-white/90 p-2 text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-900"
+                className="absolute right-3 top-3 z-20 rounded-full bg-white/90 p-2 text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-900 sm:right-4 sm:top-4"
               >
                 <X size={16} />
               </button>
 
-              <div className="relative overflow-hidden border-b border-cyan-200 bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-6 text-white sm:px-8">
+              <div className="relative overflow-hidden border-b border-cyan-200 bg-gradient-to-r from-cyan-600 to-teal-500 px-4 py-5 text-white sm:px-8 sm:py-6">
                 <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/15 blur-2xl" />
                 <div className="absolute -bottom-12 left-1/2 h-24 w-32 rounded-full bg-cyan-200/20 blur-2xl" />
                 <p className="relative mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide">
                   <Sparkles size={14} />
                   Subscription Builder
                 </p>
-                <h2 className="relative text-2xl font-extrabold tracking-tight sm:text-3xl">
+                <h2 className="relative text-xl font-extrabold tracking-tight sm:text-3xl">
                   {editingTier ? 'Edit Tier' : 'Create New Tier'}
                 </h2>
                 <p className="relative mt-1 text-sm text-cyan-50/95">
@@ -413,8 +413,8 @@ export default function SubscriptionPlansView() {
                 </p>
               </div>
 
-              <div className="max-h-[72vh] space-y-6 overflow-y-auto p-6 sm:p-8">
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div className="max-h-[80vh] space-y-5 overflow-y-auto p-4 sm:space-y-6 sm:p-8">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
                       <label className={labelClass}>Tier Name</label>
@@ -446,7 +446,7 @@ export default function SubscriptionPlansView() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                   <div className="rounded-2xl border border-slate-200 bg-white p-5">
                     <label className={`${labelClass} flex items-center gap-2`}>
                       <BadgePercent size={14} /> Price (₹)
@@ -563,7 +563,7 @@ export default function SubscriptionPlansView() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
                   <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-700">
                     <Sparkles size={14} /> Features
                   </h3>
@@ -608,7 +608,7 @@ export default function SubscriptionPlansView() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-5 sm:flex-row sm:p-6">
+              <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-4 sm:flex-row sm:p-6">
                 <button
                   onClick={closeModal}
                   className="w-full rounded-xl border border-slate-300 bg-white px-6 py-3 font-bold text-slate-700 transition hover:bg-slate-100 sm:flex-1"

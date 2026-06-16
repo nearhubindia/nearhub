@@ -122,24 +122,24 @@ export default function UserFormModal({ mode, user, onClose, onSaved }: UserForm
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-      <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4">
+      <div className="relative w-full max-w-[min(96vw,48rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <button
           type="button"
           onClick={onClose}
           aria-label="Close modal"
-          className="absolute right-4 top-4 z-20 rounded-full bg-white/90 p-2 text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-900"
+          className="absolute right-3 top-3 z-20 rounded-full bg-white/90 p-2 text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-900 sm:right-4 sm:top-4"
         >
           <X size={16} />
         </button>
 
-        <div className="relative overflow-hidden border-b border-cyan-200 bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-6 text-white sm:px-8">
+        <div className="relative overflow-hidden border-b border-cyan-200 bg-gradient-to-r from-cyan-600 to-teal-500 px-4 py-5 text-white sm:px-8 sm:py-6">
           <div className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/15 blur-2xl" />
           <p className="relative mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide">
             <User size={14} />
             Seller Registry
           </p>
-          <h2 className="relative flex items-center gap-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
+          <h2 className="relative flex items-center gap-2 text-xl font-extrabold tracking-tight sm:text-3xl">
             {mode === 'create' ? <User size={24} /> : <BadgeCheck size={24} />}
             {mode === 'create' ? 'Add User' : 'Edit User'}
           </h2>
@@ -151,7 +151,7 @@ export default function UserFormModal({ mode, user, onClose, onSaved }: UserForm
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="space-y-6 p-6 sm:p-8">
+          <div className="space-y-5 p-4 sm:space-y-6 sm:p-8">
             {formErrors.submit && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
                 {formErrors.submit}
@@ -282,7 +282,7 @@ export default function UserFormModal({ mode, user, onClose, onSaved }: UserForm
                           </div>
                         </div>
 
-                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                           <div className="rounded-xl bg-slate-50 px-3 py-2">
                             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                               Boosts
@@ -323,7 +323,7 @@ export default function UserFormModal({ mode, user, onClose, onSaved }: UserForm
             )}
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-5 sm:flex-row sm:p-6">
+          <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-4 sm:flex-row sm:p-6">
             <button
               type="button"
               onClick={onClose}

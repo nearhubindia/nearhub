@@ -114,10 +114,10 @@ export default function AdminLayout() {
       )}
 
       {/* Sidebar */}
-      <div
-        className={`${
+        <div
+          className={`${
           isMobile
-            ? `fixed inset-y-0 left-0 z-40 w-72 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+            ? `fixed inset-y-0 left-0 z-40 w-[min(84vw,18rem)] transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
             : sidebarOpen
               ? 'w-64'
               : 'w-20'
@@ -219,7 +219,7 @@ export default function AdminLayout() {
             >
               <Menu size={18} />
             </button>
-            <span className="text-sm font-bold text-slate-800">nearhub Admin</span>
+            <span className="truncate text-sm font-bold text-slate-800">nearhub Admin</span>
           </div>
         )}
 

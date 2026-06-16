@@ -337,16 +337,16 @@ export default function PushNotificationsView() {
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
-        <h1 className="text-3xl sm:text-4xl font-black mb-2">Push Notifications</h1>
+      <div className="border-b border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 p-4 text-white sm:p-6">
+        <h1 className="mb-2 text-2xl font-black sm:text-4xl">Push Notifications</h1>
         <p className="text-slate-300">Send push notifications to your users</p>
       </div>
 
       <div className="p-4 sm:p-6">
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
+          <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 p-5 text-white shadow-lg sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-blue-100 text-sm font-medium">Active Devices</p>
@@ -356,7 +356,7 @@ export default function PushNotificationsView() {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg">
+            <div className="rounded-xl bg-gradient-to-br from-green-500 to-green-600 p-5 text-white shadow-lg sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-green-100 text-sm font-medium">Buyers</p>
@@ -366,7 +366,7 @@ export default function PushNotificationsView() {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
+            <div className="rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 p-5 text-white shadow-lg sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-purple-100 text-sm font-medium">Sellers</p>
@@ -376,7 +376,7 @@ export default function PushNotificationsView() {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white shadow-lg">
+            <div className="rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 p-5 text-white shadow-lg sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-orange-100 text-sm font-medium">Total Sent</p>
@@ -386,7 +386,7 @@ export default function PushNotificationsView() {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-slate-600 to-slate-700 rounded-xl p-6 text-white shadow-lg">
+            <div className="rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 p-5 text-white shadow-lg sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-200 text-sm font-medium">Total Devices</p>
@@ -398,10 +398,10 @@ export default function PushNotificationsView() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           {/* Send Notification Form */}
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+          <div className="rounded-xl bg-white p-4 shadow-lg sm:p-6">
+            <h2 className="mb-6 flex items-center gap-2 text-lg font-bold text-slate-900 sm:text-xl">
               <Send size={24} className="text-blue-600" />
               Send Notification
             </h2>
@@ -414,7 +414,7 @@ export default function PushNotificationsView() {
                   📤 Manual Templates
                   <span className="ml-2 text-xs font-normal text-slate-500">(You send these)</span>
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2">
+                <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto pr-2 sm:grid-cols-2">
                   {quickTemplates
                     .filter((template) => template.manual)
                     .map((template, index) => (
@@ -449,7 +449,7 @@ export default function PushNotificationsView() {
                     (System sends automatically)
                   </span>
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2">
+                <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto pr-2 sm:grid-cols-2">
                   {quickTemplates
                     .filter((template) => !template.manual)
                     .map((template, index) => (
@@ -483,10 +483,10 @@ export default function PushNotificationsView() {
             {/* Target Audience */}
             <div className="mb-4">
               <label className="block text-sm font-bold text-slate-700 mb-2">Target Audience</label>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   onClick={() => setUserType('all')}
-                  className={`flex-1 px-4 py-2 rounded-lg font-semibold transition ${
+                  className={`flex-1 rounded-lg px-4 py-2 font-semibold transition ${
                     userType === 'all'
                       ? 'bg-blue-600 text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -496,7 +496,7 @@ export default function PushNotificationsView() {
                 </button>
                 <button
                   onClick={() => setUserType('buyer')}
-                  className={`flex-1 px-4 py-2 rounded-lg font-semibold transition ${
+                  className={`flex-1 rounded-lg px-4 py-2 font-semibold transition ${
                     userType === 'buyer'
                       ? 'bg-green-600 text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -506,7 +506,7 @@ export default function PushNotificationsView() {
                 </button>
                 <button
                   onClick={() => setUserType('seller')}
-                  className={`flex-1 px-4 py-2 rounded-lg font-semibold transition ${
+                  className={`flex-1 rounded-lg px-4 py-2 font-semibold transition ${
                     userType === 'seller'
                       ? 'bg-purple-600 text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -528,7 +528,7 @@ export default function PushNotificationsView() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Enter notification title"
-                className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border-2 border-slate-200 px-4 py-2 focus:border-blue-500 focus:outline-none"
                 maxLength={100}
               />
               <div className="text-xs text-slate-500 mt-1">{title.length}/100</div>
@@ -545,7 +545,7 @@ export default function PushNotificationsView() {
                 onChange={(e) => setBody(e.target.value)}
                 placeholder="Enter notification message"
                 rows={4}
-                className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
+                className="w-full resize-none rounded-lg border-2 border-slate-200 px-4 py-2 focus:border-blue-500 focus:outline-none"
                 maxLength={200}
               />
               <div className="text-xs text-slate-500 mt-1">{body.length}/200</div>
@@ -573,7 +573,7 @@ export default function PushNotificationsView() {
                   <img
                     src={imageUrl}
                     alt="Notification banner preview"
-                    className="h-40 w-full object-cover"
+                  className="h-32 w-full object-cover sm:h-40"
                   />
                 </div>
               ) : null}
@@ -591,7 +591,7 @@ export default function PushNotificationsView() {
                 value={dealUrl}
                 onChange={(e) => setDealUrl(e.target.value)}
                 placeholder="https://nearhub.in/listing/123"
-                className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border-2 border-slate-200 px-4 py-2 focus:border-blue-500 focus:outline-none"
               />
             </div>
 
@@ -607,12 +607,12 @@ export default function PushNotificationsView() {
                 value={listingId}
                 onChange={(e) => setListingId(e.target.value)}
                 placeholder="Paste listing ID"
-                className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                className="w-full rounded-lg border-2 border-slate-200 px-4 py-2 focus:border-blue-500 focus:outline-none"
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-4 mb-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="mb-4 grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">
                     Center Latitude
@@ -623,7 +623,7 @@ export default function PushNotificationsView() {
                     value={centerLatitude}
                     onChange={(e) => setCenterLatitude(e.target.value)}
                     placeholder="e.g. 15.828"
-                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border-2 border-slate-200 px-4 py-2 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -636,7 +636,7 @@ export default function PushNotificationsView() {
                     value={centerLongitude}
                     onChange={(e) => setCenterLongitude(e.target.value)}
                     placeholder="e.g. 78.037"
-                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border-2 border-slate-200 px-4 py-2 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -648,7 +648,7 @@ export default function PushNotificationsView() {
                     value={radiusKm}
                     onChange={(e) => setRadiusKm(e.target.value)}
                     placeholder="50"
-                    className="w-full px-4 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-lg border-2 border-slate-200 px-4 py-2 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -673,7 +673,7 @@ export default function PushNotificationsView() {
             <button
               onClick={handleSendNotification}
               disabled={sending || !title.trim() || !body.trim()}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold py-3 px-6 rounded-lg hover:from-blue-700 hover:to-blue-800 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-3 font-bold text-white transition hover:from-blue-700 hover:to-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {sending ? (
                 <>
@@ -690,8 +690,8 @@ export default function PushNotificationsView() {
           </div>
 
           {/* Recent Notifications */}
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+          <div className="rounded-xl bg-white p-4 shadow-lg sm:p-6">
+            <h2 className="mb-6 flex items-center gap-2 text-lg font-bold text-slate-900 sm:text-xl">
               <Bell size={24} className="text-purple-600" />
               Recent Notifications
             </h2>
@@ -706,13 +706,13 @@ export default function PushNotificationsView() {
                 <p>No notifications sent yet</p>
               </div>
             ) : (
-              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              <div className="max-h-[520px] space-y-3 overflow-y-auto sm:max-h-[600px]">
                 {logs.map((log) => (
                   <div
                     key={log.id}
-                    className="p-4 border-2 border-slate-100 rounded-lg hover:border-slate-200 transition"
+                    className="rounded-lg border-2 border-slate-100 p-4 transition hover:border-slate-200"
                   >
-                    <div className="flex items-start justify-between mb-2">
+                    <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex-1">
                         <div className="font-bold text-slate-900">{log.title}</div>
                         <div className="text-sm text-slate-600 mt-1">{log.body}</div>
