@@ -195,6 +195,13 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
   const [locationQuery, setLocationQuery] = useState(() => initialHeaderState.locationQuery);
   const suggestionRequestRef = useRef(0);
   const locationInputRef = useRef<HTMLInputElement | null>(null);
+  const locationSuggestionsPanelRef = useRef<HTMLDivElement | null>(null);
+  const notificationsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const notificationsPanelRef = useRef<HTMLDivElement | null>(null);
+  const userMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const userMenuPanelRef = useRef<HTMLDivElement | null>(null);
+  const mobileMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const mobileMenuPanelRef = useRef<HTMLDivElement | null>(null);
 
   const persistHeaderState = (next: {
     query?: string;
@@ -227,6 +234,34 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
       window.removeEventListener('storage', refreshUser);
       window.removeEventListener(WEB_AUTH_CHANGED_EVENT, refreshUser);
     };
+  }, []);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+
+      const openDropdownRefs = [
+        locationInputRef.current,
+        locationSuggestionsPanelRef.current,
+        notificationsTriggerRef.current,
+        notificationsPanelRef.current,
+        userMenuTriggerRef.current,
+        userMenuPanelRef.current,
+        mobileMenuTriggerRef.current,
+        mobileMenuPanelRef.current,
+      ];
+
+      const clickedInsideOpenArea = openDropdownRefs.some((ref) => ref?.contains(target));
+      if (!clickedInsideOpenArea) {
+        setIsNotificationsOpen(false);
+        setIsUserMenuOpen(false);
+        setIsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, []);
 
   const userId = String(user?.id || '').trim();
@@ -544,7 +579,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
               <Pin size={14} className="text-[#0759e6]" />
             </button>
             {isLocationFocused && locationQuery.trim() && suggestions.length > 0 ? (
-              <div className="absolute left-0 top-[110%] z-50 w-56 rounded-md border border-slate-200 bg-white shadow-lg">
+              <div
+                ref={locationSuggestionsPanelRef}
+                className="absolute left-0 top-[110%] z-50 w-56 rounded-md border border-slate-200 bg-white shadow-lg"
+              >
                 {suggestions.map((s, idx) => (
                   <button
                     key={idx}
@@ -619,6 +657,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
           {isLoggedIn ? (
             <div className="relative">
               <button
+                ref={notificationsTriggerRef}
                 type="button"
                 onClick={() => {
                   setIsNotificationsOpen((prev) => !prev);
@@ -635,7 +674,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                 ) : null}
               </button>
               {isNotificationsOpen ? (
-                <div className="absolute right-0 z-50 mt-2 w-80 rounded-md border border-slate-200 bg-white p-3 shadow-xl">
+                <div
+                  ref={notificationsPanelRef}
+                  className="absolute right-0 z-50 mt-2 w-80 rounded-md border border-slate-200 bg-white p-3 shadow-xl"
+                >
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <p className="text-sm font-black text-slate-950">Notifications</p>
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-600">
@@ -740,6 +782,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
           ) : null}
           <div className="relative">
             <button
+              ref={userMenuTriggerRef}
               type="button"
               onClick={() => {
                 setIsUserMenuOpen((prev) => !prev);
@@ -760,7 +803,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
               {isLoggedIn ? userLabel : 'User'}
             </button>
             {isUserMenuOpen ? (
-              <div className="absolute right-0 z-50 mt-3 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_22px_50px_-26px_rgba(15,23,42,0.55)]">
+              <div
+                ref={userMenuPanelRef}
+                className="absolute right-0 z-50 mt-3 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_22px_50px_-26px_rgba(15,23,42,0.55)]"
+              >
                 {isLoggedIn ? (
                   <>
                     <div className="flex items-center gap-3 px-4 py-4">
@@ -861,6 +907,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
             <ChevronDown size={15} className="hidden shrink-0 text-slate-500 min-[390px]:block" />
           </button>
           <button
+            ref={mobileMenuTriggerRef}
             type="button"
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-slate-300 text-slate-800"
             aria-label="Toggle navigation menu"
@@ -872,7 +919,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
       </Container>
 
       {isMenuOpen ? (
-        <div className="border-t border-slate-200 bg-white px-4 py-3 md:hidden">
+        <div ref={mobileMenuPanelRef} className="border-t border-slate-200 bg-white px-4 py-3 md:hidden">
           <Container className="flex flex-col gap-2 text-sm font-semibold">
             <Link
               to={appendSearch('/search')}
