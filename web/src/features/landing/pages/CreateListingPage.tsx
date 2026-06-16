@@ -25,8 +25,7 @@ import { getApiUrl } from '@/lib/config';
 import { trackWebCreateListing } from '@/lib/firebase';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { createListing } from '../api/listings';
-import { getListingImages } from '@/features/landing/lib/listing-images';
-import { parsePositiveNumber } from '@/features/landing/lib/landing-utils';
+import { getListingImages, parsePositiveNumber } from '@/features/landing/lib';
 import {
   getAttributeKey,
   getDefaultAdminMainCategory,

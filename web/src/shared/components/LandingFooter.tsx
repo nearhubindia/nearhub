@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
-import { Logo } from '@/shared/components/Logo';
+import { Logo } from './Logo';
 import { Container } from './Container';
 
 const platformLinks = [

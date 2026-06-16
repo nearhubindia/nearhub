@@ -4,7 +4,7 @@ import { ArrowLeft, IndianRupee, MapPin, Save } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
-import { parseMediaList, parseTextList } from '@/features/landing/lib/listing-parsers';
+import { parseMediaList, parseTextList } from '@/features/landing/lib';
 import {
   ADMIN_CATEGORY_GROUPS,
   getDefaultAdminMainCategory,

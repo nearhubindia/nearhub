@@ -10,7 +10,7 @@ import {
   formatPriceInr,
   readStoredStringSet,
   writeStoredStringSet,
-} from '@/features/landing/lib/landing-utils';
+} from '@/features/landing/lib';
 
 type StoredUser = { id?: string; phone?: string };
 type SavedListing = {

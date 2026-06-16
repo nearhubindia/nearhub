@@ -18,9 +18,9 @@ import { useQuery } from '@tanstack/react-query';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { BRAND_SIGNATURE } from '@/shared/brand';
-import { getPrimaryListingImage } from '@/features/landing/lib/listing-images';
+import { getPrimaryListingImage } from '@/features/landing/lib';
 import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
-import { formatPriceInr } from '@/features/landing/lib/landing-utils';
+import { formatPriceInr } from '@/features/landing/lib';
 
 const capabilityCards = [
   {

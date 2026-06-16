@@ -6,14 +6,14 @@ import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
-import { FALLBACK_LISTING_IMAGE, getListingImages } from '@/features/landing/lib/listing-images';
+import { FALLBACK_LISTING_IMAGE, getListingImages } from '@/features/landing/lib';
 import {
   SAVED_LISTING_IDS_KEY,
   formatPriceInr,
   parsePositiveNumber,
   readStoredStringSet,
   writeStoredStringSet,
-} from '@/features/landing/lib/landing-utils';
+} from '@/features/landing/lib';
 
 type Listing = {
   id: string;

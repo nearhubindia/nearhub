@@ -5,11 +5,7 @@ import { Heart, Sparkles, Timer } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
-import {
-  FALLBACK_LISTING_IMAGE,
-  getListingImages,
-  getPrimaryListingImage,
-} from '@/features/landing/lib/listing-images';
+import { FALLBACK_LISTING_IMAGE, getListingImages, getPrimaryListingImage } from '@/features/landing/lib';
 import {
   SAVED_LISTING_IDS_KEY,
   countdownPartsFromMs,
@@ -19,7 +15,7 @@ import {
   parsePositiveNumber,
   readStoredStringSet,
   writeStoredStringSet,
-} from '@/features/landing/lib/landing-utils';
+} from '@/features/landing/lib';
 
 type DealListing = {
   id: string;

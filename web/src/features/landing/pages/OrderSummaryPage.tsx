@@ -6,8 +6,7 @@ import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { trackWebPurchase } from '@/lib/firebase';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
-import { parseMediaList } from '@/features/landing/lib/listing-parsers';
-import { formatPriceInr } from '@/features/landing/lib/landing-utils';
+import { formatPriceInr, parseMediaList } from '@/features/landing/lib';
 type VoucherLinks = { viewUrl?: string; downloadUrl?: string };
 
 type Listing = {

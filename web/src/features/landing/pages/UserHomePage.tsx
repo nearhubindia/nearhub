@@ -15,7 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { LandingFooter, LandingHeader, Container } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
-import { FALLBACK_LISTING_IMAGE, getListingImages } from '@/features/landing/lib/listing-images';
+import { FALLBACK_LISTING_IMAGE, getListingImages } from '@/features/landing/lib';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
 import {
@@ -27,7 +27,7 @@ import {
   parsePositiveNumber,
   readStoredStringSet,
   writeStoredStringSet,
-} from '@/features/landing/lib/landing-utils';
+} from '@/features/landing/lib';
 
 type Listing = {
   id: string;
