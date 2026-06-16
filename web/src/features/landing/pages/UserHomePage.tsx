@@ -380,9 +380,9 @@ function ProductCard({
   const dealTag = sale || product.badge || (showCountdown ? 'Deal' : null);
   const mobileCardWidth =
     mobileVariant === 'overlay'
-      ? 'max-md:h-[150px] max-md:w-[124px] max-md:shrink-0 md:w-auto md:shrink'
+      ? 'max-md:h-[168px] max-md:w-[min(82vw,220px)] max-md:shrink-0 md:w-auto md:shrink'
       : mobileVariant === 'deal'
-        ? 'max-md:h-[300px] max-md:w-[124px] max-md:shrink-0 md:w-auto md:shrink'
+        ? 'max-md:h-[300px] max-md:w-[min(82vw,220px)] max-md:shrink-0 md:w-auto md:shrink'
         : '';
   const mobileShell =
     mobileVariant === 'overlay'
@@ -594,7 +594,7 @@ function ComboDealCard({
       : product.title;
 
   return (
-    <article className="h-[300px] w-[124px] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md md:h-auto md:w-auto md:shrink">
+    <article className="h-[300px] w-[min(82vw,220px)] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md md:h-auto md:w-auto md:shrink">
       <Link to={`/listing/${encodeURIComponent(product.id)}`} className="block">
         <div className="relative h-[100px] overflow-hidden bg-white sm:h-40 xl:h-36">
           <div className="grid h-full grid-cols-2 gap-px bg-slate-200">

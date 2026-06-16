@@ -258,7 +258,7 @@ export function DataTable<TData, TValue>({
     <div className={cn('w-full space-y-4', className)}>
       {(toolbarLeft || toolbarRight || showSearch || showColumnVisibility || showPagination) && (
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             {toolbarLeft}
 
             {showSearch && (
@@ -267,7 +267,7 @@ export function DataTable<TData, TValue>({
                   placeholder={searchPlaceholder}
                   value={resolvedGlobalFilter ?? ''}
                   onChange={(event) => setResolvedGlobalFilter(event.target.value)}
-                  className="w-[260px] pl-10"
+                  className="w-full pl-10 sm:w-[260px]"
                 />
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               </div>
@@ -278,14 +278,14 @@ export function DataTable<TData, TValue>({
                 <button
                   type="button"
                   onClick={() => setIsColumnMenuOpen((value) => !value)}
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto"
                 >
                   <SlidersHorizontal className="h-4 w-4 text-slate-500" />
                   Columns
                 </button>
 
                 {isColumnMenuOpen && (
-                  <div className="absolute left-0 top-full z-50 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                  <div className="absolute left-0 top-full z-50 mt-2 w-[min(92vw,14rem)] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl sm:w-56">
                     <label className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50">
                       <Checkbox checked={allHideableVisible} onCheckedChange={toggleAllColumns} />
                       <span>All Columns</span>
