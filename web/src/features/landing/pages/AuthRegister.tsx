@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { getApiUrl } from '@/lib/config';
@@ -26,6 +26,17 @@ export default function AuthRegister(): ReactElement {
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isOtpSent, setIsOtpSent] = useState(Boolean(initialPhone) || Boolean(initialOtp));
+  const phoneInputRef = useRef<HTMLInputElement | null>(null);
+  const otpInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (isOtpSent) {
+      otpInputRef.current?.focus();
+      return;
+    }
+
+    phoneInputRef.current?.focus();
+  }, [isOtpSent]);
 
   const verifyOtp = async (phoneNumber: string, otpCode: string) => {
     const response = await fetch(`${getApiUrl()}/api/auth/verify-otp`, {
@@ -198,6 +209,7 @@ export default function AuthRegister(): ReactElement {
                   +91
                 </span>
                 <Input
+                  ref={phoneInputRef}
                   value={phone}
                   inputMode="numeric"
                   autoComplete="tel-national"
@@ -209,11 +221,37 @@ export default function AuthRegister(): ReactElement {
             </div>
 
             {isOtpSent ? (
-              <div className="mt-5 sm:mt-8">
+              <div className="mt-5 rounded-[24px] border border-[#dbe9ff] bg-[#f7fbff] px-4 py-4 shadow-[0_16px_34px_-28px_rgba(7,89,230,0.35)] sm:mt-8 sm:px-5 sm:py-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.32em] text-[#236bb2]">
+                      Step 2
+                    </p>
+                    <h2 className="mt-1 text-lg font-black text-[#0d1930] sm:text-2xl">
+                      Enter OTP
+                    </h2>
+                    <p className="mt-1 text-sm font-medium leading-6 text-[#66758a] sm:text-base">
+                      We sent a one-time code to +91 {phone}.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOtpSent(false);
+                      setOtp('');
+                      setMessage('');
+                    }}
+                    className="rounded-full border border-[#cfe0fb] bg-white px-4 py-2 text-sm font-bold text-[#236bb2] transition hover:border-[#236bb2] hover:text-[#164a7b]"
+                  >
+                    Change number
+                  </button>
+                </div>
+
                 <label className="mb-3 block text-[11px] font-black uppercase tracking-[0.32em] text-[#68758a] sm:mb-5 sm:text-sm sm:tracking-[0.32em]">
-                  OTP
+                  Verification code
                 </label>
                 <Input
+                  ref={otpInputRef}
                   value={otp}
                   inputMode="numeric"
                   autoComplete="one-time-code"
@@ -222,17 +260,6 @@ export default function AuthRegister(): ReactElement {
                   className="h-14 min-w-0 w-full rounded-2xl border-[#dfe7f2] bg-[#f8fbff] px-4 text-base font-semibold text-slate-900 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.9)] placeholder:text-[#a2a8b1] focus-visible:border-[#0759e6] focus-visible:ring-[#0759e6]/20 sm:h-[82px] sm:rounded-[18px] sm:bg-white sm:px-7 sm:text-xl"
                 />
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsOtpSent(false);
-                      setOtp('');
-                      setMessage('');
-                    }}
-                    className="text-sm font-semibold text-[#236bb2] transition hover:text-[#164a7b]"
-                  >
-                    Change mobile number
-                  </button>
                   <button
                     type="button"
                     onClick={() => void sendOtp()}
