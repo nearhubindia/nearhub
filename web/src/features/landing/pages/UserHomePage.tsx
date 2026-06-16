@@ -239,6 +239,17 @@ function normalizeListings(items: Listing[]): Listing[] {
     .filter(isVisibleListing);
 }
 
+function normalizeDealListings(items: Listing[]): Listing[] {
+  return items.map((item) => ({
+    ...item,
+    isDeal: Boolean(item.isDeal ?? item.is_deal),
+    isActive: item.isActive ?? item.is_active ?? true,
+    status: String(item.status || 'active').toLowerCase(),
+    dealType: String(item.dealType || item.deal_type || '').toLowerCase(),
+    dealStatus: String(item.dealStatus || item.deal_status || '').toLowerCase(),
+  }));
+}
+
 function isDealStockCompleted(item: Listing): boolean {
   const maxSlots =
     numberValue(item.dealCycleQuantity ?? item.deal_cycle_quantity) ||
@@ -789,6 +800,50 @@ export default function UserHomePage(): ReactElement {
     refetchOnMount: 'always',
   });
 
+  const expiredDealsQuery = useQuery({
+    queryKey: ['nearhub-home-expired-deals', storedGeoCoords?.latitude, storedGeoCoords?.longitude],
+    queryFn: async (): Promise<ListingsQueryResult> => {
+      const fetchExpiredDeals = async (params: URLSearchParams) => {
+        const response = await fetch(`${getApiUrl()}/api/listings?${params.toString()}`);
+        if (!response.ok) {
+          throw new Error('Failed to load expired deals');
+        }
+
+        const payload = (await response.json()) as ListingsResponse;
+        return normalizeDealListings(payload.data || payload.results || []).filter(
+          (item) =>
+            Boolean(item.isDeal ?? item.is_deal) &&
+            String(item.status || '').toLowerCase() === 'expired'
+        );
+      };
+
+      const baseParams = new URLSearchParams({
+        limit: '100',
+        dealsOnly: '1',
+        includeExpiredDeals: '1',
+      });
+
+      if (storedGeoCoords) {
+        const nearbyParams = new URLSearchParams(baseParams);
+        nearbyParams.set('latitude', String(storedGeoCoords.latitude));
+        nearbyParams.set('longitude', String(storedGeoCoords.longitude));
+        nearbyParams.set('radius', '50');
+
+        const nearbyExpiredDeals = await fetchExpiredDeals(nearbyParams);
+        if (nearbyExpiredDeals.length > 0) {
+          return { listings: nearbyExpiredDeals, usedLocationFallback: false };
+        }
+      }
+
+      return {
+        listings: await fetchExpiredDeals(baseParams),
+        usedLocationFallback: Boolean(storedGeoCoords),
+      };
+    },
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
+
   useEffect(() => {
     if (!listingsQuery.data?.usedLocationFallback) return;
     window.alert('No products are available at this location. Showing all listings.');
@@ -840,8 +895,17 @@ export default function UserHomePage(): ReactElement {
   );
 
   const expiredDealListings = useMemo(
-    () => liveListings.filter((item) => isDeal(item) && isDealExpired(item, nowMs)),
-    [liveListings, nowMs]
+    () => {
+      const expiredDeals = expiredDealsQuery.data?.listings ?? EMPTY_LISTINGS;
+      return expiredDeals
+        .filter((item) => isDeal(item))
+        .sort((a, b) => {
+          const aEnd = getDealEndMs(a, nowMs) || new Date(String(a.dealEndAt || a.deal_end_at || 0)).getTime();
+          const bEnd = getDealEndMs(b, nowMs) || new Date(String(b.dealEndAt || b.deal_end_at || 0)).getTime();
+          return bEnd - aEnd;
+        });
+    },
+    [expiredDealsQuery.data, nowMs]
   );
 
   const trending = useMemo(() => {
