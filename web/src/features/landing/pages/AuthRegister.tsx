@@ -1,8 +1,13 @@
-import { useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { getApiUrl } from '@/lib/config';
-import { trackWebEvent } from '@/lib/firebase';
+import {
+  trackWebEvent,
+  trackWebLogin,
+  trackWebSignUp,
+} from '@/lib/firebase';
+import { getMeaningfulWebUserName, writeStoredWebAuth } from '@/lib/web-auth-storage';
 
 function isValidPhone(phone: string): boolean {
   return /^[6-9]\d{9}$/.test(phone.replace(/\D/g, ''));
@@ -11,9 +16,66 @@ function isValidPhone(phone: string): boolean {
 export default function AuthRegister(): ReactElement {
   const navigate = useNavigate();
   const location = useLocation();
-  const [phone, setPhone] = useState('');
+  const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const redirectPath = params.get('redirect') || '/browse';
+  const initialPhone = params.get('phone') || '';
+  const initialOtp = params.get('otp') || '';
+  const [phone, setPhone] = useState(initialPhone.replace(/\D/g, '').slice(0, 10));
+  const [otp, setOtp] = useState(/^\d{6}$/.test(initialOtp) ? initialOtp : '');
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isOtpSent, setIsOtpSent] = useState(Boolean(initialPhone) || Boolean(initialOtp));
+
+  const verifyOtp = async (phoneNumber: string, otpCode: string) => {
+    const response = await fetch(`${getApiUrl()}/api/auth/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: phoneNumber, otp: otpCode }),
+    });
+    const data = (await response.json()) as {
+      success?: boolean;
+      message?: string;
+      token?: string;
+      user?: {
+        id?: string;
+        name?: string;
+        phone?: string;
+        email?: string;
+        avatarUrl?: string;
+        address?: string;
+        gstin?: string;
+      };
+      isNewUser?: boolean;
+      requiresProfileCompletion?: boolean;
+    };
+    if (!data.success) {
+      setMessage(data.message || 'OTP verification failed');
+      return;
+    }
+    const token = String(data.token || '').trim();
+    if (!token) {
+      setMessage('Login succeeded, but the session token was missing. Please try again.');
+      return;
+    }
+    writeStoredWebAuth(
+      {
+        id: String(data.user?.id || '').trim(),
+        name: getMeaningfulWebUserName(data.user?.name),
+        phone: String(data.user?.phone || phoneNumber),
+        email: String(data.user?.email || ''),
+        avatarUrl: String(data.user?.avatarUrl || ''),
+        address: String(data.user?.address || ''),
+        gstin: String(data.user?.gstin || ''),
+      },
+      token
+    );
+    void trackWebLogin('otp');
+    if (data.isNewUser || data.requiresProfileCompletion) {
+      void trackWebSignUp('otp');
+    }
+    navigate(redirectPath.startsWith('/') ? redirectPath : '/browse');
+  };
 
   const sendOtp = async () => {
     const cleaned = phone.replace(/\D/g, '');
@@ -40,19 +102,46 @@ export default function AuthRegister(): ReactElement {
         setMessage(data.message || 'Failed to send OTP');
         return;
       }
-      const params = new URLSearchParams({ phone: cleaned });
-      const redirect = new URLSearchParams(location.search).get('redirect');
-      if (redirect) {
-        params.set('redirect', redirect);
+      setIsOtpSent(true);
+      setMessage('OTP sent successfully. Please enter the code below.');
+      const nextParams = new URLSearchParams();
+      nextParams.set('phone', cleaned);
+      if (redirectPath) {
+        nextParams.set('redirect', redirectPath);
       }
       if (/^\d{6}$/.test(String(data.debugOtp || ''))) {
-        params.set('otp', String(data.debugOtp));
+        const debugOtp = String(data.debugOtp);
+        setOtp(debugOtp);
+        nextParams.set('otp', debugOtp);
       }
-      navigate(`/auth/verify-otp?${params.toString()}`);
+      navigate(`/auth/register?${nextParams.toString()}`, { replace: true });
     } catch {
       setMessage('Failed to send OTP. Please try again.');
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const submitOtp = async () => {
+    const cleaned = phone.replace(/\D/g, '');
+    if (!isValidPhone(cleaned)) {
+      setMessage('Please enter a valid 10-digit phone number.');
+      setIsOtpSent(false);
+      return;
+    }
+    if (!/^\d{6}$/.test(otp)) {
+      setMessage('Please enter a valid 6-digit OTP.');
+      return;
+    }
+
+    setIsVerifying(true);
+    setMessage('');
+    try {
+      await verifyOtp(cleaned, otp);
+    } catch {
+      setMessage('OTP verification failed. Please try again.');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -73,6 +162,10 @@ export default function AuthRegister(): ReactElement {
             className="w-full max-w-[650px] rounded-[28px] border border-white/80 bg-white/95 px-5 py-7 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.55)] sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none"
             onSubmit={(event) => {
               event.preventDefault();
+              if (isOtpSent) {
+                void submitOtp();
+                return;
+              }
               void sendOtp();
             }}
           >
@@ -115,12 +208,55 @@ export default function AuthRegister(): ReactElement {
               </div>
             </div>
 
+            {isOtpSent ? (
+              <div className="mt-5 sm:mt-8">
+                <label className="mb-3 block text-[11px] font-black uppercase tracking-[0.32em] text-[#68758a] sm:mb-5 sm:text-sm sm:tracking-[0.32em]">
+                  OTP
+                </label>
+                <Input
+                  value={otp}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                  placeholder="6-digit OTP"
+                  className="h-14 min-w-0 w-full rounded-2xl border-[#dfe7f2] bg-[#f8fbff] px-4 text-base font-semibold text-slate-900 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.9)] placeholder:text-[#a2a8b1] focus-visible:border-[#0759e6] focus-visible:ring-[#0759e6]/20 sm:h-[82px] sm:rounded-[18px] sm:bg-white sm:px-7 sm:text-xl"
+                />
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOtpSent(false);
+                      setOtp('');
+                      setMessage('');
+                    }}
+                    className="text-sm font-semibold text-[#236bb2] transition hover:text-[#164a7b]"
+                  >
+                    Change mobile number
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void sendOtp()}
+                    disabled={isSending}
+                    className="text-sm font-semibold text-[#236bb2] transition hover:text-[#164a7b] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Resend OTP
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <button
               type="submit"
-              disabled={isSending}
+              disabled={isSending || isVerifying}
               className="mt-6 h-14 w-full rounded-2xl bg-[linear-gradient(135deg,#0759e6_0%,#2d7bf0_100%)] text-base font-black text-white shadow-[0_18px_34px_-20px_rgba(7,89,230,0.95)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-9 sm:h-[80px] sm:rounded-[16px] sm:text-xl"
             >
-              {isSending ? 'Sending OTP...' : 'Get OTP ->'}
+              {isOtpSent
+                ? isVerifying
+                  ? 'Verifying...'
+                  : 'Verify & Continue ->'
+                : isSending
+                  ? 'Sending OTP...'
+                  : 'Get OTP ->'}
             </button>
 
             {message ? (
