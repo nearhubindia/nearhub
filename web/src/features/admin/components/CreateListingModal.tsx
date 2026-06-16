@@ -6,6 +6,7 @@ import {
   AdminListingLocationFields,
   AdminListingPriceFields,
 } from '@/features/admin/components/AdminListingFormFields';
+import { AdminDealFields } from '@/features/admin/components/AdminDealFields';
 import { AdminListingModalFrame } from '@/features/admin/components/AdminListingModalFrame';
 import {
   getDefaultAdminSubCategory,
@@ -21,6 +22,12 @@ import {
   uploadListingImages,
   uploadListingVideos,
 } from '@/features/admin/utils/listing-media-upload';
+
+function toIsoFromLocal(value: string): string | undefined {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
 
 interface CreateListingModalProps {
   onClose: () => void;
@@ -50,6 +57,15 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     videos: [] as string[],
     featured: false,
     sponsored: false,
+    isDeal: false,
+    dealType: 'normal',
+    dealStartAt: '',
+    dealEndAt: '',
+    purchaseLimitType: 'ONE_TIME',
+    maxDealBookings: '',
+    comboItemsText: '',
+    dealTerms: '',
+    voucherEnabled: true,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
@@ -159,6 +175,28 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
         return;
       }
 
+      const dealStartAt = toIsoFromLocal(formData.dealStartAt);
+      const dealEndAt = toIsoFromLocal(formData.dealEndAt);
+      const comboItems = formData.comboItemsText
+        .split(/[\n,]/g)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      if (formData.isDeal) {
+        if (!dealStartAt || !dealEndAt) {
+          setFormErrors({
+            dealStartAt: 'Deal start and end time are required',
+            dealEndAt: 'Deal start and end time are required',
+          });
+          return;
+        }
+
+        if (new Date(dealEndAt).getTime() <= new Date(dealStartAt).getTime()) {
+          setFormErrors({ dealEndAt: 'Deal end time must be after start time' });
+          return;
+        }
+      }
+
       const payload: Record<string, unknown> = {
         title: formData.title,
         description: formData.description,
@@ -180,6 +218,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
             : formData.videos.length > 0
               ? 'mixed'
               : 'image',
+        isDeal: formData.isDeal,
       };
 
       if (validation.pincode) {
@@ -192,6 +231,17 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
 
       if (formData.offerPrice && Number(formData.offerPrice) > 0) {
         payload.offerPrice = Number(formData.offerPrice);
+      }
+
+      if (formData.isDeal) {
+        payload.dealType = formData.dealType;
+        payload.dealStartAt = dealStartAt;
+        payload.dealEndAt = dealEndAt;
+        payload.purchaseLimitType = formData.purchaseLimitType;
+        payload.maxDealBookings = Number(formData.maxDealBookings || 0);
+        payload.comboItems = formData.dealType === 'combo' ? comboItems : [];
+        payload.dealTerms = formData.dealTerms;
+        payload.voucherEnabled = formData.voucherEnabled;
       }
 
       await createListing.mutateAsync(payload);
@@ -311,6 +361,14 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
             isResolvingLocation={isResolvingLocation}
             locationResolveError={locationResolveError}
             required
+          />
+
+          <AdminDealFields
+            formData={formData}
+            setFormData={setFormData}
+            inputClass={inputClass}
+            labelClass={labelClass}
+            formErrors={formErrors}
           />
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

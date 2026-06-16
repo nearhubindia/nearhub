@@ -41,6 +41,9 @@ export function adminAuthMiddleware(req: Request, res: Response, next: NextFunct
 
     // Attach admin to request for use in route handlers
     (req as AdminRequest).admin = admin;
+    (req as any).isAdmin = true;
+    (req as any).adminId = admin.id;
+    (req as any).adminEmail = admin.email;
     next();
   } catch (error) {
     console.error('[Admin Auth] Middleware error:', error);

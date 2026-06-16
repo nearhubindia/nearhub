@@ -41,6 +41,7 @@ type DealSectionItem = {
   images: string[];
   location: string;
   distance: string;
+  sortDistanceKm?: number;
   dealEndsAt?: number;
   dealStatus: string;
   comboItems?: string[];
@@ -54,7 +55,7 @@ function formatPriceInr(value?: number): string {
 }
 
 function formatDistanceLabel(distanceKm?: number): string {
-  if (typeof distanceKm !== 'number' || !Number.isFinite(distanceKm)) return 'Nearby';
+  if (typeof distanceKm !== 'number' || !Number.isFinite(distanceKm)) return 'Distance unavailable';
   if (distanceKm < 1) return '<1 km away';
   return `${Math.round(distanceKm)} km away`;
 }
@@ -308,9 +309,10 @@ function ComboDealCard({
 export default function DealsScreen() {
   const insets = useSafeAreaInsets();
   const { listings, savedIds, toggleSaved, refreshListings, isRefreshing } = useListings();
-  const { user, isAuthenticated } = useAuth();
+  const { user, cachedLocation, isAuthenticated } = useAuth();
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const currentLocation = user?.location || cachedLocation;
 
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1000);
@@ -348,10 +350,11 @@ export default function DealsScreen() {
       .map((item) => {
         const window = getEffectiveDealWindow(item, nowMs);
         const distanceKm =
-          user?.location?.latitude && user?.location?.longitude
+          typeof currentLocation?.latitude === 'number' &&
+          typeof currentLocation?.longitude === 'number'
             ? calculateDistance(
-                user.location.latitude,
-                user.location.longitude,
+                currentLocation.latitude,
+                currentLocation.longitude,
                 item.location.latitude,
                 item.location.longitude
               )
@@ -371,6 +374,7 @@ export default function DealsScreen() {
           images: item.images || [],
           location: item.location.city,
           distance: formatDistanceLabel(distanceKm),
+          sortDistanceKm: distanceKm,
           dealEndsAt: window?.endMs,
           dealStatus: formatDealStatus(item, nowMs),
           comboItems: item.comboItems,
@@ -378,8 +382,19 @@ export default function DealsScreen() {
           voucherEnabled: item.voucherEnabled,
           dealType: item.dealType,
         } satisfies DealSectionItem;
+      })
+      .sort((a, b) => {
+        const distanceA =
+          typeof a.sortDistanceKm === 'number' && Number.isFinite(a.sortDistanceKm)
+            ? a.sortDistanceKm
+            : Number.POSITIVE_INFINITY;
+        const distanceB =
+          typeof b.sortDistanceKm === 'number' && Number.isFinite(b.sortDistanceKm)
+            ? b.sortDistanceKm
+            : Number.POSITIVE_INFINITY;
+        return distanceA - distanceB;
       });
-  }, [listings, nowMs, user?.location?.latitude, user?.location?.longitude]);
+  }, [listings, nowMs, currentLocation?.latitude, currentLocation?.longitude]);
 
   const todaysDeals = useMemo(
     () =>
@@ -477,7 +492,7 @@ export default function DealsScreen() {
         <SectionHeader
           icon={<Feather name="zap" size={18} color="#F97316" />}
           title="Upcoming Deals"
-          subtitle="Deals starting soon near you"
+          subtitle="Deals starting soon, sorted by distance"
         />
         {upcomingDeals.length > 0 ? (
           <View style={styles.grid}>
@@ -503,7 +518,7 @@ export default function DealsScreen() {
         <SectionHeader
           icon={<Feather name="gift" size={18} color="#F97316" />}
           title="Combo Deals You'll Love"
-          subtitle="Save more with handpicked product bundles near you"
+          subtitle="Save more with handpicked product bundles by distance"
         />
         {comboDeals.length > 0 ? (
           <View style={styles.comboGrid}>

@@ -13,6 +13,12 @@ import {
   getUserByPhone,
   pickMeaningfulDisplayName,
 } from '../../users/services/user-profiles';
+import {
+  grantUserSubscription,
+  getSubscriptionTierById,
+  getUserActiveSubscriptions,
+} from '../../subscriptions/services/subscription-tiers';
+import { invalidateUserSubscriptionCache } from '../../subscriptions/services/subscription-cache';
 
 function normalizeMobile(value: unknown): string {
   const digits = String(value || '').replace(/\D/g, '');
@@ -452,6 +458,13 @@ export function registerAdminUsersRoutes(app: Express) {
       const userMeta = meta[0];
       const userActivityRow = activity[0];
       const latestListingRow = latestListing[0];
+      const resolvedUserId = userMeta?.id || id;
+      const subscriptions = resolvedUserId
+        ? await getUserActiveSubscriptions(String(resolvedUserId)).catch((error) => {
+            console.error('[Admin Users] Failed to load user subscriptions:', error);
+            return [];
+          })
+        : [];
       const resolvedIdentity = resolveAdminIdentity({
         id,
         username: userMeta?.username,
@@ -471,6 +484,35 @@ export function registerAdminUsersRoutes(app: Express) {
         listings: latestListingRow ? 1 : 0,
         listingLocations: latestListingRow?.location ? [latestListingRow.location] : [],
         isVerified: Boolean(userMeta?.isVerified),
+        subscriptions: subscriptions.map((subscription) => ({
+          id: String(subscription.id),
+          userId: String(subscription.userId),
+          subscriptionTierId: String(subscription.subscriptionTierId),
+          status: String(subscription.status || 'active'),
+          expiresAt: subscription.expiresAt?.toISOString() || new Date().toISOString(),
+          subscribedAt: subscription.subscribedAt?.toISOString() || null,
+          updatedAt: subscription.updatedAt?.toISOString() || null,
+          autoRenew: Boolean(subscription.autoRenew),
+          boostsRemaining: Number(subscription.boostsRemaining || 0),
+          paymentId: subscription.paymentId || null,
+          orderId: subscription.orderId || null,
+          invoiceId: subscription.invoiceId || null,
+          tier: subscription.tier
+            ? {
+                id: String(subscription.tier.id),
+                name: String(subscription.tier.name || ''),
+                type: subscription.tier.type || null,
+                description: subscription.tier.description || null,
+                price: subscription.tier.price ?? null,
+                offerPrice: subscription.tier.offerPrice ?? null,
+                durationDays: Number(subscription.tier.durationDays || 0),
+                maxListings: Number(subscription.tier.maxListings || 0),
+                boostCredits: Number(subscription.tier.boostCredits || 0),
+                features: subscription.tier.features || [],
+                highlight: Boolean(subscription.tier.highlight),
+              }
+            : null,
+        })),
         createdAt:
           userActivityRow?.firstSeenAt?.toISOString() ||
           latestListingRow?.createdAt?.toISOString() ||
@@ -487,6 +529,77 @@ export function registerAdminUsersRoutes(app: Express) {
       handleError(res, error, '[Admin Users]', 'Failed to fetch user');
     }
   });
+
+  /**
+   * POST /api/admin/users/:id/subscriptions
+   * Grant an active subscription to a user (admin only)
+   */
+  app.post(
+    '/api/admin/users/:id/subscriptions',
+    adminAuthMiddleware,
+    async (req: AuthRequest, res: Response) => {
+      try {
+        const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
+        const { tierId, durationDays } = req.body;
+        const resolvedUser = await db.query.users.findFirst({
+          where: or(eq(users.id, id), eq(users.mobile, id), eq(users.username, id)),
+        });
+
+        if (!resolvedUser?.id) {
+          return notFound(res, 'User');
+        }
+
+        const normalizedTierId = typeof tierId === 'string' ? tierId.trim() : '';
+        if (!normalizedTierId) {
+          return res.status(400).json({
+            success: false,
+            error: 'Subscription tier is required',
+          });
+        }
+
+        const tier = await getSubscriptionTierById(normalizedTierId);
+        if (!tier || !tier.isActive) {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid or inactive subscription tier',
+          });
+        }
+
+        const parsedDurationDays = Number(durationDays);
+        const effectiveDurationDays =
+          Number.isFinite(parsedDurationDays) && parsedDurationDays > 0
+            ? Math.floor(parsedDurationDays)
+            : Number(tier.durationDays || 30);
+        const expiresAt = new Date(
+          Date.now() + effectiveDurationDays * 24 * 60 * 60 * 1000
+        );
+        const subscription = await grantUserSubscription(resolvedUser.id, normalizedTierId, expiresAt, {
+          paymentId: `admin-grant:${(req as AuthRequest & { admin?: { id?: string } }).admin?.id || 'admin'}`,
+        });
+
+        await invalidateUserSubscriptionCache(resolvedUser.id).catch((error) => {
+          console.error('[Admin Users] Failed to invalidate user subscription cache:', error);
+        });
+
+        res.status(201).json({
+          success: true,
+          data: {
+            id: subscription.id,
+            userId: subscription.userId,
+            tierId: subscription.subscriptionTierId,
+            status: subscription.status,
+            boostsRemaining: subscription.boostsRemaining,
+            expiresAt: subscription.expiresAt?.toISOString() || null,
+            subscribedAt: subscription.subscribedAt?.toISOString() || null,
+          },
+          message: 'Subscription granted successfully',
+        });
+      } catch (error) {
+        console.error('[Admin Users] Error granting subscription:', error);
+        handleError(res, error, '[Admin Users]', 'Failed to grant subscription');
+      }
+    }
+  );
 
   /**
    * DELETE /api/admin/users/:id

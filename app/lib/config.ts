@@ -95,8 +95,8 @@ export function getBackendURL(): string {
     }
   }
 
-  // Final fallback points to production so physical Android devices don't break on localhost.
-  const fallback = 'https://nearhub.in';
+  // Final fallback points to the dedicated API host so production clients use the backend directly.
+  const fallback = 'https://api.nearhub.in';
   if (getDebug()) {
     console.log('[Config] Using fallback URL:', fallback);
   }
@@ -137,7 +137,7 @@ export function getWebBaseUrl(): string {
     }
   }
 
-  return 'https://nearhub.in';
+  return 'https://api.nearhub.in';
 }
 
 export function getDebug(): boolean {

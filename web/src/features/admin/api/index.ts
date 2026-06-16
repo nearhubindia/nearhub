@@ -1,4 +1,10 @@
-import type { AdminUserWriteData, AppScreenBanner, BannerPayload } from '../types/admin-types';
+import type {
+  AdminGrantSubscriptionData,
+  AdminUserDetail,
+  AdminUserWriteData,
+  AppScreenBanner,
+  BannerPayload,
+} from '../types/admin-types';
 import { getApiUrl } from '@/lib/config';
 
 /**
@@ -453,7 +459,7 @@ export const usersApi = {
     return handleResponse(response);
   },
 
-  async getUserById(id: string): Promise<unknown> {
+  async getUserById(id: string): Promise<{ success?: boolean; data?: AdminUserDetail; error?: string }> {
     const response = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
       headers: getAuthHeaders(),
     });
@@ -496,6 +502,15 @@ export const usersApi = {
   async updateUser(id: string, data: AdminUserWriteData): Promise<unknown> {
     const response = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
       method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  async grantUserSubscription(id: string, data: AdminGrantSubscriptionData): Promise<unknown> {
+    const response = await fetch(`${API_BASE_URL}/api/admin/users/${id}/subscriptions`, {
+      method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });

@@ -1,5 +1,5 @@
-# Block committing real env files (allow only *.env.example templates)
-STAGED_ENV_FILES="$(git diff --cached --name-only | grep -E '(^|/)\.env($|\.local|\.development|\.test|\.production)' || true)"
+# Block committing real env files while allowing checked-in example templates.
+STAGED_ENV_FILES="$(git diff --cached --name-only | grep -E '(^|/)\.env($|\.local|\.development|\.test|\.production)' | grep -vE '\.example$' || true)"
 
 if [ -n "$STAGED_ENV_FILES" ]; then
   echo "❌ Commit blocked: staged environment secret files detected."

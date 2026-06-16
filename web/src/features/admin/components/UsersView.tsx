@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { BadgeCheck, Edit2, MapPin, Plus, Search, Trash2 } from 'lucide-react';
+import { BadgeCheck, CreditCard, Edit2, MapPin, Plus, Search, Trash2 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
 import { useDeleteUser, useUsers } from '@/features/admin/hooks';
+import GrantSubscriptionModal from './GrantSubscriptionModal';
 import UserFormModal from './UserFormModal';
 import type { AdminUserRow } from '../types/admin-types';
 
@@ -69,6 +70,7 @@ export default function UsersView() {
   });
   const deleteUser = useDeleteUser();
   const [userModalMode, setUserModalMode] = useState<'create' | 'edit' | null>(null);
+  const [grantSubscriptionUser, setGrantSubscriptionUser] = useState<AdminUserRow | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUserRow | null>(null);
   const allUsers: AdminUserRow[] = Array.isArray(usersData?.data)
@@ -99,6 +101,10 @@ export default function UsersView() {
     setDeleteModalOpen(true);
   };
 
+  const handleGrantSubscriptionClick = (user: AdminUserRow): void => {
+    setGrantSubscriptionUser(user);
+  };
+
   const handleConfirmDelete = async () => {
     if (!selectedUser) return;
     try {
@@ -119,6 +125,10 @@ export default function UsersView() {
   const closeDeleteModal = () => {
     setDeleteModalOpen(false);
     setSelectedUser(null);
+  };
+
+  const closeGrantSubscriptionModal = () => {
+    setGrantSubscriptionUser(null);
   };
 
   const columns: ColumnDef<AdminUserRow>[] = [
@@ -231,8 +241,16 @@ export default function UsersView() {
             className="cursor-pointer rounded-lg p-2 transition hover:bg-teal-100"
             title="Edit User"
             type="button"
+            >
+              <Edit2 size={16} className="text-teal-600" />
+          </button>
+          <button
+            onClick={() => handleGrantSubscriptionClick(row.original)}
+            className="cursor-pointer rounded-lg p-2 transition hover:bg-cyan-100"
+            title="Grant Subscription"
+            type="button"
           >
-            <Edit2 size={16} className="text-teal-600" />
+            <CreditCard size={16} className="text-cyan-600" />
           </button>
           <button
             onClick={() => handleDeleteClick(row.original)}
@@ -330,6 +348,15 @@ export default function UsersView() {
           mode={userModalMode}
           user={selectedUser}
           onClose={closeUserModal}
+          onSaved={refetch}
+        />
+      )}
+
+      {grantSubscriptionUser && (
+        <GrantSubscriptionModal
+          key={`grant-${grantSubscriptionUser.id}`}
+          user={grantSubscriptionUser}
+          onClose={closeGrantSubscriptionModal}
           onSaved={refetch}
         />
       )}

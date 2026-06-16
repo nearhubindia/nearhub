@@ -41,6 +41,33 @@ export function registerAdminListingsRoutes(app: Express) {
     return raw ? raw : undefined;
   };
 
+  const normalizeOptionalDate = (value: unknown): Date | null | undefined => {
+    if (value === null || value === undefined || value === '') return undefined;
+    const date = value instanceof Date ? value : new Date(String(value));
+    return Number.isFinite(date.getTime()) ? date : null;
+  };
+
+  const normalizeOptionalNumber = (value: unknown): number | null | undefined => {
+    if (value === null || value === undefined || value === '') return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const normalizePurchaseLimitType = (value: unknown): 'ONE_TIME' | 'UNLIMITED' | '' => {
+    const normalized = normalizeOptionalText(value)?.toUpperCase();
+    if (normalized === 'ONE_TIME' || normalized === 'UNLIMITED') return normalized;
+    return '';
+  };
+
+  const dropUndefinedValues = <T extends Record<string, unknown>>(value: T): T => {
+    for (const key of Object.keys(value)) {
+      if (value[key] === undefined) {
+        delete value[key];
+      }
+    }
+    return value;
+  };
+
   const normalizeCategoryHierarchy = (input: {
     mainCategory?: unknown;
     subCategory?: unknown;
@@ -117,7 +144,18 @@ export function registerAdminListingsRoutes(app: Express) {
     videos: parseJsonArrayField(listing.videos),
     isDeal: listing.isDeal,
     dealType: listing.dealType,
+    dealStartAt: listing.dealStartAt?.toISOString(),
+    dealEndAt: listing.dealEndAt?.toISOString(),
+    dealRecurrence: listing.dealRecurrence,
+    dealRecurrenceUntil: listing.dealRecurrenceUntil?.toISOString(),
+    dealCycleQuantity: listing.dealCycleQuantity,
+    dealLastCycleKey: listing.dealLastCycleKey,
+    maxDealBookings: listing.maxDealBookings,
+    dealBookingsUsed: listing.dealBookingsUsed,
     purchaseLimitType: listing.purchaseLimitType,
+    comboItems: parseJsonArrayField(listing.comboItems),
+    dealTerms: listing.dealTerms,
+    voucherEnabled: listing.voucherEnabled,
   });
 
   const hasLocalDeviceUri = (value: unknown): boolean => {
@@ -341,6 +379,18 @@ export function registerAdminListingsRoutes(app: Express) {
         featured,
         sponsored,
         contactPhone,
+        isDeal,
+        dealType,
+        dealStartAt,
+        dealEndAt,
+        dealRecurrence,
+        dealRecurrenceUntil,
+        dealCycleQuantity,
+        maxDealBookings,
+        purchaseLimitType,
+        comboItems,
+        dealTerms,
+        voucherEnabled,
       } = req.body;
       const normalizedCategory = normalizeCategoryHierarchy({
         mainCategory,
@@ -394,6 +444,27 @@ export function registerAdminListingsRoutes(app: Express) {
       const normalizedPincode = normalizeOptionalText(pincode);
       const parsedLatitude = parseCoordinateInput(latitude, 'latitude', -90, 90);
       const parsedLongitude = parseCoordinateInput(longitude, 'longitude', -180, 180);
+      const normalizedIsDeal = Boolean(isDeal);
+      const normalizedDealType = normalizeOptionalText(dealType) || 'normal';
+      const normalizedDealStartAt = normalizeOptionalDate(dealStartAt);
+      const normalizedDealEndAt = normalizeOptionalDate(dealEndAt);
+      const normalizedDealRecurrenceInput = normalizeOptionalText(dealRecurrence);
+      const normalizedDealRecurrence =
+        normalizedDealRecurrenceInput &&
+        ['none', 'daily', 'weekly', 'monthly'].includes(normalizedDealRecurrenceInput)
+          ? normalizedDealRecurrenceInput
+          : 'none';
+      const normalizedDealRecurrenceUntil = normalizeOptionalDate(dealRecurrenceUntil);
+      const normalizedDealCycleQuantity = normalizeOptionalNumber(dealCycleQuantity);
+      const normalizedMaxDealBookings = normalizeOptionalNumber(maxDealBookings);
+      const normalizedPurchaseLimitType = normalizePurchaseLimitType(purchaseLimitType);
+      const normalizedComboItems = Array.isArray(comboItems)
+        ? comboItems
+            .map((item) => String(item || '').trim())
+            .filter(Boolean)
+            .slice(0, 20)
+        : [];
+      const normalizedDealTerms = normalizeOptionalText(dealTerms);
 
       if (parsedLatitude.error || parsedLongitude.error) {
         return res.status(400).json({
@@ -409,6 +480,58 @@ export function registerAdminListingsRoutes(app: Express) {
           success: false,
           error: 'Both latitude and longitude are required together',
         });
+      }
+
+      if (normalizedIsDeal) {
+        if (!normalizedPurchaseLimitType) {
+          return res.status(400).json({
+            success: false,
+            error: 'Please select a purchase limit type.',
+            code: 'PURCHASE_LIMIT_REQUIRED',
+          });
+        }
+        if (
+          !normalizedDealStartAt ||
+          !normalizedDealEndAt ||
+          !Number.isFinite(normalizedDealStartAt.getTime()) ||
+          !Number.isFinite(normalizedDealEndAt.getTime())
+        ) {
+          return res.status(400).json({
+            success: false,
+            error: 'Deal start and end time are required for deal listings',
+            code: 'INVALID_DEAL_WINDOW',
+          });
+        }
+        if (normalizedDealEndAt <= normalizedDealStartAt) {
+          return res.status(400).json({
+            success: false,
+            error: 'Deal end time must be after start time',
+            code: 'INVALID_DEAL_WINDOW',
+          });
+        }
+        if (
+          normalizedDealRecurrence !== 'none' &&
+          (!normalizedDealRecurrenceUntil ||
+            !Number.isFinite(normalizedDealRecurrenceUntil.getTime()) ||
+            normalizedDealRecurrenceUntil <= normalizedDealEndAt)
+        ) {
+          return res.status(400).json({
+            success: false,
+            error: 'Recurring deals require a repeat-until date after the first deal window',
+            code: 'INVALID_DEAL_RECURRENCE',
+          });
+        }
+        if (
+          !Number.isFinite(normalizedMaxDealBookings ?? NaN) ||
+          !Number.isInteger(normalizedMaxDealBookings ?? NaN) ||
+          (normalizedMaxDealBookings ?? 0) <= 0
+        ) {
+          return res.status(400).json({
+            success: false,
+            error: 'maxDealBookings must be a positive integer',
+            code: 'INVALID_DEAL_SLOTS',
+          });
+        }
       }
 
       if (
@@ -476,6 +599,24 @@ export function registerAdminListingsRoutes(app: Express) {
         featured: typeof featured === 'boolean' ? featured : false,
         sponsored: typeof sponsored === 'boolean' ? sponsored : false,
         durationDays: Number(durationDays) > 0 ? Number(durationDays) : 30,
+        isDeal: normalizedIsDeal,
+        dealType: normalizedIsDeal ? normalizedDealType : undefined,
+        dealStartAt: normalizedIsDeal ? normalizedDealStartAt ?? undefined : undefined,
+        dealEndAt: normalizedIsDeal ? normalizedDealEndAt ?? undefined : undefined,
+        dealRecurrence: normalizedIsDeal ? normalizedDealRecurrence : undefined,
+        dealRecurrenceUntil:
+          normalizedIsDeal && normalizedDealRecurrence !== 'none'
+            ? normalizedDealRecurrenceUntil ?? undefined
+            : undefined,
+        dealCycleQuantity:
+          normalizedIsDeal && normalizedDealRecurrence !== 'none'
+            ? normalizedDealCycleQuantity ?? undefined
+            : undefined,
+        maxDealBookings: normalizedIsDeal ? normalizedMaxDealBookings ?? undefined : undefined,
+        purchaseLimitType: normalizedIsDeal ? normalizedPurchaseLimitType : undefined,
+        comboItems: normalizedIsDeal ? normalizedComboItems : undefined,
+        dealTerms: normalizedIsDeal ? normalizedDealTerms : undefined,
+        voucherEnabled: normalizedIsDeal ? Boolean(voucherEnabled ?? true) : undefined,
       } as InsertListing);
 
       return res.status(201).json({
@@ -668,6 +809,10 @@ export function registerAdminListingsRoutes(app: Express) {
   app.patch('/api/admin/listings/:id', async (req: AuthRequest, res: Response) => {
     try {
       const id = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
+      const existingListing = await getListingById(id);
+      if (!existingListing) {
+        return notFound(res, 'Listing');
+      }
       const {
         title,
         description,
@@ -689,6 +834,19 @@ export function registerAdminListingsRoutes(app: Express) {
         contactPhone,
         images,
         videos,
+        isDeal,
+        dealType,
+        dealStartAt,
+        dealEndAt,
+        dealRecurrence,
+        dealRecurrenceUntil,
+        dealCycleQuantity,
+        maxDealBookings,
+        dealBookingsUsed,
+        purchaseLimitType,
+        comboItems,
+        dealTerms,
+        voucherEnabled,
       } = req.body;
 
       const updateData: Partial<typeof listings.$inferInsert> = {};
@@ -759,6 +917,7 @@ export function registerAdminListingsRoutes(app: Express) {
       if (featured !== undefined) updateData.featured = featured;
       if (sponsored !== undefined) updateData.sponsored = sponsored;
       if (contactPhone !== undefined) updateData.contactPhone = normalizeContactPhone(contactPhone);
+      if (isDeal !== undefined) updateData.isDeal = Boolean(isDeal);
       if (images !== undefined) {
         if (!Array.isArray(images)) {
           return res.status(400).json({
@@ -794,6 +953,113 @@ export function registerAdminListingsRoutes(app: Express) {
         });
       }
 
+      const normalizedIsDeal =
+        isDeal !== undefined ? Boolean(isDeal) : Boolean((existingListing as any).isDeal);
+      const normalizedDealStartAt = normalizeOptionalDate(dealStartAt);
+      const normalizedDealEndAt = normalizeOptionalDate(dealEndAt);
+      const normalizedDealRecurrenceInput = normalizeOptionalText(dealRecurrence);
+      const normalizedDealRecurrence =
+        normalizedDealRecurrenceInput &&
+        ['none', 'daily', 'weekly', 'monthly'].includes(normalizedDealRecurrenceInput)
+          ? normalizedDealRecurrenceInput
+          : 'none';
+      const normalizedDealRecurrenceUntil = normalizeOptionalDate(dealRecurrenceUntil);
+      const normalizedMaxDealBookings = normalizeOptionalNumber(maxDealBookings);
+      const normalizedDealBookingsUsed = normalizeOptionalNumber(dealBookingsUsed);
+      const normalizedDealCycleQuantity = normalizeOptionalNumber(dealCycleQuantity);
+      const normalizedPurchaseLimitType =
+        purchaseLimitType !== undefined ? normalizePurchaseLimitType(purchaseLimitType) : '';
+      const nextDealType =
+        normalizeOptionalText(dealType) ||
+        (normalizedIsDeal ? normalizeOptionalText((existingListing as any).dealType) : '') ||
+        (normalizedIsDeal ? 'normal' : '');
+      const nextDealStartAt = normalizedDealStartAt ?? normalizeOptionalDate((existingListing as any).dealStartAt);
+      const nextDealEndAt = normalizedDealEndAt ?? normalizeOptionalDate((existingListing as any).dealEndAt);
+      const nextDealRecurrence =
+        normalizedDealRecurrenceInput && normalizedDealRecurrenceInput !== 'none'
+          ? normalizedDealRecurrence
+          : normalizeOptionalText((existingListing as any).dealRecurrence) || 'none';
+      const nextDealRecurrenceUntil =
+        normalizedDealRecurrenceUntil ?? normalizeOptionalDate((existingListing as any).dealRecurrenceUntil);
+      const nextMaxDealBookings =
+        normalizedMaxDealBookings ?? normalizeOptionalNumber((existingListing as any).maxDealBookings);
+      const nextDealBookingsUsed =
+        normalizedDealBookingsUsed ?? normalizeOptionalNumber((existingListing as any).dealBookingsUsed) ?? 0;
+      const nextDealCycleQuantity =
+        normalizedDealCycleQuantity ?? normalizeOptionalNumber((existingListing as any).dealCycleQuantity);
+      const nextPurchaseLimitType =
+        normalizedPurchaseLimitType ||
+        normalizePurchaseLimitType((existingListing as any).purchaseLimitType);
+      const nextComboItems =
+        Array.isArray(comboItems)
+          ? comboItems.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 20)
+          : parseJsonArrayField((existingListing as any).comboItems);
+      const nextDealTerms =
+        normalizeOptionalText(dealTerms) ?? normalizeOptionalText((existingListing as any).dealTerms);
+      const nextVoucherEnabled =
+        voucherEnabled === undefined
+          ? Boolean((existingListing as any).voucherEnabled)
+          : Boolean(voucherEnabled);
+
+      if (normalizedIsDeal) {
+        if (!nextDealStartAt || !nextDealEndAt) {
+          return res.status(400).json({
+            success: false,
+            error: 'Deal start and end time are required for deal listings',
+            code: 'INVALID_DEAL_WINDOW',
+          });
+        }
+        if (nextDealEndAt <= nextDealStartAt) {
+          return res.status(400).json({
+            success: false,
+            error: 'Deal end time must be after start time',
+            code: 'INVALID_DEAL_WINDOW',
+          });
+        }
+        if (!nextPurchaseLimitType) {
+          return res.status(400).json({
+            success: false,
+            error: 'Please select a purchase limit type.',
+            code: 'PURCHASE_LIMIT_REQUIRED',
+          });
+        }
+        if (!nextDealType) {
+          return res.status(400).json({
+            success: false,
+            error: 'Please select a deal type.',
+            code: 'DEAL_TYPE_REQUIRED',
+          });
+        }
+        updateData.isDeal = true;
+        updateData.dealType = nextDealType as any;
+        updateData.purchaseLimitType = nextPurchaseLimitType;
+        updateData.dealStartAt = nextDealStartAt;
+        updateData.dealEndAt = nextDealEndAt;
+        updateData.dealRecurrence = nextDealRecurrence;
+        updateData.dealRecurrenceUntil =
+          nextDealRecurrence !== 'none' ? nextDealRecurrenceUntil ?? null : null;
+        updateData.dealCycleQuantity = nextDealRecurrence !== 'none' ? nextDealCycleQuantity ?? null : null;
+        updateData.maxDealBookings = nextMaxDealBookings ?? null;
+        updateData.dealBookingsUsed = nextDealBookingsUsed ?? 0;
+        updateData.comboItems = JSON.stringify(nextComboItems);
+        updateData.dealTerms = nextDealTerms || null;
+        updateData.voucherEnabled = nextVoucherEnabled;
+      } else if (isDeal === false) {
+        updateData.isDeal = false;
+        updateData.dealType = null;
+        updateData.dealStartAt = null;
+        updateData.dealEndAt = null;
+        updateData.dealRecurrence = 'none';
+        updateData.dealRecurrenceUntil = null;
+        updateData.dealCycleQuantity = null;
+        updateData.maxDealBookings = null;
+        updateData.dealBookingsUsed = 0;
+        updateData.purchaseLimitType = null;
+        updateData.comboItems = null;
+        updateData.dealTerms = null;
+        updateData.voucherEnabled = true;
+      }
+
       const allowedRemoteMediaHosts = getAllowedRemoteMediaHosts();
       if (Array.isArray(images)) {
         const invalidImageUrls = findInvalidRemoteMediaUrls(images, allowedRemoteMediaHosts);
@@ -823,6 +1089,15 @@ export function registerAdminListingsRoutes(app: Express) {
         }
       }
 
+      if (Array.isArray(comboItems) && comboItems.some((item: unknown) => hasLocalDeviceUri(item))) {
+        return res.status(400).json({
+          success: false,
+          error: 'Combo items cannot be local device paths.',
+          code: 'INVALID_COMBO_ITEMS',
+        });
+      }
+
+      dropUndefinedValues(updateData);
       const result = await db
         .update(listings)
         .set(updateData)

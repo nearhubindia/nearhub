@@ -79,7 +79,7 @@ export default function HomeScreen() {
     loadMore,
     hasMore,
   } = useListings();
-  const { user, setUserSearchRadius, setUserLocation } = useAuth();
+  const { user, cachedLocation, setUserSearchRadius, setUserLocation } = useAuth();
   const { trackSave } = useUserInterests();
   const { geoRadiusKm } = useAdminSettings();
   const { groups: categoryGroups } = useListingTaxonomy();
@@ -114,9 +114,10 @@ export default function HomeScreen() {
   const locationUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const startupAutoLocationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const userCity = selectedLocationCity || user?.location?.city || 'Your City';
-  const userLat = selectedLocationLat ?? user?.location?.latitude;
-  const userLon = selectedLocationLon ?? user?.location?.longitude;
+  const userCity =
+    selectedLocationCity || user?.location?.city || cachedLocation?.city || 'Your City';
+  const userLat = selectedLocationLat ?? user?.location?.latitude ?? cachedLocation?.latitude;
+  const userLon = selectedLocationLon ?? user?.location?.longitude ?? cachedLocation?.longitude;
   const effectiveGeoRadiusKm = user?.preferences?.searchRadiusKm ?? geoRadiusKm;
   const visibleListings = useMemo(
     () =>
@@ -406,7 +407,9 @@ export default function HomeScreen() {
     const hasResolvedLocation =
       (selectedLocationLat !== null && selectedLocationLon !== null) ||
       (typeof user?.location?.latitude === 'number' &&
-        typeof user?.location?.longitude === 'number');
+        typeof user?.location?.longitude === 'number') ||
+      (typeof cachedLocation?.latitude === 'number' &&
+        typeof cachedLocation?.longitude === 'number');
 
     if (hasResolvedLocation) {
       setIsBootstrappingLocation(false);
@@ -446,6 +449,8 @@ export default function HomeScreen() {
     };
   }, [
     autoDetectLocation,
+    cachedLocation?.latitude,
+    cachedLocation?.longitude,
     selectedLocationLat,
     selectedLocationLon,
     user?.location?.latitude,
@@ -575,8 +580,20 @@ export default function HomeScreen() {
   );
 
   const deals = useMemo(
-    () => dealsSourceListings.filter((listing) => isNewProductDeal(listing)).slice(0, 4),
-    [dealsSourceListings]
+    () =>
+      dealsSourceListings
+        .filter((listing) => isNewProductDeal(listing))
+        .sort((a, b) => {
+          const distanceA = distanceByListingId.get(a.id) ?? Number.POSITIVE_INFINITY;
+          const distanceB = distanceByListingId.get(b.id) ?? Number.POSITIVE_INFINITY;
+          if (distanceA !== distanceB) {
+            return distanceA - distanceB;
+          }
+
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        })
+        .slice(0, 4),
+    [dealsSourceListings, distanceByListingId]
   );
 
   const showDealsSection = deals.length > 0;

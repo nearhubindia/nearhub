@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDemandMultiplier } from '@/lib/location-data';
+import {
+  loadCachedLocation,
+  saveCachedLocation,
+  type CachedLocation,
+} from '@/lib/location-cache';
 
 const AUTH_USER_KEY = '@nearhub_auth_user';
 
@@ -91,6 +96,7 @@ interface AuthContextValue {
   hasActivePlan: boolean;
   currentPlan: PlanDetails | null;
   userCity: string | null;
+  cachedLocation: CachedLocation | null;
   plans: PlanDetails[];
   login: (user: User) => Promise<void>;
   logout: () => Promise<void>;
@@ -133,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userCity, setUserCity] = useState<string | null>(null);
+  const [cachedLocation, setCachedLocation] = useState<CachedLocation | null>(null);
 
   useEffect(() => {
     loadUser();
@@ -140,14 +147,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadUser = async () => {
     try {
-      const stored = await AsyncStorage.getItem(AUTH_USER_KEY);
+      const [stored, storedLocation] = await Promise.all([
+        AsyncStorage.getItem(AUTH_USER_KEY),
+        loadCachedLocation(),
+      ]);
       if (stored) {
         const userData = JSON.parse(stored);
         setUser(userData);
         if (userData.location?.city) {
           setUserCity(userData.location.city);
         }
+        if (
+          userData.location &&
+          typeof userData.location.latitude === 'number' &&
+          typeof userData.location.longitude === 'number'
+        ) {
+          const nextCachedLocation = {
+            latitude: userData.location.latitude,
+            longitude: userData.location.longitude,
+            city: userData.location.city,
+            state: userData.location.state,
+          };
+          setCachedLocation({ ...nextCachedLocation, updatedAt: new Date().toISOString() });
+          await saveCachedLocation(nextCachedLocation);
+          return;
+        }
       }
+      setCachedLocation(storedLocation);
     } catch (e) {
       console.error('Failed to load user:', e);
     } finally {
@@ -164,6 +190,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (userData.location?.city) {
       setUserCity(userData.location.city);
     }
+    if (userData.location) {
+      const nextCachedLocation = {
+        latitude: userData.location.latitude,
+        longitude: userData.location.longitude,
+        city: userData.location.city,
+        state: userData.location.state,
+      };
+      setCachedLocation({ ...nextCachedLocation, updatedAt: new Date().toISOString() });
+      await saveCachedLocation(nextCachedLocation);
+    }
     await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser));
   };
 
@@ -179,6 +215,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(updated);
     if (updated.location?.city) {
       setUserCity(updated.location.city);
+    }
+    if (updated.location) {
+      const nextCachedLocation = {
+        latitude: updated.location.latitude,
+        longitude: updated.location.longitude,
+        city: updated.location.city,
+        state: updated.location.state,
+      };
+      setCachedLocation({ ...nextCachedLocation, updatedAt: new Date().toISOString() });
+      await saveCachedLocation(nextCachedLocation);
     }
     await AsyncStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
   };
@@ -198,10 +244,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     city: string,
     state: string
   ) => {
+    const nextLocation = { latitude, longitude, city, state };
+    setCachedLocation({ ...nextLocation, updatedAt: new Date().toISOString() });
+    await saveCachedLocation(nextLocation);
+
     if (!user) return;
+
     const updated = {
       ...user,
-      location: { latitude, longitude, city, state },
+      location: nextLocation,
       preferences: {
         ...user.preferences,
         autoLocalizeListings: true,
@@ -269,6 +320,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hasActivePlan,
       currentPlan,
       userCity,
+      cachedLocation,
       plans: dynamicPlans,
       login,
       logout,
@@ -278,7 +330,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUserSearchRadius,
       getDynamicPlans,
     }),
-    [user, isLoading, hasActivePlan, currentPlan, userCity, dynamicPlans]
+    [user, isLoading, hasActivePlan, currentPlan, userCity, cachedLocation, dynamicPlans]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Listing, Category } from '@/lib/types';
 import { getBackendURL, getDebug } from '@/lib/config';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
+import { loadCachedLocation } from '@/lib/location-cache';
 
 type DealListingInput = {
   isDeal?: boolean;
@@ -250,11 +251,12 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         }
 
         const backendURL = getBackendURL();
-        const [dataVersion, cachedListingsStr, savedStr, userDataStr] = await Promise.all([
+        const [dataVersion, cachedListingsStr, savedStr, userDataStr, cachedLocation] = await Promise.all([
           AsyncStorage.getItem(DATA_VERSION_KEY),
           AsyncStorage.getItem(LISTINGS_KEY),
           AsyncStorage.getItem(SAVED_KEY),
           AsyncStorage.getItem('@nearhub_auth_user'),
+          loadCachedLocation(),
         ]);
 
         if (savedStr) {
@@ -304,6 +306,15 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
             userRadiusKm = Number(userData?.preferences?.searchRadiusKm || 50) || 50;
           } catch (userError) {
             console.warn('[Listings] Could not parse user data for geo-filtering:', userError);
+          }
+        }
+
+        if (cachedLocation) {
+          if (!Number.isFinite(userLatitude as number)) {
+            userLatitude = cachedLocation.latitude;
+          }
+          if (!Number.isFinite(userLongitude as number)) {
+            userLongitude = cachedLocation.longitude;
           }
         }
 
@@ -951,6 +962,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       let userRadiusKm = 50;
       try {
         const userDataStr = await AsyncStorage.getItem('@nearhub_auth_user');
+        const cachedLocation = await loadCachedLocation();
         if (userDataStr) {
           const userData = JSON.parse(userDataStr);
           authUserId = String(userData?.id || '');
@@ -958,6 +970,14 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           userLatitude = Number(userData?.location?.latitude);
           userLongitude = Number(userData?.location?.longitude);
           userRadiusKm = Number(userData?.preferences?.searchRadiusKm || 50) || 50;
+        }
+        if (cachedLocation) {
+          if (!Number.isFinite(userLatitude)) {
+            userLatitude = cachedLocation.latitude;
+          }
+          if (!Number.isFinite(userLongitude)) {
+            userLongitude = cachedLocation.longitude;
+          }
         }
       } catch {
         // Best-effort auth header attachment; continue without auth headers.

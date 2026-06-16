@@ -45,8 +45,12 @@ export interface Listing {
   dealType?: 'normal' | 'combo' | string | null;
   dealStartAt?: string | null;
   dealEndAt?: string | null;
+  dealRecurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | string | null;
+  dealRecurrenceUntil?: string | null;
+  dealCycleQuantity?: number | null;
   maxDealBookings?: number | null;
   dealBookingsUsed?: number | null;
+  purchaseLimitType?: 'ONE_TIME' | 'UNLIMITED' | string | null;
   comboItems?: string[] | string | null;
   dealTerms?: string | null;
   voucherEnabled?: boolean;
@@ -89,12 +93,51 @@ export interface AdminUserRow {
   isVerified?: boolean;
 }
 
+export interface AdminSubscriptionTier {
+  id?: string;
+  name?: string;
+  type?: string;
+  description?: string;
+  price?: string | number;
+  offerPrice?: string | number | null;
+  durationDays?: number;
+  maxListings?: number;
+  boostCredits?: number;
+  features?: string[] | string;
+  highlight?: boolean;
+}
+
+export interface AdminUserSubscription {
+  id: string;
+  userId: string;
+  subscriptionTierId: string;
+  status: string;
+  expiresAt: string;
+  subscribedAt?: string;
+  updatedAt?: string;
+  autoRenew?: boolean;
+  boostsRemaining?: number;
+  paymentId?: string | null;
+  orderId?: string | null;
+  invoiceId?: string | null;
+  tier?: AdminSubscriptionTier | null;
+}
+
+export interface AdminUserDetail extends AdminUserRow {
+  subscriptions?: AdminUserSubscription[];
+}
+
 export interface AdminUserWriteData {
   displayName?: string;
   username?: string;
   mobile: string;
   location: string;
   isVerified: boolean;
+}
+
+export interface AdminGrantSubscriptionData {
+  tierId: string;
+  durationDays?: number;
 }
 
 export interface AppScreenBanner {

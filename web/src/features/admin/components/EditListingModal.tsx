@@ -6,6 +6,7 @@ import {
   AdminListingLocationFields,
   AdminListingPriceFields,
 } from '@/features/admin/components/AdminListingFormFields';
+import { AdminDealFields } from '@/features/admin/components/AdminDealFields';
 import { AdminListingModalFrame } from '@/features/admin/components/AdminListingModalFrame';
 import {
   getDefaultAdminSubCategory,
@@ -22,6 +23,34 @@ import {
 interface EditListingModalProps {
   listing: Listing | null;
   onClose: () => void;
+}
+
+function toLocalDateTimeValue(value?: string | null): string {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  const pad = (num: number): string => String(num).padStart(2, '0');
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(
+    parsed.getHours()
+  )}:${pad(parsed.getMinutes())}`;
+}
+
+function toIsoFromLocal(value: string): string | undefined {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
+function parseComboItemsText(value?: string[] | string | null): string {
+  if (!value) return '';
+  const list = Array.isArray(value)
+    ? value
+    : String(value)
+        .split(/[\n,]/g)
+        .map((item) => item.trim())
+        .filter(Boolean);
+  return list.join('\n');
 }
 
 export default function EditListingModal({ listing, onClose }: EditListingModalProps) {
@@ -50,6 +79,18 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
         : '',
     status: listing?.status ?? 'active',
     contactPhone: listing?.contactPhone ?? '',
+    isDeal: Boolean(listing?.isDeal),
+    dealType: String(listing?.dealType || 'normal'),
+    dealStartAt: toLocalDateTimeValue(listing?.dealStartAt),
+    dealEndAt: toLocalDateTimeValue(listing?.dealEndAt),
+    purchaseLimitType: String(listing?.purchaseLimitType || 'ONE_TIME'),
+    maxDealBookings:
+      listing?.maxDealBookings !== null && listing?.maxDealBookings !== undefined
+        ? String(listing.maxDealBookings)
+        : '',
+    comboItemsText: parseComboItemsText(listing?.comboItems),
+    dealTerms: listing?.dealTerms ?? '',
+    voucherEnabled: listing?.voucherEnabled ?? true,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [enhancements, setEnhancements] = useState<Enhancements>({
@@ -131,6 +172,12 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
     }
 
     try {
+      const dealStartAt = toIsoFromLocal(formData.dealStartAt);
+      const dealEndAt = toIsoFromLocal(formData.dealEndAt);
+      const comboItems = formData.comboItemsText
+        .split(/[\n,]/g)
+        .map((item) => item.trim())
+        .filter(Boolean);
       const payload: Record<string, unknown> = {
         title: formData.title,
         description: formData.description,
@@ -144,6 +191,15 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
         contactPhone: String(formData.contactPhone || '').trim(),
         sponsored,
         ...enhancements,
+        isDeal: formData.isDeal,
+        dealType: formData.isDeal ? formData.dealType : undefined,
+        dealStartAt: formData.isDeal ? dealStartAt : undefined,
+        dealEndAt: formData.isDeal ? dealEndAt : undefined,
+        purchaseLimitType: formData.isDeal ? formData.purchaseLimitType : undefined,
+        maxDealBookings: formData.isDeal && formData.maxDealBookings ? Number(formData.maxDealBookings) : undefined,
+        comboItems: formData.isDeal && formData.dealType === 'combo' ? comboItems : undefined,
+        dealTerms: formData.isDeal ? formData.dealTerms : undefined,
+        voucherEnabled: formData.isDeal ? formData.voucherEnabled : undefined,
       };
 
       payload.pincode = validation.pincode || null;
@@ -152,6 +208,22 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
 
       if (formData.offerPrice && Number(formData.offerPrice) > 0) {
         payload.offerPrice = Number(formData.offerPrice);
+      }
+
+      if (formData.isDeal) {
+        if (!dealStartAt || !dealEndAt) {
+          setFormErrors({
+            dealStartAt: 'Deal start and end time are required',
+            dealEndAt: 'Deal start and end time are required',
+          });
+          return;
+        }
+        if (new Date(dealEndAt).getTime() <= new Date(dealStartAt).getTime()) {
+          setFormErrors({
+            dealEndAt: 'Deal end time must be after start time',
+          });
+          return;
+        }
       }
 
       await updateListing.mutateAsync({
@@ -309,6 +381,14 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
           />
         </div>
       </div>
+
+      <AdminDealFields
+        formData={formData}
+        setFormData={setFormData}
+        inputClass={inputClass}
+        labelClass={labelClass}
+        formErrors={formErrors}
+      />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
         <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">

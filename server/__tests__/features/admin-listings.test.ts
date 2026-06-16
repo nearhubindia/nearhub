@@ -132,4 +132,70 @@ describe('Admin Listings API', () => {
     expect(response.body?.success).toBe(false);
     expect(String(response.body?.error || '')).toMatch(/seller/i);
   });
+
+  it('allows admin to upgrade an existing listing into a deal', async () => {
+    const app = createTestApp();
+    const token = await loginAsAdmin(app);
+    const sellerId = randomUUID();
+    const sellerUsername = `seller-${sellerId.slice(0, 8)}`;
+    const sellerMobile = '9876501234';
+
+    await seedSellerUser({
+      id: sellerId,
+      username: sellerUsername,
+      mobile: sellerMobile,
+    });
+
+    const createResponse = await request(app)
+      .post('/api/admin/listings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        userId: sellerUsername,
+        title: 'Promotable listing',
+        description: 'Will be upgraded into a deal',
+        category: 'Electronics',
+        price: 1499,
+        condition: 'good',
+        location: 'Kurnool',
+        contactPhone: sellerMobile,
+        images: ['https://example.com/photo.jpg'],
+        videos: [],
+        listingType: 'image',
+        status: 'active',
+        isActive: true,
+        featured: false,
+        sponsored: false,
+      });
+
+    expect(createResponse.status).toBe(201);
+    const listingId = createResponse.body?.data?.id;
+    expect(typeof listingId).toBe('string');
+    if (listingId) {
+      createdListingIds.add(listingId);
+    }
+
+    const start = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const end = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString();
+
+    const updateResponse = await request(app)
+      .patch(`/api/admin/listings/${listingId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        isDeal: true,
+        dealType: 'normal',
+        dealStartAt: start,
+        dealEndAt: end,
+        purchaseLimitType: 'ONE_TIME',
+        maxDealBookings: 12,
+        dealTerms: 'Valid for the upcoming test window',
+        voucherEnabled: true,
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body?.success).toBe(true);
+    expect(updateResponse.body?.data?.isDeal).toBe(true);
+    expect(updateResponse.body?.data?.dealType).toBe('normal');
+    expect(updateResponse.body?.data?.dealStartAt).toBe(start);
+    expect(updateResponse.body?.data?.purchaseLimitType).toBe('ONE_TIME');
+  });
 });

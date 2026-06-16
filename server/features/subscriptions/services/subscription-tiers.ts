@@ -267,6 +267,45 @@ export async function createUserSubscription(
 }
 
 /**
+ * Grant an active subscription to a user without payment flow.
+ * Intended for admin/manual issuance.
+ */
+export async function grantUserSubscription(
+  userId: string,
+  subscriptionTierId: string,
+  expiresAt: Date,
+  options: {
+    paymentId?: string | null;
+    orderId?: string | null;
+    invoiceId?: string | null;
+    couponId?: string | null;
+  } = {}
+): Promise<UserSubscription> {
+  const tier = await getSubscriptionTierById(subscriptionTierId);
+  const tierBoostCredits = tier
+    ? Number((tier as any).boostCredits || tier.featuredListingsPerMonth || 0)
+    : 0;
+
+  const result = await db
+    .insert(userSubscriptions)
+    .values({
+      userId,
+      subscriptionTierId,
+      expiresAt,
+      paymentId: options.paymentId ?? null,
+      orderId: options.orderId ?? null,
+      invoiceId: options.invoiceId ?? null,
+      couponId: options.couponId ?? null,
+      boostsRemaining: tierBoostCredits,
+      status: 'active',
+      autoRenew: false,
+    })
+    .returning();
+
+  return result[0];
+}
+
+/**
  * Get total remaining boost credits from all active subscriptions
  */
 export async function getUserBoostCreditsSummary(userId: string): Promise<{

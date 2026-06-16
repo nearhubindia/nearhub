@@ -98,6 +98,15 @@ declare module 'http' {
 }
 
 function setupCors(app: express.Application) {
+  const allowedOrigins = new Set(
+    SERVER_CONFIG.CORS_ALLOWED_ORIGINS.map((origin) => String(origin || '').trim()).filter(Boolean)
+  );
+
+  if (process.env.NODE_ENV === 'production') {
+    allowedOrigins.add('https://nearhub.in');
+    allowedOrigins.add('https://www.nearhub.in');
+  }
+
   app.use((req, res, next) => {
     const origin = req.header('origin');
 
@@ -105,9 +114,6 @@ function setupCors(app: express.Application) {
     if (req.path.includes('/api/')) {
       debugCors(`[CORS] ${req.method} ${req.path} from origin: ${origin || '(no origin)'}`);
     }
-
-    // Build allowed origins list
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()) || [];
 
     // Allow localhost origins for development (any port)
     const isLocalhost =
@@ -122,7 +128,10 @@ function setupCors(app: express.Application) {
     // For development: be permissive; for production: check allowlist
     const isDevelopment = process.env.NODE_ENV !== 'production';
     const isOriginAllowed =
-      origin && (allowedOrigins.includes(origin) || isLocalhost || isLocalNetwork);
+      origin &&
+      (allowedOrigins.has(origin) ||
+        (SERVER_CONFIG.CORS_ALLOW_LOCALHOST && isLocalhost) ||
+        (SERVER_CONFIG.CORS_ALLOW_LOCAL_NETWORK && isLocalNetwork));
     const shouldAllow = isDevelopment || isOriginAllowed;
 
     if (shouldAllow) {
@@ -137,6 +146,9 @@ function setupCors(app: express.Application) {
     }
 
     if (req.method === 'OPTIONS') {
+      if (!shouldAllow) {
+        return res.sendStatus(403);
+      }
       return res.sendStatus(200);
     }
 

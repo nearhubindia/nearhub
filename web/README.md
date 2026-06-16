@@ -16,6 +16,8 @@ Notes:
 - Deploying without explicit branch may publish to preview (`master`) and not reflect on production.
 - The Cloudflare deploy script auto-loads `web/.env.deploy` first and now fails fast if `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, or `CLOUDFLARE_PAGES_PROJECT` are missing.
 - Copy [`web/.env.deploy.example`](/home/pavanprasad/Downloads/nearhub/web/.env.deploy.example) to [`web/.env.deploy`](/home/pavanprasad/Downloads/nearhub/web/.env.deploy) for Nearhub-specific Cloudflare Pages values.
+- Set `VITE_API_URL=https://api.nearhub.in` in `web/.env.deploy` for production so the browser never targets `localhost:5000`.
+- For web push, set a real Firebase `VITE_FIREBASE_WEB_PUSH_VAPID_KEY`; the app now skips token registration if the key is missing or invalid.
 
 Currently, two official plugins are available:
 

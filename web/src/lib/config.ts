@@ -3,52 +3,69 @@
  * Centralized environment variable management for the admin panel
  */
 
+const PRODUCTION_API_URL = 'https://api.nearhub.in';
+
+function normalizeUrl(value: string): string {
+  return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function isLocalhostHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return (
+    normalized === 'localhost' ||
+    normalized === '127.0.0.1' ||
+    normalized === '::1' ||
+    normalized === '[::1]' ||
+    normalized.endsWith('.local')
+  );
+}
+
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function isLocalApiUrl(value: string): boolean {
+  try {
+    return isLocalhostHost(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+}
+
 export const getApiUrl = (): string => {
-  const configuredUrl = (import.meta.env.VITE_API_URL || '').trim();
+  const configuredUrl = normalizeUrl(import.meta.env.VITE_API_URL || '');
 
   if (typeof window !== 'undefined') {
     const currentHost = window.location.hostname.toLowerCase();
-    const isNearhubProductionHost =
-      currentHost === 'nearhub.in' ||
-      currentHost === 'www.nearhub.in' ||
-      currentHost === '56.228.28.36';
-    const isCurrentLocal =
-      currentHost === 'localhost' || currentHost === '127.0.0.1' || currentHost.endsWith('.local');
-
-    // Production should use the same origin front door, where nginx splits
-    // frontend traffic to Pages and /api traffic to the backend.
-    if (isNearhubProductionHost) {
-      return window.location.origin;
-    }
+    const isCurrentLocal = isLocalhostHost(currentHost);
 
     if (configuredUrl) {
-      try {
-        const parsed = new URL(configuredUrl, window.location.origin);
-        const configuredHost = parsed.hostname.toLowerCase();
-        const isConfiguredLocal =
-          configuredHost === 'localhost' ||
-          configuredHost === '127.0.0.1' ||
-          configuredHost.endsWith('.local');
-
-        // In production domains, ignore localhost API values and use same-origin /api routing.
-        if (!isCurrentLocal && isConfiguredLocal) {
-          return window.location.origin;
+      if (isValidHttpUrl(configuredUrl)) {
+        if (!isCurrentLocal && isLocalApiUrl(configuredUrl)) {
+          return PRODUCTION_API_URL;
         }
-      } catch {
-        // Keep fallback behavior below for invalid URLs.
+        return configuredUrl;
       }
-      return configuredUrl;
     }
 
     if (!isCurrentLocal) {
-      return window.location.origin;
+      return PRODUCTION_API_URL;
     }
 
     const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
     return `${protocol}//${window.location.hostname}:5000`;
   }
 
-  return configuredUrl || 'http://localhost:5000';
+  if (configuredUrl && isValidHttpUrl(configuredUrl)) {
+    return configuredUrl;
+  }
+
+  return PRODUCTION_API_URL;
 };
 
 export const getApiTimeout = (): number => {

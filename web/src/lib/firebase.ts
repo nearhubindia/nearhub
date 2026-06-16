@@ -61,8 +61,38 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-3RDDBXSGB0',
 };
 
-const webPushVapidKey =
-  import.meta.env.VITE_FIREBASE_WEB_PUSH_VAPID_KEY || 'xaZd4Q14dPjngmVvD_b0Axthy4y5AvOswSRSRUbMEds';
+function normalizeWebPushVapidKey(value: string | undefined): string | null {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  return raw.replace(/\s+/g, '');
+}
+
+function base64UrlToUint8Array(value: string): Uint8Array | null {
+  try {
+    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
+function isValidWebPushVapidKey(value: string | null): value is string {
+  if (!value) return false;
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) return false;
+
+  const decoded = base64UrlToUint8Array(value);
+  return Boolean(decoded && decoded.length === 65);
+}
+
+const webPushVapidKey = normalizeWebPushVapidKey(
+  import.meta.env.VITE_FIREBASE_WEB_PUSH_VAPID_KEY
+);
 
 let appInstance: FirebaseApp | null = null;
 let analyticsPromise: Promise<Analytics | null> | null = null;
@@ -271,6 +301,13 @@ export async function registerWebPushToken(user: {
 
   const messaging = await getMessagingInstance();
   if (!messaging) return;
+
+  if (!isValidWebPushVapidKey(webPushVapidKey)) {
+    console.warn(
+      '[Web Push] Skipping FCM token registration because VITE_FIREBASE_WEB_PUSH_VAPID_KEY is missing or invalid.'
+    );
+    return;
+  }
 
   const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
   const token = await getToken(messaging, {

@@ -25,7 +25,13 @@ import {
   type ContactSubmission,
   type ErrorLog,
 } from '../api';
-import type { AdminUserWriteData, BannerPayload, Listing } from '../types/admin-types';
+import type {
+  AdminGrantSubscriptionData,
+  AdminUserDetail,
+  AdminUserWriteData,
+  BannerPayload,
+  Listing,
+} from '../types/admin-types';
 
 interface ListingsQueryData {
   data?: Listing[];
@@ -515,9 +521,9 @@ export function useUsers(params?: { limit?: number; offset?: number; search?: st
 }
 
 export function useUserById(id: string) {
-  return useQuery({
-    queryKey: adminKeys.usersList(),
-    queryFn: () => usersApi.getUserById(id),
+  return useQuery<{ success?: boolean; data?: AdminUserDetail; error?: string }>({
+    queryKey: adminKeys.userDetail(id),
+    queryFn: () => usersApi.getUserById(id) as Promise<{ success?: boolean; data?: AdminUserDetail; error?: string }>,
     enabled: !!id,
     staleTime: STALE_TIME,
     gcTime: CACHE_TIME,
@@ -550,6 +556,23 @@ export function useDeleteUser() {
     mutationFn: (id: string) => usersApi.deleteUser(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });
+    },
+  });
+}
+
+export function useGrantUserSubscription() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: AdminGrantSubscriptionData;
+    }) => usersApi.grantUserSubscription(id, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.users() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.userDetail(variables.id) });
     },
   });
 }

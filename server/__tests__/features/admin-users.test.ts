@@ -2,12 +2,15 @@ import { randomUUID } from 'crypto';
 import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { db } from '../../data/db';
+import { subscriptionTiers, userSubscriptions } from '../../features/admin/models/admin-settings';
 import { users } from '../../features/users/models/users';
 import { removeUserProfile, upsertUser } from '../../features/users/services/user-profiles';
 import { createTestApp } from '../setup/test-app';
 
 describe('Admin Users API', () => {
   const seededUserIds = new Set<string>();
+  const seededTierIds = new Set<string>();
+  const seededSubscriptionIds = new Set<string>();
 
   async function loginAsAdmin(app: ReturnType<typeof createTestApp>): Promise<string> {
     const response = await request(app).post('/api/admin/login').send({
@@ -42,6 +45,16 @@ describe('Admin Users API', () => {
   }
 
   afterEach(async () => {
+    for (const subscriptionId of seededSubscriptionIds) {
+      await db.delete(userSubscriptions).where(eq(userSubscriptions.id, subscriptionId));
+    }
+    seededSubscriptionIds.clear();
+
+    for (const tierId of seededTierIds) {
+      await db.delete(subscriptionTiers).where(eq(subscriptionTiers.id, tierId));
+    }
+    seededTierIds.clear();
+
     for (const userId of seededUserIds) {
       removeUserProfile(userId);
       await db.delete(users).where(eq(users.id, userId));
@@ -129,5 +142,61 @@ describe('Admin Users API', () => {
     expect(detailResponse.body?.success).toBe(true);
     expect(detailResponse.body?.data?.displayName).toBe('Demo Seller');
     expect(detailResponse.body?.data?.mobile).toBe(mobile);
+  });
+
+  it('allows admin to grant a subscription to a user', async () => {
+    const app = createTestApp();
+    const token = await loginAsAdmin(app);
+    const userId = randomUUID();
+    const tierId = randomUUID();
+
+    await seedPlaceholderUser({
+      id: userId,
+      displayName: 'Grant Target',
+      mobile: '9123456780',
+    });
+
+    await db
+      .insert(subscriptionTiers)
+      .values({
+        id: tierId,
+        name: 'Admin Grant Tier',
+        type: 'bundle',
+        description: 'Tier for admin grant testing',
+        monthlyPrice: '299',
+        annualPrice: '2999',
+        price: '299',
+        offerPrice: '199',
+        durationDays: 30,
+        features: JSON.stringify(['maxListings']),
+        maxListings: 10,
+        featuredListingsPerMonth: 1,
+        boostCredits: 2,
+        highlight: false,
+        isActive: true,
+      })
+      .returning();
+    seededTierIds.add(tierId);
+
+    const response = await request(app)
+      .post(`/api/admin/users/${userId}/subscriptions`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        tierId,
+        durationDays: 45,
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body?.success).toBe(true);
+    expect(response.body?.data?.userId).toBe(userId);
+    expect(response.body?.data?.tierId).toBe(tierId);
+    expect(response.body?.data?.status).toBe('active');
+    expect(response.body?.data?.boostsRemaining).toBe(2);
+    expect(typeof response.body?.data?.id).toBe('string');
+
+    const createdSubscriptionId = String(response.body?.data?.id || '');
+    if (createdSubscriptionId) {
+      seededSubscriptionIds.add(createdSubscriptionId);
+    }
   });
 });
