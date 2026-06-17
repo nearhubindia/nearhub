@@ -301,6 +301,7 @@ export function registerPushNotificationRoutes(app: Express) {
         sound,
         badge,
         channelId,
+        actionUrl,
         dealUrl,
         listingId,
         imageUrl,
@@ -323,10 +324,15 @@ export function registerPushNotificationRoutes(app: Express) {
         body,
         data: {
           ...(data && typeof data === "object" ? data : {}),
+          ...(typeof actionUrl === "string" && actionUrl.trim()
+            ? { actionUrl: actionUrl.trim() }
+            : {}),
           ...(typeof listingId === "string" && listingId.trim()
             ? {
                 listingId: listingId.trim(),
-                actionUrl: `/listing/${encodeURIComponent(listingId.trim())}`,
+                ...(typeof actionUrl === "string" && actionUrl.trim()
+                  ? {}
+                  : { actionUrl: `/listing/${encodeURIComponent(listingId.trim())}` }),
               }
             : {}),
         },

@@ -102,7 +102,9 @@ export async function notifyPriceDrop(
 export async function notifyListingExpiringSoon(
   listing: Listing,
   userId: string,
-  daysLeft: number
+  daysLeft: number,
+  reminderDays?: number,
+  reminderKey?: string
 ): Promise<void> {
   try {
     await sendPushToUser(userId, {
@@ -112,8 +114,12 @@ export async function notifyListingExpiringSoon(
         type: 'expiring_soon',
         listingId: listing.id,
         daysLeft,
+        reminderDays: reminderDays ?? daysLeft,
+        expiresAt: listing.expiresAt ? new Date(listing.expiresAt).toISOString() : undefined,
+        reminderKey,
       },
       channelId: 'default',
+      priority: 'high',
     });
 
     console.log(`[Auto-Notify] Expiring soon notification sent for: ${listing.title}`);
@@ -130,7 +136,8 @@ export async function notifyNewMessage(
   senderName: string,
   message: string,
   conversationId: string,
-  senderId?: string
+  senderId?: string,
+  listingId?: string
 ): Promise<void> {
   try {
     const normalizedRecipient = String(recipientId || '').trim();
@@ -151,7 +158,11 @@ export async function notifyNewMessage(
       data: {
         type: 'message',
         conversationId,
+        ...(listingId ? { listingId } : {}),
         sender: senderName,
+        actionUrl: listingId
+          ? `/chat/${encodeURIComponent(listingId)}?conversationId=${encodeURIComponent(conversationId)}`
+          : `/chat/${encodeURIComponent(conversationId)}?conversationId=${encodeURIComponent(conversationId)}`,
       },
       channelId: 'messages',
       priority: 'high',
@@ -221,7 +232,9 @@ export async function notifyListingSold(
 export async function notifySubscriptionRenewal(
   userId: string,
   planName: string,
-  expiresAt: Date
+  expiresAt: Date,
+  reminderDays?: number,
+  reminderKey?: string
 ): Promise<void> {
   try {
     const daysLeft = Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -234,8 +247,11 @@ export async function notifySubscriptionRenewal(
         planName,
         expiresAt: expiresAt.toISOString(),
         daysLeft,
+        reminderDays: reminderDays ?? daysLeft,
+        reminderKey,
       },
       channelId: 'default',
+      priority: 'high',
     });
 
     console.log(`[Auto-Notify] Renewal reminder sent to user: ${userId}`);

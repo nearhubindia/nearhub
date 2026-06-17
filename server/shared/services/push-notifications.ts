@@ -33,6 +33,7 @@ export interface SendPushNotificationOptions {
   title: string;
   body: string;
   data?: Record<string, any>;
+  actionUrl?: string;
   dealUrl?: string;
   listingId?: string;
   imageUrl?: string;
@@ -436,10 +437,16 @@ function createPushMessages(
   const listingId = String(
     options.listingId || options.data?.listingId || "",
   ).trim();
-  const listingUrl = listingId
-    ? `/listing/${encodeURIComponent(listingId)}`
-    : "";
-  const targetUrl = options.dealUrl || listingUrl;
+  const listingUrl = listingId ? `/listing/${encodeURIComponent(listingId)}` : "";
+  const explicitTarget = String(
+    options.actionUrl ||
+      options.dealUrl ||
+      options.data?.actionUrl ||
+      options.data?.url ||
+      options.data?.dealUrl ||
+      "",
+  ).trim();
+  const targetUrl = explicitTarget || listingUrl;
 
   return validTokens.map((token) => ({
     to: token,
@@ -448,8 +455,8 @@ function createPushMessages(
     body: options.body,
     data: {
       ...(options.data || {}),
-      ...(listingId ? { listingId, actionUrl: listingUrl } : {}),
-      ...(targetUrl ? { dealUrl: targetUrl, url: targetUrl } : {}),
+      ...(listingId ? { listingId } : {}),
+      ...(targetUrl ? { actionUrl: targetUrl, dealUrl: targetUrl, url: targetUrl } : {}),
     },
     badge: options.badge,
     channelId: options.channelId || "default",
@@ -578,7 +585,12 @@ async function sendWebPushMessages(
   }
 
   const link = String(
-    options.dealUrl || options.data?.url || options.data?.dealUrl || "",
+    options.actionUrl ||
+      options.dealUrl ||
+      options.data?.actionUrl ||
+      options.data?.url ||
+      options.data?.dealUrl ||
+      "",
   ).trim() || "https://nearhub.in/";
   const data = Object.fromEntries(
     Object.entries(options.data || {}).map(([key, value]) => [key, String(value)]),
@@ -594,7 +606,7 @@ async function sendWebPushMessages(
       data: {
         ...data,
         ...(options.listingId ? { listingId: String(options.listingId) } : {}),
-        ...(link ? { url: link, dealUrl: link } : {}),
+        ...(link ? { actionUrl: link, url: link, dealUrl: link } : {}),
       },
       webpush: {
         fcmOptions: {

@@ -43,9 +43,16 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       id,
       duration: notification.duration,
     };
+    const isActionableNotification = Boolean(
+      completeNotification.data?.actionUrl ||
+        completeNotification.data?.url ||
+        completeNotification.data?.dealUrl ||
+        completeNotification.data?.listingId ||
+        completeNotification.data?.conversationId
+    );
 
     setNotifications((prev) => [...prev, completeNotification]);
-    if (completeNotification.type === 'message') {
+    if (completeNotification.type === 'message' || isActionableNotification) {
       setPopupNotification(completeNotification);
     }
 

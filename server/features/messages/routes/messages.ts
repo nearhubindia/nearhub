@@ -494,11 +494,16 @@ export function registerMessageRoutes(app: Express) {
       const recipientProfile = participantProfileMap.get(recipientId);
       const senderLabel =
         senderProfile?.displayName || participantLabel(identity.userId, senderRole);
-      notifyNewMessage(recipientId, senderLabel, text, conversation.id, identity.userId).catch(
-        (err) => {
-          console.error('[Messages] Failed to send new message notification:', err);
-        }
-      );
+      notifyNewMessage(
+        recipientId,
+        senderLabel,
+        text,
+        conversation.id,
+        identity.userId,
+        conversation.listingId
+      ).catch((err) => {
+        console.error('[Messages] Failed to send new message notification:', err);
+      });
 
       const message = inserted[0];
       return res.json({

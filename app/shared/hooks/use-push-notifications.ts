@@ -23,8 +23,10 @@ export interface PushNotificationData {
   type?: string;
   listingId?: string;
   conversationId?: string;
+  actionUrl?: string;
   url?: string;
   dealUrl?: string;
+  invoiceUrl?: string;
   [key: string]: any;
 }
 
@@ -44,6 +46,7 @@ function isActionablePushData(data: unknown): data is PushNotificationData {
     typeof payload.type === 'string' ||
     typeof payload.listingId === 'string' ||
     typeof payload.conversationId === 'string' ||
+    typeof payload.actionUrl === 'string' ||
     typeof payload.url === 'string' ||
     typeof payload.dealUrl === 'string'
   );
@@ -58,6 +61,32 @@ export function usePushNotifications() {
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
   const registerTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handledResponseKeysRef = useRef<Set<string>>(new Set());
+
+  const handleNotificationResponse = async (response: Notifications.NotificationResponse) => {
+    const { data } = response.notification.request.content;
+    const responseKey =
+      response.notification.request.identifier ||
+      JSON.stringify({
+        title: response.notification.request.content.title || '',
+        body: response.notification.request.content.body || '',
+        data: data || {},
+      });
+
+    if (handledResponseKeysRef.current.has(responseKey)) {
+      return;
+    }
+    handledResponseKeysRef.current.add(responseKey);
+
+    console.log('[Push] Notification tapped:', data);
+
+    if (!isActionablePushData(data)) {
+      console.log('[Push] Ignoring non-app notification response payload');
+      return;
+    }
+
+    void openNotificationTarget(data as PushNotificationData);
+  };
 
   useEffect(() => {
     const userId = user?.id;
@@ -99,17 +128,18 @@ export function usePushNotifications() {
 
     // Listen for user interactions with notifications
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      const { data } = response.notification.request.content;
-      console.log('[Push] Notification tapped:', data);
-
-      if (!isActionablePushData(data)) {
-        console.log('[Push] Ignoring non-app notification response payload');
-        return;
-      }
-
-      // Handle navigation based on notification type
-      void openNotificationTarget(data as PushNotificationData);
+      void handleNotificationResponse(response);
     });
+
+    void Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (response) {
+          void handleNotificationResponse(response);
+        }
+      })
+      .catch((error) => {
+        console.log('[Push] Failed to read last notification response:', error);
+      });
 
     return () => {
       isCancelled = true;
@@ -126,6 +156,7 @@ export function usePushNotifications() {
         responseListener.current.remove();
         responseListener.current = null;
       }
+      handledResponseKeysRef.current.clear();
     };
   }, [pushEnabled, user?.id]);
 
