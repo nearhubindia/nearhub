@@ -29,9 +29,17 @@ import { getTabOverlayContentPadding } from '@/constants/layout';
 import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useUserInterests } from '@/shared/contexts/user-interests-context';
-import { getDiscountPercent, hasValidOfferPrice, isNewProductDeal } from '@/lib/deals';
+import { getDiscountPercent, hasValidOfferPrice } from '@/lib/deals';
+import {
+  formatDealStatus,
+  getEffectiveDealWindow,
+  isDealActiveNow,
+  isDealExpired,
+  isDealUpcoming,
+} from '@/lib/deal-timer';
+import { bookDeal, DealBookingError } from '@/lib/deal-bookings';
 import { calculateDistance } from '@/lib/location-data';
-import { Category } from '@/lib/types';
+import { Category, type Listing } from '@/lib/types';
 import { formatCondition } from '@/lib/utils';
 import { NotificationBell } from '@/shared/components/NotificationBell';
 import { Logo } from '@/shared/components/Logo';
@@ -64,6 +72,101 @@ interface CitySuggestion {
   region: string;
 }
 
+type HomeDealItem = {
+  id: string;
+  title: string;
+  price: number;
+  originalPrice?: number;
+  image: string;
+  images: string[];
+  location: string;
+  distance: string;
+  sortDistanceKm?: number;
+  dealEndsAt?: number;
+  dealStatus: string;
+  comboItems?: string[];
+  badge?: string;
+  voucherEnabled?: boolean;
+  dealType?: string;
+};
+
+function formatDistanceLabel(distanceKm?: number): string {
+  if (typeof distanceKm !== 'number' || !Number.isFinite(distanceKm)) return 'Distance unavailable';
+  if (distanceKm < 1) return '<1 km away';
+  return `${Math.round(distanceKm)} km away`;
+}
+
+function normalizeDealItems(items: unknown[]): Listing[] {
+  return items
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => {
+      const location = item.location;
+      const normalizedLocation =
+        location && typeof location === 'object'
+          ? {
+              latitude: Number((location as Record<string, unknown>).latitude) || 0,
+              longitude: Number((location as Record<string, unknown>).longitude) || 0,
+              city: String((location as Record<string, unknown>).city || 'Unknown'),
+            }
+          : { latitude: 0, longitude: 0, city: 'Unknown' };
+
+      return {
+        ...(item as object),
+        isDeal: Boolean(
+          (item as Record<string, unknown>).isDeal ?? (item as Record<string, unknown>).is_deal
+        ),
+        dealType: String(
+          (item as Record<string, unknown>).dealType ??
+            (item as Record<string, unknown>).deal_type ??
+            ''
+        ).toLowerCase() as 'normal' | 'combo',
+        dealStartAt:
+          String(
+            (item as Record<string, unknown>).dealStartAt ??
+              (item as Record<string, unknown>).deal_start_at ??
+              ''
+          ).trim() || undefined,
+        dealEndAt:
+          String(
+            (item as Record<string, unknown>).dealEndAt ??
+              (item as Record<string, unknown>).deal_end_at ??
+              ''
+          ).trim() || undefined,
+        dealRecurrence: String(
+          (item as Record<string, unknown>).dealRecurrence ??
+            (item as Record<string, unknown>).deal_recurrence ??
+            'none'
+        ).toLowerCase() as 'none' | 'daily' | 'weekly' | 'monthly',
+        dealRecurrenceUntil:
+          String(
+            (item as Record<string, unknown>).dealRecurrenceUntil ??
+              (item as Record<string, unknown>).deal_recurrence_until ??
+              ''
+          ).trim() || undefined,
+        comboItems: Array.isArray((item as Record<string, unknown>).comboItems)
+          ? ((item as Record<string, unknown>).comboItems as string[])
+          : Array.isArray((item as Record<string, unknown>).combo_items)
+            ? ((item as Record<string, unknown>).combo_items as string[])
+            : undefined,
+        voucherEnabled: Boolean(
+          (item as Record<string, unknown>).voucherEnabled ??
+          (item as Record<string, unknown>).voucher_enabled
+        ),
+        status: String((item as Record<string, unknown>).status || 'active').toLowerCase() as
+          | 'active'
+          | 'sold'
+          | 'pending'
+          | 'rejected'
+          | 'inactive'
+          | 'expired',
+        location: normalizedLocation,
+        images: Array.isArray((item as Record<string, unknown>).images)
+          ? ((item as Record<string, unknown>).images as string[])
+          : [],
+      } as Listing;
+    });
+}
+
 export default function HomeScreen() {
   const MIN_RADIUS_KM = 1;
   const MAX_RADIUS_KM = 500;
@@ -79,15 +182,18 @@ export default function HomeScreen() {
     loadMore,
     hasMore,
   } = useListings();
-  const { user, cachedLocation, setUserSearchRadius, setUserLocation } = useAuth();
+  const { user, cachedLocation, setUserSearchRadius, setUserLocation, isAuthenticated } = useAuth();
   const { trackSave } = useUserInterests();
   const { geoRadiusKm } = useAdminSettings();
   const { groups: categoryGroups } = useListingTaxonomy();
+  const [broadDealListings, setBroadDealListings] = useState<Listing[]>([]);
+  const [bookingId, setBookingId] = useState<string | null>(null);
   const {
     banners: homeBanners,
     isLoading: isHomeBannersLoading,
     refreshBanners,
   } = useAppScreenBanners('home');
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>('All');
   const orderedCategories = useMemo(
     () => Array.from(new Set(categoryGroups.flatMap((group) => group.subcategories))),
@@ -549,8 +655,49 @@ export default function HomeScreen() {
     selectedSearchRadiusKm,
   ]);
 
-  const nearYouListings = useMemo(() => allNearYouListings.slice(0, 4), [allNearYouListings]);
+  const nearYouListings = useMemo(() => allNearYouListings, [allNearYouListings]);
   const showNearYouSection = nearYouListings.length > 0;
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+
+    const loadBroadDealListings = async () => {
+      try {
+        const response = await fetch(
+          `${getApiUrl()}/api/listings?limit=100&dealsOnly=1&includeExpiredDeals=1`,
+          { signal: controller.signal }
+        );
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as {
+          data?: unknown[];
+          results?: unknown[];
+        };
+        const normalized = normalizeDealItems(payload.data || payload.results || []);
+
+        if (active) {
+          setBroadDealListings(normalized);
+        }
+      } catch (error) {
+        if (active && !(error instanceof Error && error.name === 'AbortError')) {
+          setBroadDealListings([]);
+        }
+      }
+    };
+
+    void loadBroadDealListings();
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, []);
 
   const homeCategories = useMemo(() => {
     const counts = new Map<Category, number>();
@@ -574,30 +721,6 @@ export default function HomeScreen() {
     return filteredListingsByLocation.filter((listing) => listing.category === selectedCategory);
   }, [filteredListingsByLocation, selectedCategory]);
 
-  const dealsSourceListings = useMemo(
-    () => (allNearYouListings.length > 0 ? allNearYouListings : filteredListingsByLocation),
-    [allNearYouListings, filteredListingsByLocation]
-  );
-
-  const deals = useMemo(
-    () =>
-      dealsSourceListings
-        .filter((listing) => isNewProductDeal(listing))
-        .sort((a, b) => {
-          const distanceA = distanceByListingId.get(a.id) ?? Number.POSITIVE_INFINITY;
-          const distanceB = distanceByListingId.get(b.id) ?? Number.POSITIVE_INFINITY;
-          if (distanceA !== distanceB) {
-            return distanceA - distanceB;
-          }
-
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        })
-        .slice(0, 4),
-    [dealsSourceListings, distanceByListingId]
-  );
-
-  const showDealsSection = deals.length > 0;
-  const hasDealsTopSection = showDealsSection;
   const activeListingsForGrid = homeListingsForGrid;
   const hasLocation = Boolean(userLat && userLon);
   const onRefresh = useCallback(async () => {
@@ -627,6 +750,37 @@ export default function HomeScreen() {
       trackSave(id, category).catch(console.error);
     },
     [toggleSaved, trackSave]
+  );
+
+  const handleBookDeal = useCallback(
+    async (listingId: string) => {
+      if (!isAuthenticated || !user?.id) {
+        Alert.alert('Sign in required', 'Please sign in to book a deal.');
+        router.push('/auth/register');
+        return;
+      }
+
+      setBookingId(listingId);
+      try {
+        await bookDeal(listingId, user.id, user.phone || undefined);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert('Deal booked', 'Your deal booking has been created successfully.', [
+          { text: 'OK' },
+        ]);
+      } catch (error) {
+        if (error instanceof DealBookingError && error.code === 'ALREADY_BOOKED') {
+          Alert.alert('Already booked', 'You already booked this deal.', [
+            { text: 'OK' },
+            { text: 'View bookings', onPress: () => router.push('/bookings') },
+          ]);
+          return;
+        }
+        Alert.alert('Booking failed', error instanceof Error ? error.message : 'Please try again.');
+      } finally {
+        setBookingId(null);
+      }
+    },
+    [isAuthenticated, user?.id, user?.phone]
   );
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
@@ -723,9 +877,13 @@ export default function HomeScreen() {
               {item.title}
             </Text>
             <View style={styles.cardPriceRow}>
-              <Text style={styles.cardPrice}>₹{displayPrice.toLocaleString('en-IN')}</Text>
+              <Text style={styles.cardPrice} numberOfLines={1}>
+                ₹{displayPrice.toLocaleString('en-IN')}
+              </Text>
               {hasValidOfferPrice(item) ? (
-                <Text style={styles.cardOriginalPrice}>₹{basePrice.toLocaleString('en-IN')}</Text>
+                <Text style={styles.cardOriginalPrice} numberOfLines={1}>
+                  ₹{basePrice.toLocaleString('en-IN')}
+                </Text>
               ) : null}
             </View>
             {options?.showDistance ? (
@@ -753,6 +911,263 @@ export default function HomeScreen() {
       );
     },
     [alignedResultCardWidth, distanceByListingId, userLat, userLon]
+  );
+
+  const dealListings = useMemo(() => listings.filter((item) => Boolean(item.isDeal)), [listings]);
+
+  const mappedDeals = useMemo(() => {
+    return dealListings
+      .filter((item) => Boolean(item.isDeal))
+      .map((item) => {
+        const window = getEffectiveDealWindow(item, nowMs);
+        const distanceKm =
+          typeof userLat === 'number' && typeof userLon === 'number'
+            ? calculateDistance(userLat, userLon, item.location.latitude, item.location.longitude)
+            : undefined;
+        const displayPrice =
+          typeof item.offerPrice === 'number' && item.offerPrice > 0 && item.offerPrice < item.price
+            ? item.offerPrice
+            : item.price;
+        const originalPrice = displayPrice !== item.price ? item.price : undefined;
+
+        return {
+          id: item.id,
+          title: item.title,
+          price: displayPrice,
+          originalPrice,
+          image: item.images[0] || '',
+          images: item.images || [],
+          location: item.location.city,
+          distance: formatDistanceLabel(distanceKm),
+          sortDistanceKm: distanceKm,
+          dealEndsAt: window?.endMs,
+          dealStatus: formatDealStatus(item, nowMs),
+          comboItems: item.comboItems,
+          badge: isDealActiveNow(item, nowMs) ? 'Deal' : undefined,
+          voucherEnabled: item.voucherEnabled,
+          dealType: item.dealType,
+        } satisfies HomeDealItem;
+      })
+      .sort((a, b) => {
+        const distanceA =
+          typeof a.sortDistanceKm === 'number' && Number.isFinite(a.sortDistanceKm)
+            ? a.sortDistanceKm
+            : Number.POSITIVE_INFINITY;
+        const distanceB =
+          typeof b.sortDistanceKm === 'number' && Number.isFinite(b.sortDistanceKm)
+            ? b.sortDistanceKm
+            : Number.POSITIVE_INFINITY;
+        return distanceA - distanceB;
+      });
+  }, [dealListings, nowMs, userLat, userLon]);
+
+  const todaysDeals = useMemo(
+    () =>
+      mappedDeals
+        .filter((item) => item.dealType !== 'combo')
+        .filter((item) => {
+          const source = listings.find((listing) => listing.id === item.id);
+          return source ? isDealActiveNow(source, nowMs) : false;
+        })
+        .sort((a, b) => Number(a.dealEndsAt || 0) - Number(b.dealEndsAt || 0))
+        .slice(0, 6),
+    [listings, mappedDeals, nowMs]
+  );
+
+  const upcomingDeals = useMemo(
+    () =>
+      mappedDeals.filter((item) => {
+        const source = listings.find((listing) => listing.id === item.id);
+        return source ? isDealUpcoming(source, nowMs) : false;
+      }),
+    [listings, mappedDeals, nowMs]
+  );
+
+  const broadUpcomingDeals = useMemo(
+    () =>
+      normalizeDealItems(broadDealListings)
+        .filter((item) => isDealUpcoming(item, nowMs))
+        .map((item) => {
+          const window = getEffectiveDealWindow(item, nowMs);
+          const distanceKm =
+            typeof userLat === 'number' && typeof userLon === 'number'
+              ? calculateDistance(userLat, userLon, item.location.latitude, item.location.longitude)
+              : undefined;
+          const displayPrice =
+            typeof item.offerPrice === 'number' &&
+            item.offerPrice > 0 &&
+            item.offerPrice < item.price
+              ? item.offerPrice
+              : item.price;
+          const originalPrice = displayPrice !== item.price ? item.price : undefined;
+
+          return {
+            id: item.id,
+            title: item.title,
+            price: displayPrice,
+            originalPrice,
+            image: item.images[0] || '',
+            images: item.images || [],
+            location: item.location.city,
+            distance: formatDistanceLabel(distanceKm),
+            sortDistanceKm: distanceKm,
+            dealEndsAt: window?.endMs,
+            dealStatus: formatDealStatus(item, nowMs),
+            comboItems: item.comboItems,
+            badge: isDealActiveNow(item, nowMs) ? 'Deal' : undefined,
+            voucherEnabled: item.voucherEnabled,
+            dealType: item.dealType,
+          } satisfies HomeDealItem;
+        })
+        .sort((a, b) => {
+          const distanceA =
+            typeof a.sortDistanceKm === 'number' && Number.isFinite(a.sortDistanceKm)
+              ? a.sortDistanceKm
+              : Number.POSITIVE_INFINITY;
+          const distanceB =
+            typeof b.sortDistanceKm === 'number' && Number.isFinite(b.sortDistanceKm)
+              ? b.sortDistanceKm
+              : Number.POSITIVE_INFINITY;
+          return distanceA - distanceB;
+        }),
+    [broadDealListings, nowMs, userLat, userLon]
+  );
+
+  const displayUpcomingDeals = upcomingDeals.length > 0 ? upcomingDeals : broadUpcomingDeals;
+
+  const comboDeals = useMemo(
+    () =>
+      mappedDeals.filter((item) => {
+        const source = listings.find((listing) => listing.id === item.id);
+        return item.dealType === 'combo' && source ? isDealActiveNow(source, nowMs) : false;
+      }),
+    [listings, mappedDeals, nowMs]
+  );
+
+  const expiredDeals = useMemo(
+    () =>
+      mappedDeals
+        .filter((item) => {
+          const source = listings.find((listing) => listing.id === item.id);
+          return source ? isDealExpired(source, nowMs) : false;
+        })
+        .sort((a, b) => Number(b.dealEndsAt || 0) - Number(a.dealEndsAt || 0))
+        .slice(0, 6),
+    [listings, mappedDeals, nowMs]
+  );
+
+  const renderDealRailCard = useCallback(
+    (
+      item: HomeDealItem,
+      options?: {
+        showBadge?: boolean;
+        combo?: boolean;
+      }
+    ) => {
+      const basePrice = Number(item.originalPrice || item.price);
+      const displayPrice = Number(item.price) || 0;
+      const discountPercent = getDiscountPercent({ price: basePrice, offerPrice: displayPrice });
+
+      return (
+        <Pressable
+          key={item.id}
+          onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
+          style={[styles.dealCard, options?.combo && styles.comboDealCard]}
+        >
+          <View style={styles.dealCardMedia}>
+            <Image source={{ uri: item.image }} style={styles.dealCardImage} contentFit="cover" />
+            <LinearGradient
+              colors={['rgba(10, 18, 36, 0)', 'rgba(10, 18, 36, 0.22)', 'rgba(10, 18, 36, 0.88)']}
+              style={styles.dealCardOverlay}
+            />
+            {options?.showBadge && item.badge ? (
+              <View style={styles.dealBadgePill}>
+                <Text style={styles.dealBadgeText}>{item.badge}</Text>
+              </View>
+            ) : null}
+            {discountPercent ? (
+              <View style={styles.dealDiscountPill}>
+                <Text style={styles.dealDiscountText}>{discountPercent}% OFF</Text>
+              </View>
+            ) : null}
+            {options?.combo ? (
+              <View style={styles.comboDealPill}>
+                <Ionicons name="layers" size={11} color="#FFFFFF" />
+                <Text style={styles.comboDealPillText}>Combo</Text>
+              </View>
+            ) : null}
+            <View style={styles.dealCardTopRight}>
+              {Boolean(item.voucherEnabled) ? (
+                <View style={styles.dealMicroBadge}>
+                  <Feather name="tag" size={9} color="#FFFFFF" />
+                </View>
+              ) : null}
+            </View>
+          </View>
+          <View style={styles.dealCardBody}>
+            <Text style={styles.dealCardTitle} numberOfLines={2}>
+              {item.title}
+            </Text>
+            {options?.combo && item.comboItems?.length ? (
+              <Text style={styles.dealCardSubtitle} numberOfLines={1}>
+                {item.comboItems.slice(0, 2).join(' + ')}
+              </Text>
+            ) : null}
+            <View style={styles.dealPriceRow}>
+              <View style={styles.dealPriceStack}>
+                <Text
+                  style={styles.dealPrice}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  ₹{displayPrice.toLocaleString('en-IN')}
+                </Text>
+                {item.originalPrice ? (
+                  <Text
+                    style={styles.dealOriginalPrice}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    ₹{basePrice.toLocaleString('en-IN')}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+            <View style={styles.dealMetaRow}>
+              <Feather name="map-pin" size={11} color={Colors.textTertiary} />
+              <Text style={styles.dealDistanceText} numberOfLines={1}>
+                {item.distance}
+              </Text>
+            </View>
+            <View style={styles.dealStatusPanel}>
+              <Text style={styles.dealStatusLabel}>Deal status</Text>
+              <Text style={styles.dealStatusValue} numberOfLines={1}>
+                {item.dealStatus || 'Active deal'}
+              </Text>
+            </View>
+            {item.dealStatus.startsWith('Ends in') ? (
+              <Pressable
+                style={[
+                  styles.dealBookButton,
+                  bookingId === item.id && styles.dealBookButtonDisabled,
+                ]}
+                onPress={() => handleBookDeal(item.id)}
+                disabled={bookingId === item.id}
+              >
+                {bookingId === item.id ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.dealBookButtonText}>Book Deal</Text>
+                )}
+              </Pressable>
+            ) : null}
+          </View>
+        </Pressable>
+      );
+    },
+    [bookingId, handleBookDeal, nowMs]
   );
 
   return (
@@ -856,6 +1271,7 @@ export default function HomeScreen() {
 
             {/* App Screen Banners (Admin-uploaded) */}
             <AppScreenBanners banners={homeBanners} isLoading={isHomeBannersLoading} />
+
             {showNearYouSection ? (
               <View style={styles.nearYouSection}>
                 <View style={styles.sectionHeader}>
@@ -890,6 +1306,104 @@ export default function HomeScreen() {
                   {nearYouListings.map((item) =>
                     renderCompactRailCard(item, { showDistance: true })
                   )}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            {todaysDeals.length > 0 ? (
+              <View style={styles.dealsSection}>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionHeaderLeft}>
+                    <Feather name="tag" size={16} color={Colors.primary} />
+                    <Text style={styles.sectionTitle}>Deals</Text>
+                  </View>
+                  <Pressable onPress={() => router.push('/deals')} style={styles.viewAllButton}>
+                    <Text style={styles.viewAllText}>View All</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.sectionSubtext}>Live offers ending soon near you</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.dealRailContent}
+                >
+                  {todaysDeals.map((item) => renderDealRailCard(item, { showBadge: true }))}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            {comboDeals.length > 0 ? (
+              <View style={styles.dealsSection}>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionHeaderLeft}>
+                    <Ionicons name="layers" size={16} color={Colors.primary} />
+                    <Text style={styles.sectionTitle}>Combo Deals</Text>
+                  </View>
+                  <Pressable onPress={() => router.push('/deals')} style={styles.viewAllButton}>
+                    <Text style={styles.viewAllText}>View All</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.sectionSubtext}>Bundle offers with extra savings</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.dealRailContent}
+                >
+                  {comboDeals.map((item) =>
+                    renderDealRailCard(item, { showBadge: true, combo: true })
+                  )}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            <View style={styles.dealsSection}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderLeft}>
+                  <Feather name="clock" size={16} color="#F97316" />
+                  <Text style={styles.sectionTitle}>Up Coming Deals</Text>
+                </View>
+                <Pressable onPress={() => router.push('/deals')} style={styles.viewAllButton}>
+                  <Text style={styles.viewAllText}>View All</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.sectionSubtext}>Deals starting soon, sorted by proximity</Text>
+              {displayUpcomingDeals.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.dealRailContent}
+                >
+                  {displayUpcomingDeals.map((item) => renderDealRailCard(item))}
+                </ScrollView>
+              ) : (
+                <View style={styles.dealEmptyState}>
+                  <Text style={styles.dealEmptyStateText}>
+                    No upcoming deals are available right now.
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {expiredDeals.length > 0 ? (
+              <View style={styles.dealsSection}>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionHeaderLeft}>
+                    <Feather name="clock" size={16} color={Colors.textSecondary} />
+                    <Text style={styles.sectionTitle}>Expired Deals</Text>
+                  </View>
+                  <Pressable onPress={() => router.push('/deals')} style={styles.viewAllButton}>
+                    <Text style={styles.viewAllText}>View All</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.sectionSubtext}>
+                  Closed offers are still visible for reference
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.dealRailContent}
+                >
+                  {expiredDeals.map((item) => renderDealRailCard(item))}
                 </ScrollView>
               </View>
             ) : null}
@@ -943,48 +1457,6 @@ export default function HomeScreen() {
                     </Pressable>
                   ))}
                 </ScrollView>
-              </View>
-            ) : null}
-
-            {hasDealsTopSection ? (
-              <View style={styles.topSectionsContainer}>
-                {showDealsSection ? (
-                  <View style={styles.featuredSection}>
-                    <View style={styles.sectionHeader}>
-                      <View style={styles.sectionHeaderLeft}>
-                        <Feather name="tag" size={16} color={Colors.primary} />
-                        <Text style={styles.sectionTitle}>Deals</Text>
-                      </View>
-                      <Pressable
-                        onPress={() =>
-                          router.push({
-                            pathname: '/home-section-list',
-                            params: {
-                              section: 'newProductDeals',
-                              lat: userLat?.toString() || '',
-                              lon: userLon?.toString() || '',
-                              radius: selectedSearchRadiusKm.toString(),
-                              city: userCity,
-                            },
-                          })
-                        }
-                        style={styles.viewAllButton}
-                      >
-                        <Text style={styles.viewAllText}>View All</Text>
-                      </Pressable>
-                    </View>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      style={styles.featuredScroll}
-                      contentContainerStyle={styles.horizontalResultsContent}
-                    >
-                      {deals.map((item) =>
-                        renderCompactRailCard(item, { showDistance: true, badgeLabel: 'Deal' })
-                      )}
-                    </ScrollView>
-                  </View>
-                ) : null}
               </View>
             ) : null}
           </>
@@ -1515,13 +1987,13 @@ const styles = createResponsiveStyles({
     color: Colors.primary,
     fontFamily: 'Inter_600SemiBold',
   },
-  topSectionsContainer: {
-    gap: 4,
-    marginBottom: 6,
-  },
   nearYouSection: {
     marginTop: 6,
     marginBottom: 6,
+  },
+  dealsSection: {
+    marginTop: 8,
+    marginBottom: 8,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1540,6 +2012,14 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_600SemiBold',
     color: Colors.text,
   },
+  sectionSubtext: {
+    paddingHorizontal: HOME_HORIZONTAL_INSET,
+    marginTop: -2,
+    marginBottom: 8,
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textSecondary,
+  },
   viewAllButton: {
     paddingVertical: 4,
     paddingHorizontal: 2,
@@ -1551,6 +2031,207 @@ const styles = createResponsiveStyles({
   },
   nearYouScroll: {
     marginTop: 0,
+  },
+  dealRailContent: {
+    paddingHorizontal: HOME_HORIZONTAL_INSET,
+    gap: 6,
+  },
+  dealEmptyState: {
+    marginHorizontal: HOME_HORIZONTAL_INSET,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#CBD5E1',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+  },
+  dealEmptyStateText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.textSecondary,
+    fontFamily: 'Inter_400Regular',
+    textAlign: 'center',
+  },
+  dealCard: {
+    width: 176,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(10,102,194,0.16)',
+    marginRight: 6,
+  },
+  comboDealCard: {
+    width: 188,
+  },
+  dealCardMedia: {
+    position: 'relative',
+    aspectRatio: 0.84,
+    backgroundColor: '#E9F4FF',
+  },
+  dealCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  dealCardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  dealBadgePill: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    backgroundColor: 'rgba(15, 23, 42, 0.78)',
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  dealBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 0.2,
+  },
+  dealDiscountPill: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: '#DC2626',
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    shadowColor: '#7F1D1D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  dealDiscountText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontFamily: 'Inter_700Bold',
+  },
+  comboDealPill: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(10, 18, 36, 0.75)',
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  comboDealPillText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontFamily: 'Inter_700Bold',
+  },
+  dealCardTopRight: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  dealMicroBadge: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+  },
+  dealCardBody: {
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  dealCardTitle: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Inter_700Bold',
+    color: Colors.text,
+  },
+  dealCardSubtitle: {
+    marginTop: 2,
+    fontSize: 9,
+    lineHeight: 12,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textSecondary,
+  },
+  dealPriceRow: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 1,
+    marginTop: 4,
+    minWidth: 0,
+  },
+  dealPriceStack: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    minWidth: 0,
+  },
+  dealPrice: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+    color: Colors.primary,
+  },
+  dealOriginalPrice: {
+    fontSize: 9,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textTertiary,
+    textDecorationLine: 'line-through',
+  },
+  dealMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  dealDistanceText: {
+    flex: 1,
+    fontSize: 9,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textSecondary,
+  },
+  dealStatusPanel: {
+    marginTop: 6,
+    borderRadius: 10,
+    backgroundColor: '#F8FBFF',
+    borderWidth: 1,
+    borderColor: 'rgba(10,102,194,0.12)',
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+  },
+  dealStatusLabel: {
+    fontSize: 8,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.textSecondary,
+  },
+  dealStatusValue: {
+    marginTop: 2,
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#F59E0B',
+  },
+  dealBookButton: {
+    marginTop: 6,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: '#0759e6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dealBookButtonDisabled: {
+    opacity: 0.7,
+  },
+  dealBookButtonText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
   },
   cardImage: {
     width: '100%',
@@ -1608,6 +2289,7 @@ const styles = createResponsiveStyles({
     fontSize: 10,
     fontFamily: 'Inter_700Bold',
     color: '#CFE5FF',
+    flexShrink: 0,
   },
   cardPriceRow: {
     flexDirection: 'row',
@@ -1615,25 +2297,20 @@ const styles = createResponsiveStyles({
     justifyContent: 'flex-start',
     gap: 3,
     marginTop: 3,
+    minWidth: 0,
   },
   cardOriginalPrice: {
     fontSize: 8,
     fontFamily: 'Inter_500Medium',
     color: 'rgba(255,255,255,0.7)',
     textDecorationLine: 'line-through',
+    flexShrink: 1,
   },
   cardDistance: {
     fontSize: 9,
     fontFamily: 'Inter_400Regular',
     color: 'rgba(255,255,255,0.85)',
     marginTop: 2,
-  },
-  featuredSection: {
-    marginTop: 6,
-    marginBottom: 6,
-  },
-  featuredScroll: {
-    marginTop: 0,
   },
   featuredCard: {
     backgroundColor: '#0B1D30',

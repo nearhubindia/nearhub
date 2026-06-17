@@ -11,7 +11,7 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
-import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -29,7 +29,7 @@ import { shareListingLink } from '@/lib/share-app-link';
 import MediaCarousel from '@/shared/components/MediaCarousel';
 import RichTextPreview from '@/shared/components/RichTextPreview';
 import { createResponsiveStyles } from '@/lib/responsive';
-import { bookDeal } from '@/lib/deal-bookings';
+import { bookDeal, DealBookingError } from '@/lib/deal-bookings';
 import { countdownPartsFromMs, formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
 import { trackGenerateLead, trackPurchaseEvent, trackViewItem } from '@/lib/firebase-analytics';
 
@@ -240,6 +240,8 @@ export default function ListingDetailScreen() {
     ? String(idParam[0] || '').trim()
     : String(idParam || '').trim();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const authRedirect = pathname && pathname !== '/auth/register' ? pathname : '';
   const { listings, getListingById, savedIds, toggleSaved } = useListings();
   const { isAuthenticated, user } = useAuth();
   const { geoRadiusKm } = useAdminSettings();
@@ -514,7 +516,14 @@ export default function ListingDetailScreen() {
     if (!isAuthenticated) {
       Alert.alert('Sign in Required', 'You need to register to contact sellers.', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Register', onPress: () => router.push('/auth/register') },
+        {
+          text: 'Register',
+          onPress: () =>
+            router.push({
+              pathname: '/auth/register',
+              params: authRedirect ? { redirect: authRedirect } : undefined,
+            }),
+        },
       ]);
       return;
     }
@@ -651,6 +660,13 @@ export default function ListingDetailScreen() {
             { text: 'View bookings', onPress: () => router.push('/bookings') },
           ]);
         } catch (error) {
+          if (error instanceof DealBookingError && error.code === 'ALREADY_BOOKED') {
+            Alert.alert('Already booked', 'You already booked this deal.', [
+              { text: 'OK' },
+              { text: 'View bookings', onPress: () => router.push('/bookings') },
+            ]);
+            return;
+          }
           Alert.alert('Booking failed', error instanceof Error ? error.message : 'Try again.');
         } finally {
           setIsBookingDeal(false);
@@ -750,10 +766,29 @@ export default function ListingDetailScreen() {
           <View style={styles.summaryCard}>
             <View style={styles.priceRow}>
               <View style={styles.priceWrap}>
-                <Text style={styles.price}>₹{displayPrice.toLocaleString('en-IN')}</Text>
-                {listing.priceUnit && <Text style={styles.priceUnit}> / {listing.priceUnit}</Text>}
+                <Text
+                  style={styles.price}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  ₹{displayPrice.toLocaleString('en-IN')}
+                </Text>
+                {listing.priceUnit && (
+                  <Text style={styles.priceUnit} numberOfLines={1}>
+                    {' / '}
+                    {listing.priceUnit}
+                  </Text>
+                )}
                 {hasValidOfferPrice && (
-                  <Text style={styles.originalPrice}>₹{listing.price.toLocaleString('en-IN')}</Text>
+                  <Text
+                    style={styles.originalPrice}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                  >
+                    ₹{listing.price.toLocaleString('en-IN')}
+                  </Text>
                 )}
               </View>
               <View style={styles.rightBadges}>
@@ -1239,9 +1274,10 @@ const styles = createResponsiveStyles({
     color: Colors.text,
   },
   priceWrap: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 7,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 2,
+    minWidth: 0,
   },
   priceUnit: {
     fontSize: 16,

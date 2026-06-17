@@ -225,7 +225,12 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
   const loadInFlightRef = useRef<Promise<void> | null>(null);
   const lastLoadAtRef = useRef(0);
   const hasLoadedOnceRef = useRef(false);
+  const listingsRef = useRef<Listing[]>([]);
   const MIN_LOAD_INTERVAL_MS = 1500;
+
+  useEffect(() => {
+    listingsRef.current = listings;
+  }, [listings]);
 
   const loadData = useCallback(async (options?: { force?: boolean; asRefresh?: boolean }) => {
     if (loadInFlightRef.current) {
@@ -251,13 +256,14 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         }
 
         const backendURL = getBackendURL();
-        const [dataVersion, cachedListingsStr, savedStr, userDataStr, cachedLocation] = await Promise.all([
-          AsyncStorage.getItem(DATA_VERSION_KEY),
-          AsyncStorage.getItem(LISTINGS_KEY),
-          AsyncStorage.getItem(SAVED_KEY),
-          AsyncStorage.getItem('@nearhub_auth_user'),
-          loadCachedLocation(),
-        ]);
+        const [dataVersion, cachedListingsStr, savedStr, userDataStr, cachedLocation] =
+          await Promise.all([
+            AsyncStorage.getItem(DATA_VERSION_KEY),
+            AsyncStorage.getItem(LISTINGS_KEY),
+            AsyncStorage.getItem(SAVED_KEY),
+            AsyncStorage.getItem('@nearhub_auth_user'),
+            loadCachedLocation(),
+          ]);
 
         if (savedStr) {
           try {
@@ -563,7 +569,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
           console.warn('[Listings] API fetch failed, keeping cache if available:', apiError);
         }
 
-        if (!hydratedFromCache) {
+        if (!hydratedFromCache && listingsRef.current.length === 0) {
           setListings([]);
           setHasMore(false);
           setOffset(0);
@@ -578,7 +584,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         });
       } catch (e) {
         console.error('[Listings] Failed to load data:', e);
-        if (!hydratedFromCache) {
+        if (!hydratedFromCache && listingsRef.current.length === 0) {
           setListings([]);
           setHasMore(false);
           setOffset(0);

@@ -119,10 +119,19 @@ export default function ListingCard({
       </View>
       <View style={styles.info}>
         <View style={styles.priceRow}>
-          <Text style={styles.price}>₹{displayPrice.toLocaleString('en-IN')}</Text>
+          <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+            ₹{displayPrice.toLocaleString('en-IN')}
+          </Text>
           {priceUnit && <Text style={styles.priceUnit}> / {priceUnit}</Text>}
           {hasValidOfferPrice && (
-            <Text style={styles.originalPrice}>₹{price.toLocaleString('en-IN')}</Text>
+            <Text
+              style={styles.originalPrice}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
+              ₹{price.toLocaleString('en-IN')}
+            </Text>
           )}
         </View>
         <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
@@ -266,9 +275,10 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   priceRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: responsiveModerateScale(5),
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: responsiveModerateScale(1),
+    minWidth: 0,
   },
   priceUnit: {
     fontSize: responsiveFont(12),

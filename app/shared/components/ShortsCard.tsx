@@ -390,16 +390,28 @@ export default function ShortsCard({
       <Pressable style={styles.bottomOverlay} onPress={onDetails}>
         <View style={[styles.bottomContent, { paddingBottom: uiBottomInset }]}>
           <View style={styles.priceRow}>
-            <Text style={styles.price}>
-              {'\u20B9'}
-              {displayPrice.toLocaleString('en-IN')}
-            </Text>
-            {hasValidOfferPrice && (
-              <Text style={styles.originalPrice}>
+            <View style={styles.priceStack}>
+              <Text
+                style={styles.price}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
                 {'\u20B9'}
-                {price.toLocaleString('en-IN')}
+                {displayPrice.toLocaleString('en-IN')}
               </Text>
-            )}
+              {hasValidOfferPrice && (
+                <Text
+                  style={styles.originalPrice}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  {'\u20B9'}
+                  {price.toLocaleString('en-IN')}
+                </Text>
+              )}
+            </View>
             <View style={styles.viewLink}>
               <Text style={styles.viewLinkText}>View</Text>
             </View>
@@ -487,9 +499,15 @@ const styles = createResponsiveStyles({
   },
   priceRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 8,
     marginBottom: 6,
+  },
+  priceStack: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    flex: 1,
+    minWidth: 0,
   },
   price: {
     fontSize: 22,
@@ -505,7 +523,7 @@ const styles = createResponsiveStyles({
     marginTop: 2,
   },
   viewLink: {
-    marginLeft: 'auto',
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
