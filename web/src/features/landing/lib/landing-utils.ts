@@ -35,6 +35,41 @@ export function formatPriceInr(value: number | string | undefined): string {
   return formatCurrencyInr(parsePositiveNumber(value));
 }
 
+export function calculateDistanceKm(
+  latitudeA: number | string | undefined,
+  longitudeA: number | string | undefined,
+  latitudeB: number | string | undefined,
+  longitudeB: number | string | undefined
+): number | undefined {
+  const lat1 = typeof latitudeA === 'string' ? Number(latitudeA) : latitudeA;
+  const lon1 = typeof longitudeA === 'string' ? Number(longitudeA) : longitudeA;
+  const lat2 = typeof latitudeB === 'string' ? Number(latitudeB) : latitudeB;
+  const lon2 = typeof longitudeB === 'string' ? Number(longitudeB) : longitudeB;
+
+  if (
+    !Number.isFinite(lat1) ||
+    !Number.isFinite(lon1) ||
+    !Number.isFinite(lat2) ||
+    !Number.isFinite(lon2)
+  ) {
+    return undefined;
+  }
+
+  const fromLat = lat1 as number;
+  const fromLon = lon1 as number;
+  const toLat = lat2 as number;
+  const toLon = lon2 as number;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const deltaLat = toRadians(toLat - fromLat);
+  const deltaLon = toRadians(toLon - fromLon);
+  const a =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(toRadians(fromLat)) * Math.cos(toRadians(toLat)) * Math.sin(deltaLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
 export function formatDistanceKm(value: number | string | undefined): string {
   const distance = typeof value === 'string' ? Number(value) : value;
   if (Number.isFinite(distance) && Number(distance) >= 0) {

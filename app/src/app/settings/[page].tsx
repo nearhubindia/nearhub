@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -111,6 +111,8 @@ const SUPPORT_QUERY_URL = 'https://nearhub.in/contact';
 export default function SettingDetailScreen() {
   const { page } = useLocalSearchParams<{ page: string }>();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const authRedirect = pathname && pathname !== '/auth/register' ? pathname : '';
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const { user, logout } = useAuth();
   const [selectedLanguage, setSelectedLanguage] = useState('English');
@@ -193,7 +195,11 @@ export default function SettingDetailScreen() {
               Alert.alert('Account Deleted', 'Your account has been deleted successfully.', [
                 {
                   text: 'OK',
-                  onPress: () => router.replace('/auth/register'),
+                  onPress: () =>
+                    router.replace({
+                      pathname: '/auth/register',
+                      params: authRedirect ? { redirect: authRedirect } : undefined,
+                    }),
                 },
               ]);
             } catch (error) {

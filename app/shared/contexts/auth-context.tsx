@@ -1,11 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDemandMultiplier } from '@/lib/location-data';
-import {
-  loadCachedLocation,
-  saveCachedLocation,
-  type CachedLocation,
-} from '@/lib/location-cache';
+import { loadCachedLocation, saveCachedLocation, type CachedLocation } from '@/lib/location-cache';
 
 const AUTH_USER_KEY = '@nearhub_auth_user';
 

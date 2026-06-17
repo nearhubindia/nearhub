@@ -20,6 +20,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import Colors from '@/constants/colors';
+import AuthRequiredState from '@/shared/components/AuthRequiredState';
 import AppScreenBanners from '@/shared/components/AppScreenBanners';
 import { KeyboardAwareScrollViewCompat } from '@/shared/components/KeyboardAwareScrollViewCompat';
 import { useAuth } from '@/shared/contexts/auth-context';
@@ -64,7 +65,7 @@ function computeSaveBasedRating(totalSaves: number, totalListings: number): numb
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, isAuthenticated } = useAuth();
   const { banners: profileBanners, isLoading: isProfileBannersLoading } =
     useAppScreenBanners('profile');
   const [name, setName] = useState(user?.name || '');
@@ -333,6 +334,10 @@ export default function ProfileScreen() {
       }
     };
   }, []);
+
+  if (!isAuthenticated || !user) {
+    return <AuthRequiredState message="Please sign in to view and edit your profile" />;
+  }
 
   return (
     <KeyboardAvoidingView

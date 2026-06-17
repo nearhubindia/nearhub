@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { readStoredWebUser, type StoredWebUser } from '@/lib/web-auth-storage';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
 type StoredUser = StoredWebUser;
 
@@ -24,6 +25,7 @@ type ChatMessage = {
 };
 
 export default function ConversationPage(): ReactElement {
+  const location = useLocation();
   const { conversationId = '' } = useParams();
   const user = readStoredWebUser() as StoredUser | null;
   const queryClient = useQueryClient();
@@ -117,7 +119,8 @@ export default function ConversationPage(): ReactElement {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messagesQuery.data, sending]);
 
-  if (!userId) return <Navigate to="/auth/register" replace />;
+  if (!userId)
+    return <Navigate to={buildAuthRegisterPath(location.pathname, location.search)} replace />;
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#fffef8_0%,#eef6ff_58%,#f8fbff_100%)] text-slate-900">

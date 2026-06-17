@@ -1,10 +1,11 @@
 import { useMemo, type ReactElement } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Clock3, MessageCircle } from 'lucide-react';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { readStoredWebUser, type StoredWebUser } from '@/lib/web-auth-storage';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
 type StoredUser = StoredWebUser;
 
@@ -36,6 +37,7 @@ function formatTimeAgo(timestamp?: string): string {
 }
 
 export default function MessagesPage(): ReactElement {
+  const location = useLocation();
   const user = readStoredWebUser() as StoredUser | null;
   const userId = String(user?.id || '').trim();
   const userPhone = String(user?.phone || '').trim();
@@ -72,7 +74,8 @@ export default function MessagesPage(): ReactElement {
     [threadsQuery.data]
   );
 
-  if (!userId) return <Navigate to="/auth/register" replace />;
+  if (!userId)
+    return <Navigate to={buildAuthRegisterPath(location.pathname, location.search)} replace />;
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#fffef8_0%,#eef6ff_58%,#f8fbff_100%)] text-slate-900">

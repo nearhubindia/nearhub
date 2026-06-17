@@ -41,6 +41,13 @@ body,
   overflow-x: hidden;
 }
 
+body {
+  font-family: 'Geist Variable', 'Inter', sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 img,
 video,
 canvas,
@@ -335,8 +342,8 @@ svg {
 .nearhub-splash-kicker {
   color: #f08a24;
   font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.14em;
+  font-weight: 400;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -344,7 +351,7 @@ svg {
   margin-top: 0.35rem;
   color: #0b2454;
   font-size: clamp(2.2rem, 12vw, 3.35rem);
-  font-weight: 900;
+  font-weight: 400;
   line-height: 1;
 }
 
@@ -352,7 +359,7 @@ svg {
   margin-top: 0.75rem;
   color: #637083;
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.55;
 }
 

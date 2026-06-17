@@ -12,10 +12,11 @@ import {
   Star,
   User,
 } from 'lucide-react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useLocation } from 'react-router-dom';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { readStoredWebUser, writeStoredWebUser, type StoredWebUser } from '@/lib/web-auth-storage';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
 type StoredUser = StoredWebUser;
 
@@ -103,6 +104,7 @@ function Field({
 }
 
 export default function ProfilePage(): ReactElement {
+  const location = useLocation();
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [storedUser, setStoredUser] = useState<StoredUser | null>(
     () => readStoredWebUser() as StoredUser | null
@@ -376,7 +378,7 @@ export default function ProfilePage(): ReactElement {
   };
 
   if (!isLoggedIn) {
-    return <Navigate to="/auth/register" replace />;
+    return <Navigate to={buildAuthRegisterPath(location.pathname, location.search)} replace />;
   }
 
   return (

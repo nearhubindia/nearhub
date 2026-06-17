@@ -28,6 +28,7 @@ import { resolveUserDisplayName } from '../../users/services/user-profiles';
 import { eq, inArray, or } from 'drizzle-orm';
 import { parseJsonArrayField } from '../../../shared/utils/json-fields';
 import { calculateDistance } from '../../search/services/distance';
+import { deriveDealStatus } from '../lib/deal-status';
 
 function normalizeOwnerId(value: unknown): string {
   if (typeof value !== 'string') return '';
@@ -353,6 +354,8 @@ function toPublicListing(
   const publicImages = sanitizeMediaForPublic(req, listingId, 'images', images);
   const publicVideos = sanitizeMediaForPublic(req, listingId, 'videos', videos);
   const primaryImage = typeof publicImages[0] === 'string' ? publicImages[0] : '';
+  const derivedDealStatus =
+    listing?.dealStatus ?? listing?.deal_status ?? deriveDealStatus(listing, Date.now());
 
   return {
     ...rest,
@@ -364,6 +367,7 @@ function toPublicListing(
     // Never expose raw phone numbers in public listing payloads.
     contactPhone: '',
     sellerPhone: '',
+    dealStatus: derivedDealStatus,
     chatCount,
     likeCount,
     saveCount: likeCount,
@@ -409,6 +413,8 @@ function toMutationListingResponse(listing: any) {
     boostedUntil: listing.boostedUntil ?? listing.boosted_until ?? null,
     boostCount: listing.boostCount ?? listing.boost_count ?? 0,
     isDeal: listing.isDeal ?? listing.is_deal ?? false,
+    dealStatus:
+      listing.dealStatus ?? listing.deal_status ?? deriveDealStatus(listing, Date.now()),
     dealType: listing.dealType ?? listing.deal_type ?? null,
     dealStartAt: listing.dealStartAt ?? listing.deal_start_at ?? null,
     dealEndAt: listing.dealEndAt ?? listing.deal_end_at ?? null,

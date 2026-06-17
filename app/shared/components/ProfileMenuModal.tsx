@@ -10,7 +10,7 @@ import {
   Animated,
   Image,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -76,6 +76,20 @@ const MENU_ITEMS: MenuItem[] = [
     color: '#0F766E',
   },
   {
+    icon: 'shopping-bag',
+    label: 'Purchased Deals',
+    subtitle: 'Bookings & vouchers',
+    route: '/bookings',
+    color: '#0759E6',
+  },
+  {
+    icon: 'inbox',
+    label: 'Deal Bookings',
+    subtitle: 'Seller purchases',
+    route: '/deal-bookings',
+    color: '#0B6DD8',
+  },
+  {
     icon: 'settings',
     label: 'Settings',
     subtitle: 'Preferences',
@@ -89,6 +103,8 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
   const insets = useSafeAreaInsets();
   const { user, logout, isAuthenticated } = useAuth();
   const { unreadChatsCount } = useMessages();
+  const pathname = usePathname();
+  const authRedirect = pathname && pathname !== '/auth/register' ? pathname : '';
   const slideAnim = useRef(new Animated.Value(360)).current;
   const unreadChatsLabel = unreadChatsCount > 99 ? '99+' : String(unreadChatsCount);
 
@@ -131,7 +147,10 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
   const handleLogout = async () => {
     onClose();
     await logout();
-    router.replace('/auth/register');
+    router.replace({
+      pathname: '/auth/register',
+      params: authRedirect ? { redirect: authRedirect } : undefined,
+    });
   };
 
   return (
@@ -194,7 +213,10 @@ export default function ProfileMenuModal({ visible, onClose }: ProfileMenuModalP
               style={styles.loginPrompt}
               onPress={() => {
                 onClose();
-                router.push('/auth/register');
+                router.push({
+                  pathname: '/auth/register',
+                  params: authRedirect ? { redirect: authRedirect } : undefined,
+                });
               }}
             >
               <Feather name="log-in" size={responsiveModerateScale(18)} color={Colors.primary} />

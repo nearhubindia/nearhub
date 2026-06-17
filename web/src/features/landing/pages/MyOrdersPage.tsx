@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactElement } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   CalendarX2,
@@ -15,8 +15,10 @@ import { LandingFooter, LandingHeader } from '@/shared/components';
 import { DealStatsGrid } from '../components/DealStatsGrid';
 import { DealVoucherCard } from '../components/DealVoucherCard';
 import { apiUrl, openVoucherPdf, readStoredUser, type DealBooking } from '../lib/deal-bookings';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
 export default function MyOrdersPage(): ReactElement {
+  const location = useLocation();
   const user = readStoredUser();
   const userId = String(user?.id || '').trim();
   const userPhone = String(user?.phone || '').trim();
@@ -47,7 +49,8 @@ export default function MyOrdersPage(): ReactElement {
     },
   });
 
-  if (!userId) return <Navigate to="/auth/register" replace />;
+  if (!userId)
+    return <Navigate to={buildAuthRegisterPath(location.pathname, location.search)} replace />;
 
   const openVoucher = async (bookingId: string) => {
     await openVoucherPdf({ bookingId, authHeaders, setVoucherLoadingId, setMessage });

@@ -19,6 +19,7 @@ import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
+import AuthRequiredState from '@/shared/components/AuthRequiredState';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { getApiUrl } from '@/lib/query-client';
 import { extractInvoiceFromResponse, storeInvoice } from '@/lib/invoice-storage';
@@ -128,7 +129,7 @@ interface PaymentSuccessModalState {
 
 export default function SubscriptionsScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -201,6 +202,10 @@ export default function SubscriptionsScreen(): React.JSX.Element {
   }, []);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+
+  if (!isAuthenticated || !user) {
+    return <AuthRequiredState message="Please sign in to view subscriptions and billing" />;
+  }
 
   const fetchTiers = useCallback(async (): Promise<void> => {
     try {

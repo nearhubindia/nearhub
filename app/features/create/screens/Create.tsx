@@ -21,7 +21,7 @@ import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams, usePathname } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
@@ -82,6 +82,8 @@ const MAX_STREAMING_VIDEO_BYTES = 35 * 1024 * 1024; // 35MB hard cap for smoothe
 export default function CreateScreen() {
   const params = useLocalSearchParams<{ aiVideoUrl?: string }>();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const authRedirect = pathname && pathname !== '/auth/register' ? pathname : '';
   const { addListing } = useListings();
   const { user, isAuthenticated } = useAuth();
   const { groups: backendCategoryGroups, priceUnits: backendPriceUnits } = useListingTaxonomy();
@@ -2225,7 +2227,15 @@ export default function CreateScreen() {
             Register with your mobile number to post listings, services, jobs and connect with
             buyers
           </Text>
-          <Pressable style={styles.authButton} onPress={() => router.push('/auth/register')}>
+          <Pressable
+            style={styles.authButton}
+            onPress={() =>
+              router.push({
+                pathname: '/auth/register',
+                params: authRedirect ? { redirect: authRedirect } : undefined,
+              })
+            }
+          >
             <LinearGradient
               colors={[Colors.primaryLight, Colors.primary, Colors.primaryDark]}
               start={{ x: 0, y: 0 }}

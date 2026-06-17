@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, IndianRupee, MapPin, Save } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { parseMediaList, parseTextList } from '@/features/landing/lib';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 import {
   ADMIN_CATEGORY_GROUPS,
   getDefaultAdminMainCategory,
@@ -131,6 +132,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function EditListingPage(): ReactElement {
   const { id = '' } = useParams();
+  const routeLocation = useLocation();
   const navigate = useNavigate();
   const storedUser = readStoredWebUser() as StoredUser | null;
   const userId = String(storedUser?.id || '').trim();
@@ -401,7 +403,10 @@ export default function EditListingPage(): ReactElement {
     }
   };
 
-  if (!userId) return <Navigate to="/auth/register" replace />;
+  if (!userId)
+    return (
+      <Navigate to={buildAuthRegisterPath(routeLocation.pathname, routeLocation.search)} replace />
+    );
   if (!id) return <Navigate to="/my-listings" replace />;
 
   return (

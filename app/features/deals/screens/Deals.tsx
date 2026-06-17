@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -28,7 +28,7 @@ import {
 } from '@/lib/deal-timer';
 import { getDiscountPercent } from '@/lib/deals';
 import { calculateDistance } from '@/lib/location-data';
-import { bookDeal } from '@/lib/deal-bookings';
+import { bookDeal, DealBookingError } from '@/lib/deal-bookings';
 import { createResponsiveStyles } from '@/lib/responsive';
 import AppTopHeader from '@/shared/components/AppTopHeader';
 
@@ -177,12 +177,26 @@ function DealCard({
           </Text>
         ) : null}
         <View style={styles.priceRow}>
-          <Text style={[styles.cardPrice, compact && styles.compactCardPrice]}>
-            {formatPriceInr(item.price)}
-          </Text>
-          {item.originalPrice ? (
-            <Text style={styles.cardOriginalPrice}>{formatPriceInr(item.originalPrice)}</Text>
-          ) : null}
+          <View style={styles.priceStack}>
+            <Text
+              style={[styles.cardPrice, compact && styles.compactCardPrice]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
+              {formatPriceInr(item.price)}
+            </Text>
+            {item.originalPrice ? (
+              <Text
+                style={styles.cardOriginalPrice}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
+                {formatPriceInr(item.originalPrice)}
+              </Text>
+            ) : null}
+          </View>
         </View>
         <View style={styles.distanceRow}>
           <Feather
@@ -275,10 +289,26 @@ function ComboDealCard({
           {comboTitle}
         </Text>
         <View style={styles.priceRow}>
-          <Text style={styles.comboPrice}>{formatPriceInr(item.price)}</Text>
-          {item.originalPrice ? (
-            <Text style={styles.cardOriginalPrice}>{formatPriceInr(item.originalPrice)}</Text>
-          ) : null}
+          <View style={styles.priceStack}>
+            <Text
+              style={styles.comboPrice}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
+              {formatPriceInr(item.price)}
+            </Text>
+            {item.originalPrice ? (
+              <Text
+                style={styles.cardOriginalPrice}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
+                {formatPriceInr(item.originalPrice)}
+              </Text>
+            ) : null}
+          </View>
         </View>
         <View style={styles.statusPanel}>
           <Text style={styles.statusKicker}>Deal status</Text>
@@ -308,6 +338,8 @@ function ComboDealCard({
 
 export default function DealsScreen() {
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const authRedirect = pathname && pathname !== '/auth/register' ? pathname : '';
   const { listings, savedIds, toggleSaved, refreshListings, isRefreshing } = useListings();
   const { user, cachedLocation, isAuthenticated } = useAuth();
   const [bookingId, setBookingId] = useState<string | null>(null);
@@ -323,7 +355,10 @@ export default function DealsScreen() {
     async (listingId: string) => {
       if (!isAuthenticated || !user?.id) {
         Alert.alert('Sign in required', 'Please sign in to book a deal.');
-        router.push('/auth/register');
+        router.push({
+          pathname: '/auth/register',
+          params: authRedirect ? { redirect: authRedirect } : undefined,
+        });
         return;
       }
 
@@ -336,6 +371,13 @@ export default function DealsScreen() {
           { text: 'View bookings', onPress: () => router.push('/bookings') },
         ]);
       } catch (error) {
+        if (error instanceof DealBookingError && error.code === 'ALREADY_BOOKED') {
+          Alert.alert('Already booked', 'You already booked this deal.', [
+            { text: 'OK' },
+            { text: 'View bookings', onPress: () => router.push('/bookings') },
+          ]);
+          return;
+        }
         Alert.alert('Booking failed', error instanceof Error ? error.message : 'Please try again.');
       } finally {
         setBookingId(null);
@@ -719,10 +761,14 @@ const styles = createResponsiveStyles({
   },
   priceRow: {
     marginTop: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 2,
+  },
+  priceStack: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    minWidth: 0,
   },
   cardPrice: {
     fontSize: 18,

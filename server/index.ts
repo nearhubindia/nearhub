@@ -19,6 +19,7 @@ import { SERVER_CONFIG } from './lib/config';
 import { taskScheduler } from './lib/task-scheduler';
 import { checkAndExpireSubscriptions } from './features/subscriptions/workers/subscription-expiration';
 import { checkAndDeactivateListings } from './features/listings/workers/listing-expiration';
+import { sendExpiryReminderNotifications } from './shared/services/notification-reminders';
 import { processListingModerationQueue } from './features/listings/workers/listing-moderation';
 import { generalLimiter } from './lib/rate-limiter';
 import {
@@ -556,6 +557,16 @@ function initializeBackgroundWorkers(): void {
     { enabled: true, maxRetries: 5 }
   );
 
+  // Reminder notifications - runs every 6 hours to keep renewal/expiry nudges timely
+  taskScheduler.register(
+    'push-reminders',
+    async () => {
+      await sendExpiryReminderNotifications();
+    },
+    6 * 60 * 60 * 1000,
+    { enabled: true, maxRetries: 3 }
+  );
+
   // Inactive user cleanup worker - disabled by default, run manually by admin after review.
   taskScheduler.register(
     'inactive-user-cleanup',
@@ -584,6 +595,7 @@ function initializeBackgroundWorkers(): void {
   debugWorkers('listing-expiration: Every 30 minutes');
   debugWorkers('listing-moderation: Every 15 seconds');
   debugWorkers('ai-voiceover: Every 20 seconds');
+  debugWorkers('push-reminders: Every 6 hours');
   debugWorkers('inactive-user-cleanup: Every 24 hours (disabled by default)');
   debugWorkers('data-retention-cleanup: Every 24 hours (disabled by default)');
 }

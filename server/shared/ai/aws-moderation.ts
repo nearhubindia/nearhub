@@ -8,6 +8,7 @@ import {
   RekognitionClient,
   type ModerationLabel,
 } from '@aws-sdk/client-rekognition';
+import { runFfmpeg } from '../media/ffmpeg';
 
 export type AwsModerationResult = {
   safe: boolean;
@@ -87,7 +88,7 @@ async function extractVideoFrames(videoUrl: string): Promise<Uint8Array[]> {
   const framePattern = path.join(tempDir, 'frame_%03d.jpg');
   try {
     await downloadToFile(videoUrl, inputPath);
-    await runCommand('ffmpeg', [
+    await runFfmpeg([
       '-hide_banner',
       '-loglevel',
       'error',

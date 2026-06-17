@@ -44,6 +44,7 @@ async function applyCoreSchemaPatches(): Promise<void> {
     )
   `);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_deal boolean NOT NULL DEFAULT false`);
+  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_status varchar(20)`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_type varchar(20)`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_start_at timestamp`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_end_at timestamp`);

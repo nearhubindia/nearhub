@@ -1,7 +1,6 @@
 import type { Express } from 'express';
 import { createServer, type Server } from 'node:http';
 import { existsSync } from 'node:fs';
-import { spawn } from 'node:child_process';
 import axios from 'axios';
 import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
 // Location routes from search feature
@@ -60,6 +59,11 @@ import {
   getGoogleGenAIClient,
   isGoogleGenAIConfigured,
 } from './shared/ai/genai-client';
+import {
+  getGoogleTtsEndpoint,
+  getGoogleTtsHeaders,
+  hasGoogleTtsAuth,
+} from './shared/ai/google-tts';
 import { callGeminiWithRetry } from './shared/ai/genai-resilience';
 
 type AiHealthCachedResult = {
@@ -69,57 +73,6 @@ type AiHealthCachedResult = {
 };
 
 let aiHealthDeepCache: AiHealthCachedResult | null = null;
-let googleTtsAccessTokenCache: { token: string; expiresAtMs: number } | null = null;
-
-function runCommandWithOutput(command: string, args: string[]): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve(stdout.trim());
-        return;
-      }
-      reject(new Error(`${command} exited with ${code}: ${stderr}`));
-    });
-  });
-}
-
-async function getGoogleTtsAccessToken(): Promise<string> {
-  const now = Date.now();
-  if (googleTtsAccessTokenCache && googleTtsAccessTokenCache.expiresAtMs > now) {
-    return googleTtsAccessTokenCache.token;
-  }
-
-  let token = '';
-  try {
-    token = await runCommandWithOutput('gcloud', [
-      'auth',
-      'application-default',
-      'print-access-token',
-    ]);
-  } catch {
-    token = await runCommandWithOutput('gcloud', ['auth', 'print-access-token']);
-  }
-
-  if (!token) {
-    throw new Error('Failed to obtain Google Cloud access token for TTS');
-  }
-
-  googleTtsAccessTokenCache = {
-    token,
-    expiresAtMs: now + 45 * 60 * 1000,
-  };
-  return token;
-}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Health check
@@ -148,7 +101,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const moderationProvider = (process.env.AI_MODERATION_PROVIDER || 'aws').toLowerCase();
     const moderationModel = process.env.GEMINI_MODERATION_MODEL || 'gemini-2.5-flash';
     const ttsModel = process.env.GOOGLE_TTS_VOICE_NAME || 'google-cloud-tts';
-    const googleTtsApiKey = String(process.env.GOOGLE_TTS_API_KEY || '').trim();
     const ttsProvider: string = 'google';
     const translationProvider = (process.env.AI_TRANSLATION_PROVIDER || 'aws').toLowerCase();
     const googleGenAIConfigured = isGoogleGenAIConfigured();
@@ -169,6 +121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         configured: googleGenAIConfigured,
         licenseReady: googleLicenseReady,
         hasVertexProject: Boolean(process.env.GOOGLE_CLOUD_PROJECT),
+        hasTtsAuth: hasGoogleTtsAuth(),
         hasCredentialsFile:
           googleGenAIAuthMode === 'vertex'
             ? Boolean(googleCredentialsPath && existsSync(googleCredentialsPath))
@@ -281,19 +234,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     {
       try {
-        const endpoint = googleTtsApiKey
-          ? `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(googleTtsApiKey)}`
-          : 'https://texttospeech.googleapis.com/v1/text:synthesize';
-        const headers: Record<string, string> = {};
-        if (!googleTtsApiKey) {
-          if (!process.env.GOOGLE_CLOUD_PROJECT) {
-            throw new Error(
-              'Google TTS auth is missing (set GOOGLE_TTS_API_KEY or GOOGLE_CLOUD_PROJECT)'
-            );
-          }
-          headers.Authorization = `Bearer ${await getGoogleTtsAccessToken()}`;
-          headers['x-goog-user-project'] = process.env.GOOGLE_CLOUD_PROJECT;
-        }
+        const endpoint = getGoogleTtsEndpoint();
+        const headers = await getGoogleTtsHeaders();
         const response = await axios.post(
           endpoint,
           {

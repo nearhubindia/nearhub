@@ -13,7 +13,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image';
 import { Feather } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
+import AuthRequiredState from '@/shared/components/AuthRequiredState';
 import { useMessages, ChatThread } from '@/shared/contexts/messages-context';
+import { useAuth } from '@/shared/contexts/auth-context';
 import { getTimeAgo } from '@/lib/utils';
 
 function ChatThreadItem({ thread }: { thread: ChatThread }) {
@@ -122,6 +124,7 @@ function EmptyState() {
 
 export default function MessagesScreen() {
   const insets = useSafeAreaInsets();
+  const { isAuthenticated } = useAuth();
   const { threads, isLoading } = useMessages();
   const webTopInset = Platform.OS === 'web' ? 56 : 0;
 
@@ -135,6 +138,10 @@ export default function MessagesScreen() {
       }),
     [threads]
   );
+
+  if (!isAuthenticated) {
+    return <AuthRequiredState message="Please sign in to view your messages" />;
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>

@@ -31,6 +31,7 @@ services:
       REDIS_PORT: 6379
     volumes:
       - /etc/nearhub/rds-global-bundle.pem:/etc/nearhub/rds-global-bundle.pem:ro
+      - /etc/nearhub/gcp-sa.json:/etc/nearhub/gcp-sa.json:ro
     ports:
       - "5000:5000"
     healthcheck:

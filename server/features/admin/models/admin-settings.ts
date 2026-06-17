@@ -820,6 +820,7 @@ export const listings = pgTable('listings', {
 
   // Deal listing controls (time-window + slot-based booking)
   isDeal: boolean('is_deal').notNull().default(false),
+  dealStatus: varchar('deal_status', { length: 20 }),
   dealType: varchar('deal_type', { length: 20 }), // normal | combo
   dealStartAt: timestamp('deal_start_at'),
   dealEndAt: timestamp('deal_end_at'),

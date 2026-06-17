@@ -114,6 +114,12 @@
 | `@elastic/elasticsearch` | ^9.3.1  | Elasticsearch client v9               |
 | `redis`                  | ^4.6.13 | Redis client (caching, rate limiting) |
 
+### System Packages
+
+| Package  | Purpose                                      |
+| -------- | -------------------------------------------- |
+| `ffmpeg` | Video transcoding, frame extraction, probing |
+
 ### Authentication & Security
 
 | Package        | Version | Purpose                        |

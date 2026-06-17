@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BadgeCheck,
@@ -20,6 +20,7 @@ import { getApiUrl } from '@/lib/config';
 import { trackWebGenerateLead, trackWebViewItem } from '@/lib/firebase';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 import { formatDealStatus } from '@/lib/deal-timer';
 import { getListingImages } from '@/features/landing/lib';
 import {
@@ -309,6 +310,7 @@ function ListingGallery({
 
 export default function ListingDetailsPage(): ReactElement {
   const { id = '' } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [bookingMessage, setBookingMessage] = useState('');
@@ -557,7 +559,7 @@ export default function ListingDetailsPage(): ReactElement {
   const handleBookDeal = () => {
     if (!id) return;
     if (!userId) {
-      navigate('/auth/register');
+      navigate(buildAuthRegisterPath(location.pathname, location.search));
       return;
     }
     if (!readStoredWebGeoCoords()) {
@@ -580,7 +582,7 @@ export default function ListingDetailsPage(): ReactElement {
   const sendListingMessage = async (text: string) => {
     if (!id) return;
     if (!userId) {
-      navigate('/auth/register');
+      navigate(buildAuthRegisterPath(location.pathname, location.search));
       return;
     }
 
@@ -920,7 +922,12 @@ export default function ListingDetailsPage(): ReactElement {
                     disabled={!userId}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] bg-[#1f63b2] px-4 text-sm text-white shadow-sm transition hover:bg-[#174f92] disabled:opacity-60"
                     onClick={() => {
-                      if (!userId) window.location.href = '/auth/register';
+                      if (!userId) {
+                        window.location.href = buildAuthRegisterPath(
+                          location.pathname,
+                          location.search
+                        );
+                      }
                     }}
                   >
                     <Phone size={16} /> {userId ? 'Contact Unavailable' : 'Login to Call'}

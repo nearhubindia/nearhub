@@ -9,11 +9,12 @@ import {
   Switch,
   Alert,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
+import AuthRequiredState from '@/shared/components/AuthRequiredState';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useNotifications } from '@/shared/contexts/notifications-context';
 import { getApiUrl } from '@/lib/query-client';
@@ -32,6 +33,8 @@ interface SettingItem {
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const authRedirect = pathname && pathname !== '/auth/register' ? pathname : '';
   const { user, logout, updateUser } = useAuth();
   const isAuthenticated = !!user;
   const { pushToken } = useNotifications();
@@ -46,6 +49,10 @@ export default function SettingsScreen() {
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
+  if (!isAuthenticated) {
+    return <AuthRequiredState message="Please sign in to manage your settings" />;
+  }
+
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
@@ -54,7 +61,10 @@ export default function SettingsScreen() {
         style: 'destructive',
         onPress: async () => {
           await logout();
-          router.replace('/auth/register');
+          router.replace({
+            pathname: '/auth/register',
+            params: authRedirect ? { redirect: authRedirect } : undefined,
+          });
         },
       },
     ]);
@@ -258,32 +268,10 @@ export default function SettingsScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
-        {!isAuthenticated && (
-          <Pressable
-            style={styles.loginPrompt}
-            android_ripple={{ color: '#E6EEFC' }}
-            onPress={() => router.push('/auth/register')}
-          >
-            <View style={styles.loginPromptIcon}>
-              <Feather name="log-in" size={18} color={Colors.primary} />
-            </View>
-            <View style={styles.loginPromptCopy}>
-              <Text style={styles.loginPromptTitle}>Sign In / Register</Text>
-              <Text style={styles.loginPromptSubtitle}>
-                Manage your profile and account from one place.
-              </Text>
-            </View>
-            <Feather name="chevron-right" size={18} color="#8192AB" />
-          </Pressable>
-        )}
-
-        {/* Account Settings */}
-        {isAuthenticated && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Account</Text>
-            <View style={styles.settingsGroup}>{accountSettings.map(renderSettingItem)}</View>
-          </View>
-        )}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          <View style={styles.settingsGroup}>{accountSettings.map(renderSettingItem)}</View>
+        </View>
 
         {/* App Settings */}
         <View style={styles.section}>
@@ -298,12 +286,10 @@ export default function SettingsScreen() {
         </View>
 
         {/* Danger Zone */}
-        {dangerSettings.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Danger Zone</Text>
-            <View style={styles.settingsGroup}>{dangerSettings.map(renderSettingItem)}</View>
-          </View>
-        )}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Danger Zone</Text>
+          <View style={styles.settingsGroup}>{dangerSettings.map(renderSettingItem)}</View>
+        </View>
       </ScrollView>
     </View>
   );

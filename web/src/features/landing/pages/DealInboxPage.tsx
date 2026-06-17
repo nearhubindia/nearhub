@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactElement } from 'react';
-import { Navigate, Link, useSearchParams } from 'react-router-dom';
+import { Navigate, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarX2,
@@ -15,6 +15,7 @@ import { LandingFooter, LandingHeader } from '@/shared/components';
 import { DealStatsGrid } from '../components/DealStatsGrid';
 import { DealVoucherCard } from '../components/DealVoucherCard';
 import { apiUrl, openVoucherPdf, readStoredUser, type DealBooking } from '../lib/deal-bookings';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
 type DealListing = {
   id: string;
@@ -30,6 +31,7 @@ type ListingsResponse = {
 };
 
 export default function DealInboxPage(): ReactElement {
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const scopedListingId = String(searchParams.get('listingId') || '').trim();
@@ -136,7 +138,8 @@ export default function DealInboxPage(): ReactElement {
     },
   });
 
-  if (!userId) return <Navigate to="/auth/register" replace />;
+  if (!userId)
+    return <Navigate to={buildAuthRegisterPath(location.pathname, location.search)} replace />;
 
   const openVoucher = async (bookingId: string) => {
     await openVoucherPdf({ bookingId, authHeaders, setVoucherLoadingId, setMessage });

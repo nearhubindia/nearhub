@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { runFfmpeg } from '../../../shared/media/ffmpeg';
 
 const HLS_CACHE_ROOT = process.env.HLS_CACHE_DIR || '/tmp/video-hls-cache';
 const transcodeInFlight = new Map<string, Promise<void>>();
@@ -11,29 +11,6 @@ function ensureDirSync(dirPath: string): void {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
   }
-}
-
-function runFfmpeg(args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const ffmpeg = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    let stderr = '';
-
-    ffmpeg.stderr.on('data', (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    ffmpeg.on('error', (error) => {
-      reject(error);
-    });
-
-    ffmpeg.on('close', (code) => {
-      if (code === 0) {
-        resolve();
-        return;
-      }
-      reject(new Error(`ffmpeg exited with code ${code}. ${stderr.slice(-400)}`));
-    });
-  });
 }
 
 function isTranscodeReady(streamDir: string): boolean {

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactElement } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useLocation } from 'react-router-dom';
 import { Heart, MapPin } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { LandingHeader, LandingFooter } from '@/shared/components';
@@ -11,6 +11,7 @@ import {
   readStoredStringSet,
   writeStoredStringSet,
 } from '@/features/landing/lib';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
 type StoredUser = { id?: string; phone?: string };
 type SavedListing = {
@@ -31,6 +32,7 @@ type ListingsResponse = { success?: boolean; data?: SavedListing[]; results?: Sa
 const FALLBACK_IMAGE = '/nearhub.png';
 
 export default function SavedPage(): ReactElement {
+  const location = useLocation();
   const storedUser = readStoredWebUser() as StoredUser | null;
   const userId = String(storedUser?.id || '').trim();
   const [savedIds, setSavedIds] = useState<Set<string>>(() =>
@@ -63,7 +65,8 @@ export default function SavedPage(): ReactElement {
     writeStoredStringSet(SAVED_LISTING_IDS_KEY, next);
   };
 
-  if (!userId) return <Navigate to="/auth/register" replace />;
+  if (!userId)
+    return <Navigate to={buildAuthRegisterPath(location.pathname, location.search)} replace />;
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#fffef8_0%,#eef6ff_58%,#f8fbff_100%)] text-slate-900">

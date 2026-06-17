@@ -13,7 +13,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -206,6 +206,8 @@ function parseErrorMessage(error: unknown, fallback: string): string {
 
 export default function AiStudio() {
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const authRedirect = pathname && pathname !== '/auth/register' ? pathname : '';
   const { user } = useAuth();
   const [language, setLanguage] = useState<VoiceLanguage>('telugu');
   const [sourceLocalUri, setSourceLocalUri] = useState<string | null>(null);
@@ -704,7 +706,15 @@ export default function AiStudio() {
               Register with your mobile number to create AI voice-over videos and manage your
               generated clips.
             </Text>
-            <Pressable style={styles.authButton} onPress={() => router.push('/auth/register')}>
+            <Pressable
+              style={styles.authButton}
+              onPress={() =>
+                router.push({
+                  pathname: '/auth/register',
+                  params: authRedirect ? { redirect: authRedirect } : undefined,
+                })
+              }
+            >
               <LinearGradient
                 colors={[Colors.primaryLight, Colors.primary, Colors.primaryDark]}
                 start={{ x: 0, y: 0 }}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   BadgeIndianRupee,
@@ -14,6 +14,7 @@ import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { trackWebEvent, trackWebPurchase } from '@/lib/firebase';
 import { readStoredWebUser, type StoredWebUser } from '@/lib/web-auth-storage';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
 type StoredUser = StoredWebUser;
 
@@ -29,9 +30,20 @@ type RazorpayOptions = {
   currency: string;
   name: string;
   description: string;
+  image?: string;
   order_id: string;
   prefill?: {
+    name?: string;
+    email?: string;
     contact?: string;
+  };
+  notes?: Record<string, string>;
+  theme?: {
+    color?: string;
+  };
+  retry?: {
+    enabled?: boolean;
+    max_count?: number;
   };
   handler: (response: RazorpayPaymentResponse) => void;
   modal?: {
@@ -226,12 +238,31 @@ function getPaymentOrigin(): string {
   return window.location.origin;
 }
 
+function formatRazorpayContact(phone: string): string {
+  const digits = String(phone || '').replace(/\D/g, '').slice(-10);
+  return digits ? `+91${digits}` : '';
+}
+
+function getConfiguredSiteOrigin(): string {
+  const raw = String(import.meta.env.VITE_SITE_URL || 'https://nearhub.in').trim();
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return 'https://nearhub.in';
+  }
+}
+
 function isAllowedPaymentHost(hostname: string): boolean {
-  const normalized = hostname.toLowerCase();
-  return normalized === 'nearhub.in' || normalized === 'www.nearhub.in';
+  try {
+    const allowedHost = new URL(getConfiguredSiteOrigin()).hostname.toLowerCase();
+    return hostname.toLowerCase() === allowedHost;
+  } catch {
+    return hostname.toLowerCase() === 'nearhub.in';
+  }
 }
 
 export default function SubscriptionsPage(): ReactElement {
+  const location = useLocation();
   const user = readStoredWebUser() as StoredUser | null;
   const userId = String(user?.id || '').trim();
   const userPhone = String(user?.phone || '').trim();
@@ -453,7 +484,8 @@ export default function SubscriptionsPage(): ReactElement {
     };
   }, []);
 
-  if (!userId) return <Navigate to="/auth/register" replace />;
+  if (!userId)
+    return <Navigate to={buildAuthRegisterPath(location.pathname, location.search)} replace />;
 
   const selectedActiveSubscriptionSummary =
     selectedActiveSubscription || activeSubscriptionGroups[0]?.subscriptions[0] || null;
@@ -538,7 +570,7 @@ export default function SubscriptionsPage(): ReactElement {
 
       if (typeof window !== 'undefined' && !isAllowedPaymentHost(window.location.hostname)) {
         setCheckoutMessage(
-          `Payments can only be completed from nearhub.in or www.nearhub.in. Current origin: ${getPaymentOrigin()}.`
+          `Payments can only be completed from ${new URL(getConfiguredSiteOrigin()).hostname}. Current origin: ${getPaymentOrigin()}.`
         );
         return;
       }
@@ -558,9 +590,22 @@ export default function SubscriptionsPage(): ReactElement {
           currency: 'INR',
           name: 'NearHub',
           description: tier.name,
+          image: `${getConfiguredSiteOrigin()}/nearhub.png`,
           order_id: checkout.payment!.razorpayOrderId!,
           prefill: {
-            contact: userPhone,
+            contact: formatRazorpayContact(userPhone),
+          },
+          notes: {
+            subscriptionId: String(created.id || ''),
+            tierId: tier.id,
+            origin: getPaymentOrigin(),
+          },
+          theme: {
+            color: '#1f63b2',
+          },
+          retry: {
+            enabled: true,
+            max_count: 1,
           },
           handler: (paymentResponse) => {
             void (async () => {

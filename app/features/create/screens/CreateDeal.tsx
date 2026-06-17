@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -49,6 +49,8 @@ const parseSourceIds = (rawValue: string | string[] | undefined): string[] => {
 
 export default function CreateDealScreen() {
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const authRedirect = pathname && pathname !== '/auth/register' ? pathname : '';
   const params = useLocalSearchParams<{
     dealType?: DealType;
     sourceListings?: string | string[];
@@ -194,7 +196,15 @@ export default function CreateDealScreen() {
           <Text style={styles.authSubtitle}>
             Promote listings with the same branded NearHub flow used across the app.
           </Text>
-          <Pressable style={styles.primaryButton} onPress={() => router.push('/auth/register')}>
+          <Pressable
+            style={styles.primaryButton}
+            onPress={() =>
+              router.push({
+                pathname: '/auth/register',
+                params: authRedirect ? { redirect: authRedirect } : undefined,
+              })
+            }
+          >
             <Text style={styles.primaryButtonText}>Register with Mobile</Text>
           </Pressable>
         </View>

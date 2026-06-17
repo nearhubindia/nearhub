@@ -36,6 +36,7 @@ import {
   type StoredWebUser,
 } from '@/lib/web-auth-storage';
 import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 import { Logo } from './Logo';
 import { Container } from './Container';
 import { useClickAway } from '@/shared/hooks/useClickAway';
@@ -173,6 +174,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
   const [user, setUser] = useState<StoredWebUser | null>(null);
   const navigate = useNavigate();
   const routerLocation = useLocation();
+  const authRegisterPath = buildAuthRegisterPath(
+    routerLocation.pathname,
+    routerLocation.search
+  );
   const appendSearch = (path: string) => `${path}${routerLocation.search || ''}`;
   const storedGeoCoords = useMemo(() => readStoredWebGeoCoords(), []);
   const persistedHeaderState = useMemo(() => readPersistedHeaderState(HEADER_PERSIST_KEY), []);
@@ -780,29 +785,35 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                 setIsUserMenuOpen((prev) => !prev);
                 setIsNotificationsOpen(false);
               }}
-              className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 text-xs font-semibold text-slate-950 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.55)] transition hover:border-[#0759e6] hover:shadow-md"
+              className="group inline-flex h-11 items-center gap-2 rounded-full border border-transparent bg-[linear-gradient(135deg,rgba(255,255,255,0.96)_0%,rgba(255,255,255,0.9)_100%)] px-[1px] py-[1px] text-xs font-medium text-slate-900 shadow-[0_16px_40px_-24px_rgba(15,23,42,0.55)] backdrop-blur transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_52px_-26px_rgba(7,89,230,0.32)]"
             >
-              <span className="relative grid h-8 w-8 place-items-center overflow-hidden rounded-full bg-slate-100 text-xs font-black text-[#0759e6] ring-1 ring-slate-200">
+              <span className="relative grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-[radial-gradient(circle_at_top,#dbeafe_0%,#eff6ff_34%,#ffffff_100%)] text-xs font-semibold text-[#0759e6] ring-1 ring-[#0759e6]/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_6px_18px_-10px_rgba(7,89,230,0.45)]">
                 {isLoggedIn && userAvatarUrl ? (
                   <img src={userAvatarUrl} alt={userLabel} className="h-full w-full object-cover" />
                 ) : (
-                  <CircleUserRound size={18} />
+                  <CircleUserRound size={19} />
                 )}
                 {isLoggedIn ? (
                   <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
                 ) : null}
               </span>
-              {isLoggedIn ? userLabel : 'User'}
+              <span className="max-w-[7.5rem] truncate pr-0.5">{isLoggedIn ? userLabel : 'User'}</span>
+              <ChevronDown
+                size={14}
+                className={`ml-0.5 text-slate-400 transition duration-200 ${
+                  isUserMenuOpen ? 'rotate-180 text-[#0759e6]' : 'group-hover:text-slate-600'
+                }`}
+              />
             </button>
             {isUserMenuOpen ? (
               <div
                 ref={userMenuPanelRef}
-                className="absolute right-0 z-50 mt-3 w-72 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_22px_50px_-26px_rgba(15,23,42,0.55)]"
+                className="absolute right-0 z-50 mt-3 w-72 overflow-hidden rounded-[22px] border border-slate-200/80 bg-white/95 shadow-[0_28px_70px_-34px_rgba(15,23,42,0.6)] backdrop-blur"
               >
                 {isLoggedIn ? (
                   <>
                     <div className="flex items-center gap-3 px-4 py-4">
-                      <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-slate-100 text-sm font-black text-[#0759e6] ring-1 ring-slate-200">
+                      <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-[radial-gradient(circle_at_top,#dbeafe_0%,#eff6ff_34%,#ffffff_100%)] text-sm font-semibold text-[#0759e6] ring-1 ring-[#0759e6]/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_6px_18px_-10px_rgba(7,89,230,0.45)]">
                         {userAvatarUrl ? (
                           <img
                             src={userAvatarUrl}
@@ -814,8 +825,8 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-slate-950">{userLabel}</p>
-                        <p className="truncate text-xs font-semibold text-slate-500">
+                        <p className="truncate text-sm font-medium text-slate-950">{userLabel}</p>
+                        <p className="truncate text-xs font-normal text-slate-500">
                           {userPhone ? `+91 ${userPhone}` : 'NearHub account'}
                         </p>
                       </div>
@@ -861,7 +872,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                   </>
                 ) : (
                   <Link
-                    to="/auth/register"
+                    to={authRegisterPath}
                     onClick={() => setIsUserMenuOpen(false)}
                     className="m-3 flex h-11 items-center gap-3 rounded-md px-2 text-sm font-bold text-[#0759e6] transition hover:bg-blue-50"
                   >
@@ -928,7 +939,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
               Contact
             </Link>
             <Link
-              to={isLoggedIn ? '/bookings' : '/auth/register'}
+              to={isLoggedIn ? '/bookings' : authRegisterPath}
               className="rounded-md px-3 py-2 text-slate-800"
               onClick={() => setIsMenuOpen(false)}
             >
@@ -955,7 +966,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                 onClick={() => {
                   handleLogout();
                   setIsMenuOpen(false);
-                  navigate('/auth/register');
+                  navigate(authRegisterPath);
                 }}
               >
                 Logout

@@ -43,3 +43,4 @@ npm run test
 - Keep temporary experiment files out of the repo.
 - Put reusable backend logic in `shared/` instead of repeating helpers.
 - Keep operational scripts in `scripts/` and document them here when they become part of the regular workflow.
+- The server media pipeline requires the `ffmpeg` and `ffprobe` binaries. The Docker images install them, and local dev machines should have them on `PATH` or set `FFMPEG_PATH` / `FFPROBE_PATH`.

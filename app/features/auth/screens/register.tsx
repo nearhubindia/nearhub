@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -24,6 +24,7 @@ import { trackAnalyticsEvent } from '@/lib/firebase-analytics';
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
+  const { redirect } = useLocalSearchParams<{ redirect?: string }>();
   const [phone, setPhone] = useState('');
   const [isSending, setIsSending] = useState(false);
 
@@ -55,10 +56,12 @@ export default function RegisterScreen() {
 
       if (data.success) {
         Alert.alert('OTP Sent', 'OTP sent to your mobile number.');
+        const redirectPath = typeof redirect === 'string' ? redirect.trim() : '';
         router.push({
           pathname: '/auth/verify-otp',
           params: {
             phone: phoneToSend,
+            ...(redirectPath ? { redirect: redirectPath } : {}),
           },
         });
       } else {

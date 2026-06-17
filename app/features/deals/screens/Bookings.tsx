@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -13,9 +14,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
+import AuthRequiredState from '@/shared/components/AuthRequiredState';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { createResponsiveStyles } from '@/lib/responsive';
-import { fetchMyDealBookings, type DealBooking } from '@/lib/deal-bookings';
+import {
+  downloadDealVoucherPdf,
+  fetchMyDealBookings,
+  openDealVoucherPdf,
+  parseVoucherPayload,
+  statusLabel,
+  type DealBooking,
+} from '@/lib/deal-bookings';
 
 function formatDate(value?: string | null): string {
   if (!value) return 'Not available';
@@ -32,11 +41,13 @@ function formatDate(value?: string | null): string {
 
 export default function DealBookingsScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [bookings, setBookings] = useState<DealBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [openingVoucherId, setOpeningVoucherId] = useState<string | null>(null);
+  const [downloadingVoucherId, setDownloadingVoucherId] = useState<string | null>(null);
+  const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const loadBookings = useCallback(async () => {
     if (!user?.id) {
@@ -66,7 +77,6 @@ export default function DealBookingsScreen() {
   }, [loadBookings]);
 
   const showVoucherCode = useCallback((booking: DealBooking) => {
-    setOpeningVoucherId(booking.id);
     Alert.alert(
       'Voucher details',
       booking.voucherCode
@@ -74,55 +84,124 @@ export default function DealBookingsScreen() {
         : `Status: ${booking.status}`,
       [{ text: 'Close', style: 'cancel' }]
     );
-    setOpeningVoucherId(null);
   }, []);
 
-  return (
-    <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={20} color={Colors.text} />
-        </Pressable>
-        <View style={styles.headerText}>
-          <Text style={styles.kicker}>Bookings</Text>
-          <Text style={styles.title}>Your booked deals</Text>
-        </View>
-      </View>
+  const openVoucher = useCallback(
+    async (booking: DealBooking) => {
+      if (!user?.id) {
+        Alert.alert('Sign in required', 'Please sign in to open your voucher.');
+        return;
+      }
 
+      setOpeningVoucherId(booking.id);
+      try {
+        await openDealVoucherPdf(booking.id, {
+          id: user.id,
+          phone: user.phone || undefined,
+          token: user.token || undefined,
+        });
+      } catch (error) {
+        Alert.alert(
+          'Could not open voucher',
+          error instanceof Error ? error.message : 'Try again.'
+        );
+      } finally {
+        setOpeningVoucherId(null);
+      }
+    },
+    [user?.id, user?.phone, user?.token]
+  );
+
+  const downloadVoucher = useCallback(
+    async (booking: DealBooking) => {
+      if (!user?.id) {
+        Alert.alert('Sign in required', 'Please sign in to download your voucher.');
+        return;
+      }
+
+      setDownloadingVoucherId(booking.id);
+      try {
+        const result = await downloadDealVoucherPdf(booking.id, {
+          id: user.id,
+          phone: user.phone || undefined,
+          token: user.token || undefined,
+        });
+        if (Platform.OS !== 'web') {
+          Alert.alert('Voucher ready', `Saved PDF voucher to:\n${result.uri}`);
+        }
+      } catch (error) {
+        Alert.alert(
+          'Could not download voucher',
+          error instanceof Error ? error.message : 'Try again.'
+        );
+      } finally {
+        setDownloadingVoucherId(null);
+      }
+    },
+    [user?.id, user?.phone, user?.token]
+  );
+
+  if (!isAuthenticated) {
+    return <AuthRequiredState message="Please sign in to view your purchased deals" />;
+  }
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { paddingTop: (insets.top || webTopInset) + 20 }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { paddingTop: (insets.top || webTopInset) + 20 }]}>
       <FlatList
         data={bookings}
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <View style={styles.headerTop}>
+              <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={8}>
+                <Feather name="arrow-left" size={24} color={Colors.text} />
+              </Pressable>
+              <Text style={styles.screenTitle}>Purchased Deals</Text>
+              <View style={styles.headerSpacer} />
+            </View>
+            <Text style={styles.subtitle}>
+              {bookings.length} {bookings.length === 1 ? 'deal' : 'deals'}
+            </Text>
+          </View>
+        }
         ListEmptyComponent={
-          loading ? (
-            <View style={styles.loadingState}>
-              <ActivityIndicator color={Colors.primary} />
-              <Text style={styles.loadingText}>Loading your bookings...</Text>
-            </View>
-          ) : (
-            <View style={styles.emptyState}>
-              <Feather name="clipboard" size={48} color={Colors.textTertiary} />
-              <Text style={styles.emptyTitle}>No bookings yet</Text>
-              <Text style={styles.emptySubtitle}>
-                Book a deal from the deals page and it will show up here.
-              </Text>
-            </View>
-          )
+          <View style={styles.emptyState}>
+            <Feather name="clipboard" size={48} color={Colors.textTertiary} />
+            <Text style={styles.emptyTitle}>No purchased deals yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Buy or book a deal from the deals page and it will show up here.
+            </Text>
+          </View>
         }
         renderItem={({ item }) => {
           const status = String(item.status || 'booked').toLowerCase();
+          const voucher = parseVoucherPayload(item.voucherPayload);
+          const isOpening = openingVoucherId === item.id;
+          const isDownloading = downloadingVoucherId === item.id;
           return (
             <View style={styles.bookingCard}>
               <View style={styles.bookingHeader}>
                 <View style={styles.bookingIcon}>
-                  <Feather name="tag" size={16} color={Colors.primary} />
+                  <Feather name="shopping-bag" size={16} color={Colors.primary} />
                 </View>
                 <View style={styles.bookingTitleWrap}>
                   <Text style={styles.bookingTitle} numberOfLines={1}>
-                    {item.listingTitle || 'Deal booking'}
+                    {voucher.listingTitle || item.listingTitle || 'Deal booking'}
                   </Text>
-                  <Text style={styles.bookingSubtitle}>Booking ID: {item.id}</Text>
+                  <Text style={styles.bookingSubtitle}>
+                    {item.voucherCode ? `Voucher ${item.voucherCode}` : `Booking ID: ${item.id}`}
+                  </Text>
                 </View>
                 <View
                   style={[
@@ -138,16 +217,20 @@ export default function DealBookingsScreen() {
                       status === 'cancelled' && styles.statusPillTextDanger,
                     ]}
                   >
-                    {status}
+                    {statusLabel(item.status)}
                   </Text>
                 </View>
               </View>
 
               <View style={styles.bookingMeta}>
-                <Text style={styles.metaText}>Booked: {formatDate(item.bookedAt)}</Text>
+                <Text style={styles.metaText}>
+                  Purchased: {formatDate(item.bookedAt || item.createdAt)}
+                </Text>
                 <Text style={styles.metaText}>Redeemed: {formatDate(item.redeemedAt)}</Text>
-                {item.voucherCode ? (
-                  <Text style={styles.metaText}>Voucher: {item.voucherCode}</Text>
+                <Text style={styles.metaText}>Starts: {formatDate(voucher.dealStartAt)}</Text>
+                <Text style={styles.metaText}>Ends: {formatDate(voucher.dealEndAt)}</Text>
+                {voucher.comboItems?.length ? (
+                  <Text style={styles.metaText}>Combo: {voucher.comboItems.join(', ')}</Text>
                 ) : null}
               </View>
 
@@ -162,14 +245,31 @@ export default function DealBookingsScreen() {
                   <Text style={styles.secondaryButtonText}>Open listing</Text>
                 </Pressable>
                 <Pressable
-                  style={[
-                    styles.primaryButton,
-                    openingVoucherId === item.id && styles.disabledButton,
-                  ]}
-                  onPress={() => showVoucherCode(item)}
+                  style={[styles.primaryButton, isOpening && styles.disabledButton]}
+                  disabled={isOpening}
+                  onPress={() => void openVoucher(item)}
                 >
                   <Feather name="file-text" size={14} color="#fff" />
-                  <Text style={styles.primaryButtonText}>View code</Text>
+                  <Text style={styles.primaryButtonText}>
+                    {isOpening ? 'Opening...' : 'View PDF'}
+                  </Text>
+                </Pressable>
+              </View>
+
+              <View style={styles.actionsRow}>
+                <Pressable
+                  style={[styles.secondaryButton, isDownloading && styles.disabledButton]}
+                  disabled={isDownloading}
+                  onPress={() => void downloadVoucher(item)}
+                >
+                  <Feather name="download" size={14} color={Colors.text} />
+                  <Text style={styles.secondaryButtonText}>
+                    {isDownloading ? 'Downloading...' : 'Download PDF'}
+                  </Text>
+                </Pressable>
+                <Pressable style={styles.secondaryButton} onPress={() => showVoucherCode(item)}>
+                  <Feather name="hash" size={14} color={Colors.text} />
+                  <Text style={styles.secondaryButtonText}>View code</Text>
                 </Pressable>
               </View>
             </View>
@@ -187,39 +287,38 @@ const styles = createResponsiveStyles({
   },
   header: {
     paddingHorizontal: 16,
-    paddingBottom: 14,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    paddingVertical: 8,
+  },
+  headerTop: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    marginBottom: 8,
   },
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.borderLight,
   },
-  headerText: {
-    flex: 1,
+  headerSpacer: {
+    width: 40,
   },
-  kicker: {
-    fontSize: 12,
-    color: Colors.primary,
-    fontFamily: 'Inter_600SemiBold',
-    textTransform: 'uppercase',
-  },
-  title: {
-    marginTop: 4,
-    fontSize: 22,
+  screenTitle: {
+    fontSize: 24,
     color: Colors.text,
     fontFamily: 'Inter_700Bold',
+    flex: 1,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontFamily: 'Inter_400Regular',
   },
   listContent: {
-    padding: 16,
+    paddingBottom: 16,
   },
   loadingState: {
     paddingVertical: 40,
@@ -236,6 +335,7 @@ const styles = createResponsiveStyles({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+    marginTop: 40,
   },
   emptyTitle: {
     marginTop: 16,
@@ -258,6 +358,7 @@ const styles = createResponsiveStyles({
     borderColor: Colors.borderLight,
     padding: 14,
     marginBottom: 14,
+    marginHorizontal: 16,
   },
   bookingHeader: {
     flexDirection: 'row',
@@ -324,9 +425,11 @@ const styles = createResponsiveStyles({
     flexDirection: 'row',
     gap: 10,
     marginTop: 14,
+    flexWrap: 'wrap',
   },
   secondaryButton: {
-    flex: 1,
+    flexGrow: 1,
+    minWidth: 130,
     minHeight: 44,
     borderRadius: 14,
     backgroundColor: Colors.borderLight,
@@ -341,7 +444,8 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_600SemiBold',
   },
   primaryButton: {
-    flex: 1,
+    flexGrow: 1,
+    minWidth: 130,
     minHeight: 44,
     borderRadius: 14,
     backgroundColor: Colors.primary,

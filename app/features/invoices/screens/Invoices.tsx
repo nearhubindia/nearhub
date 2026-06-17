@@ -16,6 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import colors from '@/constants/colors';
+import AuthRequiredState from '@/shared/components/AuthRequiredState';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { getApiUrl } from '@/lib/query-client';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
@@ -215,18 +216,7 @@ export default function InvoicesScreen() {
   };
 
   if (!isAuthenticated) {
-    return (
-      <View style={[styles.container, { paddingTop: (insets.top || webTopInset) + 20 }]}>
-        <View style={styles.emptyContainer}>
-          <Feather name="log-in" size={48} color={colors.primary} />
-          <Text style={styles.emptyTitle}>Sign In Required</Text>
-          <Text style={styles.emptySubtitle}>Please sign in to view your invoices</Text>
-          <Pressable style={styles.signInButton} onPress={() => router.push('/auth/register')}>
-            <Text style={styles.signInButtonText}>Sign In</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
+    return <AuthRequiredState message="Please sign in to view your invoices" />;
   }
 
   if (isLoading) {

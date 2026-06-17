@@ -35,8 +35,9 @@ type VerifyOtpResponse = {
 
 export default function VerifyOTPScreen() {
   const insets = useSafeAreaInsets();
-  const { phone } = useLocalSearchParams<{
+  const { phone, redirect } = useLocalSearchParams<{
     phone: string;
+    redirect?: string;
   }>();
   const { login } = useAuth();
 
@@ -46,6 +47,8 @@ export default function VerifyOTPScreen() {
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const phoneValue = typeof phone === 'string' ? phone : '';
+  const redirectPath = typeof redirect === 'string' ? redirect.trim() : '';
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -126,10 +129,17 @@ export default function VerifyOTPScreen() {
         if (data.isNewUser || data.requiresProfileCompletion) {
           router.replace({
             pathname: '/auth/complete-profile',
-            params: { phone: data.user.phone || phone },
+            params: {
+              phone: data.user.phone || phone,
+              ...(redirectPath ? { redirect: redirectPath } : {}),
+            },
           });
         } else {
-          router.dismissTo('/(tabs)');
+          if (redirectPath) {
+            router.replace(redirectPath as any);
+          } else {
+            router.dismissTo('/(tabs)');
+          }
         }
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -172,7 +182,6 @@ export default function VerifyOTPScreen() {
     }
   };
 
-  const phoneValue = typeof phone === 'string' ? phone : '';
   const maskedPhone = phoneValue ? `+91 ${phoneValue.slice(0, 3)}***${phoneValue.slice(-3)}` : '';
 
   return (

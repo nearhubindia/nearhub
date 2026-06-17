@@ -31,7 +31,9 @@ export async function loadCachedLocation(): Promise<CachedLocation | null> {
   return null;
 }
 
-export async function saveCachedLocation(location: Omit<CachedLocation, 'updatedAt'>): Promise<void> {
+export async function saveCachedLocation(
+  location: Omit<CachedLocation, 'updatedAt'>
+): Promise<void> {
   await AsyncStorage.setItem(
     LOCATION_CACHE_KEY,
     JSON.stringify({

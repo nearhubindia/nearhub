@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactElement } from 'react';
-import { Navigate, Link, useParams } from 'react-router-dom';
+import { Navigate, Link, useLocation, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, MapPin, Package, ShieldCheck, Ticket } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
@@ -7,6 +7,7 @@ import { getApiUrl } from '@/lib/config';
 import { trackWebPurchase } from '@/lib/firebase';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { formatPriceInr, parseMediaList } from '@/features/landing/lib';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 type VoucherLinks = { viewUrl?: string; downloadUrl?: string };
 
 type Listing = {
@@ -46,6 +47,7 @@ function toApiAbsoluteUrl(pathOrUrl: string): string {
 }
 
 export default function OrderSummaryPage(): ReactElement {
+  const location = useLocation();
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const user = readStoredWebUser();
@@ -134,7 +136,8 @@ export default function OrderSummaryPage(): ReactElement {
     'You have already purchased this deal. This offer is limited to one purchase per customer.';
 
   if (!id) return <Navigate to="/deals" replace />;
-  if (!userId) return <Navigate to="/auth/register" replace />;
+  if (!userId)
+    return <Navigate to={buildAuthRegisterPath(location.pathname, location.search)} replace />;
 
   const confirmPurchase = async () => {
     if (!listing || !isDealActive || isSoldOut || hasAlreadyPurchased) return;

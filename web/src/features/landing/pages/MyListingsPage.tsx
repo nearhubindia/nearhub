@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactElement } from 'react';
-import { Navigate, Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2,
@@ -18,6 +18,7 @@ import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { getPrimaryListingImage, formatPriceInr, parsePositiveNumber } from '@/features/landing/lib';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
 type StoredUser = { id?: string; phone?: string };
 
@@ -165,6 +166,7 @@ async function readActionResponse(
 }
 
 export default function MyListingsPage(): ReactElement {
+  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -292,7 +294,8 @@ export default function MyListingsPage(): ReactElement {
       setMessage(error instanceof Error ? error.message : 'Failed to boost listing.'),
   });
 
-  if (!userId) return <Navigate to="/auth/register" replace />;
+  if (!userId)
+    return <Navigate to={buildAuthRegisterPath(location.pathname, location.search)} replace />;
 
   const listings = listingsQuery.data || [];
   const boostSummary = boostSummaryQuery.data;

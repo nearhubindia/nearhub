@@ -1,10 +1,11 @@
 import { useMemo, type ReactElement } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, CheckCircle2, ChevronRight } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
 type InAppNotification = {
   id: string;
@@ -53,6 +54,7 @@ function normalizeNotificationRoute(value?: string | null): string {
 }
 
 export default function NotificationsPage(): ReactElement {
+  const location = useLocation();
   const queryClient = useQueryClient();
   const user = readStoredWebUser();
   const userId = String(user?.id || '').trim();
@@ -105,7 +107,8 @@ export default function NotificationsPage(): ReactElement {
     });
   };
 
-  if (!userId) return <Navigate to="/auth/register" replace />;
+  if (!userId)
+    return <Navigate to={buildAuthRegisterPath(location.pathname, location.search)} replace />;
 
   return (
     <div className="min-h-screen bg-[#f7faff] text-slate-950">

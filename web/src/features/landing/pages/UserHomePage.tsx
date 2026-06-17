@@ -20,6 +20,7 @@ import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
 import {
   SAVED_LISTING_IDS_KEY,
+  calculateDistanceKm,
   countdownPartsFromMs,
   discountPercentage,
   formatPriceInr,
@@ -71,6 +72,8 @@ type Listing = {
   isActive?: boolean;
   is_active?: boolean;
   comboItems?: string[] | string;
+  latitude?: number | string;
+  longitude?: number | string;
   distanceKm?: number | string;
   distance_km?: number | string;
   likeCount?: number;
@@ -170,10 +173,10 @@ function MobileCountdownTiles({
       {countdownPartsFromMs(endAt, nowMs).map((part) => (
         <div
           key={part.label}
-          className="grid h-[38px] min-w-0 place-items-center rounded-lg bg-white text-center text-[#ef3045] shadow-sm ring-1 ring-[#ffd7dc]"
+          className="grid h-[34px] min-w-0 place-items-center rounded-lg bg-white text-center text-[#ef3045] shadow-sm ring-1 ring-[#ffd7dc]"
         >
-          <span className="block text-[11px] font-black leading-none">{part.value}</span>
-          <span className="mt-0.5 block text-[6px] font-bold uppercase leading-none text-slate-500">
+          <span className="block text-[10px] font-semibold leading-none">{part.value}</span>
+          <span className="mt-0.5 block text-[5px] font-semibold uppercase leading-none tracking-[0.12em] text-slate-500">
             {part.label}
           </span>
         </div>
@@ -309,9 +312,24 @@ function getDisplayPrices(
   return { displayPrice: afterDealPrice, originalPrice: price };
 }
 
-function mapListing(item: Listing, nowMs: number): ProductCardData {
+function mapListing(
+  item: Listing,
+  nowMs: number,
+  userCoords?: { latitude: number; longitude: number } | null
+): ProductCardData {
   const { displayPrice, originalPrice } = getDisplayPrices(item, nowMs);
   const images = getListingImages(item);
+  const computedDistance =
+    item.distanceKm ??
+    item.distance_km ??
+    (userCoords
+      ? calculateDistanceKm(
+          userCoords.latitude,
+          userCoords.longitude,
+          item.latitude,
+          item.longitude
+        )
+      : undefined);
 
   return {
     id: item.id,
@@ -322,7 +340,7 @@ function mapListing(item: Listing, nowMs: number): ProductCardData {
     images,
     price: displayPrice,
     originalPrice,
-    distance: formatDistanceKm(item.distanceKm ?? item.distance_km),
+    distance: formatDistanceKm(computedDistance),
     badge: isDealActive(item, nowMs) ? 'Deal' : undefined,
     dealEndsAt: getDealEndMs(item, nowMs),
     dealStatus: formatDealStatus(item, nowMs),
@@ -382,19 +400,19 @@ function ProductCard({
     mobileVariant === 'overlay'
       ? 'max-md:h-[168px] max-md:w-[min(82vw,220px)] max-md:shrink-0 md:w-auto md:shrink'
       : mobileVariant === 'deal'
-        ? 'max-md:h-[300px] max-md:w-[min(82vw,220px)] max-md:shrink-0 md:w-auto md:shrink'
+        ? 'max-md:w-[calc((100vw-40px)/2)] max-md:min-w-[156px] max-md:max-w-[178px] max-md:shrink-0 md:w-auto md:shrink'
         : '';
   const mobileShell =
     mobileVariant === 'overlay'
       ? 'max-md:relative max-md:rounded-2xl max-md:border-slate-300 max-md:bg-slate-950'
       : mobileVariant === 'deal'
-        ? 'max-md:rounded-2xl max-md:border-slate-300'
+        ? 'max-md:rounded-2xl max-md:border-slate-300 max-md:bg-white'
         : '';
   const imageShape =
     mobileVariant === 'overlay'
       ? 'max-md:h-full max-md:overflow-hidden max-md:rounded-2xl'
       : mobileVariant === 'deal'
-        ? 'max-md:h-[106px]'
+        ? 'max-md:h-[calc((100vw-40px)/2)] max-md:min-h-[156px] max-md:max-h-[178px] max-md:overflow-hidden max-md:rounded-t-xl'
         : '';
 
   return (
@@ -429,7 +447,11 @@ function ProductCard({
             <img
               src={product.image}
               alt={product.title}
-              className="h-full w-full object-cover"
+              className={`h-full w-full ${
+                mobileVariant === 'deal'
+                  ? 'bg-white object-cover object-center'
+                  : 'object-cover'
+              }`}
               loading="lazy"
               onError={(event) => {
                 event.currentTarget.src = FALLBACK_IMAGE;
@@ -469,14 +491,14 @@ function ProductCard({
           mobileVariant === 'overlay'
             ? 'max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:z-10 max-md:bg-gradient-to-t max-md:from-black/90 max-md:via-black/65 max-md:to-transparent max-md:p-3 max-md:pt-12'
             : ''
-        } ${mobileVariant === 'deal' ? 'max-md:p-2' : ''}`}
+        } ${mobileVariant === 'deal' ? 'max-md:px-2 max-md:pb-2 max-md:pt-1.5' : ''}`}
       >
         <div className="flex min-h-6 items-start justify-between gap-1 sm:min-h-10 sm:gap-2">
           <Link
             to={`/listing/${encodeURIComponent(product.id)}`}
             className={`line-clamp-2 text-xs font-normal leading-snug text-slate-950 hover:text-[#0858d8] sm:text-sm ${
               mobileVariant === 'overlay' ? 'max-md:text-white max-md:hover:text-white' : ''
-            } ${mobileVariant === 'deal' ? 'max-md:text-[11px] max-md:font-bold' : ''}`}
+            } ${mobileVariant === 'deal' ? 'max-md:text-[11px] max-md:font-semibold' : ''}`}
           >
             {comboTitle}
           </Link>
@@ -501,7 +523,7 @@ function ProductCard({
           <span
             className={`text-sm font-medium text-[#0759e6] sm:text-base ${
               mobileVariant === 'overlay' ? 'max-md:text-white' : ''
-            } ${mobileVariant === 'deal' ? 'max-md:text-[12px] max-md:font-black max-md:text-slate-950' : ''}`}
+            } ${mobileVariant === 'deal' ? 'max-md:text-[13px] max-md:font-semibold max-md:text-slate-950' : ''}`}
           >
             {formatPriceInr(product.price)}
           </span>
@@ -518,7 +540,7 @@ function ProductCard({
         <div
           className={`mt-1.5 flex items-center gap-1 text-[10px] font-normal text-slate-600 sm:mt-2 sm:text-xs ${
             mobileVariant === 'overlay' ? 'max-md:text-white' : ''
-          } ${mobileVariant === 'deal' ? 'max-md:mt-0 max-md:text-[10px]' : ''}`}
+          } ${mobileVariant === 'deal' ? 'max-md:mt-1 max-md:text-[10px]' : ''}`}
         >
           <MapPin size={12} className="h-[11px] w-[11px] sm:h-3 sm:w-3" />
           <span className="truncate">{product.distance}</span>
@@ -558,15 +580,15 @@ function ProductCard({
               ) : null}
               <Link
                 to={`/order-summary/${encodeURIComponent(product.id)}`}
-                className="mt-1 inline-flex h-7 w-full items-center justify-center rounded-lg bg-[#0759e6] px-2 text-[11px] font-medium text-white transition hover:bg-[#0448bd] sm:mt-3 sm:h-9 sm:text-sm"
+                className="mt-1 inline-flex h-7 w-full items-center justify-center rounded-lg bg-[#0759e6] px-2 text-[10px] font-medium text-white transition hover:bg-[#0448bd] sm:mt-3 sm:h-9 sm:text-sm"
               >
                 Book Deal
               </Link>
             </div>
           ) : (
-            <div className="mt-3 text-center">
-              <p className="text-xs font-normal text-[#0759e6]">Deal status</p>
-              <p className="mt-1 font-mono font-medium tracking-wide text-red-600 sm:text-base">
+            <div className="mt-2 text-center sm:mt-3">
+              <p className="text-xs font-normal text-[#0759e6] max-md:hidden">Deal status</p>
+              <p className="text-[11px] font-semibold leading-snug text-red-600 sm:mt-1 sm:text-base">
                 {product.dealStatus}
               </p>
             </div>
@@ -594,9 +616,9 @@ function ComboDealCard({
       : product.title;
 
   return (
-    <article className="h-[300px] w-[min(82vw,220px)] shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md md:h-auto md:w-auto md:shrink">
+    <article className="w-[calc((100vw-40px)/2)] min-w-[156px] max-w-[178px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md md:h-auto md:w-auto md:max-w-none md:shrink md:rounded-2xl">
       <Link to={`/listing/${encodeURIComponent(product.id)}`} className="block">
-        <div className="relative h-[100px] overflow-hidden bg-white sm:h-40 xl:h-36">
+        <div className="relative h-[112px] overflow-hidden bg-white sm:h-40 xl:h-36">
           <div className="grid h-full grid-cols-2 gap-px bg-slate-200">
             {comboImages.map((image, index) => (
               <div
@@ -606,7 +628,7 @@ function ComboDealCard({
                 <img
                   src={image}
                   alt={`${comboTitle} item ${index + 1}`}
-                  className="block h-full w-full object-contain"
+                  className="block h-full w-full object-cover object-center bg-white"
                   loading="lazy"
                   onError={(event) => {
                     event.currentTarget.src = FALLBACK_IMAGE;
@@ -633,7 +655,7 @@ function ComboDealCard({
         <div className="flex min-h-6 items-start justify-between gap-1">
           <Link
             to={`/listing/${encodeURIComponent(product.id)}`}
-            className="line-clamp-2 text-[11px] font-bold leading-snug text-slate-950 hover:text-[#0759e6]"
+            className="line-clamp-2 text-[11px] font-semibold leading-snug text-slate-950 hover:text-[#0759e6]"
           >
             {comboTitle}
           </Link>
@@ -643,7 +665,7 @@ function ComboDealCard({
         </p>
 
         <div className="mt-1 flex flex-wrap items-baseline gap-1.5">
-          <span className="text-[12px] font-black leading-none text-slate-950 sm:text-xl">
+          <span className="text-[13px] font-semibold leading-none text-slate-950 sm:text-xl">
             {formatPriceInr(product.price)}
           </span>
           {product.originalPrice ? (
@@ -661,7 +683,7 @@ function ComboDealCard({
               className="border-t border-slate-100 pt-1 md:hidden"
             />
           ) : (
-            <p className="mt-1 font-mono text-sm font-medium tracking-wide text-red-600">
+            <p className="mt-2 text-[11px] font-semibold leading-snug text-red-600 sm:text-sm">
               {product.dealStatus || formatCountdown(product.dealEndsAt, nowMs)}
             </p>
           )}
@@ -690,7 +712,7 @@ function ComboDealCard({
           {product.dealStatus?.startsWith('Ends in') ? (
             <Link
               to={`/order-summary/${encodeURIComponent(product.id)}`}
-              className="mt-1 inline-flex h-7 w-full items-center justify-center rounded-lg bg-[#0759e6] px-2 text-[11px] font-medium text-white transition hover:bg-[#0448bd] md:mt-3 md:h-9"
+              className="mt-1 inline-flex h-7 w-full items-center justify-center rounded-lg bg-[#0759e6] px-2 text-[10px] font-medium text-white transition hover:bg-[#0448bd] md:mt-3 md:h-9"
             >
               Book Deal
             </Link>
@@ -763,6 +785,7 @@ export default function UserHomePage(): ReactElement {
   }, []);
 
   const storedGeoCoords = useMemo(() => readStoredWebGeoCoords(), []);
+  const distanceCoords = storedGeoCoords;
 
   const listingsQuery = useQuery({
     queryKey: ['nearhub-home-feed', storedGeoCoords?.latitude, storedGeoCoords?.longitude],
@@ -813,7 +836,8 @@ export default function UserHomePage(): ReactElement {
         return normalizeDealListings(payload.data || payload.results || []).filter(
           (item) =>
             Boolean(item.isDeal ?? item.is_deal) &&
-            String(item.status || '').toLowerCase() === 'expired'
+            String(item.dealStatus || item.deal_status || item.status || '').toLowerCase() ===
+              'expired'
         );
       };
 
@@ -838,6 +862,26 @@ export default function UserHomePage(): ReactElement {
       return {
         listings: await fetchExpiredDeals(baseParams),
         usedLocationFallback: Boolean(storedGeoCoords),
+      };
+    },
+    staleTime: 0,
+    refetchOnMount: 'always',
+  });
+
+  const broadDealListingsQuery = useQuery({
+    queryKey: ['nearhub-home-broad-deals'],
+    queryFn: async (): Promise<ListingsQueryResult> => {
+      const response = await fetch(
+        `${getApiUrl()}/api/listings?limit=100&dealsOnly=1&includeExpiredDeals=1`
+      );
+      if (!response.ok) {
+        throw new Error('Failed to load broad deal listings');
+      }
+
+      const payload = (await response.json()) as ListingsResponse;
+      return {
+        listings: normalizeDealListings(payload.data || payload.results || []),
+        usedLocationFallback: false,
       };
     },
     staleTime: 0,
@@ -889,16 +933,27 @@ export default function UserHomePage(): ReactElement {
     [dealListings, nowMs]
   );
 
+  const broadUpcomingDealListings = useMemo(
+    () =>
+      (broadDealListingsQuery.data?.listings ?? EMPTY_LISTINGS).filter((item) =>
+        isDealUpcoming(item, nowMs)
+      ),
+    [broadDealListingsQuery.data, nowMs]
+  );
+
   const upcomingDeals = useMemo(
-    () => upcomingDealListings.map((item) => mapListing(item, nowMs)),
-    [upcomingDealListings, nowMs]
+    () => upcomingDealListings.map((item) => mapListing(item, nowMs, distanceCoords)),
+    [upcomingDealListings, nowMs, distanceCoords]
   );
 
   const expiredDealListings = useMemo(
     () => {
       const expiredDeals = expiredDealsQuery.data?.listings ?? EMPTY_LISTINGS;
       return expiredDeals
-        .filter((item) => isDeal(item))
+        .filter((item) => {
+          const dealStatus = String(item.dealStatus || item.deal_status || '').toLowerCase();
+          return isDeal(item) && (dealStatus === 'expired' || isDealExpired(item, nowMs));
+        })
         .sort((a, b) => {
           const aEnd = getDealEndMs(a, nowMs) || new Date(String(a.dealEndAt || a.deal_end_at || 0)).getTime();
           const bEnd = getDealEndMs(b, nowMs) || new Date(String(b.dealEndAt || b.deal_end_at || 0)).getTime();
@@ -928,8 +983,8 @@ export default function UserHomePage(): ReactElement {
       })
       .sort((a, b) => Number(getDealEndMs(a, nowMs) || 0) - Number(getDealEndMs(b, nowMs) || 0))
       .slice(0, 6)
-      .map((item) => mapListing(item, nowMs));
-  }, [dealListings, nowMs]);
+      .map((item) => mapListing(item, nowMs, distanceCoords));
+  }, [dealListings, nowMs, distanceCoords]);
 
   const comboDeals = useMemo(() => {
     return dealListings
@@ -939,19 +994,19 @@ export default function UserHomePage(): ReactElement {
           isDealActive(item, nowMs)
       )
       .slice(0, 4)
-      .map((item) => mapListing(item, nowMs));
-  }, [dealListings, nowMs]);
+      .map((item) => mapListing(item, nowMs, distanceCoords));
+  }, [dealListings, nowMs, distanceCoords]);
 
   const expiredDeals = useMemo(() => {
     return expiredDealListings
       .sort((a, b) => Number(getDealEndMs(b, nowMs) || 0) - Number(getDealEndMs(a, nowMs) || 0))
       .slice(0, 6)
-      .map((item) => mapListing(item, nowMs));
-  }, [expiredDealListings, nowMs]);
+      .map((item) => mapListing(item, nowMs, distanceCoords));
+  }, [expiredDealListings, nowMs, distanceCoords]);
 
   const categoryProducts = useMemo(
-    () => regularListings.map((item) => mapListing(item, nowMs)),
-    [regularListings, nowMs]
+    () => regularListings.map((item) => mapListing(item, nowMs, distanceCoords)),
+    [regularListings, nowMs, distanceCoords]
   );
 
   const categories = useMemo(() => {
@@ -1123,9 +1178,12 @@ export default function UserHomePage(): ReactElement {
               title="Upcoming Deals"
               to="/deals"
             />
-            {upcomingDeals.length > 0 ? (
+            {upcomingDeals.length > 0 || broadUpcomingDealListings.length > 0 ? (
               <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
-                {upcomingDeals.map((product) => (
+                {(upcomingDeals.length > 0
+                  ? upcomingDeals
+                  : broadUpcomingDealListings.map((item) => mapListing(item, nowMs, distanceCoords))
+                ).map((product) => (
                   <ProductCard
                     key={`upcoming-${product.id}`}
                     product={product}

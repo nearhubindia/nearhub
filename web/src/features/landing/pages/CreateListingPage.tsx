@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactElement } from 'react';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -24,6 +24,7 @@ import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { trackWebCreateListing } from '@/lib/firebase';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 import { createListing } from '../api/listings';
 import { getListingImages, parsePositiveNumber } from '@/features/landing/lib';
 import {
@@ -408,6 +409,7 @@ function textareaClass(extra = ''): string {
 }
 
 export default function CreateListingPage(): ReactElement {
+  const routeLocation = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -788,7 +790,10 @@ export default function CreateListingPage(): ReactElement {
     userPhone,
   ]);
 
-  if (!userId) return <Navigate to="/auth/register" replace />;
+  if (!userId)
+    return (
+      <Navigate to={buildAuthRegisterPath(routeLocation.pathname, routeLocation.search)} replace />
+    );
 
   const resetForMode = (nextMode: Mode) => {
     setMode(nextMode);
@@ -1255,8 +1260,7 @@ export default function CreateListingPage(): ReactElement {
   const submitListing = async () => {
     if (!userId || !authToken) {
       setMessage('Please log in again before creating a listing.');
-      const redirectPath = `${window.location.pathname}${window.location.search}`;
-      navigate(`/auth/register?redirect=${encodeURIComponent(redirectPath)}`);
+      navigate(buildAuthRegisterPath(window.location.pathname, window.location.search));
       return;
     }
 

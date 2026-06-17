@@ -16,7 +16,7 @@ import {
 import { useIsFocused } from '@react-navigation/native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
@@ -56,6 +56,8 @@ export default function ShortsScreen() {
     ? String(listingIdParam[0] || '').trim()
     : String(listingIdParam || '').trim();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const authRedirect = pathname && pathname !== '/auth/register' ? pathname : '';
   const { width, height: windowHeight } = useWindowDimensions();
   const { listings, savedIds, toggleSaved } = useListings();
   type ShortsItem = (typeof listings)[number];
@@ -298,7 +300,14 @@ export default function ShortsScreen() {
       if (!isAuthenticated) {
         Alert.alert('Sign in Required', 'You need to register to contact sellers.', [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Register', onPress: () => router.push('/auth/register') },
+          {
+            text: 'Register',
+            onPress: () =>
+              router.push({
+                pathname: '/auth/register',
+                params: authRedirect ? { redirect: authRedirect } : undefined,
+              }),
+          },
         ]);
         return;
       }

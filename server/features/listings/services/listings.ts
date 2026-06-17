@@ -9,6 +9,7 @@ import { calculateDistance } from '../../search/services/distance';
 import { loadListingAttributeValueMap, replaceListingAttributeValues } from './listing-attributes';
 import { eq, and, desc, or, gte, lt, isNull, inArray } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
+import { deriveDealStatus } from '../lib/deal-status';
 
 function coerceMediaToArray(value: unknown): string[] {
   if (value == null) return [];
@@ -226,7 +227,7 @@ export async function createListing(
     });
 
   try {
-    const created = await insertListingWithPgArrayImages({
+    let created = await insertListingWithPgArrayImages({
       ...validated,
       mainCategory: normalizedMainCategory,
       subCategory: normalizedSubCategory || null,
@@ -236,6 +237,22 @@ export async function createListing(
       comboItems: comboItemsAsJson,
       expiresAt,
     });
+    if (created) {
+      const syncedDealStatus = deriveDealStatus(created as any, Date.now());
+      if (String((created as any).dealStatus ?? '') !== String(syncedDealStatus ?? '')) {
+        const synced = await db
+          .update(listings)
+          .set({
+            dealStatus: syncedDealStatus,
+            updatedAt: new Date(),
+          } as never)
+          .where(eq(listings.id, created.id))
+          .returning();
+        if (synced[0]) {
+          created = synced[0];
+        }
+      }
+    }
     if (created && attributes && Object.keys(attributes).length > 0) {
       await replaceListingAttributeValues({
         listingId: created.id,
@@ -256,7 +273,23 @@ export async function createListing(
       .insert(listings)
       .values(insertValues(imagesAsJson, videosAsJson) as never)
       .returning();
-    const created = retry[0];
+    let created = retry[0];
+    if (created) {
+      const syncedDealStatus = deriveDealStatus(created as any, Date.now());
+      if (String((created as any).dealStatus ?? '') !== String(syncedDealStatus ?? '')) {
+        const synced = await db
+          .update(listings)
+          .set({
+            dealStatus: syncedDealStatus,
+            updatedAt: new Date(),
+          } as never)
+          .where(eq(listings.id, created.id))
+          .returning();
+        if (synced[0]) {
+          created = synced[0];
+        }
+      }
+    }
     if (created && attributes && Object.keys(attributes).length > 0) {
       await replaceListingAttributeValues({
         listingId: created.id,
@@ -442,6 +475,8 @@ export async function updateListing(
   const { attributes, ...updatesWithoutAttributes } = updates as Partial<InsertListing> & {
     attributes?: unknown;
   };
+  const existingListing = await getListingById(id);
+  if (!existingListing) return null;
   const normalizedUpdates = { ...updatesWithoutAttributes } as Partial<InsertListing> & {
     subcategory?: string;
   };
@@ -512,12 +547,40 @@ export async function updateListing(
     delete updateValues.comboItems;
   }
 
+  updateValues.dealStatus = deriveDealStatus(
+    {
+      ...(existingListing as any),
+      ...(normalizedUpdates as any),
+      isDeal:
+        normalizedUpdates.isDeal !== undefined
+          ? normalizedUpdates.isDeal
+          : (existingListing as any).isDeal ?? (existingListing as any).is_deal,
+    },
+    Date.now()
+  );
+
   try {
-    const updated = hasImagesUpdate
+    let updated = hasImagesUpdate
       ? await updateListingWithPgArrayImages(id, updateValues)
       : (
           await db.update(listings).set(updateValues as never).where(eq(listings.id, id)).returning()
         )[0] || null;
+    if (updated) {
+      const syncedDealStatus = deriveDealStatus(updated as any, Date.now());
+      if (String((updated as any).dealStatus ?? '') !== String(syncedDealStatus ?? '')) {
+        const synced = await db
+          .update(listings)
+          .set({
+            dealStatus: syncedDealStatus,
+            updatedAt: new Date(),
+          } as never)
+          .where(eq(listings.id, id))
+          .returning();
+        if (synced[0]) {
+          updated = synced[0];
+        }
+      }
+    }
     if (updated && attributes !== undefined) {
       await replaceListingAttributeValues({
         listingId: updated.id,

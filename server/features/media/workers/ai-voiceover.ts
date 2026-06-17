@@ -11,10 +11,20 @@ import { db } from '../../../data/db';
 import { uploadLocalFileAsMedia } from '../services/cloudflare-media';
 import { getGoogleGenAIClient, isGoogleGenAIConfigured } from '../../../shared/ai/genai-client';
 import {
+  getGoogleTtsEndpoint,
+  getGoogleTtsHeaders,
+  hasGoogleTtsAuth,
+} from '../../../shared/ai/google-tts';
+import {
   callGeminiWithRetry,
   extractTextFromGeminiResponse,
   withTimeout,
 } from '../../../shared/ai/genai-resilience';
+import {
+  runFfmpeg,
+  runFfmpegWithStderrOutput,
+  runFfprobeWithOutput,
+} from '../../../shared/media/ffmpeg';
 
 type VoiceoverJob = {
   id: string;
@@ -33,10 +43,7 @@ const SCRIPT_MODEL = process.env.GEMINI_SCRIPT_MODEL || 'gemini-2.5-flash';
 const AI_SCRIPT_PROVIDER = (process.env.AI_SCRIPT_PROVIDER || 'aws').toLowerCase();
 const AI_TRANSLATION_PROVIDER = (process.env.AI_TRANSLATION_PROVIDER || 'aws').toLowerCase();
 const BEDROCK_SCRIPT_MODEL = process.env.BEDROCK_SCRIPT_MODEL || 'amazon.nova-lite-v1:0';
-const GOOGLE_TTS_API_KEY = String(process.env.GOOGLE_TTS_API_KEY || '').trim();
-const GOOGLE_CLOUD_PROJECT = String(process.env.GOOGLE_CLOUD_PROJECT || '').trim();
 const requiresGoogleGenAI = AI_SCRIPT_PROVIDER === 'google' || AI_TRANSLATION_PROVIDER === 'google';
-let googleTtsAccessTokenCache: { token: string; expiresAtMs: number } | null = null;
 const AI_VOICEOVER_BGM_SOURCE = process.env.AI_VOICEOVER_BGM_SOURCE || 'builtin-cinematic';
 const AI_VOICEOVER_BGM_VOLUME = Number.parseFloat(process.env.AI_VOICEOVER_BGM_VOLUME || '0.3');
 const AI_VOICEOVER_ENHANCE_VIDEO = process.env.AI_VOICEOVER_ENHANCE_VIDEO !== 'false';
@@ -81,72 +88,19 @@ function runCommand(command: string, args: string[]): Promise<void> {
   });
 }
 
-function runCommandWithOutput(command: string, args: string[]): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      reject(new Error(`${command} timed out after ${AI_VOICEOVER_COMMAND_TIMEOUT_MS}ms`));
-    }, AI_VOICEOVER_COMMAND_TIMEOUT_MS);
-    child.stdout.on('data', (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on('error', (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      if (code === 0) {
-        resolve(stdout);
-        return;
-      }
-      reject(new Error(`${command} exited with ${code}: ${stderr}`));
-    });
-  });
-}
-
-function runCommandWithStderrOutput(command: string, args: string[]): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ['ignore', 'ignore', 'pipe'] });
-    let stderr = '';
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      reject(new Error(`${command} timed out after ${AI_VOICEOVER_COMMAND_TIMEOUT_MS}ms`));
-    }, AI_VOICEOVER_COMMAND_TIMEOUT_MS);
-    child.stderr.on('data', (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on('error', (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      if (code === 0) {
-        resolve(stderr);
-        return;
-      }
-      reject(new Error(`${command} exited with ${code}: ${stderr}`));
-    });
-  });
-}
-
 async function getMediaDurationSeconds(filePath: string): Promise<number> {
-  const output = await runCommandWithOutput('ffprobe', [
-    '-v',
-    'error',
-    '-show_entries',
-    'format=duration',
-    '-of',
-    'default=nokey=1:noprint_wrappers=1',
-    filePath,
-  ]);
+  const output = await runFfprobeWithOutput(
+    [
+      '-v',
+      'error',
+      '-show_entries',
+      'format=duration',
+      '-of',
+      'default=nokey=1:noprint_wrappers=1',
+      filePath,
+    ],
+    AI_VOICEOVER_COMMAND_TIMEOUT_MS
+  );
   const duration = Number.parseFloat(String(output).trim());
   if (!Number.isFinite(duration) || duration <= 0) {
     throw new Error(`Unable to determine media duration for ${path.basename(filePath)}`);
@@ -155,17 +109,20 @@ async function getMediaDurationSeconds(filePath: string): Promise<number> {
 }
 
 async function getMeanVolumeDb(filePath: string): Promise<number> {
-  const output = await runCommandWithStderrOutput('ffmpeg', [
-    '-hide_banner',
-    '-nostats',
-    '-i',
-    filePath,
-    '-af',
-    'volumedetect',
-    '-f',
-    'null',
-    '-',
-  ]);
+  const output = await runFfmpegWithStderrOutput(
+    [
+      '-hide_banner',
+      '-nostats',
+      '-i',
+      filePath,
+      '-af',
+      'volumedetect',
+      '-f',
+      'null',
+      '-',
+    ],
+    AI_VOICEOVER_COMMAND_TIMEOUT_MS
+  );
   const match = output.match(/mean_volume:\s*(-?\d+(?:\.\d+)?)\s*dB/i);
   const meanVolume = Number.parseFloat(match?.[1] || '');
   if (!Number.isFinite(meanVolume)) {
@@ -851,38 +808,17 @@ async function generateSpeechWav(
   language: VoiceoverJob['language'],
   outPath: string
 ): Promise<void> {
-  if (!GOOGLE_TTS_API_KEY && !GOOGLE_CLOUD_PROJECT) {
-    throw new Error('Google TTS auth is missing (set GOOGLE_TTS_API_KEY or GOOGLE_CLOUD_PROJECT)');
+  if (!hasGoogleTtsAuth()) {
+    throw new Error(
+      'Google TTS auth is missing (set GOOGLE_TTS_API_KEY or GOOGLE_APPLICATION_CREDENTIALS)'
+    );
   }
   const voiceName = getVoiceName(language);
   const languageCode = getTtsLanguageCode(language);
   const speakingRate = getTtsSpeakingRate(language);
   const pitch = getTtsPitch(language);
-  const endpoint = GOOGLE_TTS_API_KEY
-    ? `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(GOOGLE_TTS_API_KEY)}`
-    : 'https://texttospeech.googleapis.com/v1/text:synthesize';
-  const headers: Record<string, string> = {};
-  if (!GOOGLE_TTS_API_KEY) {
-    const now = Date.now();
-    if (!googleTtsAccessTokenCache || googleTtsAccessTokenCache.expiresAtMs <= now) {
-      let token = '';
-      try {
-        token = (
-          await runCommandWithOutput('gcloud', [
-            'auth',
-            'application-default',
-            'print-access-token',
-          ])
-        ).trim();
-      } catch {
-        token = (await runCommandWithOutput('gcloud', ['auth', 'print-access-token'])).trim();
-      }
-      if (!token) throw new Error('Failed to obtain Google Cloud access token for TTS');
-      googleTtsAccessTokenCache = { token, expiresAtMs: now + 45 * 60 * 1000 };
-    }
-    headers.Authorization = `Bearer ${googleTtsAccessTokenCache.token}`;
-    headers['x-goog-user-project'] = GOOGLE_CLOUD_PROJECT;
-  }
+  const endpoint = getGoogleTtsEndpoint();
+  const headers = await getGoogleTtsHeaders();
   const response = await withTimeout(
     axios.post(
       endpoint,
@@ -930,7 +866,7 @@ async function prepareBackgroundMusic(durationSeconds: number, outPath: string):
 
   if (AI_VOICEOVER_BGM_SOURCE === 'builtin-cinematic') {
     // Procedurally generate a warm musical bed so BGM is clearly present by default.
-    await runCommand('ffmpeg', [
+    await runFfmpeg([
       '-hide_banner',
       '-loglevel',
       'error',
@@ -1016,8 +952,7 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
   completed: number;
   failed: number;
 }> {
-  const hasGoogleTtsAuth = Boolean(GOOGLE_TTS_API_KEY || GOOGLE_CLOUD_PROJECT);
-  if ((requiresGoogleGenAI && !isGoogleGenAIConfigured()) || !hasGoogleTtsAuth) {
+  if ((requiresGoogleGenAI && !isGoogleGenAIConfigured()) || !hasGoogleTtsAuth()) {
     await db.execute(sql`
       UPDATE ai_voiceover_jobs
       SET status = 'failed',
@@ -1173,7 +1108,7 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
 
       if (hasBackgroundMusic) {
         const bgmVolume = Number.isFinite(AI_VOICEOVER_BGM_VOLUME) ? AI_VOICEOVER_BGM_VOLUME : 0.18;
-        await runCommand('ffmpeg', [
+        await runFfmpeg([
           '-hide_banner',
           '-loglevel',
           'error',
@@ -1215,7 +1150,7 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
         ]);
         console.info('[AI Voiceover] Rendered with BGM', { jobId: job.id });
       } else {
-        await runCommand('ffmpeg', [
+        await runFfmpeg([
           '-hide_banner',
           '-loglevel',
           'error',

@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { Navigate, Link, useNavigate } from 'react-router-dom';
+import { Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Mail, MapPinned, LogOut, User, FileText, CreditCard, Heart } from 'lucide-react';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import {
@@ -8,6 +8,7 @@ import {
   writeStoredWebUser,
   type StoredWebUser,
 } from '@/lib/web-auth-storage';
+import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
 type StoredUser = StoredWebUser;
 
@@ -47,6 +48,7 @@ function ToggleRow({
 
 export default function SettingsPage(): ReactElement {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = readStoredWebUser() as StoredUser | null;
 
   const [notifications, setNotifications] = useState(
@@ -59,7 +61,8 @@ export default function SettingsPage(): ReactElement {
     Boolean(user?.preferences?.autoLocalizeListings ?? true)
   );
 
-  if (!user?.id) return <Navigate to="/auth/register" replace />;
+  if (!user?.id)
+    return <Navigate to={buildAuthRegisterPath(location.pathname, location.search)} replace />;
 
   const persistPrefs = (next: Partial<StoredUser['preferences']>) => {
     const updated: StoredUser = {
@@ -77,7 +80,7 @@ export default function SettingsPage(): ReactElement {
 
   const handleLogout = () => {
     clearStoredWebAuth();
-    navigate('/auth/register');
+    navigate(buildAuthRegisterPath(location.pathname, location.search));
   };
 
   return (

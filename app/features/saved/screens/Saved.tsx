@@ -6,6 +6,7 @@ import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
+import AuthRequiredState from '@/shared/components/AuthRequiredState';
 import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { formatCondition } from '@/lib/utils';
@@ -56,6 +57,10 @@ export default function SavedScreen() {
   const genderLabel =
     user?.gender === 'male' ? 'Male' : user?.gender === 'female' ? 'Female' : 'Other';
 
+  if (!isAuthenticated) {
+    return <AuthRequiredState message="Please sign in to view your saved listings" />;
+  }
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: (insets.top || webTopInset) + 8 }]}>
@@ -78,31 +83,18 @@ export default function SavedScreen() {
           )}
         </View>
 
-        {isAuthenticated && user ? (
-          <View style={styles.profileCard}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
-            </View>
-            <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{user.name}</Text>
-              <Text style={styles.profileDetail}>
-                +91 {user.phone} {genderLabel}
-              </Text>
-              <Text style={styles.profileDetail}>{user.email}</Text>
-            </View>
+        <View style={styles.profileCard}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{user?.name?.charAt(0).toUpperCase()}</Text>
           </View>
-        ) : (
-          <Pressable style={styles.signInCard} onPress={() => router.push('/auth/register')}>
-            <View style={styles.signInIconCircle}>
-              <Feather name="user-plus" size={20} color={Colors.primary} />
-            </View>
-            <View style={styles.signInInfo}>
-              <Text style={styles.signInTitle}>Sign in to NearHub</Text>
-              <Text style={styles.signInSubtitle}>Save items and manage your account</Text>
-            </View>
-            <Feather name="chevron-right" size={20} color={Colors.textTertiary} />
-          </Pressable>
-        )}
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>{user?.name}</Text>
+            <Text style={styles.profileDetail}>
+              +91 {user?.phone} {genderLabel}
+            </Text>
+            <Text style={styles.profileDetail}>{user?.email}</Text>
+          </View>
+        </View>
 
         <Text style={styles.count}>{savedListings.length} saved items</Text>
       </View>

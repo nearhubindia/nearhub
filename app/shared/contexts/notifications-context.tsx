@@ -45,10 +45,10 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     };
     const isActionableNotification = Boolean(
       completeNotification.data?.actionUrl ||
-        completeNotification.data?.url ||
-        completeNotification.data?.dealUrl ||
-        completeNotification.data?.listingId ||
-        completeNotification.data?.conversationId
+      completeNotification.data?.url ||
+      completeNotification.data?.dealUrl ||
+      completeNotification.data?.listingId ||
+      completeNotification.data?.conversationId
     );
 
     setNotifications((prev) => [...prev, completeNotification]);

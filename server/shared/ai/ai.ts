@@ -4,6 +4,7 @@ import * as fsPromises from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { spawn } from 'child_process';
+import { runFfmpeg } from '../media/ffmpeg';
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const MODEL = 'llava-phi3'; // Unified Vision + Text moderation (2.2GB)
@@ -524,7 +525,7 @@ export async function extractVideoFramesAsBase64(
 
   try {
     const outputPattern = path.join(tempDir, 'frame_%03d.jpg');
-    await runCommand('ffmpeg', [
+    await runFfmpeg([
       '-hide_banner',
       '-loglevel',
       'error',

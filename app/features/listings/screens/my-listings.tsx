@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import Colors from '@/constants/colors';
+import AuthRequiredState from '@/shared/components/AuthRequiredState';
 import AppScreenBanners from '@/shared/components/AppScreenBanners';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useListings } from '@/shared/contexts/listings-context';
@@ -57,7 +58,7 @@ export default function MyListingsScreen() {
     selected?: string;
   }>();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { listings, deleteListing, updateListing, refreshListings } = useListings();
   const {
     banners: listingsBanners,
@@ -97,6 +98,10 @@ export default function MyListingsScreen() {
     }
     router.replace('/(tabs)/home');
   }, []);
+
+  if (!isAuthenticated || !user) {
+    return <AuthRequiredState message="Please sign in to manage your listings" />;
+  }
 
   // Filter user's listings using canonical user id.
   const normalizeId = (value: string | undefined | null) => String(value || '').trim();
@@ -588,7 +593,7 @@ export default function MyListingsScreen() {
         image: 'https://nearhub.app/nearhub-logo.png',
         currency: 'INR',
         key,
-        amount: String(amount),
+        amount: Number(amount),
         order_id: razorpayOrderId,
         name: 'NearHub',
         prefill: {
@@ -844,22 +849,37 @@ export default function MyListingsScreen() {
 
                   <View style={styles.detailsSection}>
                     <View style={styles.priceRow}>
-                      <Text style={styles.priceText}>
-                        ₹
-                        {Number(
-                          item.offerPrice && item.offerPrice > 0 && item.offerPrice < item.price
-                            ? item.offerPrice
-                            : item.price || 0
-                        ).toLocaleString('en-IN')}
-                      </Text>
-                      {item.priceUnit ? (
-                        <Text style={styles.priceUnitText}> / {item.priceUnit}</Text>
-                      ) : null}
-                      {item.offerPrice && item.offerPrice > 0 && item.offerPrice < item.price ? (
-                        <Text style={styles.originalPriceText}>
-                          ₹{Number(item.price || 0).toLocaleString('en-IN')}
+                      <View style={styles.priceStack}>
+                        <Text
+                          style={styles.priceText}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.8}
+                        >
+                          ₹
+                          {Number(
+                            item.offerPrice && item.offerPrice > 0 && item.offerPrice < item.price
+                              ? item.offerPrice
+                              : item.price || 0
+                          ).toLocaleString('en-IN')}
                         </Text>
-                      ) : null}
+                        {item.priceUnit ? (
+                          <Text style={styles.priceUnitText} numberOfLines={1}>
+                            {' / '}
+                            {item.priceUnit}
+                          </Text>
+                        ) : null}
+                        {item.offerPrice && item.offerPrice > 0 && item.offerPrice < item.price ? (
+                          <Text
+                            style={styles.originalPriceText}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.8}
+                          >
+                            ₹{Number(item.price || 0).toLocaleString('en-IN')}
+                          </Text>
+                        ) : null}
+                      </View>
                     </View>
                     <Text style={styles.titleText} numberOfLines={2}>
                       {item.title}
@@ -1493,9 +1513,14 @@ const styles = createResponsiveStyles({
     color: Colors.text,
   },
   priceRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 6,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 2,
+  },
+  priceStack: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    minWidth: 0,
   },
   priceUnitText: {
     fontSize: 13,

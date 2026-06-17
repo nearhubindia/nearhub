@@ -3,9 +3,10 @@
  * Uses FFmpeg to compress videos after upload for better efficiency
  */
 
-import { execSync, spawn } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getFfmpegPath } from '../../../shared/media/ffmpeg';
 
 export interface VideoCompressionOptions {
   quality?: 'low' | 'medium' | 'high';
@@ -51,7 +52,7 @@ const COMPRESSION_PROFILES = {
  */
 export function isFFmpegAvailable(): boolean {
   try {
-    execSync('ffmpeg -version', { stdio: 'ignore' });
+    execFileSync(getFfmpegPath(), ['-version'], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -108,11 +109,11 @@ export function compressVideoSync(
       '+faststart', // Allow streaming from the start
       '-y', // Overwrite output file
       outputPath,
-    ].join(' ');
+    ];
 
-    console.log(`[VideoCompression] Running: ffmpeg ${command.substring(0, 100)}...`);
+    console.log(`[VideoCompression] Running: ${getFfmpegPath()} ${command.slice(0, 8).join(' ')}...`);
 
-    execSync(`ffmpeg ${command}`, {
+    execFileSync(getFfmpegPath(), command, {
       stdio: ['pipe', 'pipe', 'pipe'], // Suppress FFmpeg output
       encoding: 'utf-8',
     });

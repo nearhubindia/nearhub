@@ -28,7 +28,7 @@ import { trackSignUp } from '@/lib/firebase-analytics';
 
 export default function CompleteProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { phone } = useLocalSearchParams<{ phone: string }>();
+  const { phone, redirect } = useLocalSearchParams<{ phone: string; redirect?: string }>();
   const { login } = useAuth();
 
   const [name, setName] = useState('');
@@ -40,6 +40,7 @@ export default function CompleteProfileScreen() {
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const phoneValue = typeof phone === 'string' ? phone : '';
+  const redirectPath = typeof redirect === 'string' ? redirect.trim() : '';
 
   const handleNameChange = (value: string) => {
     setName(sanitizeAlphabeticName(value));
@@ -116,7 +117,11 @@ export default function CompleteProfileScreen() {
         await login(data.user);
         void trackSignUp('profile_complete');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.dismissTo('/(tabs)');
+        if (redirectPath) {
+          router.replace(redirectPath as any);
+        } else {
+          router.dismissTo('/(tabs)');
+        }
       } else {
         Alert.alert('Error', data.message || 'Failed to complete profile.');
       }

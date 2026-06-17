@@ -73,7 +73,11 @@ export async function openNotificationTarget(data?: NotificationTargetData): Pro
     return;
   }
 
-  if (data.type === 'payment_success' || data.type === 'payment_failed' || data.type === 'invoice_generated') {
+  if (
+    data.type === 'payment_success' ||
+    data.type === 'payment_failed' ||
+    data.type === 'invoice_generated'
+  ) {
     await openTargetUrl(data.invoiceUrl || '/invoices');
     return;
   }
