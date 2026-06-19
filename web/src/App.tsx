@@ -57,7 +57,6 @@ const SpamDetectionPage = lazy(() => import('./features/admin/pages/SpamDetectio
 const VideoManagementPage = lazy(() => import('./features/admin/pages/VideoManagementPage'));
 const CouponsPage = lazy(() => import('./features/admin/pages/CouponsPage'));
 const BannersPage = lazy(() => import('./features/admin/pages/BannersPage'));
-const PushNotificationsPage = lazy(() => import('./features/admin/pages/PushNotificationsPage'));
 const InAppNotificationsPage = lazy(() => import('./features/admin/pages/InAppNotificationsPage'));
 const RevenuePage = lazy(() => import('./features/admin/pages/RevenuePage'));
 const ReportsPage = lazy(() => import('./features/admin/pages/ReportsPage'));
@@ -309,8 +308,9 @@ function App() {
                 <Route path="videos" element={<VideoManagementPage />} />
                 <Route path="coupons" element={<CouponsPage />} />
                 <Route path="banners" element={<BannersPage />} />
-                <Route path="push" element={<PushNotificationsPage />} />
-                <Route path="in-app" element={<InAppNotificationsPage />} />
+                <Route path="notifications" element={<InAppNotificationsPage />} />
+                <Route path="push" element={<Navigate to="/admin/notifications" replace />} />
+                <Route path="in-app" element={<Navigate to="/admin/notifications" replace />} />
                 <Route path="revenue" element={<RevenuePage />} />
                 <Route path="transactions" element={<TransactionsPage />} />
                 <Route path="reports" element={<ReportsPage />} />

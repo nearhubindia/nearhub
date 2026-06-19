@@ -419,17 +419,9 @@
       "priority": "0.1"
     },
     {
-      "path": "/admin/push",
-      "title": "Admin Push Notifications | NearHub",
-      "description": "Manage push notifications in NearHub admin.",
-      "robots": "noindex,nofollow",
-      "changefreq": "monthly",
-      "priority": "0.1"
-    },
-    {
-      "path": "/admin/in-app",
-      "title": "Admin In-App Notifications | NearHub",
-      "description": "Manage in-app notifications in NearHub admin.",
+      "path": "/admin/notifications",
+      "title": "Admin Notifications | NearHub",
+      "description": "Manage notifications in NearHub admin.",
       "robots": "noindex,nofollow",
       "changefreq": "monthly",
       "priority": "0.1"

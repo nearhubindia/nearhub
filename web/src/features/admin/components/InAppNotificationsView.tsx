@@ -1,6 +1,6 @@
 /**
- * In-App Notifications View - Admin Panel
- * Manage persistent notification feed visible within the app
+ * Notifications View - Admin Panel
+ * Send and manage notifications from one place.
  */
 
 import { useState, useEffect } from 'react';
@@ -120,28 +120,32 @@ export default function InAppNotificationsView() {
     setErrorMessage('');
 
     try {
-      const response = await fetch(`${getApiUrl()}/api/admin/notifications/broadcast`, {
+      const response = await fetch(`${getApiUrl()}/api/admin/push/broadcast`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${getAdminToken()}`,
         },
         body: JSON.stringify({
-          userType,
           title,
-          message,
-          type: notificationType,
-          priority,
-          category: category || null,
-          actionLabel: actionLabel || null,
-          actionUrl: actionUrl || null,
+          body: message,
+          userType,
+          notificationType: category.trim() || 'admin_broadcast',
+          actionUrl: actionUrl || undefined,
+          priority: priority === 'urgent' || priority === 'high' ? 'high' : 'normal',
+          data: {
+            type: notificationType,
+            category: category.trim() || 'system',
+            actionLabel: actionLabel || undefined,
+            timestamp: new Date().toISOString(),
+          },
         }),
       });
 
       const result = await response.json();
 
       if (result.success) {
-        setSuccessMessage(`✅ Notification sent successfully!`);
+        setSuccessMessage('Notification sent successfully.');
         setTitle('');
         setMessage('');
         setCategory('');
@@ -346,38 +350,82 @@ export default function InAppNotificationsView() {
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
-        <h1 className="text-3xl sm:text-4xl font-black mb-2">In-App Notifications</h1>
-        <p className="text-slate-300">Manage persistent notification feed visible in the app</p>
+      <div className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(45,212,191,0.2),_transparent_36%),linear-gradient(135deg,_#0f172a,_#111827_58%,_#164e63)] px-4 py-6 text-white sm:px-6 sm:py-8">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="mb-2 text-xs font-bold uppercase tracking-[0.28em] text-cyan-200/80">
+              Admin Center
+            </p>
+            <h1 className="mb-2 text-3xl font-black sm:text-4xl">Notifications</h1>
+            <p className="text-sm text-slate-200 sm:text-base">
+              Send notifications, track recent activity, and keep the app feed clean from one
+              place.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/70">
+              Live Sync
+            </div>
+            <div className="mt-1 text-sm text-white">Push delivery and app activity stay aligned.</div>
+          </div>
+        </div>
       </div>
 
-      <div className="p-4 sm:p-6">
+      <div className="space-y-6 p-4 sm:p-6">
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-2xl font-bold text-slate-900">{stats.total}</div>
-              <div className="text-sm text-slate-600">Total Notifications</div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Total
+              </div>
+              <div className="mt-3 text-3xl font-black text-slate-900">{stats.total}</div>
+              <div className="mt-1 text-sm text-slate-600">All notifications in the feed</div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-2xl font-bold text-blue-600">{stats.unread}</div>
-              <div className="text-sm text-slate-600">Unread</div>
+            <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 p-5 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">
+                Unread
+              </div>
+              <div className="mt-3 text-3xl font-black text-cyan-900">{stats.unread}</div>
+              <div className="mt-1 text-sm text-cyan-800/80">Waiting in user notification trays</div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-2xl font-bold text-green-600">{stats.byType.success || 0}</div>
-              <div className="text-sm text-slate-600">Success</div>
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                Success
+              </div>
+              <div className="mt-3 text-3xl font-black text-emerald-900">
+                {stats.byType.success || 0}
+              </div>
+              <div className="mt-1 text-sm text-emerald-800/80">Positive updates and confirmations</div>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <div className="text-2xl font-bold text-yellow-600">{stats.byType.warning || 0}</div>
-              <div className="text-sm text-slate-600">Warnings</div>
+            <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-5 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+                Warnings
+              </div>
+              <div className="mt-3 text-3xl font-black text-amber-900">
+                {stats.byType.warning || 0}
+              </div>
+              <div className="mt-1 text-sm text-amber-800/80">Reminders, nudges, and expiring items</div>
             </div>
           </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Send Notification Form */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-xl font-bold text-slate-900">
+                <Send size={20} className="text-teal-500" />
+                Compose
+              </h2>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                Push + Feed
+              </span>
+            </div>
+            <p className="mb-5 text-sm text-slate-600">
+              Every send reaches devices and is reflected in the app notification feed.
+            </p>
+            <h2 className="sr-only">
               <Send size={20} className="text-teal-500" />
               Send Notification
             </h2>
@@ -386,9 +434,9 @@ export default function InAppNotificationsView() {
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Quick Templates
-                <span className="ml-2 text-xs text-slate-500">(14 templates)</span>
+                <span className="ml-2 text-xs text-slate-500">(13 templates)</span>
               </label>
-              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+              <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto">
                 {[
                   // Account
                   { id: 'welcome', label: '👋 Welcome', color: 'bg-green-100 text-green-800' },
@@ -440,7 +488,7 @@ export default function InAppNotificationsView() {
                   <button
                     key={template.id}
                     onClick={() => applyTemplate(template.id)}
-                    className={`px-3 py-1 rounded text-sm font-medium ${template.color} hover:opacity-80 transition`}
+                    className={`rounded-full px-3 py-1 text-sm font-medium transition hover:opacity-80 ${template.color}`}
                   >
                     {template.label}
                   </button>
@@ -456,7 +504,7 @@ export default function InAppNotificationsView() {
               <select
                 value={userType}
                 onChange={(e) => setUserType(parseUserType(e.target.value))}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2"
               >
                 <option value="all">All Users</option>
                 <option value="buyer">Buyers Only</option>
@@ -471,7 +519,7 @@ export default function InAppNotificationsView() {
                 <select
                   value={notificationType}
                   onChange={(e) => setNotificationType(parseNotificationType(e.target.value))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
                 >
                   <option value="info">ℹ️ Info</option>
                   <option value="success">✅ Success</option>
@@ -484,7 +532,7 @@ export default function InAppNotificationsView() {
                 <select
                   value={priority}
                   onChange={(e) => setPriority(parsePriority(e.target.value))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2"
                 >
                   <option value="urgent">🔴 Urgent</option>
                   <option value="high">🟠 High</option>
@@ -502,7 +550,7 @@ export default function InAppNotificationsView() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Enter notification title"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2"
               />
             </div>
 
@@ -514,28 +562,28 @@ export default function InAppNotificationsView() {
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Enter notification message"
                 rows={3}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2"
               />
             </div>
 
             {/* Category */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Category (Optional)
+                Category
               </label>
               <input
                 type="text"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 placeholder="e.g., listing, payment, account, system"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+                className="w-full rounded-xl border border-slate-300 px-3 py-2"
               />
             </div>
 
             {/* Action Button (Optional) */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Action Button (Optional)
+                Action Link
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
@@ -543,26 +591,26 @@ export default function InAppNotificationsView() {
                   value={actionLabel}
                   onChange={(e) => setActionLabel(e.target.value)}
                   placeholder="Button text"
-                  className="px-3 py-2 border border-slate-300 rounded-lg"
+                  className="rounded-xl border border-slate-300 px-3 py-2"
                 />
                 <input
                   type="text"
                   value={actionUrl}
                   onChange={(e) => setActionUrl(e.target.value)}
                   placeholder="Route or URL"
-                  className="px-3 py-2 border border-slate-300 rounded-lg"
+                  className="rounded-xl border border-slate-300 px-3 py-2"
                 />
               </div>
             </div>
 
             {/* Success/Error Messages */}
             {successMessage && (
-              <div className="mb-4 p-3 bg-green-100 text-green-800 rounded-lg">
+              <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-green-800">
                 {successMessage}
               </div>
             )}
             {errorMessage && (
-              <div className="mb-4 p-3 bg-red-100 text-red-800 rounded-lg flex items-center gap-2">
+              <div className="mb-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800">
                 <AlertCircle size={16} />
                 {errorMessage}
               </div>
@@ -572,7 +620,7 @@ export default function InAppNotificationsView() {
             <button
               onClick={handleSendNotification}
               disabled={sending || !title.trim() || !message.trim()}
-              className={`w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 ${
+              className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 font-semibold ${
                 sending || !title.trim() || !message.trim()
                   ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                   : 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white hover:from-teal-600 hover:to-cyan-600'
@@ -586,48 +634,48 @@ export default function InAppNotificationsView() {
               ) : (
                 <>
                   <Send size={18} />
-                  Send Notification
+                  Send
                 </>
               )}
             </button>
           </div>
 
           {/* Recent Notifications */}
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                 <TrendingUp size={20} className="text-teal-500" />
-                Recent Notifications
+                Recent Activity
               </h2>
               <button
                 onClick={handleCleanupExpired}
-                className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+                className="rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-700 hover:bg-red-200"
               >
-                Clean Expired
+                Clear Expired
               </button>
             </div>
 
             {loading ? (
               <div className="text-center py-8 text-slate-500">Loading...</div>
             ) : notifications.length === 0 ? (
-              <div className="text-center py-8 text-slate-500">No notifications yet</div>
+              <div className="text-center py-8 text-slate-500">No activity yet</div>
             ) : (
-              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              <div className="max-h-[600px] space-y-3 overflow-y-auto">
                 {notifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className="border border-slate-200 rounded-lg p-3 hover:bg-slate-50"
+                    className="rounded-2xl border border-slate-200 p-4 transition hover:border-slate-300 hover:bg-slate-50"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span
-                            className={`px-2 py-0.5 rounded text-xs font-medium ${getTypeColor(notification.type)}`}
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${getTypeColor(notification.type)}`}
                           >
                             {notification.type}
                           </span>
                           <span
-                            className={`px-2 py-0.5 rounded text-xs font-medium ${getPriorityColor(notification.priority)}`}
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${getPriorityColor(notification.priority)}`}
                           >
                             {notification.priority}
                           </span>
@@ -653,7 +701,7 @@ export default function InAppNotificationsView() {
                       </button>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-slate-500">
-                      <span>Target: {notification.userType || 'all'}</span>
+                      <span>Audience: {notification.userType || 'all'}</span>
                       <span>•</span>
                       <span>{new Date(notification.createdAt).toLocaleString()}</span>
                       {notification.isRead && <span className="text-green-600">✓ Read</span>}

@@ -15,7 +15,6 @@ import {
   BarChart3,
   Settings,
   Bell,
-  Inbox,
 } from 'lucide-react';
 
 // Import extracted components
@@ -31,7 +30,6 @@ import CouponsView from '../components/CouponsView';
 import SubscriptionPlansView from '../components/SubscriptionPlansView';
 import SpamDetectionView from '../components/SpamDetectionView';
 import VideoManagementView from '../components/VideoManagementView';
-import PushNotificationsView from '../components/PushNotificationsView';
 import InAppNotificationsView from '../components/InAppNotificationsView';
 
 // Import types and constants
@@ -94,9 +92,7 @@ export default function AdminDashboard() {
         return <RevenueView />;
       case 'reports':
         return <ReportsView />;
-      case 'push':
-        return <PushNotificationsView />;
-      case 'in-app':
+      case 'notifications':
         return <InAppNotificationsView />;
       case 'settings':
         return <SettingsView />;
@@ -136,8 +132,7 @@ export default function AdminDashboard() {
             { id: 'spam', name: 'Spam Detection', icon: AlertTriangle },
             { id: 'videos', name: 'Video Management', icon: Film },
             { id: 'coupons', name: 'Coupons', icon: Tag },
-            { id: 'push', name: 'Push Notifications', icon: Bell },
-            { id: 'in-app', name: 'In-App Notifications', icon: Inbox },
+            { id: 'notifications', name: 'Notifications', icon: Bell },
             { id: 'revenue', name: 'Revenue', icon: CircleDollarSign },
             { id: 'reports', name: 'Reports', icon: BarChart3 },
             { id: 'settings', name: 'Settings', icon: Settings },
