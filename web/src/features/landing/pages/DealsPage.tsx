@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Heart, Sparkles, Timer } from 'lucide-react';
+import { ComboDealCard } from '@/features/landing/components/ComboDealCard';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
@@ -62,6 +63,10 @@ type DealsQueryResult = {
 };
 
 const FALLBACK_IMAGE = FALLBACK_LISTING_IMAGE;
+
+function isComboDeal(item: DealListing): boolean {
+  return String(item.dealType || item.deal_type || '').toLowerCase() === 'combo';
+}
 
 function formatTimeLeft(item: DealListing, nowMs: number): string {
   const end = getEffectiveDealWindow(item, nowMs)?.endMs || 0;
@@ -399,10 +404,10 @@ export default function DealsPage(): ReactElement {
   const expiredDeals = filteredDeals.filter((item) => isExpiredDeal(item, nowMs));
 
   const allDeals = activeDeals.filter(
-    (item) => String(item.dealType || item.deal_type || '').toLowerCase() !== 'combo'
+    (item) => !isComboDeal(item)
   );
   const comboDeals = activeDeals.filter(
-    (item) => String(item.dealType || item.deal_type || '').toLowerCase() === 'combo'
+    (item) => isComboDeal(item)
   );
 
   return (
@@ -452,13 +457,12 @@ export default function DealsPage(): ReactElement {
           <h2 className="text-2xl font-black">Combo Deals</h2>
           <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
             {comboDeals.map((item) => (
-              <DealCard
+              <ComboDealCard
                 key={item.id}
                 item={item}
                 saved={savedIds.has(item.id)}
                 onToggleSaved={toggleSaved}
                 nowMs={nowMs}
-                combo
               />
             ))}
           </div>
@@ -481,14 +485,24 @@ export default function DealsPage(): ReactElement {
           {upcomingDeals.length > 0 ? (
             <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
               {upcomingDeals.map((item) => (
-                <DealCard
-                  key={`upcoming-${item.id}`}
-                  item={item}
-                  saved={savedIds.has(item.id)}
-                  onToggleSaved={toggleSaved}
-                  nowMs={nowMs}
-                  combo={String(item.dealType || item.deal_type || '').toLowerCase() === 'combo'}
-                />
+                isComboDeal(item) ? (
+                  <ComboDealCard
+                    key={`upcoming-${item.id}`}
+                    item={item}
+                    saved={savedIds.has(item.id)}
+                    onToggleSaved={toggleSaved}
+                    nowMs={nowMs}
+                    ctaLabel="View deal"
+                  />
+                ) : (
+                  <DealCard
+                    key={`upcoming-${item.id}`}
+                    item={item}
+                    saved={savedIds.has(item.id)}
+                    onToggleSaved={toggleSaved}
+                    nowMs={nowMs}
+                  />
+                )
               ))}
             </div>
           ) : (
@@ -515,14 +529,24 @@ export default function DealsPage(): ReactElement {
           {expiredDeals.length > 0 ? (
             <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
               {expiredDeals.map((item) => (
-                <DealCard
-                  key={`expired-${item.id}`}
-                  item={item}
-                  saved={savedIds.has(item.id)}
-                  onToggleSaved={toggleSaved}
-                  nowMs={nowMs}
-                  combo={String(item.dealType || item.deal_type || '').toLowerCase() === 'combo'}
-                />
+                isComboDeal(item) ? (
+                  <ComboDealCard
+                    key={`expired-${item.id}`}
+                    item={item}
+                    saved={savedIds.has(item.id)}
+                    onToggleSaved={toggleSaved}
+                    nowMs={nowMs}
+                    ctaLabel="View deal"
+                  />
+                ) : (
+                  <DealCard
+                    key={`expired-${item.id}`}
+                    item={item}
+                    saved={savedIds.has(item.id)}
+                    onToggleSaved={toggleSaved}
+                    nowMs={nowMs}
+                  />
+                )
               ))}
             </div>
           ) : (

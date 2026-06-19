@@ -52,8 +52,31 @@ function formatStatus(value: string | undefined): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+function formatLastUpdated(value: number): string {
+  if (!value) return 'Just now';
+  return new Date(value).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+function formatRelativeAge(value: number): string {
+  if (!value) return 'just now';
+  const diffMs = Date.now() - value;
+  const diffSeconds = Math.max(0, Math.floor(diffMs / 1000));
+
+  if (diffSeconds < 60) return `${diffSeconds}s ago`;
+
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  return `${diffHours}h ago`;
+}
+
 export default function TransactionsView() {
-  const { data, isLoading, isFetching, refetch } = useTransactionReport();
+  const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useTransactionReport();
   const resolved = unwrapData<TransactionPayload>(data) ?? {};
 
   const summary = resolved.summary ?? {};
@@ -147,6 +170,13 @@ export default function TransactionsView() {
           <div>
             <h1 className="mb-2 text-3xl font-black sm:text-4xl">Transactions</h1>
             <p className="text-slate-300">Payment activity and transaction summary</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <span className="inline-flex items-center rounded-full border border-slate-600/70 bg-slate-950/30 px-2.5 py-1 font-semibold text-slate-200">
+                {isFetching ? 'Refreshing live feed' : 'Live feed ready'}
+              </span>
+              <span>Last refreshed {formatRelativeAge(dataUpdatedAt)}</span>
+              <span className="text-slate-500">({formatLastUpdated(dataUpdatedAt)})</span>
+            </div>
           </div>
           <button
             type="button"
@@ -154,7 +184,7 @@ export default function TransactionsView() {
             className="inline-flex items-center gap-2 rounded-lg bg-teal-500 px-4 py-2 font-semibold text-white transition hover:bg-teal-600"
           >
             <RefreshCw size={16} className={isFetching ? 'animate-spin' : ''} />
-            Refresh
+            {isFetching ? 'Refreshing' : 'Refresh'}
           </button>
         </div>
       </div>

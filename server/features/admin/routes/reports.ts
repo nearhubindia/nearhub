@@ -353,6 +353,9 @@ export function registerReportsRoutes(app: Express) {
    */
   app.get('/api/admin/reports/transaction', async (req: Request, res: Response) => {
     try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.setHeader('Pragma', 'no-cache');
+
       const [txRows, summaryRows] = await Promise.all([
         db
           .select({

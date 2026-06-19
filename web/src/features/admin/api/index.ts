@@ -418,6 +418,7 @@ export const reportsApi = {
   async getTransactionReport(): Promise<unknown> {
     const response = await fetch(`${API_BASE_URL}/api/admin/reports/transaction`, {
       headers: getAuthHeaders(),
+      cache: 'no-store',
     });
     return handleResponse(response);
   },

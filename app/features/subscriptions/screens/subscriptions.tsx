@@ -13,7 +13,7 @@ import {
   Keyboard,
   Modal,
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -130,6 +130,7 @@ interface PaymentSuccessModalState {
 export default function SubscriptionsScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated } = useAuth();
+  const searchParams = useLocalSearchParams<{ tierId?: string; couponCode?: string }>();
 
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,6 +171,9 @@ export default function SubscriptionsScreen(): React.JSX.Element {
   useEffect(() => {
     defaultActiveSubscriptionIdRef.current = defaultActiveSubscriptionId;
   }, [defaultActiveSubscriptionId]);
+
+  const pendingTierId = String(searchParams.tierId || '').trim();
+  const pendingCouponCode = String(searchParams.couponCode || '').trim();
 
   // Keyboard listener to scroll to coupon input & hide bottom bar
   useEffect(() => {
@@ -421,6 +425,19 @@ export default function SubscriptionsScreen(): React.JSX.Element {
       setCouponError(null);
     }
   }, [displayTiers, selectedTierId]);
+
+  useEffect(() => {
+    if (!pendingTierId || !displayTiers.length) return;
+    const matchedTier = displayTiers.find((tier) => tier.id === pendingTierId);
+    if (matchedTier) {
+      setSelectedTierId(matchedTier.id);
+    }
+  }, [displayTiers, pendingTierId]);
+
+  useEffect(() => {
+    if (!pendingCouponCode) return;
+    setCouponCode((current) => current || pendingCouponCode);
+  }, [pendingCouponCode]);
 
   const selectedTier =
     (selectedTierId && displayTiers.find((tier) => tier.id === selectedTierId)) ||

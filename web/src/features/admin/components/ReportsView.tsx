@@ -119,15 +119,43 @@ function asNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function formatRelativeAge(value: number): string {
+  if (!value) return 'just now';
+  const diffMs = Date.now() - value;
+  const diffSeconds = Math.max(0, Math.floor(diffMs / 1000));
+  if (diffSeconds < 60) return `${diffSeconds}s ago`;
+
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  return `${diffHours}h ago`;
+}
+
 export default function ReportsView() {
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(null);
 
-  const { data: growthRaw, isLoading: growthLoading } = useGrowthReport();
+  const { data: growthRaw, isLoading: growthLoading, isFetching: growthFetching, dataUpdatedAt: growthUpdatedAt } = useGrowthReport();
   const { data: dashboardStatsRaw } = useDashboardStats();
   const { data: usersData } = useUsers();
-  const { data: performanceRaw, isLoading: performanceLoading } = usePerformanceReport();
-  const { data: transactionRaw, isLoading: transactionLoading } = useTransactionReport();
-  const { data: moderationRaw, isLoading: moderationLoading } = useModerationReport();
+  const {
+    data: performanceRaw,
+    isLoading: performanceLoading,
+    isFetching: performanceFetching,
+    dataUpdatedAt: performanceUpdatedAt,
+  } = usePerformanceReport();
+  const {
+    data: transactionRaw,
+    isLoading: transactionLoading,
+    isFetching: transactionFetching,
+    dataUpdatedAt: transactionUpdatedAt,
+  } = useTransactionReport();
+  const {
+    data: moderationRaw,
+    isLoading: moderationLoading,
+    isFetching: moderationFetching,
+    dataUpdatedAt: moderationUpdatedAt,
+  } = useModerationReport();
 
   const growth = unwrapData<GrowthData>(growthRaw) ?? {};
   const dashboardStats = (
@@ -215,24 +243,32 @@ export default function ReportsView() {
       title: 'User Growth Report',
       desc: 'Monthly user/listing trends',
       icon: '📈',
+      updatedAt: growthUpdatedAt,
+      refreshing: growthFetching,
     },
     {
       id: 'performance' as const,
       title: 'Listing Performance',
       desc: 'Top listings and categories',
       icon: '⭐',
+      updatedAt: performanceUpdatedAt,
+      refreshing: performanceFetching,
     },
     {
       id: 'transactions' as const,
       title: 'Transaction Report',
       desc: 'Revenue and payment activity',
       icon: '💳',
+      updatedAt: transactionUpdatedAt,
+      refreshing: transactionFetching,
     },
     {
       id: 'moderation' as const,
       title: 'Content Moderation',
       desc: 'Pending/resolved moderation issues',
       icon: '🚨',
+      updatedAt: moderationUpdatedAt,
+      refreshing: moderationFetching,
     },
   ];
 
@@ -256,6 +292,12 @@ export default function ReportsView() {
           </button>
           <h1 className="text-3xl sm:text-4xl font-black mb-2">📈 User Growth Report</h1>
           <p className="text-slate-300">Live growth metrics from backend</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span className="inline-flex items-center rounded-full border border-slate-600/70 bg-slate-950/30 px-2.5 py-1 font-semibold text-slate-200">
+              {growthFetching ? 'Refreshing live feed' : 'Live feed ready'}
+            </span>
+            <span>Last refreshed {formatRelativeAge(growthUpdatedAt)}</span>
+          </div>
         </div>
         <div className="p-4 sm:p-6 space-y-6">
           <div className="grid md:grid-cols-4 gap-6">
@@ -366,6 +408,12 @@ export default function ReportsView() {
           </button>
           <h1 className="text-3xl sm:text-4xl font-black mb-2">⭐ Listing Performance Report</h1>
           <p className="text-slate-300">Live top listings and category performance</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span className="inline-flex items-center rounded-full border border-slate-600/70 bg-slate-950/30 px-2.5 py-1 font-semibold text-slate-200">
+              {performanceFetching ? 'Refreshing live feed' : 'Live feed ready'}
+            </span>
+            <span>Last refreshed {formatRelativeAge(performanceUpdatedAt)}</span>
+          </div>
         </div>
         <div className="p-4 sm:p-6 space-y-6">
           <div className="grid md:grid-cols-3 gap-6">
@@ -444,6 +492,12 @@ export default function ReportsView() {
           </button>
           <h1 className="text-3xl sm:text-4xl font-black mb-2">💳 Transaction Report</h1>
           <p className="text-slate-300">Live transaction and revenue summary</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span className="inline-flex items-center rounded-full border border-slate-600/70 bg-slate-950/30 px-2.5 py-1 font-semibold text-slate-200">
+              {transactionFetching ? 'Refreshing live feed' : 'Live feed ready'}
+            </span>
+            <span>Last refreshed {formatRelativeAge(transactionUpdatedAt)}</span>
+          </div>
         </div>
         <div className="p-4 sm:p-6 space-y-6">
           <div className="grid md:grid-cols-3 gap-6">
@@ -517,6 +571,12 @@ export default function ReportsView() {
           </button>
           <h1 className="text-3xl sm:text-4xl font-black mb-2">🚨 Content Moderation Report</h1>
           <p className="text-slate-300">Live moderation queues and report trends</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span className="inline-flex items-center rounded-full border border-slate-600/70 bg-slate-950/30 px-2.5 py-1 font-semibold text-slate-200">
+              {moderationFetching ? 'Refreshing live feed' : 'Live feed ready'}
+            </span>
+            <span>Last refreshed {formatRelativeAge(moderationUpdatedAt)}</span>
+          </div>
         </div>
         <div className="p-4 sm:p-6 space-y-6">
           <div className="grid md:grid-cols-3 gap-6">
@@ -589,6 +649,12 @@ export default function ReportsView() {
               <div className="text-4xl mb-4">{report.icon}</div>
               <h3 className="text-lg font-bold text-slate-900 mb-2">{report.title}</h3>
               <p className="text-slate-600 text-sm mb-4">{report.desc}</p>
+              <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-700">
+                  {report.refreshing ? 'Refreshing live feed' : 'Live feed ready'}
+                </span>
+                <span>Updated {formatRelativeAge(report.updatedAt)}</span>
+              </div>
               <span className="text-teal-600 font-bold text-sm">View Report →</span>
             </button>
           ))}

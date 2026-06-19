@@ -183,7 +183,7 @@ export default function DealBookingsScreen() {
   );
 
   if (!isAuthenticated) {
-    return <AuthRequiredState message="Please sign in to view your purchased deals" />;
+    return <AuthRequiredState message="Please sign in to view your bookings" />;
   }
 
   if (loading) {
@@ -202,24 +202,10 @@ export default function DealBookingsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <View style={styles.headerTop}>
-              <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={8}>
-                <Feather name="arrow-left" size={24} color={Colors.text} />
-              </Pressable>
-              <Text style={styles.screenTitle}>Purchased Deals</Text>
-              <View style={styles.headerSpacer} />
-            </View>
-            <Text style={styles.subtitle}>
-              {bookings.length} {bookings.length === 1 ? 'deal' : 'deals'}
-            </Text>
-          </View>
-        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Feather name="clipboard" size={48} color={Colors.textTertiary} />
-            <Text style={styles.emptyTitle}>No purchased deals yet</Text>
+            <Text style={styles.emptyTitle}>No bookings yet</Text>
             <Text style={styles.emptySubtitle}>
               Buy or book a deal from the deals page and it will show up here.
             </Text>
@@ -343,38 +329,6 @@ const styles = createResponsiveStyles({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  screenTitle: {
-    fontSize: 24,
-    color: Colors.text,
-    fontFamily: 'Inter_700Bold',
-    flex: 1,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    fontFamily: 'Inter_400Regular',
   },
   listContent: {
     paddingBottom: 16,

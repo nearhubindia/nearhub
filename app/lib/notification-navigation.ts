@@ -60,7 +60,11 @@ export async function openNotificationTarget(data?: NotificationTargetData): Pro
     data.type === 'price_drop' ||
     data.type === 'listing_interest' ||
     data.type === 'listing_sold' ||
-    data.type === 'expiring_soon'
+    data.type === 'expiring_soon' ||
+    data.type === 'listing_approved' ||
+    data.type === 'listing_renewed' ||
+    data.type === 'saved_listing_price_drop' ||
+    data.type === 'view_milestone'
   ) {
     if (!data.listingId) return;
 

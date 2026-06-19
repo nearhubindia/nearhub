@@ -16,6 +16,7 @@ import { LandingFooter, LandingHeader, Container } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
 import { FALLBACK_LISTING_IMAGE, getListingImages } from '@/features/landing/lib';
+import { ComboDealCard as SharedComboDealCard } from '@/features/landing/components/ComboDealCard';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
 import {
@@ -151,12 +152,6 @@ function parseComboItems(value: string[] | string | undefined): string[] | undef
     .map((item) => item.trim())
     .filter(Boolean);
   return items.length > 0 ? items : undefined;
-}
-
-function formatCountdown(endAt: number | undefined, nowMs: number): string {
-  return countdownPartsFromMs(endAt, nowMs)
-    .map((part) => part.value)
-    .join(' : ');
 }
 
 function MobileCountdownTiles({
@@ -598,131 +593,6 @@ function ProductCard({
     </article>
   );
 }
-function ComboDealCard({
-  product,
-  nowMs,
-}: {
-  product: ProductCardData;
-  nowMs: number;
-}): ReactElement {
-  const sale = discountPercentage(product.price, product.originalPrice);
-  const comboImages = [
-    product.images[0] || product.image || FALLBACK_IMAGE,
-    product.images[1] || product.images[0] || product.image || FALLBACK_IMAGE,
-  ];
-  const comboTitle =
-    product.comboItems && product.comboItems.length >= 2
-      ? `${product.comboItems[0]} + ${product.comboItems[1]}`
-      : product.title;
-
-  return (
-    <article className="w-[calc((100vw-40px)/2)] min-w-[156px] max-w-[178px] shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md md:h-auto md:w-auto md:max-w-none md:shrink md:rounded-2xl">
-      <Link to={`/listing/${encodeURIComponent(product.id)}`} className="block">
-        <div className="relative h-[112px] overflow-hidden bg-white sm:h-40 xl:h-36">
-          <div className="grid h-full grid-cols-2 gap-px bg-slate-200">
-            {comboImages.map((image, index) => (
-              <div
-                key={`${product.id}-combo-panel-${index}`}
-                className="flex min-w-0 items-center justify-center overflow-hidden bg-white"
-              >
-                <img
-                  src={image}
-                  alt={`${comboTitle} item ${index + 1}`}
-                  className="block h-full w-full object-cover object-center bg-white"
-                  loading="lazy"
-                  onError={(event) => {
-                    event.currentTarget.src = FALLBACK_IMAGE;
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-          {product.badge || sale ? (
-            <span className="absolute left-0 top-0 z-10 rounded-br-sm bg-red-600 px-2 py-1 text-[10px] font-black leading-none text-white shadow-[6px_0_0_#d8c4b6] md:left-2 md:top-2 md:rounded-full md:px-2 md:py-0.5 md:text-[10px] md:shadow-sm">
-              {sale || product.badge}
-            </span>
-          ) : null}
-          <span className="absolute left-1/2 top-1/2 grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white text-lg font-black leading-none text-[#0759e6] shadow-sm">
-            +
-          </span>
-          <span className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-white/90 text-slate-950 shadow-sm">
-            <Heart size={18} />
-          </span>
-        </div>
-      </Link>
-
-      <div className="px-2 pb-2 pt-2">
-        <div className="flex min-h-6 items-start justify-between gap-1">
-          <Link
-            to={`/listing/${encodeURIComponent(product.id)}`}
-            className="line-clamp-2 text-[11px] font-semibold leading-snug text-slate-950 hover:text-[#0759e6]"
-          >
-            {comboTitle}
-          </Link>
-        </div>
-        <p className="mt-0.5 line-clamp-2 min-h-6 text-[10px] font-normal leading-3 text-slate-500">
-          {product.title}
-        </p>
-
-        <div className="mt-1 flex flex-wrap items-baseline gap-1.5">
-          <span className="text-[13px] font-semibold leading-none text-slate-950 sm:text-xl">
-            {formatPriceInr(product.price)}
-          </span>
-          {product.originalPrice ? (
-            <span className="text-[10px] font-normal text-slate-400 line-through">
-              {formatPriceInr(product.originalPrice)}
-            </span>
-          ) : null}
-        </div>
-
-        <div className="mt-1.5 text-center">
-          {product.dealStatus?.startsWith('Ends in') ? (
-            <MobileCountdownTiles
-              endAt={product.dealEndsAt}
-              nowMs={nowMs}
-              className="border-t border-slate-100 pt-1 md:hidden"
-            />
-          ) : (
-            <p className="mt-2 text-[11px] font-semibold leading-snug text-red-600 sm:text-sm">
-              {product.dealStatus || formatCountdown(product.dealEndsAt, nowMs)}
-            </p>
-          )}
-          {product.dealStatus?.startsWith('Ends in') ? (
-            <div className="max-md:hidden">
-              <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
-                {countdownPartsFromMs(product.dealEndsAt, nowMs).map((part) => (
-                  <div
-                    key={part.label}
-                    className="grid h-[32px] min-w-[32px] w-[32px] place-items-center rounded-lg bg-white text-center text-[#dc1633] shadow-sm ring-1 ring-[#f8d9dd]"
-                  >
-                    <span className="block text-[9px] font-medium leading-none">{part.value}</span>
-                    <span className="mt-0.5 block text-[6px] font-normal leading-none text-slate-500">
-                      {part.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {purchaseLimitLabel(product.purchaseLimitType) ? (
-            <p className="mt-1 truncate text-[9px] font-medium text-slate-500 md:text-[11px]">
-              {purchaseLimitLabel(product.purchaseLimitType)}
-            </p>
-          ) : null}
-          {product.dealStatus?.startsWith('Ends in') ? (
-            <Link
-              to={`/order-summary/${encodeURIComponent(product.id)}`}
-              className="mt-1 inline-flex h-7 w-full items-center justify-center rounded-lg bg-[#0759e6] px-2 text-[10px] font-medium text-white transition hover:bg-[#0448bd] md:mt-3 md:h-9"
-            >
-              Book Deal
-            </Link>
-          ) : null}
-        </div>
-      </div>
-    </article>
-  );
-}
-
 function SectionHeader({
   icon,
   title,
@@ -951,8 +821,7 @@ export default function UserHomePage(): ReactElement {
       const expiredDeals = expiredDealsQuery.data?.listings ?? EMPTY_LISTINGS;
       return expiredDeals
         .filter((item) => {
-          const dealStatus = String(item.dealStatus || item.deal_status || '').toLowerCase();
-          return isDeal(item) && (dealStatus === 'expired' || isDealExpired(item, nowMs));
+          return isDeal(item) && isDealCompleted(item, nowMs);
         })
         .sort((a, b) => {
           const aEnd = getDealEndMs(a, nowMs) || new Date(String(a.dealEndAt || a.deal_end_at || 0)).getTime();
@@ -1164,7 +1033,26 @@ export default function UserHomePage(): ReactElement {
             {comboDeals.length > 0 ? (
               <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-4 [&::-webkit-scrollbar]:hidden">
                 {comboDeals.map((product) => (
-                  <ComboDealCard key={`combo-${product.id}`} product={product} nowMs={nowMs} />
+                  <SharedComboDealCard
+                    key={`combo-${product.id}`}
+                    item={{
+                      id: product.id,
+                      title: product.title,
+                      description: product.category,
+                      price: product.originalPrice ?? product.price,
+                      offerPrice: product.originalPrice ? product.price : undefined,
+                      image: product.image,
+                      images: product.images,
+                      dealStatus: product.dealStatus,
+                      dealEndAt: product.dealEndsAt,
+                      purchaseLimitType: product.purchaseLimitType,
+                      comboItems: product.comboItems,
+                    }}
+                    saved={savedIds.has(product.id)}
+                    onToggleSaved={toggleSaved}
+                    nowMs={nowMs}
+                    ctaLabel="View deal"
+                  />
                 ))}
               </div>
             ) : (

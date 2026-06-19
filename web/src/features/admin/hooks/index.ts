@@ -175,6 +175,8 @@ interface ErrorLogsQueryData {
 
 const STALE_TIME = 5 * 60 * 1000; // 5 minutes
 const CACHE_TIME = 10 * 60 * 1000; // 10 minutes
+const LIVE_PAYMENT_REFRESH_INTERVAL = 15 * 1000;
+const TRANSACTION_REFRESH_INTERVAL = 5 * 1000;
 
 // ============================================================================
 // Listings Hooks
@@ -444,8 +446,10 @@ export function useRevenueStats() {
   return useQuery<RevenueStatsData>({
     queryKey: adminKeys.revenueStats(),
     queryFn: () => revenueApi.getRevenueStats() as Promise<RevenueStatsData>,
-    staleTime: STALE_TIME,
+    staleTime: 0,
     gcTime: CACHE_TIME,
+    refetchInterval: LIVE_PAYMENT_REFRESH_INTERVAL,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -457,8 +461,10 @@ export function useGrowthReport() {
   return useQuery<GrowthReportData>({
     queryKey: adminKeys.reportGrowth(),
     queryFn: () => reportsApi.getGrowthReport() as Promise<GrowthReportData>,
-    staleTime: STALE_TIME,
+    staleTime: 0,
     gcTime: CACHE_TIME,
+    refetchInterval: LIVE_PAYMENT_REFRESH_INTERVAL,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -484,8 +490,10 @@ export function useTransactionReport() {
   return useQuery({
     queryKey: adminKeys.reportTransaction(),
     queryFn: () => reportsApi.getTransactionReport(),
-    staleTime: STALE_TIME,
+    staleTime: 0,
     gcTime: CACHE_TIME,
+    refetchInterval: TRANSACTION_REFRESH_INTERVAL,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -502,8 +510,10 @@ export function useDashboardStats() {
   return useQuery<DashboardStatsData>({
     queryKey: adminKeys.dashboardStats(),
     queryFn: () => reportsApi.getDashboardStats() as Promise<DashboardStatsData>,
-    staleTime: STALE_TIME,
+    staleTime: 0,
     gcTime: CACHE_TIME,
+    refetchInterval: LIVE_PAYMENT_REFRESH_INTERVAL,
+    refetchOnWindowFocus: true,
   });
 }
 

@@ -82,7 +82,7 @@ import {
   getActiveListingCount,
   getSubscriptionById,
 } from "../services/subscription-tiers";
-import { transactions } from "../models/subscription";
+import { upsertCompletedTransaction } from "../services/transaction-records";
 import { listingCreationLimiter } from "../../../lib/rate-limiter";
 import { SERVER_CONFIG } from "../../../lib/config";
 import { enqueueListingModeration } from "../../listings/workers/listing-moderation";
@@ -110,67 +110,6 @@ function normalizeUserLookupPhone(value: unknown): string {
   if (typeof value !== "string" && typeof value !== "number") return "";
   const digits = String(value).replace(/\D/g, "");
   return digits.length >= 10 ? digits.slice(-10) : "";
-}
-
-async function upsertCompletedTransaction(params: {
-  subscriptionId: string;
-  userId: string;
-  amount: number;
-  paymentId: string;
-  orderId: string;
-  razorpayData?: unknown;
-}): Promise<void> {
-  const { subscriptionId, userId, amount, paymentId, orderId, razorpayData } =
-    params;
-  const amountString = roundToTwo(amount).toFixed(2);
-  const now = new Date();
-  const serializedGatewayData =
-    razorpayData !== undefined
-      ? JSON.stringify(razorpayData)
-      : JSON.stringify({});
-
-  const existing = await db
-    .select({
-      id: transactions.id,
-    })
-    .from(transactions)
-    .where(
-      or(
-        eq(transactions.paymentId, paymentId),
-        and(
-          eq(transactions.subscriptionId, subscriptionId),
-          eq(transactions.orderId, orderId),
-        ),
-      ),
-    )
-    .limit(1);
-
-  if (existing.length > 0) {
-    await db
-      .update(transactions)
-      .set({
-        sellerId: userId,
-        amount: amountString,
-        paymentStatus: "completed",
-        paymentId,
-        orderId,
-        razorpayData: serializedGatewayData,
-        completedAt: now,
-      })
-      .where(eq(transactions.id, existing[0].id));
-    return;
-  }
-
-  await db.insert(transactions).values({
-    subscriptionId,
-    sellerId: userId,
-    amount: amountString,
-    paymentStatus: "completed",
-    paymentId,
-    orderId,
-    razorpayData: serializedGatewayData,
-    completedAt: now,
-  });
 }
 
 function hasLocalDeviceUri(value: unknown): boolean {

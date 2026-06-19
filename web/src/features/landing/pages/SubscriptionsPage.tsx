@@ -12,50 +12,10 @@ import {
 } from 'lucide-react';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
-import { trackWebEvent, trackWebPurchase } from '@/lib/firebase';
 import { readStoredWebUser, type StoredWebUser } from '@/lib/web-auth-storage';
 import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
 type StoredUser = StoredWebUser;
-
-type RazorpayPaymentResponse = {
-  razorpay_order_id: string;
-  razorpay_payment_id: string;
-  razorpay_signature: string;
-};
-
-type RazorpayOptions = {
-  key: string;
-  amount?: number;
-  currency: string;
-  name: string;
-  description: string;
-  image?: string;
-  order_id: string;
-  prefill?: {
-    name?: string;
-    email?: string;
-    contact?: string;
-  };
-  notes?: Record<string, string>;
-  theme?: {
-    color?: string;
-  };
-  retry?: {
-    enabled?: boolean;
-    max_count?: number;
-  };
-  handler: (response: RazorpayPaymentResponse) => void;
-  modal?: {
-    ondismiss?: () => void;
-  };
-};
-
-declare global {
-  interface Window {
-    Razorpay?: new (options: RazorpayOptions) => { open: () => void };
-  }
-}
 
 type UserSubscription = {
   id: string;
@@ -113,36 +73,6 @@ type SubscriptionTiersResponse = {
   error?: string;
 };
 
-type CreateSubscriptionResponse = {
-  success?: boolean;
-  id?: string;
-  error?: string;
-};
-
-type CheckoutResponse = {
-  success?: boolean;
-  isFree?: boolean;
-  message?: string;
-  error?: string;
-  payment?: {
-    key?: string;
-    amount?: number;
-    amountInRupees?: number;
-    razorpayOrderId?: string;
-    subscriptionId?: string;
-  };
-  discount?: {
-    percentage?: number;
-    finalAmount?: number;
-  } | null;
-};
-
-type VerifyPaymentResponse = {
-  success?: boolean;
-  message?: string;
-  error?: string;
-};
-
 type DisplaySubscription = {
   id: string;
   title: string;
@@ -197,27 +127,6 @@ function getPlanPrice(tier: SubscriptionTier): number {
     : regularPrice;
 }
 
-function loadRazorpayScript(): Promise<boolean> {
-  if (window.Razorpay) return Promise.resolve(true);
-  return new Promise((resolve) => {
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[src="https://checkout.razorpay.com/v1/checkout.js"]'
-    );
-    if (existing) {
-      existing.addEventListener('load', () => resolve(true), { once: true });
-      existing.addEventListener('error', () => resolve(false), { once: true });
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-}
-
 function formatDate(value?: string | null): string {
   if (!value) return '-';
   const date = new Date(value);
@@ -231,34 +140,6 @@ function formatDate(value?: string | null): string {
 
 function isMeaningfulText(value: unknown): boolean {
   return typeof value === 'string' && Boolean(value.trim());
-}
-
-function getPaymentOrigin(): string {
-  if (typeof window === 'undefined') return '';
-  return window.location.origin;
-}
-
-function formatRazorpayContact(phone: string): string {
-  const digits = String(phone || '').replace(/\D/g, '').slice(-10);
-  return digits ? `+91${digits}` : '';
-}
-
-function getConfiguredSiteOrigin(): string {
-  const raw = String(import.meta.env.VITE_SITE_URL || 'https://nearhub.in').trim();
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return 'https://nearhub.in';
-  }
-}
-
-function isAllowedPaymentHost(hostname: string): boolean {
-  try {
-    const allowedHost = new URL(getConfiguredSiteOrigin()).hostname.toLowerCase();
-    return hostname.toLowerCase() === allowedHost;
-  } catch {
-    return hostname.toLowerCase() === 'nearhub.in';
-  }
 }
 
 export default function SubscriptionsPage(): ReactElement {
@@ -495,180 +376,15 @@ export default function SubscriptionsPage(): ReactElement {
     if (!tierId || checkoutTierId) return;
 
     setCheckoutTierId(tierId);
-    setCheckoutMessage('');
+    setCheckoutMessage('Opening NearHub app to complete this subscription.');
     try {
-      const createResponse = await fetch(`${getApiUrl()}/api/subscriptions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId,
-          'x-user-phone': userPhone,
-        },
-        body: JSON.stringify({
-          tierId,
-          duration: Number(tier.durationDays || 30),
-        }),
-      });
-      const created = (await createResponse.json().catch(() => ({}))) as CreateSubscriptionResponse;
-      if (!createResponse.ok || !created.id) {
-        throw new Error(created.error || 'Failed to prepare subscription');
-      }
-
       const couponCode = String(couponByTierId[tierId] || '').trim();
-      const checkoutResponse = await fetch(`${getApiUrl()}/api/subscriptions/checkout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId,
-          'x-user-phone': userPhone,
-        },
-        body: JSON.stringify({
-          subscriptionId: created.id,
-          userId,
-          tierId,
-          listingTitle: tier.name,
-          totalFee: getPlanPrice(tier),
-          duration: Number(tier.durationDays || 30),
-          couponCode: couponCode || undefined,
-        }),
-      });
-      const checkout = (await checkoutResponse.json().catch(() => ({}))) as CheckoutResponse;
-      if (!checkoutResponse.ok || !checkout.success) {
-        throw new Error(checkout.error || 'Checkout failed');
-      }
-
-      void trackWebEvent('begin_checkout', {
-        currency: 'INR',
-        value: getPlanPrice(tier),
-        item_id: tier.id,
-        item_name: tier.name,
-        item_category: 'subscription',
-      });
-
-      if (checkout.isFree) {
-        setCheckoutMessage(checkout.message || 'Plan activated successfully.');
-        void trackWebPurchase({
-          purchaseType: 'subscription',
-          transactionId: created.id,
-          value: getPlanPrice(tier),
-          itemId: tier.id,
-          itemName: tier.name,
-          category: 'subscription',
-        });
-        await subscriptionsQuery.refetch();
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams({ tierId });
+        if (couponCode) params.set('couponCode', couponCode);
+        window.location.href = `/subscriptions/open?${params.toString()}`;
         return;
       }
-
-      if (!checkout.payment?.razorpayOrderId || !checkout.payment.key) {
-        setCheckoutMessage(
-          checkout.payment?.razorpayOrderId
-            ? `Payment order created for ${formatCurrency(Number(checkout.payment.amountInRupees || 0))}, but Razorpay key is missing. Complete payment configuration to activate this plan.`
-            : checkout.message || 'Checkout started.'
-        );
-        return;
-      }
-
-      if (typeof window !== 'undefined' && !isAllowedPaymentHost(window.location.hostname)) {
-        setCheckoutMessage(
-          `Payments can only be completed from ${new URL(getConfiguredSiteOrigin()).hostname}. Current origin: ${getPaymentOrigin()}.`
-        );
-        return;
-      }
-
-      const razorpayLoaded = await loadRazorpayScript();
-      if (!razorpayLoaded || !window.Razorpay) {
-        setCheckoutMessage(
-          'Unable to load Razorpay checkout. Please check internet connection and try again.'
-        );
-        return;
-      }
-
-      await new Promise<void>((resolve) => {
-        const razorpay = new window.Razorpay!({
-          key: checkout.payment!.key!,
-          amount: checkout.payment!.amount,
-          currency: 'INR',
-          name: 'NearHub',
-          description: tier.name,
-          image: `${getConfiguredSiteOrigin()}/nearhub.png`,
-          order_id: checkout.payment!.razorpayOrderId!,
-          prefill: {
-            contact: formatRazorpayContact(userPhone),
-          },
-          notes: {
-            subscriptionId: String(created.id || ''),
-            tierId: tier.id,
-            origin: getPaymentOrigin(),
-          },
-          theme: {
-            color: '#1f63b2',
-          },
-          retry: {
-            enabled: true,
-            max_count: 1,
-          },
-          handler: (paymentResponse) => {
-            void (async () => {
-              try {
-                const verifyResponse = await fetch(
-                  `${getApiUrl()}/api/subscriptions/verify-payment`,
-                  {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'x-user-id': userId,
-                      'x-user-phone': userPhone,
-                    },
-                    body: JSON.stringify({
-                      subscriptionId: created.id,
-                      couponCode: couponCode || undefined,
-                      razorpay_order_id: paymentResponse.razorpay_order_id,
-                      razorpay_payment_id: paymentResponse.razorpay_payment_id,
-                      razorpay_signature: paymentResponse.razorpay_signature,
-                    }),
-                  }
-                );
-                const verified = (await verifyResponse
-                  .json()
-                  .catch(() => ({}))) as VerifyPaymentResponse;
-                if (!verifyResponse.ok || !verified.success) {
-                  throw new Error(verified.error || 'Payment verification failed');
-                }
-                void trackWebPurchase({
-                  purchaseType: 'subscription',
-                  transactionId:
-                    paymentResponse.razorpay_payment_id || paymentResponse.razorpay_order_id,
-                  value: Number(checkout.payment?.amountInRupees || 0),
-                  itemId: tier.id,
-                  itemName: tier.name,
-                  category: 'subscription',
-                });
-                setCheckoutMessage(
-                  verified.message || 'Payment verified. Plan activated successfully.'
-                );
-                await subscriptionsQuery.refetch();
-              } catch (verifyError) {
-                setCheckoutMessage(
-                  verifyError instanceof Error
-                    ? verifyError.message
-                    : 'Payment verification failed.'
-                );
-              } finally {
-                resolve();
-              }
-            })();
-          },
-          modal: {
-            ondismiss: () => {
-              setCheckoutMessage(
-                'Payment was not completed. The subscription will stay pending until payment is verified.'
-              );
-              resolve();
-            },
-          },
-        });
-        razorpay.open();
-      });
     } catch (error) {
       setCheckoutMessage(
         error instanceof Error ? error.message : 'Failed to proceed with this plan.'
@@ -687,7 +403,7 @@ export default function SubscriptionsPage(): ReactElement {
             <div>
               <h1 className="text-2xl font-bold text-[#113965]">Subscriptions</h1>
               <p className="mt-1 text-sm text-slate-600">
-                Manage your plans, starter credits, and checkout from one place.
+                Manage your plans here and finish subscription purchase in the NearHub app.
               </p>
             </div>
             <Link to="/browse" className="text-sm font-semibold text-[#1e5da8] hover:underline">
@@ -1033,7 +749,7 @@ export default function SubscriptionsPage(): ReactElement {
                       className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold outline-none focus:border-[#1e5da8]"
                     />
                     <p className="text-xs text-slate-500">
-                      Coupon is applied to this specific plan before checkout.
+                      Coupon will be carried into the app checkout flow for this plan.
                     </p>
                     <button
                       type="button"
@@ -1041,11 +757,7 @@ export default function SubscriptionsPage(): ReactElement {
                       disabled={Boolean(checkoutTierId)}
                       className="h-10 w-full rounded-lg bg-[#1f63b2] text-xs font-black text-white disabled:opacity-60"
                     >
-                      {isCheckingOut
-                        ? 'Processing...'
-                        : couponCode.trim()
-                          ? 'Apply Coupon & Proceed'
-                          : 'Proceed Plan'}
+                      {isCheckingOut ? 'Opening App...' : 'Open in App'}
                     </button>
                   </div>
                 </article>

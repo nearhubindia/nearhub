@@ -273,6 +273,20 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="bookings"
+        options={{
+          title: 'Bookings',
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="deal-bookings"
+        options={{
+          title: 'Deal Bookings',
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
         name="listings/edit"
         options={{
           headerShown: false,

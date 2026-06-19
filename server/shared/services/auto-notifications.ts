@@ -207,7 +207,8 @@ export async function notifyListingInterest(
 export async function notifyListingSold(
   userId: string,
   listingTitle: string,
-  price: number
+  price: number,
+  listingId?: string
 ): Promise<void> {
   try {
     await sendPushToUser(userId, {
@@ -216,6 +217,7 @@ export async function notifyListingSold(
       data: {
         type: 'listing_sold',
         amount: price,
+        ...(listingId ? { listingId } : {}),
       },
       channelId: 'default',
     });
@@ -714,7 +716,8 @@ function getUserNotificationTargets(userId: string): string[] {
 export async function notifyListingRenewed(
   userId: string,
   listingTitle: string,
-  newExpiryDate: Date
+  newExpiryDate: Date,
+  listingId?: string
 ): Promise<void> {
   try {
     const expiryDateStr = newExpiryDate.toLocaleDateString('en-IN', {
@@ -730,6 +733,7 @@ export async function notifyListingRenewed(
         type: 'listing_renewed',
         listingTitle,
         expiresAt: newExpiryDate.toISOString(),
+        ...(listingId ? { listingId } : {}),
       },
       channelId: 'default',
     });

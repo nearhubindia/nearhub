@@ -33,11 +33,14 @@ function normalizeRawPath(rawPath: string): string {
           return `/shorts/${encodeURIComponent(customShortIdFromQuery)}`;
         }
       }
+      if (url.hostname.toLowerCase() === 'subscriptions') {
+        return `/subscriptions${url.search || ''}`;
+      }
     }
 
     // https://nearhub.in/listing/<id> (app link)
     if (url.pathname) {
-      return url.pathname;
+      return `${url.pathname}${url.search || ''}`;
     }
   } catch {
     // Not a full URL; continue with raw path.
@@ -80,6 +83,18 @@ function extractShortsPath(pathname: string): string | null {
   return `/(tabs)/shorts?listingId=${encodeURIComponent(listingId)}`;
 }
 
+function extractSubscriptionsPath(pathname: string): string | null {
+  const trimmed = String(pathname || '').split('#')[0].trim();
+  if (!trimmed) return null;
+
+  const [cleanPath, query = ''] = trimmed.split('?');
+  const parts = cleanPath.split('/').filter(Boolean);
+  if (parts.length === 0) return null;
+  if (parts[0].toLowerCase() !== 'subscriptions') return null;
+
+  return query ? `/subscriptions?${query}` : '/subscriptions';
+}
+
 export function redirectSystemPath({ path }: { path: string; initial: boolean }) {
   const normalizedPath = normalizeRawPath(path);
   const listingPath = extractListingPath(normalizedPath);
@@ -89,6 +104,10 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
   const shortsPath = extractShortsPath(normalizedPath);
   if (shortsPath) {
     return shortsPath;
+  }
+  const subscriptionsPath = extractSubscriptionsPath(normalizedPath);
+  if (subscriptionsPath) {
+    return subscriptionsPath;
   }
 
   return '/';

@@ -33,6 +33,9 @@ const NotificationsPage = lazy(() => import('./features/landing/pages/Notificati
 const DealInboxPage = lazy(() => import('./features/landing/pages/DealInboxPage'));
 const MyOrdersPage = lazy(() => import('./features/landing/pages/MyOrdersPage'));
 const UserSubscriptionsPage = lazy(() => import('./features/landing/pages/SubscriptionsPage'));
+const SubscriptionsDeepLink = lazy(
+  () => import('./features/landing/pages/SubscriptionsDeepLink')
+);
 const InvoicesPage = lazy(() => import('./features/landing/pages/InvoicesPage'));
 const UserSettingsPage = lazy(() => import('./features/landing/pages/SettingsPage'));
 const ConversationPage = lazy(() => import('./features/landing/pages/ConversationPage'));
@@ -270,6 +273,7 @@ function App() {
               <Route path="/messages" element={<MessagesPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/messages/:conversationId" element={<ConversationPage />} />
+              <Route path="/subscriptions/open" element={<SubscriptionsDeepLink />} />
               <Route path="/subscriptions" element={<UserSubscriptionsPage />} />
               <Route path="/invoices" element={<InvoicesPage />} />
               <Route path="/settings" element={<UserSettingsPage />} />
