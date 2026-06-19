@@ -26,6 +26,16 @@ export type DealBooking = {
   createdAt?: string;
 };
 
+type BookingResponse = {
+  success?: boolean;
+  booking?: DealBooking;
+  bookings?: DealBooking[];
+  voucherViewUrl?: string;
+  error?: string;
+  message?: string;
+  code?: string;
+};
+
 export type DealStatTone = 'blue' | 'emerald' | 'amber' | 'rose';
 
 export function readStoredUser(): StoredUser | null {
@@ -69,7 +79,9 @@ export function statusLabel(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized === 'redeemed') return 'encashed';
   if (normalized === 'booked') return 'purchased';
-  return status || 'purchased';
+  if (normalized === 'cancelled') return 'Cancelled';
+  if (normalized === 'expired') return 'Expired';
+  return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'purchased';
 }
 
 export function statIconClass(tone: DealStatTone): string {
@@ -112,4 +124,22 @@ export async function openVoucherPdf(params: {
   } finally {
     setVoucherLoadingId('');
   }
+}
+
+export async function cancelDealBooking(params: {
+  bookingId: string;
+  authHeaders: HeadersInit;
+}): Promise<DealBooking> {
+  const { bookingId, authHeaders } = params;
+  const response = await fetch(apiUrl(`/api/deals/bookings/${encodeURIComponent(bookingId)}/cancel`), {
+    method: 'POST',
+    headers: authHeaders,
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as BookingResponse;
+  if (!response.ok || payload.success === false || !payload.booking) {
+    throw new Error(payload.error || payload.message || 'Failed to cancel booking');
+  }
+
+  return payload.booking;
 }

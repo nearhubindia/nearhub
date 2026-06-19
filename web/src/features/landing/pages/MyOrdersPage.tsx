@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import { Navigate, Link, useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarX2,
   CheckCircle2,
@@ -10,11 +10,18 @@ import {
   ReceiptText,
   ShoppingBag,
   Ticket,
+  Trash2,
 } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { DealStatsGrid } from '../components/DealStatsGrid';
 import { DealVoucherCard } from '../components/DealVoucherCard';
-import { apiUrl, openVoucherPdf, readStoredUser, type DealBooking } from '../lib/deal-bookings';
+import {
+  apiUrl,
+  cancelDealBooking,
+  openVoucherPdf,
+  readStoredUser,
+  type DealBooking,
+} from '../lib/deal-bookings';
 import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
 export default function MyOrdersPage(): ReactElement {
@@ -22,8 +29,10 @@ export default function MyOrdersPage(): ReactElement {
   const user = readStoredUser();
   const userId = String(user?.id || '').trim();
   const userPhone = String(user?.phone || '').trim();
+  const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [voucherLoadingId, setVoucherLoadingId] = useState('');
+  const [cancellingBookingId, setCancellingBookingId] = useState('');
 
   const authHeaders = useMemo(
     () => ({
@@ -54,6 +63,26 @@ export default function MyOrdersPage(): ReactElement {
 
   const openVoucher = async (bookingId: string) => {
     await openVoucherPdf({ bookingId, authHeaders, setVoucherLoadingId, setMessage });
+  };
+
+  const cancelBooking = async (booking: DealBooking) => {
+    const confirmed =
+      typeof window === 'undefined'
+        ? true
+        : window.confirm('Cancel this booked deal? This will remove your active booking.');
+    if (!confirmed) return;
+
+    setCancellingBookingId(booking.id);
+    setMessage('');
+    try {
+      await cancelDealBooking({ bookingId: booking.id, authHeaders });
+      await queryClient.invalidateQueries({ queryKey: ['my-deal-bookings', userId] });
+      setMessage('Your booking was cancelled successfully.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to cancel booking');
+    } finally {
+      setCancellingBookingId('');
+    }
   };
 
   const orders = ordersQuery.data || [];
@@ -179,14 +208,27 @@ export default function MyOrdersPage(): ReactElement {
 
           <div className="space-y-5">
             {orders.map((order) => (
-              <DealVoucherCard
-                key={order.id}
-                booking={order}
-                dateLabel="Booked"
-                voucherLoadingId={voucherLoadingId}
-                onOpenVoucher={(bookingId) => void openVoucher(bookingId)}
-              />
-            ))}
+            <DealVoucherCard
+              key={order.id}
+              booking={order}
+              dateLabel="Booked"
+              voucherLoadingId={voucherLoadingId}
+              onOpenVoucher={(bookingId) => void openVoucher(bookingId)}
+              extraActions={
+                String(order.status || 'booked').toLowerCase() === 'booked' ? (
+                  <button
+                    type="button"
+                    onClick={() => void cancelBooking(order)}
+                    disabled={cancellingBookingId === order.id}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-normal text-rose-700 transition hover:border-rose-300 disabled:opacity-60"
+                  >
+                    <Trash2 size={15} />
+                    {cancellingBookingId === order.id ? 'Cancelling...' : 'Cancel Booking'}
+                  </button>
+                ) : null
+              }
+            />
+          ))}
           </div>
           {!ordersQuery.isLoading && orders.length > 0 ? (
             <p className="mt-7 text-center text-sm font-normal text-[#5d718f]">

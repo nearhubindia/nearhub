@@ -143,7 +143,8 @@ async function saveVoucherPdf(
 }
 
 async function shareVoucherFile(result: VoucherDownloadResult, title: string): Promise<void> {
-  const url = result.openedUri || result.uri;
+  // Share the real file URI so Android can hand it off to PDF viewers or save targets.
+  const url = result.uri;
   const response = await Share.share(
     { url, title },
     Platform.OS === 'android'
@@ -269,6 +270,32 @@ export async function updateDealBookingStatus(params: {
   const payload = (await response.json().catch(() => ({}))) as BookingResponse;
   if (!response.ok || payload.success === false || !payload.booking) {
     throw new Error(payload.error || payload.message || 'Failed to update booking status');
+  }
+
+  return payload.booking;
+}
+
+export async function cancelDealBooking(params: {
+  bookingId: string;
+  userId: string;
+  userPhone?: string;
+}) {
+  const { bookingId, userId, userPhone } = params;
+  const backendURL = getBackendURL();
+  const response = await fetch(
+    `${backendURL}/api/deals/bookings/${encodeURIComponent(bookingId)}/cancel`,
+    {
+      method: 'POST',
+      headers: buildUserAuthHeaders({ id: userId, phone: userPhone }),
+    }
+  );
+
+  const payload = (await response.json().catch(() => ({}))) as BookingResponse;
+  if (!response.ok || payload.success === false || !payload.booking) {
+    throw new DealBookingError(payload.error || payload.message || 'Failed to cancel booking', {
+      status: response.status,
+      code: payload.code,
+    });
   }
 
   return payload.booking;

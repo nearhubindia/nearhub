@@ -18,6 +18,7 @@ import AuthRequiredState from '@/shared/components/AuthRequiredState';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { createResponsiveStyles } from '@/lib/responsive';
 import {
+  cancelDealBooking,
   downloadDealVoucherPdf,
   fetchMyDealBookings,
   openDealVoucherPdf,
@@ -47,6 +48,7 @@ export default function DealBookingsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [openingVoucherId, setOpeningVoucherId] = useState<string | null>(null);
   const [downloadingVoucherId, setDownloadingVoucherId] = useState<string | null>(null);
+  const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
   const loadBookings = useCallback(async () => {
@@ -139,6 +141,45 @@ export default function DealBookingsScreen() {
       }
     },
     [user?.id, user?.phone, user?.token]
+  );
+
+  const cancelBooking = useCallback(
+    async (booking: DealBooking) => {
+      if (!user?.id) {
+        Alert.alert('Sign in required', 'Please sign in to cancel the booking.');
+        return;
+      }
+
+      Alert.alert('Cancel booking?', 'This will cancel your booked deal.', [
+        { text: 'Keep booking', style: 'cancel' },
+        {
+          text: 'Cancel booking',
+          style: 'destructive',
+          onPress: async () => {
+            setCancellingBookingId(booking.id);
+            try {
+              const updated = await cancelDealBooking({
+                bookingId: booking.id,
+                userId: user.id,
+                userPhone: user.phone || undefined,
+              });
+              setBookings((current) =>
+                current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
+              );
+              Alert.alert('Cancelled', 'Your booking was cancelled successfully.');
+            } catch (error) {
+              Alert.alert(
+                'Could not cancel booking',
+                error instanceof Error ? error.message : 'Try again.'
+              );
+            } finally {
+              setCancellingBookingId(null);
+            }
+          },
+        },
+      ]);
+    },
+    [user?.id, user?.phone]
   );
 
   if (!isAuthenticated) {
@@ -272,6 +313,24 @@ export default function DealBookingsScreen() {
                   <Text style={styles.secondaryButtonText}>View code</Text>
                 </Pressable>
               </View>
+
+              {status === 'booked' ? (
+                <View style={styles.actionsRow}>
+                  <Pressable
+                    style={[
+                      styles.dangerButton,
+                      cancellingBookingId === item.id && styles.disabledButton,
+                    ]}
+                    disabled={cancellingBookingId === item.id}
+                    onPress={() => void cancelBooking(item)}
+                  >
+                    <Feather name="trash-2" size={14} color="#b42318" />
+                    <Text style={styles.dangerButtonText}>
+                      {cancellingBookingId === item.id ? 'Cancelling...' : 'Cancel Booking'}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : null}
             </View>
           );
         }}
@@ -440,6 +499,24 @@ const styles = createResponsiveStyles({
   },
   secondaryButtonText: {
     color: Colors.text,
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  dangerButton: {
+    flex: 1,
+    minWidth: 130,
+    minHeight: 44,
+    borderRadius: 14,
+    backgroundColor: '#fff1f0',
+    borderWidth: 1,
+    borderColor: '#fecdca',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dangerButtonText: {
+    color: '#b42318',
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
   },

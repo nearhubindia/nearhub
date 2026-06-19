@@ -31,6 +31,10 @@ function normalizeBookingStatus(
   return null;
 }
 
+function canBuyerCancelBooking(status: unknown): boolean {
+  return String(status || '').toLowerCase() === 'booked';
+}
+
 function addDealCycle(date: Date, recurrence: string): Date {
   const next = new Date(date);
   if (recurrence === 'daily') next.setDate(next.getDate() + 1);
@@ -226,6 +230,9 @@ async function loadVoucherContext(bookingId: string, requesterId: string) {
   }
   if (String(booking.buyerId) !== requesterId && String(booking.sellerId) !== requesterId) {
     return { status: 403, error: 'Unauthorized voucher access' as const };
+  }
+  if (String(booking.status || '').toLowerCase() === 'cancelled' && String(booking.buyerId) === requesterId) {
+    return { status: 410, error: 'This booking was cancelled' as const };
   }
 
   const [listingRows, sellerRows, buyerRows] = await Promise.all([
@@ -643,6 +650,65 @@ export function registerDealRoutes(app: Express): void {
     } catch (error) {
       console.error('[Deals] Failed to redeem booking:', error);
       return res.status(500).json({ success: false, error: 'Failed to redeem voucher' });
+    }
+  });
+
+  app.post('/api/deals/bookings/:bookingId/cancel', async (req: Request, res: Response) => {
+    try {
+      const requesterId = getRequestUserId(req);
+      if (!requesterId) {
+        return res.status(401).json({ success: false, error: 'Authentication required' });
+      }
+      const bookingId = String(req.params.bookingId || '').trim();
+      const rows = await db
+        .select()
+        .from(dealBookings)
+        .where(eq(dealBookings.id, bookingId))
+        .limit(1);
+      const booking = rows[0];
+      if (!booking) {
+        return res.status(404).json({ success: false, error: 'Booking not found' });
+      }
+      if (String(booking.buyerId) !== requesterId) {
+        return res.status(403).json({ success: false, error: 'Only buyer can cancel booking' });
+      }
+      if (!canBuyerCancelBooking(booking.status)) {
+        return res.status(409).json({
+          success: false,
+          error: 'Only active booked deals can be cancelled',
+        });
+      }
+
+      const listingRows = await db.select().from(listings).where(eq(listings.id, booking.listingId)).limit(1);
+      const listing = listingRows[0];
+
+      const updated = await db.transaction(async (tx) => {
+        const bookingUpdate = await tx
+          .update(dealBookings)
+          .set({
+            status: 'cancelled',
+            updatedAt: new Date(),
+          })
+          .where(eq(dealBookings.id, bookingId))
+          .returning();
+
+        if (listing) {
+          await tx
+            .update(listings)
+            .set({
+              dealBookingsUsed: sql`GREATEST(${listings.dealBookingsUsed} - 1, 0)`,
+              updatedAt: new Date(),
+            } as any)
+            .where(eq(listings.id, listing.id));
+        }
+
+        return bookingUpdate[0];
+      });
+
+      return res.json({ success: true, booking: updated });
+    } catch (error) {
+      console.error('[Deals] Failed to cancel booking:', error);
+      return res.status(500).json({ success: false, error: 'Failed to cancel booking' });
     }
   });
 
