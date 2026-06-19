@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Search, RefreshCcw, Mail, Clock, Pencil, Trash2, Plus, Check, X } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { ContactSubmission } from '@/features/admin/api';
@@ -23,6 +23,163 @@ type ContactSubmissionRow = ContactSubmission & {
 
 const EMPTY_SUBMISSIONS: ContactSubmissionRow[] = [];
 
+type ContactSubmissionCommentsCellProps = {
+  item: ContactSubmissionRow;
+  addComment: ReturnType<typeof useAddContactSubmissionComment>;
+  updateComment: ReturnType<typeof useUpdateContactSubmissionComment>;
+  deleteComment: ReturnType<typeof useDeleteContactSubmissionComment>;
+};
+
+const ContactSubmissionCommentsCell = memo(function ContactSubmissionCommentsCell({
+  item,
+  addComment,
+  updateComment,
+  deleteComment,
+}: ContactSubmissionCommentsCellProps) {
+  const comments = item.comments || [];
+  const [newCommentDraft, setNewCommentDraft] = useState('');
+  const [editingCommentIds, setEditingCommentIds] = useState<Record<string, boolean>>({});
+  const [editingCommentDrafts, setEditingCommentDrafts] = useState<Record<string, string>>({});
+
+  return (
+    <div className="min-w-[200px] space-y-3 sm:min-w-[280px]">
+      {comments.map((commentItem) => {
+        const isEditing = editingCommentIds[commentItem.id] || false;
+        return (
+          <div key={commentItem.id} className="rounded-md border border-slate-200 bg-slate-50 p-2">
+            {isEditing ? (
+              <div className="space-y-2">
+                <textarea
+                  value={editingCommentDrafts[commentItem.id] ?? commentItem.comment}
+                  onChange={(e) =>
+                    setEditingCommentDrafts((prev) => ({
+                      ...prev,
+                      [commentItem.id]: e.target.value,
+                    }))
+                  }
+                  rows={3}
+                  className="w-full rounded border border-slate-300 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() =>
+                      updateComment.mutate(
+                        {
+                          submissionId: item.id,
+                          commentId: commentItem.id,
+                          comment: (editingCommentDrafts[commentItem.id] ?? commentItem.comment).trim(),
+                        },
+                        {
+                          onSuccess: () => {
+                            setEditingCommentIds((prev) => ({
+                              ...prev,
+                              [commentItem.id]: false,
+                            }));
+                          },
+                        }
+                      )
+                    }
+                    className="rounded bg-teal-600 p-1.5 text-white hover:bg-teal-700"
+                    title="Save"
+                    type="button"
+                  >
+                    <Check size={14} />
+                  </button>
+                  <button
+                    onClick={() =>
+                      setEditingCommentIds((prev) => ({
+                        ...prev,
+                        [commentItem.id]: false,
+                      }))
+                    }
+                    className="rounded border border-slate-300 p-1.5 text-slate-600 hover:bg-slate-100"
+                    title="Cancel"
+                    type="button"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <p className="whitespace-pre-wrap text-sm text-slate-700">{commentItem.comment}</p>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">
+                    {formatDateTime(commentItem.createdAt || null)}
+                  </span>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => {
+                        setEditingCommentDrafts((prev) => ({
+                          ...prev,
+                          [commentItem.id]: commentItem.comment,
+                        }));
+                        setEditingCommentIds((prev) => ({
+                          ...prev,
+                          [commentItem.id]: true,
+                        }));
+                      }}
+                      className="rounded border border-slate-300 p-1.5 text-slate-600 hover:bg-slate-100"
+                      title="Edit comment"
+                      type="button"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() =>
+                        deleteComment.mutate({
+                          submissionId: item.id,
+                          commentId: commentItem.id,
+                        })
+                      }
+                      className="rounded border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
+                      title="Delete comment"
+                      type="button"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={newCommentDraft}
+          onChange={(e) => setNewCommentDraft(e.target.value)}
+          placeholder="Add a comment..."
+          className="flex-1 rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
+        />
+        <button
+          onClick={() =>
+            addComment.mutate(
+              {
+                submissionId: item.id,
+                comment: newCommentDraft.trim(),
+              },
+              {
+                onSuccess: () => {
+                  setNewCommentDraft('');
+                },
+              }
+            )
+          }
+          disabled={!newCommentDraft.trim()}
+          className="rounded bg-teal-600 p-2 text-white hover:bg-teal-700 disabled:opacity-50"
+          title="Add comment"
+          type="button"
+        >
+          <Plus size={14} />
+        </button>
+      </div>
+    </div>
+  );
+});
+
 function formatDateTime(value: string | null): string {
   if (!value) return '-';
   const date = new Date(value);
@@ -33,9 +190,6 @@ function formatDateTime(value: string | null): string {
 export default function ContactSubmissionsView() {
   const [search, setSearch] = useState('');
   const [contactedDrafts, setContactedDrafts] = useState<Record<string, boolean>>({});
-  const [newCommentDrafts, setNewCommentDrafts] = useState<Record<string, string>>({});
-  const [editingCommentIds, setEditingCommentIds] = useState<Record<string, boolean>>({});
-  const [editingCommentDrafts, setEditingCommentDrafts] = useState<Record<string, string>>({});
   const { data, isLoading, refetch, isRefetching } = useContactSubmissions(200);
   const updateContactSubmission = useUpdateContactSubmission();
   const addComment = useAddContactSubmissionComment();
@@ -176,157 +330,13 @@ export default function ContactSubmissionsView() {
         accessorFn: (item) => (item.comments || []).map((comment) => comment.comment).join(' '),
         meta: { filterPlaceholder: 'Filter comments...' },
         cell: ({ row }) => {
-          const item = row.original;
-          const comments = item.comments || [];
-
           return (
-            <div className="min-w-[200px] space-y-3 sm:min-w-[280px]">
-              {comments.map((commentItem) => {
-                const isEditing = editingCommentIds[commentItem.id] || false;
-                return (
-                  <div
-                    key={commentItem.id}
-                    className="rounded-md border border-slate-200 bg-slate-50 p-2"
-                  >
-                    {isEditing ? (
-                      <div className="space-y-2">
-                        <textarea
-                          value={editingCommentDrafts[commentItem.id] ?? commentItem.comment}
-                          onChange={(e) =>
-                            setEditingCommentDrafts((prev) => ({
-                              ...prev,
-                              [commentItem.id]: e.target.value,
-                            }))
-                          }
-                          rows={3}
-                          className="w-full rounded border border-slate-300 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() =>
-                              updateComment.mutate(
-                                {
-                                  submissionId: item.id,
-                                  commentId: commentItem.id,
-                                  comment: (
-                                    editingCommentDrafts[commentItem.id] ?? commentItem.comment
-                                  ).trim(),
-                                },
-                                {
-                                  onSuccess: () => {
-                                    setEditingCommentIds((prev) => ({
-                                      ...prev,
-                                      [commentItem.id]: false,
-                                    }));
-                                  },
-                                }
-                              )
-                            }
-                            className="rounded bg-teal-600 p-1.5 text-white hover:bg-teal-700"
-                            title="Save"
-                            type="button"
-                          >
-                            <Check size={14} />
-                          </button>
-                          <button
-                            onClick={() =>
-                              setEditingCommentIds((prev) => ({
-                                ...prev,
-                                [commentItem.id]: false,
-                              }))
-                            }
-                            className="rounded border border-slate-300 p-1.5 text-slate-600 hover:bg-slate-100"
-                            title="Cancel"
-                            type="button"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="whitespace-pre-wrap text-sm text-slate-700">
-                          {commentItem.comment}
-                        </p>
-                        <div className="mt-2 flex items-center justify-between">
-                          <span className="text-xs text-slate-500">
-                            {formatDateTime(commentItem.createdAt || null)}
-                          </span>
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => {
-                                setEditingCommentDrafts((prev) => ({
-                                  ...prev,
-                                  [commentItem.id]: commentItem.comment,
-                                }));
-                                setEditingCommentIds((prev) => ({
-                                  ...prev,
-                                  [commentItem.id]: true,
-                                }));
-                              }}
-                              className="rounded border border-slate-300 p-1.5 text-slate-600 hover:bg-slate-100"
-                              title="Edit comment"
-                              type="button"
-                            >
-                              <Pencil size={14} />
-                            </button>
-                            <button
-                              onClick={() =>
-                                deleteComment.mutate({
-                                  submissionId: item.id,
-                                  commentId: commentItem.id,
-                                })
-                              }
-                              className="rounded border border-red-200 p-1.5 text-red-600 hover:bg-red-50"
-                              title="Delete comment"
-                              type="button"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newCommentDrafts[item.id] ?? ''}
-                  onChange={(e) =>
-                    setNewCommentDrafts((prev) => ({
-                      ...prev,
-                      [item.id]: e.target.value,
-                    }))
-                  }
-                  placeholder="Add a comment..."
-                  className="flex-1 rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
-                />
-                <button
-                  onClick={() =>
-                    addComment.mutate(
-                      {
-                        submissionId: item.id,
-                        comment: (newCommentDrafts[item.id] ?? '').trim(),
-                      },
-                      {
-                        onSuccess: () => {
-                          setNewCommentDrafts((prev) => ({ ...prev, [item.id]: '' }));
-                        },
-                      }
-                    )
-                  }
-                  disabled={!(newCommentDrafts[item.id] ?? '').trim()}
-                  className="rounded bg-teal-600 p-2 text-white hover:bg-teal-700 disabled:opacity-50"
-                  title="Add comment"
-                  type="button"
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
-            </div>
+            <ContactSubmissionCommentsCell
+              item={row.original}
+              addComment={addComment}
+              updateComment={updateComment}
+              deleteComment={deleteComment}
+            />
           );
         },
       },
@@ -335,11 +345,8 @@ export default function ContactSubmissionsView() {
       addComment,
       contactedDrafts,
       deleteComment,
-      editingCommentDrafts,
-      editingCommentIds,
       updateComment,
       updateContactSubmission,
-      newCommentDrafts,
     ]
   );
 

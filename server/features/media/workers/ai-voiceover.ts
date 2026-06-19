@@ -89,23 +89,50 @@ function runCommand(command: string, args: string[]): Promise<void> {
 }
 
 async function getMediaDurationSeconds(filePath: string): Promise<number> {
-  const output = await runFfprobeWithOutput(
-    [
-      '-v',
-      'error',
-      '-show_entries',
-      'format=duration',
-      '-of',
-      'default=nokey=1:noprint_wrappers=1',
-      filePath,
-    ],
+  const parseDuration = (output: string): number | null => {
+    const duration = Number.parseFloat(String(output).trim());
+    return Number.isFinite(duration) && duration > 0 ? duration : null;
+  };
+
+  try {
+    const output = await runFfprobeWithOutput(
+      [
+        '-v',
+        'error',
+        '-show_entries',
+        'format=duration',
+        '-of',
+        'default=nokey=1:noprint_wrappers=1',
+        filePath,
+      ],
+      AI_VOICEOVER_COMMAND_TIMEOUT_MS
+    );
+    const duration = parseDuration(output);
+    if (duration) return duration;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (!/Unable to find ffprobe|ENOENT/i.test(message)) {
+      throw error;
+    }
+  }
+
+  // Fallback for hosts where ffprobe is missing but ffmpeg is installed.
+  const ffmpegOutput = await runFfmpegWithStderrOutput(
+    ['-hide_banner', '-i', filePath, '-f', 'null', '-'],
     AI_VOICEOVER_COMMAND_TIMEOUT_MS
   );
-  const duration = Number.parseFloat(String(output).trim());
-  if (!Number.isFinite(duration) || duration <= 0) {
-    throw new Error(`Unable to determine media duration for ${path.basename(filePath)}`);
+  const match = ffmpegOutput.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/i);
+  if (match) {
+    const hours = Number.parseInt(match[1] || '0', 10);
+    const minutes = Number.parseInt(match[2] || '0', 10);
+    const seconds = Number.parseFloat(match[3] || '0');
+    const duration = hours * 3600 + minutes * 60 + seconds;
+    if (Number.isFinite(duration) && duration > 0) {
+      return duration;
+    }
   }
-  return duration;
+
+  throw new Error(`Unable to determine media duration for ${path.basename(filePath)}`);
 }
 
 async function getMeanVolumeDb(filePath: string): Promise<number> {

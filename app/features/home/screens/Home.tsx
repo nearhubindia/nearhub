@@ -1085,24 +1085,24 @@ export default function HomeScreen() {
                 <Text style={styles.dealBadgeText}>{item.badge}</Text>
               </View>
             ) : null}
-            {discountPercent ? (
-              <View style={styles.dealDiscountPill}>
-                <Text style={styles.dealDiscountText}>{discountPercent}% OFF</Text>
-              </View>
-            ) : null}
-            {options?.combo ? (
-              <View style={styles.comboDealPill}>
-                <Ionicons name="layers" size={11} color="#FFFFFF" />
-                <Text style={styles.comboDealPillText}>Combo</Text>
-              </View>
-            ) : null}
-            <View style={styles.dealCardTopRight}>
+            <View style={styles.dealTopRightPills}>
+              {discountPercent ? (
+                <View style={styles.dealDiscountPill}>
+                  <Text style={styles.dealDiscountText}>{discountPercent}% OFF</Text>
+                </View>
+              ) : null}
               {Boolean(item.voucherEnabled) ? (
                 <View style={styles.dealMicroBadge}>
                   <Feather name="tag" size={9} color="#FFFFFF" />
                 </View>
               ) : null}
             </View>
+            {options?.combo ? (
+              <View style={styles.comboDealPill}>
+                <Ionicons name="layers" size={11} color="#FFFFFF" />
+                <Text style={styles.comboDealPillText}>Combo</Text>
+              </View>
+            ) : null}
           </View>
           <View style={styles.dealCardBody}>
             <Text style={styles.dealCardTitle} numberOfLines={2}>
@@ -2135,6 +2135,14 @@ const styles = createResponsiveStyles({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  dealTopRightPills: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   dealMicroBadge: {
     width: 16,
