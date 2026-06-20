@@ -443,9 +443,7 @@ function ProductCard({
               src={product.image}
               alt={product.title}
               className={`h-full w-full ${
-                mobileVariant === 'deal'
-                  ? 'bg-white object-cover object-center'
-                  : 'object-cover'
+                mobileVariant === 'deal' ? 'bg-white object-cover object-center' : 'object-cover'
               }`}
               loading="lazy"
               onError={(event) => {
@@ -816,21 +814,20 @@ export default function UserHomePage(): ReactElement {
     [upcomingDealListings, nowMs, distanceCoords]
   );
 
-  const expiredDealListings = useMemo(
-    () => {
-      const expiredDeals = expiredDealsQuery.data?.listings ?? EMPTY_LISTINGS;
-      return expiredDeals
-        .filter((item) => {
-          return isDeal(item) && isDealCompleted(item, nowMs);
-        })
-        .sort((a, b) => {
-          const aEnd = getDealEndMs(a, nowMs) || new Date(String(a.dealEndAt || a.deal_end_at || 0)).getTime();
-          const bEnd = getDealEndMs(b, nowMs) || new Date(String(b.dealEndAt || b.deal_end_at || 0)).getTime();
-          return bEnd - aEnd;
-        });
-    },
-    [expiredDealsQuery.data, nowMs]
-  );
+  const expiredDealListings = useMemo(() => {
+    const expiredDeals = expiredDealsQuery.data?.listings ?? EMPTY_LISTINGS;
+    return expiredDeals
+      .filter((item) => {
+        return isDeal(item) && isDealCompleted(item, nowMs);
+      })
+      .sort((a, b) => {
+        const aEnd =
+          getDealEndMs(a, nowMs) || new Date(String(a.dealEndAt || a.deal_end_at || 0)).getTime();
+        const bEnd =
+          getDealEndMs(b, nowMs) || new Date(String(b.dealEndAt || b.deal_end_at || 0)).getTime();
+        return bEnd - aEnd;
+      });
+  }, [expiredDealsQuery.data, nowMs]);
 
   const trending = useMemo(() => {
     return [...regularListings]

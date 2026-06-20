@@ -10,11 +10,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { getApiUrl } from '@/lib/config';
-import {
-  trackWebEvent,
-  trackWebLogin,
-  trackWebSignUp,
-} from '@/lib/firebase';
+import { trackWebEvent, trackWebLogin, trackWebSignUp } from '@/lib/firebase';
 import { getMeaningfulWebUserName, writeStoredWebAuth } from '@/lib/web-auth-storage';
 
 const OTP_LENGTH = 6;
@@ -70,9 +66,12 @@ export default function AuthRegister(): ReactElement {
     if (digits.length > 1) {
       setOtp((current) => {
         const next = [...current];
-        digits.split('').slice(0, OTP_LENGTH - index).forEach((digit, offset) => {
-          next[index + offset] = digit;
-        });
+        digits
+          .split('')
+          .slice(0, OTP_LENGTH - index)
+          .forEach((digit, offset) => {
+            next[index + offset] = digit;
+          });
         return next;
       });
       const nextIndex = Math.min(index + digits.length, OTP_LENGTH - 1);
@@ -277,7 +276,8 @@ export default function AuthRegister(): ReactElement {
               Login with <span className="text-[#236bb2]">OTP</span>
             </h1>
             <p className="mx-auto mt-4 max-w-[36rem] text-center text-sm font-normal leading-6 text-slate-600 sm:mt-5 sm:text-base sm:leading-7 lg:text-lg">
-              Enter your mobile number and we&apos;ll send a secure one-time password to verify your account.
+              Enter your mobile number and we&apos;ll send a secure one-time password to verify your
+              account.
             </p>
 
             <div className="mt-8 sm:mt-12">

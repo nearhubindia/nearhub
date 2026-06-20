@@ -1,7 +1,7 @@
 import { getBackendURL } from '@/lib/config';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
-import { Linking, Platform, Share } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
+import { Linking, Platform } from 'react-native';
+import { normalizeDealBookingRecord, normalizeDealVoucherPayload } from '@/lib/deal-normalizers';
 
 export type DealBooking = {
   id: string;
@@ -62,20 +62,12 @@ export class DealBookingError extends Error {
   }
 }
 
-type VoucherDownloadResult = {
+type VoucherOpenResult = {
   uri: string;
-  openedUri?: string;
 };
 
 export function parseVoucherPayload(value: DealBooking['voucherPayload']): DealVoucherPayload {
-  if (!value) return {};
-  if (typeof value === 'object') return value as DealVoucherPayload;
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' ? (parsed as DealVoucherPayload) : {};
-  } catch {
-    return {};
-  }
+  return normalizeDealVoucherPayload(value);
 }
 
 export function statusLabel(status?: string | null): string {
@@ -86,117 +78,53 @@ export function statusLabel(status?: string | null): string {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
-function voucherEndpoint(bookingId: string, mode: 'view' | 'download'): string {
+function voucherEndpoint(
+  bookingId: string,
+  mode: 'view' | 'download',
+  userId: string,
+  token?: string | null
+): string {
   const suffix = mode === 'download' ? '/download' : '';
-  return `${getBackendURL()}/api/deals/bookings/${encodeURIComponent(bookingId)}/voucher${suffix}`;
-}
-
-function voucherFileUri(bookingId: string): string {
-  const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
-  if (!baseDir) {
-    throw new Error('No writable local directory available');
+  const baseUrl = `${getBackendURL()}/api/deals/bookings/${encodeURIComponent(bookingId)}/voucher${suffix}`;
+  const url = new URL(baseUrl);
+  url.searchParams.set('userId', userId);
+  if (typeof token === 'string' && token.trim()) {
+    url.searchParams.set('token', token.trim());
   }
-  return `${baseDir}nearhub-voucher-${bookingId}.pdf`;
+  return url.toString();
 }
 
-async function fetchVoucherBlobUrl(
+function buildVoucherUrl(
   bookingId: string,
   user: VoucherAccessIdentity,
   mode: 'view' | 'download'
-): Promise<string> {
-  const response = await fetch(voucherEndpoint(bookingId, mode), {
-    method: 'GET',
-    headers: buildUserAuthHeaders(user, { includeContentType: false }),
-  });
-  if (!response.ok) {
-    throw new Error(
-      mode === 'download' ? 'Failed to download PDF voucher' : 'Failed to open PDF voucher'
-    );
-  }
-
-  const blob = await response.blob();
-  return URL.createObjectURL(blob);
+): string {
+  return voucherEndpoint(bookingId, mode, user.id, user.token);
 }
 
-async function saveVoucherPdf(
-  bookingId: string,
-  user: VoucherAccessIdentity,
-  mode: 'view' | 'download'
-): Promise<VoucherDownloadResult> {
+async function openVoucherUrl(url: string): Promise<void> {
   if (Platform.OS === 'web') {
-    return { uri: await fetchVoucherBlobUrl(bookingId, user, mode) };
-  }
-
-  const targetUri = voucherFileUri(bookingId);
-  const result = await FileSystem.downloadAsync(voucherEndpoint(bookingId, mode), targetUri, {
-    headers: buildUserAuthHeaders(user, { includeContentType: false }),
-  });
-
-  if (result.status < 200 || result.status >= 300) {
-    throw new Error(
-      mode === 'download' ? 'Failed to download PDF voucher' : 'Failed to open PDF voucher'
-    );
-  }
-
-  const openedUri = await FileSystem.getContentUriAsync(result.uri).catch(() => result.uri);
-  return { uri: result.uri, openedUri };
-}
-
-async function shareVoucherFile(result: VoucherDownloadResult, title: string): Promise<void> {
-  // Share the real file URI so Android can hand it off to PDF viewers or save targets.
-  const url = result.uri;
-  const response = await Share.share(
-    { url, title },
-    Platform.OS === 'android'
-      ? {
-          dialogTitle: title,
-        }
-      : undefined
-  );
-
-  if (response.action === Share.dismissedAction) {
+    window.open(url, '_blank', 'noopener,noreferrer');
     return;
   }
+
+  await Linking.openURL(url);
 }
 
 export async function openDealVoucherPdf(
   bookingId: string,
   user: VoucherAccessIdentity
 ): Promise<void> {
-  if (Platform.OS === 'web') {
-    const objectUrl = await fetchVoucherBlobUrl(bookingId, user, 'view');
-    window.open(objectUrl, '_blank', 'noopener,noreferrer');
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-    return;
-  }
-
-  const saved = await saveVoucherPdf(bookingId, user, 'view');
-  try {
-    await Linking.openURL(saved.openedUri || saved.uri);
-  } catch {
-    await shareVoucherFile(saved, 'Open deal voucher');
-  }
+  await openVoucherUrl(buildVoucherUrl(bookingId, user, 'view'));
 }
 
 export async function downloadDealVoucherPdf(
   bookingId: string,
   user: VoucherAccessIdentity
-): Promise<VoucherDownloadResult> {
-  if (Platform.OS === 'web') {
-    const objectUrl = await fetchVoucherBlobUrl(bookingId, user, 'download');
-    const anchor = document.createElement('a');
-    anchor.href = objectUrl;
-    anchor.download = `nearhub-voucher-${bookingId}.pdf`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-    return { uri: objectUrl };
-  }
-
-  const saved = await saveVoucherPdf(bookingId, user, 'download');
-  await shareVoucherFile(saved, 'Download deal voucher');
-  return saved;
+): Promise<VoucherOpenResult> {
+  const uri = buildVoucherUrl(bookingId, user, 'download');
+  await openVoucherUrl(uri);
+  return { uri };
 }
 
 export async function bookDeal(listingId: string, userId: string, userPhone?: string) {
@@ -232,7 +160,9 @@ export async function fetchMyDealBookings(userId: string, userPhone?: string) {
     throw new Error(payload.error || payload.message || 'Failed to load bookings');
   }
 
-  return Array.isArray(payload.bookings) ? payload.bookings : [];
+  return Array.isArray(payload.bookings)
+    ? payload.bookings.map((booking) => normalizeDealBookingRecord(booking))
+    : [];
 }
 
 export async function fetchSellerDealBookings(userId: string, userPhone?: string) {
@@ -247,7 +177,9 @@ export async function fetchSellerDealBookings(userId: string, userPhone?: string
     throw new Error(payload.error || payload.message || 'Failed to load seller bookings');
   }
 
-  return Array.isArray(payload.bookings) ? payload.bookings : [];
+  return Array.isArray(payload.bookings)
+    ? payload.bookings.map((booking) => normalizeDealBookingRecord(booking))
+    : [];
 }
 
 export async function updateDealBookingStatus(params: {
@@ -272,7 +204,7 @@ export async function updateDealBookingStatus(params: {
     throw new Error(payload.error || payload.message || 'Failed to update booking status');
   }
 
-  return payload.booking;
+  return normalizeDealBookingRecord(payload.booking);
 }
 
 export async function cancelDealBooking(params: {
@@ -298,5 +230,5 @@ export async function cancelDealBooking(params: {
     });
   }
 
-  return payload.booking;
+  return normalizeDealBookingRecord(payload.booking);
 }

@@ -8,6 +8,7 @@ import {
   createInAppNotification,
   getUserNotifications,
   markAsRead,
+  markAsReadByPayload,
   markAllAsRead,
   deleteNotification,
   getNotificationStats,
@@ -106,6 +107,41 @@ export function registerInAppNotificationRoutes(app: Express) {
   });
 
   /**
+   * POST /api/notifications/mark-read
+   * Mark a notification as read using ID or payload match
+   */
+  app.post('/api/notifications/mark-read', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id || req.body.userId;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User ID required',
+        });
+      }
+
+      const result = await markAsReadByPayload(String(userId), {
+        notificationId: req.body.notificationId,
+        title: req.body.title,
+        message: req.body.message,
+        actionUrl: req.body.actionUrl,
+        category: req.body.category,
+        referenceId: req.body.referenceId,
+        type: req.body.type,
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error('[InAppNotifications] Error marking payload as read:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Server error',
+      });
+    }
+  });
+
+  /**
    * GET /api/notifications/unread-count
    * Get count of unread notifications
    */
@@ -150,6 +186,7 @@ export function registerInAppNotificationRoutes(app: Express) {
         title,
         message,
         type,
+        imageUrl,
         actionLabel,
         actionUrl,
         category,
@@ -171,6 +208,7 @@ export function registerInAppNotificationRoutes(app: Express) {
         title,
         message,
         type: type || 'info',
+        imageUrl: typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : undefined,
         actionLabel,
         actionUrl,
         category,
@@ -205,6 +243,7 @@ export function registerInAppNotificationRoutes(app: Express) {
         title,
         message,
         type,
+        imageUrl,
         actionLabel,
         actionUrl,
         category,
@@ -225,6 +264,7 @@ export function registerInAppNotificationRoutes(app: Express) {
         title,
         message,
         type: type || 'info',
+        imageUrl: typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : undefined,
         actionLabel,
         actionUrl,
         category,

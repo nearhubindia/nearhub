@@ -36,8 +36,7 @@ export default function GrantSubscriptionModal({
   const [durationDays, setDurationDays] = useState('');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const selectedTierId = tierId || defaultTier?.id || '';
-  const selectedTier =
-    tiers.find((tier) => tier.id === selectedTierId) || defaultTier || null;
+  const selectedTier = tiers.find((tier) => tier.id === selectedTierId) || defaultTier || null;
   const effectiveDurationDays = durationDays || String(selectedTier?.durationDays || '');
   const inputClass =
     'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-4 focus:ring-cyan-100';
@@ -158,12 +157,14 @@ export default function GrantSubscriptionModal({
             <label className={labelClass}>
               Duration Days <span className="text-xs font-normal text-slate-500">Optional</span>
             </label>
-              <input
+            <input
               type="number"
               min="1"
               value={effectiveDurationDays}
               onChange={(e) => setDurationDays(e.target.value)}
-              placeholder={selectedTier?.durationDays ? String(selectedTier.durationDays) : 'Tier default'}
+              placeholder={
+                selectedTier?.durationDays ? String(selectedTier.durationDays) : 'Tier default'
+              }
               className={inputClass}
             />
           </div>
@@ -172,7 +173,9 @@ export default function GrantSubscriptionModal({
             <p className="font-semibold text-slate-900">Grant Summary</p>
             <p className="mt-1">User: {user.displayName || user.mobile || user.id}</p>
             <p className="mt-1">Tier: {selectedTier?.name || '-'}</p>
-            <p className="mt-1">Duration: {durationDays || selectedTier?.durationDays || '-'} days</p>
+            <p className="mt-1">
+              Duration: {durationDays || selectedTier?.durationDays || '-'} days
+            </p>
           </div>
         </div>
       </div>

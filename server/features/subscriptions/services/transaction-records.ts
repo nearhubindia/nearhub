@@ -3,7 +3,7 @@ import { db } from '../../../data/db';
 import { subscriptions, transactions } from '../models/subscription';
 
 export interface CompletedTransactionInput {
-  subscriptionId: string;
+  subscriptionId?: string | null;
   userId: string;
   amount: number;
   paymentId: string;
@@ -16,19 +16,20 @@ function roundToTwo(value: number): number {
 }
 
 async function resolveTransactionSubscriptionId(
-  subscriptionId: string,
+  subscriptionId: string | null | undefined,
   paymentId: string,
   orderId: string
 ): Promise<string | null> {
+  const normalizedSubscriptionId = String(subscriptionId || '').trim();
   const matchingSubscription = await db
     .select({ id: subscriptions.id })
     .from(subscriptions)
     .where(
       or(
-        eq(subscriptions.id, subscriptionId),
+        normalizedSubscriptionId ? eq(subscriptions.id, normalizedSubscriptionId) : undefined,
         eq(subscriptions.razorpayPaymentId, paymentId),
         eq(subscriptions.razorpayOrderId, orderId)
-      )
+      )!
     )
     .limit(1);
 
@@ -39,13 +40,14 @@ export async function upsertCompletedTransaction(
   params: CompletedTransactionInput
 ): Promise<void> {
   const { subscriptionId, userId, amount, paymentId, orderId, razorpayData } = params;
+  const normalizedSubscriptionId = String(subscriptionId || '').trim() || null;
   const amountString = roundToTwo(amount).toFixed(2);
   const now = new Date();
   const serializedGatewayData =
     razorpayData !== undefined ? JSON.stringify(razorpayData) : JSON.stringify({});
 
   const transactionSubscriptionId = await resolveTransactionSubscriptionId(
-    subscriptionId,
+    normalizedSubscriptionId,
     paymentId,
     orderId
   );
@@ -58,8 +60,13 @@ export async function upsertCompletedTransaction(
     .where(
       or(
         eq(transactions.paymentId, paymentId),
-        and(eq(transactions.subscriptionId, subscriptionId), eq(transactions.orderId, orderId))
-      )
+        normalizedSubscriptionId
+          ? and(
+              eq(transactions.subscriptionId, normalizedSubscriptionId),
+              eq(transactions.orderId, orderId)
+            )
+          : undefined
+      )!
     )
     .limit(1);
 
@@ -91,4 +98,3 @@ export async function upsertCompletedTransaction(
     completedAt: now,
   });
 }
-

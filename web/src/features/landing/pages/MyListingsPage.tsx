@@ -17,7 +17,11 @@ import {
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
-import { getPrimaryListingImage, formatPriceInr, parsePositiveNumber } from '@/features/landing/lib';
+import {
+  getPrimaryListingImage,
+  formatPriceInr,
+  parsePositiveNumber,
+} from '@/features/landing/lib';
 import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
 type StoredUser = { id?: string; phone?: string };

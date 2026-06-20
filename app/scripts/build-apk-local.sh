@@ -30,12 +30,28 @@ export EAS_LOCAL_BUILD_SKIP_CLEANUP="${EAS_LOCAL_BUILD_SKIP_CLEANUP:-0}"
 export EAS_LOCAL_BUILD_WORKINGDIR="${EAS_LOCAL_BUILD_WORKINGDIR:-/tmp/nearhub-eas-local-apk-$(date +%Y%m%d-%H%M%S)}"
 export ALLOW_DEBUG_RELEASE_SIGNING="${ALLOW_DEBUG_RELEASE_SIGNING:-true}"
 
-echo "Starting Expo local APK build..."
-npx --yes "eas-cli@${EAS_CLI_VERSION}" build --platform android --profile local-apk --local --non-interactive
+BUILD_STAMP="$(mktemp)"
+touch "$BUILD_STAMP"
 
-LATEST_APK="$(ls -1t "$ROOT_DIR"/build-*.apk | head -n 1)"
+EAS_CMD=()
+if [[ -n "${EAS_CLI_BIN:-}" ]]; then
+  IFS=' ' read -r -a EAS_CMD <<< "$EAS_CLI_BIN"
+elif command -v eas >/dev/null 2>&1; then
+  EAS_CMD=("$(command -v eas)")
+elif [[ -x "$ROOT_DIR/node_modules/.bin/eas" ]]; then
+  EAS_CMD=("$ROOT_DIR/node_modules/.bin/eas")
+else
+  EAS_CMD=(npx --yes "eas-cli@${EAS_CLI_VERSION}")
+fi
+
+echo "Starting Expo local APK build..."
+"${EAS_CMD[@]}" build --platform android --profile local-apk --local --non-interactive
+
+LATEST_APK="$(find "$ROOT_DIR" -maxdepth 1 -type f -name 'build-*.apk' -newer "$BUILD_STAMP" | sort | tail -n 1)"
+rm -f "$BUILD_STAMP"
+
 if [[ -z "${LATEST_APK:-}" || ! -f "$LATEST_APK" ]]; then
-  echo "No APK artifact found in app/build-*.apk"
+  echo "No fresh APK artifact was produced by this build."
   exit 1
 fi
 

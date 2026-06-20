@@ -27,10 +27,56 @@ type DealRecurrence = 'none' | 'daily' | 'weekly' | 'monthly';
 type PurchaseLimitType = 'ONE_TIME' | 'UNLIMITED';
 type PostDealMode = 'original' | 'discount';
 
-const buildDealTimestamp = (daysToAdd: number) => {
-  const date = new Date();
-  date.setDate(date.getDate() + Math.max(1, daysToAdd));
-  return date.toISOString();
+const formatDealTimestamp = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'Unavailable';
+  }
+
+  return date.toLocaleString('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+};
+
+const padTwo = (value: number) => String(value).padStart(2, '0');
+
+const toDateInputValue = (date: Date) =>
+  `${date.getFullYear()}-${padTwo(date.getMonth() + 1)}-${padTwo(date.getDate())}`;
+
+const toTimeInputValue = (date: Date) => `${padTwo(date.getHours())}:${padTwo(date.getMinutes())}`;
+
+const parseLocalDateTime = (dateValue: string, timeValue: string): Date | null => {
+  const dateMatch = dateValue.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const timeMatch = timeValue.trim().match(/^(\d{2}):(\d{2})$/);
+  if (!dateMatch || !timeMatch) {
+    return null;
+  }
+
+  const year = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]);
+  const day = Number(dateMatch[3]);
+  const hour = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2]);
+  const candidate = new Date(year, month - 1, day, hour, minute, 0, 0);
+
+  if (
+    candidate.getFullYear() !== year ||
+    candidate.getMonth() !== month - 1 ||
+    candidate.getDate() !== day ||
+    candidate.getHours() !== hour ||
+    candidate.getMinutes() !== minute
+  ) {
+    return null;
+  }
+
+  return candidate;
+};
+
+const addDays = (date: Date, days: number) => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
 };
 
 const parseSourceIds = (rawValue: string | string[] | undefined): string[] => {
@@ -61,7 +107,10 @@ export default function CreateDealScreen() {
     params.dealType === 'combo' ? 'combo' : 'normal'
   );
   const [offerPrice, setOfferPrice] = useState('');
-  const [dealWindowDays, setDealWindowDays] = useState('7');
+  const [dealStartDate, setDealStartDate] = useState(() => toDateInputValue(new Date()));
+  const [dealStartTime, setDealStartTime] = useState(() => toTimeInputValue(new Date()));
+  const [dealEndDate, setDealEndDate] = useState(() => toDateInputValue(addDays(new Date(), 7)));
+  const [dealEndTime, setDealEndTime] = useState(() => toTimeInputValue(new Date()));
   const [dealRecurrence, setDealRecurrence] = useState<DealRecurrence>('none');
   const [dealRecurrenceUntilDays, setDealRecurrenceUntilDays] = useState('30');
   const [dealCycleQuantity, setDealCycleQuantity] = useState('1');
@@ -87,6 +136,14 @@ export default function CreateDealScreen() {
     [ownedListings, selectedIds]
   );
   const primaryListing = selectedListings[0];
+  const dealStartAt = useMemo(
+    () => parseLocalDateTime(dealStartDate, dealStartTime)?.toISOString() || '',
+    [dealStartDate, dealStartTime]
+  );
+  const dealEndAt = useMemo(
+    () => parseLocalDateTime(dealEndDate, dealEndTime)?.toISOString() || '',
+    [dealEndDate, dealEndTime]
+  );
   const comboItems = useMemo(() => {
     if (dealType !== 'combo') return undefined;
     return selectedListings.map((item) => item.title.trim()).filter(Boolean);
@@ -143,6 +200,39 @@ export default function CreateDealScreen() {
       Alert.alert('Select purchase limit', 'Choose whether buyers can book once or unlimited.');
       return false;
     }
+    if (!dealStartAt) {
+      Alert.alert('Missing start time', 'Enter a valid deal start date and time.');
+      return false;
+    }
+    if (!dealEndAt) {
+      Alert.alert('Missing end time', 'Enter a valid deal end date and time.');
+      return false;
+    }
+
+    const startAtMs = new Date(dealStartAt).getTime();
+    const endAtMs = new Date(dealEndAt).getTime();
+    const nowMs = Date.now();
+
+    if (!Number.isFinite(startAtMs)) {
+      Alert.alert('Missing start time', 'Enter a valid deal start date and time.');
+      return false;
+    }
+    if (!Number.isFinite(endAtMs)) {
+      Alert.alert('Missing end time', 'Enter a valid deal end date and time.');
+      return false;
+    }
+    if (startAtMs <= nowMs) {
+      Alert.alert('Invalid start time', 'Deal start time must be in the future.');
+      return false;
+    }
+    if (endAtMs <= nowMs) {
+      Alert.alert('Invalid end time', 'Deal end time must be in the future.');
+      return false;
+    }
+    if (endAtMs <= startAtMs) {
+      Alert.alert('Invalid end time', 'Deal end time must be after the start time.');
+      return false;
+    }
     return true;
   };
 
@@ -155,12 +245,15 @@ export default function CreateDealScreen() {
         isDeal: true,
         dealType,
         offerPrice: Number(offerPrice),
-        dealStartAt: new Date().toISOString(),
-        dealEndAt: buildDealTimestamp(Number(dealWindowDays) || 7),
+        dealStartAt,
+        dealEndAt,
         dealRecurrence,
         dealRecurrenceUntil:
           dealRecurrence !== 'none'
-            ? buildDealTimestamp(Number(dealRecurrenceUntilDays) || 30)
+            ? addDays(
+                new Date(dealEndAt || dealStartAt || Date.now()),
+                Number(dealRecurrenceUntilDays) || 30
+              ).toISOString()
             : undefined,
         dealCycleQuantity: dealRecurrence !== 'none' ? Number(dealCycleQuantity) || 1 : undefined,
         maxDealBookings: Number(maxDealBookings) || 10,
@@ -326,15 +419,69 @@ export default function CreateDealScreen() {
                   placeholderTextColor={Colors.textTertiary}
                 />
 
-                <Text style={styles.fieldLabel}>Booking window in days</Text>
-                <TextInput
-                  style={styles.input}
-                  value={dealWindowDays}
-                  onChangeText={setDealWindowDays}
-                  keyboardType="numeric"
-                  placeholder="7"
-                  placeholderTextColor={Colors.textTertiary}
-                />
+                <Text style={styles.fieldLabel}>Deal timing</Text>
+                <View style={styles.timingCard}>
+                  <View style={styles.timingInputGrid}>
+                    <View style={styles.timingInputHalf}>
+                      <Text style={styles.timingLabel}>Start date</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={dealStartDate}
+                        onChangeText={setDealStartDate}
+                        keyboardType="numbers-and-punctuation"
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor={Colors.textTertiary}
+                      />
+                    </View>
+                    <View style={styles.timingInputHalf}>
+                      <Text style={styles.timingLabel}>Start time</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={dealStartTime}
+                        onChangeText={setDealStartTime}
+                        keyboardType="numbers-and-punctuation"
+                        placeholder="HH:MM"
+                        placeholderTextColor={Colors.textTertiary}
+                      />
+                    </View>
+                    <View style={styles.timingInputHalf}>
+                      <Text style={styles.timingLabel}>End date</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={dealEndDate}
+                        onChangeText={setDealEndDate}
+                        keyboardType="numbers-and-punctuation"
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor={Colors.textTertiary}
+                      />
+                    </View>
+                    <View style={styles.timingInputHalf}>
+                      <Text style={styles.timingLabel}>End time</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={dealEndTime}
+                        onChangeText={setDealEndTime}
+                        keyboardType="numbers-and-punctuation"
+                        placeholder="HH:MM"
+                        placeholderTextColor={Colors.textTertiary}
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.timingDivider} />
+                  <View style={styles.timingRow}>
+                    <Text style={styles.timingLabel}>Start preview</Text>
+                    <Text style={styles.timingValue}>{formatDealTimestamp(dealStartAt)}</Text>
+                  </View>
+                  <View style={styles.timingDivider} />
+                  <View style={styles.timingRow}>
+                    <Text style={styles.timingLabel}>End preview</Text>
+                    <Text style={styles.timingValue}>{formatDealTimestamp(dealEndAt)}</Text>
+                  </View>
+                </View>
+                <Text style={styles.timingHint}>
+                  Enter the exact deal start and end date-time in your local timezone. These
+                  timestamps will be saved with the deal.
+                </Text>
               </View>
 
               <View style={styles.section}>
@@ -717,6 +864,51 @@ const styles = createResponsiveStyles({
     color: '#166534',
     fontSize: 14,
     fontFamily: 'Inter_700Bold',
+  },
+  timingCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
+    backgroundColor: '#F8FFFB',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  timingInputGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  timingInputHalf: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    gap: 6,
+  },
+  timingRow: {
+    gap: 4,
+  },
+  timingLabel: {
+    color: '#64748B',
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  timingValue: {
+    color: '#0F172A',
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  timingDivider: {
+    height: 1,
+    backgroundColor: '#D1FAE5',
+  },
+  timingHint: {
+    color: '#64748B',
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: 'Inter_400Regular',
   },
   textArea: {
     minHeight: 104,

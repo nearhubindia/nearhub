@@ -63,7 +63,9 @@ function parseComboSubtitle(item: ComboDealCardItem): string {
 }
 
 function getPurchaseLimitLabel(value?: string): string {
-  const normalized = String(value || '').trim().toUpperCase();
+  const normalized = String(value || '')
+    .trim()
+    .toUpperCase();
   if (normalized === 'ONE_TIME') return 'One purchase per customer';
   if (normalized === 'UNLIMITED') return 'Unlimited purchases';
   return '';
@@ -90,7 +92,8 @@ export function ComboDealCard({
   const isLive = String(item.dealStatus || '').startsWith('Ends in');
   const price = Number(item.price || 0);
   const offer = Number(item.offerPrice || 0);
-  const hasOffer = Number.isFinite(price) && Number.isFinite(offer) && price > 0 && offer > 0 && offer < price;
+  const hasOffer =
+    Number.isFinite(price) && Number.isFinite(offer) && price > 0 && offer > 0 && offer < price;
   const dealTag = discountPercentage(hasOffer ? offer : undefined, price) || 'Combo Deal';
   const purchaseLimitLabel = getPurchaseLimitLabel(item.purchaseLimitType);
 
@@ -132,10 +135,16 @@ export function ComboDealCard({
           className="absolute -top-[calc(100%+0.25rem)] right-2 rounded-full bg-white/90 p-1 text-slate-800 shadow-sm backdrop-blur sm:right-3 sm:p-1.5"
           aria-label={saved ? 'Remove from favourites' : 'Save deal'}
         >
-          <Heart size={20} className={`h-4 w-4 sm:h-5 sm:w-5 ${saved ? 'fill-rose-500 text-rose-500' : ''}`} />
+          <Heart
+            size={20}
+            className={`h-4 w-4 sm:h-5 sm:w-5 ${saved ? 'fill-rose-500 text-rose-500' : ''}`}
+          />
         </button>
 
-        <Link to={`/listing/${encodeURIComponent(item.id)}`} className="flex h-full flex-1 flex-col">
+        <Link
+          to={`/listing/${encodeURIComponent(item.id)}`}
+          className="flex h-full flex-1 flex-col"
+        >
           <div className="flex items-start justify-between gap-3">
             <h2 className="line-clamp-2 text-sm font-black leading-snug text-slate-950">
               {comboTitle}
@@ -180,7 +189,9 @@ export function ComboDealCard({
                       key={part.label}
                       className="grid h-[38px] place-items-center rounded-xl bg-slate-50 text-center text-[#dc1633] ring-1 ring-slate-100"
                     >
-                      <span className="block text-[12px] font-black leading-none">{part.value}</span>
+                      <span className="block text-[12px] font-black leading-none">
+                        {part.value}
+                      </span>
                       <span className="mt-0.5 block text-[7px] font-semibold uppercase leading-none tracking-[0.08em] text-slate-500">
                         {part.label}
                       </span>

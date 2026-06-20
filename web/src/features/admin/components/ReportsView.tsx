@@ -135,7 +135,12 @@ function formatRelativeAge(value: number): string {
 export default function ReportsView() {
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(null);
 
-  const { data: growthRaw, isLoading: growthLoading, isFetching: growthFetching, dataUpdatedAt: growthUpdatedAt } = useGrowthReport();
+  const {
+    data: growthRaw,
+    isLoading: growthLoading,
+    isFetching: growthFetching,
+    dataUpdatedAt: growthUpdatedAt,
+  } = useGrowthReport();
   const { data: dashboardStatsRaw } = useDashboardStats();
   const { data: usersData } = useUsers();
   const {

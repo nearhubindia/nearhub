@@ -22,7 +22,7 @@ import { useAuth } from '@/shared/contexts/auth-context';
 import { Listing } from '@/lib/types';
 import { getTimeAgo, formatCondition } from '@/lib/utils';
 import { getBackendURL } from '@/lib/config';
-import { calculateDistance } from '@/lib/location-data';
+import { calculateBestDistance, hasMeaningfulCoordinates } from '@/lib/location-data';
 import { useAdminSettings } from '@/lib/use-admin-settings';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 import { shareListingLink } from '@/lib/share-app-link';
@@ -30,6 +30,7 @@ import MediaCarousel from '@/shared/components/MediaCarousel';
 import RichTextPreview from '@/shared/components/RichTextPreview';
 import { createResponsiveStyles } from '@/lib/responsive';
 import { bookDeal, DealBookingError } from '@/lib/deal-bookings';
+import { normalizeDealListingRecord } from '@/lib/deal-normalizers';
 import { countdownPartsFromMs, formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
 import { trackGenerateLead, trackPurchaseEvent, trackViewItem } from '@/lib/firebase-analytics';
 
@@ -165,52 +166,7 @@ function mapApiListing(listing: any): Listing {
       listing?.durationDays !== undefined && listing?.durationDays !== null
         ? toNumber(listing.durationDays, 0)
         : undefined,
-    isDeal: Boolean(listing?.isDeal),
-    dealType:
-      typeof listing?.dealType === 'string' && listing.dealType.trim()
-        ? (listing.dealType.trim() as Listing['dealType'])
-        : undefined,
-    dealStartAt:
-      typeof listing?.dealStartAt === 'string' && listing.dealStartAt.trim()
-        ? listing.dealStartAt.trim()
-        : undefined,
-    dealEndAt:
-      typeof listing?.dealEndAt === 'string' && listing.dealEndAt.trim()
-        ? listing.dealEndAt.trim()
-        : undefined,
-    dealRecurrence:
-      typeof listing?.dealRecurrence === 'string' && listing.dealRecurrence.trim()
-        ? (listing.dealRecurrence.trim() as Listing['dealRecurrence'])
-        : undefined,
-    dealRecurrenceUntil:
-      typeof listing?.dealRecurrenceUntil === 'string' && listing.dealRecurrenceUntil.trim()
-        ? listing.dealRecurrenceUntil.trim()
-        : undefined,
-    dealCycleQuantity:
-      listing?.dealCycleQuantity !== undefined && listing.dealCycleQuantity !== null
-        ? toNumber(listing.dealCycleQuantity, 0)
-        : undefined,
-    maxDealBookings:
-      listing?.maxDealBookings !== undefined && listing.maxDealBookings !== null
-        ? toNumber(listing.maxDealBookings, 0)
-        : undefined,
-    postDealPriceMode:
-      typeof listing?.postDealPriceMode === 'string' && listing.postDealPriceMode.trim()
-        ? (listing.postDealPriceMode.trim() as Listing['postDealPriceMode'])
-        : undefined,
-    postDealDiscountPrice:
-      listing?.postDealDiscountPrice !== undefined && listing.postDealDiscountPrice !== null
-        ? toNumber(listing.postDealDiscountPrice, 0)
-        : undefined,
-    comboItems: parseMediaArray(listing?.comboItems),
-    dealTerms:
-      typeof listing?.dealTerms === 'string' && listing.dealTerms.trim()
-        ? listing.dealTerms.trim()
-        : undefined,
-    voucherEnabled:
-      listing?.voucherEnabled !== undefined && listing.voucherEnabled !== null
-        ? Boolean(listing.voucherEnabled)
-        : undefined,
+    ...normalizeDealListingRecord(listing),
     sellerAvatar:
       typeof listing?.sellerAvatar === 'string' && listing.sellerAvatar.trim()
         ? listing.sellerAvatar.trim()
@@ -404,18 +360,15 @@ export default function ListingDetailScreen() {
 
     const sourceLat = Number(listing.location?.latitude);
     const sourceLon = Number(listing.location?.longitude);
-    const hasSourceCoords =
-      Number.isFinite(sourceLat) &&
-      Number.isFinite(sourceLon) &&
-      (sourceLat !== 0 || sourceLon !== 0);
+    const hasSourceCoords = hasMeaningfulCoordinates(sourceLat, sourceLon);
     if (!hasSourceCoords) return new Map<string, number>();
 
     const distanceMap = new Map<string, number>();
     for (const item of listings) {
       const itemLat = Number(item.location?.latitude);
       const itemLon = Number(item.location?.longitude);
-      if (!Number.isFinite(itemLat) || !Number.isFinite(itemLon)) continue;
-      distanceMap.set(item.id, calculateDistance(sourceLat, sourceLon, itemLat, itemLon));
+      if (!hasMeaningfulCoordinates(itemLat, itemLon)) continue;
+      distanceMap.set(item.id, calculateBestDistance(sourceLat, sourceLon, itemLat, itemLon));
     }
     return distanceMap;
   }, [listing, listings]);

@@ -14,6 +14,7 @@ export interface CreateInAppNotificationOptions {
   title: string;
   message: string;
   type?: 'info' | 'success' | 'warning' | 'error';
+  imageUrl?: string;
   actionLabel?: string;
   actionUrl?: string;
   category?: string;
@@ -21,6 +22,16 @@ export interface CreateInAppNotificationOptions {
   priority?: 'urgent' | 'high' | 'normal' | 'low';
   expiresAt?: Date;
   createdBy?: string;
+}
+
+export interface NotificationReadMatch {
+  notificationId?: string;
+  title?: string;
+  message?: string;
+  actionUrl?: string;
+  category?: string;
+  referenceId?: string;
+  type?: string;
 }
 
 /**
@@ -38,6 +49,7 @@ export async function createInAppNotification(
         title: options.title,
         message: options.message,
         type: options.type || 'info',
+        imageUrl: options.imageUrl || null,
         actionLabel: options.actionLabel || null,
         actionUrl: options.actionUrl || null,
         category: options.category || null,
@@ -111,7 +123,7 @@ export async function getUserNotifications(userId: string, limit = 50): Promise<
       if (!meta) return notification;
       return {
         ...notification,
-        imageUrl: meta.imageUrl,
+        imageUrl: notification.imageUrl || meta.imageUrl,
         listingTitle: meta.listingTitle,
         actionUrl: notification.actionUrl || `/listing/${notification.referenceId}`,
       };
@@ -146,6 +158,66 @@ export async function markAsRead(
     return { success: true };
   } catch (error) {
     console.error('[InAppNotification] Error marking as read:', error);
+    return { success: false };
+  }
+}
+
+/**
+ * Mark a notification as read using an ID or notification payload.
+ */
+export async function markAsReadByPayload(
+  userId: string,
+  match: NotificationReadMatch
+): Promise<{ success: boolean }> {
+  try {
+    const notificationId = String(match.notificationId || '').trim();
+    const title = String(match.title || '').trim();
+    const message = String(match.message || '').trim();
+    const actionUrl = String(match.actionUrl || '').trim();
+    const category = String(match.category || '').trim();
+    const referenceId = String(match.referenceId || '').trim();
+    const type = String(match.type || '').trim();
+
+    const exactConditions = [eq(inAppNotifications.userId, userId)];
+
+    if (notificationId) {
+      exactConditions.push(eq(inAppNotifications.id, notificationId));
+    } else {
+      if (!title || !message) {
+        return { success: false };
+      }
+
+      exactConditions.push(eq(inAppNotifications.title, title));
+      exactConditions.push(eq(inAppNotifications.message, message));
+
+      if (actionUrl) {
+        exactConditions.push(eq(inAppNotifications.actionUrl, actionUrl));
+      }
+
+      if (category) {
+        exactConditions.push(eq(inAppNotifications.category, category));
+      }
+
+      if (referenceId) {
+        exactConditions.push(eq(inAppNotifications.referenceId, referenceId));
+      }
+
+      if (type) {
+        exactConditions.push(eq(inAppNotifications.type, type));
+      }
+    }
+
+    await db
+      .update(inAppNotifications)
+      .set({
+        isRead: true,
+        readAt: new Date(),
+      })
+      .where(and(...exactConditions));
+
+    return { success: true };
+  } catch (error) {
+    console.error('[InAppNotification] Error marking payload as read:', error);
     return { success: false };
   }
 }

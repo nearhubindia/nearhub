@@ -67,7 +67,9 @@ const ContactSubmissionCommentsCell = memo(function ContactSubmissionCommentsCel
                         {
                           submissionId: item.id,
                           commentId: commentItem.id,
-                          comment: (editingCommentDrafts[commentItem.id] ?? commentItem.comment).trim(),
+                          comment: (
+                            editingCommentDrafts[commentItem.id] ?? commentItem.comment
+                          ).trim(),
                         },
                         {
                           onSuccess: () => {
@@ -341,13 +343,7 @@ export default function ContactSubmissionsView() {
         },
       },
     ],
-    [
-      addComment,
-      contactedDrafts,
-      deleteComment,
-      updateComment,
-      updateContactSubmission,
-    ]
+    [addComment, contactedDrafts, deleteComment, updateComment, updateContactSubmission]
   );
 
   return (

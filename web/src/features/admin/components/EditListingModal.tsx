@@ -196,7 +196,10 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
         dealStartAt: formData.isDeal ? dealStartAt : undefined,
         dealEndAt: formData.isDeal ? dealEndAt : undefined,
         purchaseLimitType: formData.isDeal ? formData.purchaseLimitType : undefined,
-        maxDealBookings: formData.isDeal && formData.maxDealBookings ? Number(formData.maxDealBookings) : undefined,
+        maxDealBookings:
+          formData.isDeal && formData.maxDealBookings
+            ? Number(formData.maxDealBookings)
+            : undefined,
         comboItems: formData.isDeal && formData.dealType === 'combo' ? comboItems : undefined,
         dealTerms: formData.isDeal ? formData.dealTerms : undefined,
         voucherEnabled: formData.isDeal ? formData.voucherEnabled : undefined,

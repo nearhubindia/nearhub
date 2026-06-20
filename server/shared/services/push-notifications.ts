@@ -15,6 +15,7 @@ import {
   pushTokens,
   notificationLogs,
 } from "../../features/admin/models/admin-settings";
+import { createInAppNotification } from "./in-app-notifications";
 import { eq, and, inArray, ilike, or, sql } from "drizzle-orm";
 import { users } from "../../features/users/models/users";
 import { listings } from "../../features/admin/models/admin-settings";
@@ -55,6 +56,185 @@ export interface BroadcastOptions extends SendPushNotificationOptions {
   radiusKm?: number;
 }
 
+type InAppNotificationType = "info" | "success" | "warning" | "error";
+
+function normalizePushKind(options: SendPushNotificationOptions, fallback = "general"): string {
+  const directType = String(options.data?.type || "").trim();
+  if (directType) return directType;
+
+  const category = String(options.data?.category || "").trim();
+  if (category) return category;
+
+  const listingId = String(options.listingId || options.data?.listingId || "").trim();
+  if (listingId) return fallback === "general" ? "listing" : fallback;
+
+  return fallback;
+}
+
+function mapPushKindToInAppType(kind: string): InAppNotificationType {
+  const normalized = kind.toLowerCase();
+
+  if (
+    normalized.includes("success") ||
+    normalized.includes("approved") ||
+    normalized.includes("restored") ||
+    normalized.includes("applied") ||
+    normalized.includes("renewed")
+  ) {
+    return "success";
+  }
+
+  if (
+    normalized.includes("failed") ||
+    normalized.includes("rejected") ||
+    normalized.includes("suspended") ||
+    normalized.includes("action_taken") ||
+    normalized.includes("spam")
+  ) {
+    return "error";
+  }
+
+  if (
+    normalized.includes("warning") ||
+    normalized.includes("expiring") ||
+    normalized.includes("expired") ||
+    normalized.includes("price_drop") ||
+    normalized.includes("review")
+  ) {
+    return "warning";
+  }
+
+  return "info";
+}
+
+function mapPushKindToCategory(kind: string): string {
+  const normalized = kind.toLowerCase();
+
+  if (
+    normalized.includes("payment") ||
+    normalized.includes("invoice") ||
+    normalized.includes("subscription") ||
+    normalized.includes("coupon")
+  ) {
+    return "payment";
+  }
+
+  if (normalized.includes("message")) {
+    return "message";
+  }
+
+  if (
+    normalized.includes("account") ||
+    normalized.includes("spam") ||
+    normalized.includes("report")
+  ) {
+    return "account";
+  }
+
+  if (
+    normalized.includes("listing") ||
+    normalized.includes("deal") ||
+    normalized.includes("price_drop") ||
+    normalized.includes("milestone") ||
+    normalized.includes("digest") ||
+    normalized.includes("nearby")
+  ) {
+    return "listing";
+  }
+
+  return "system";
+}
+
+function buildPushActionUrl(options: SendPushNotificationOptions): string {
+  const listingId = String(options.listingId || options.data?.listingId || "").trim();
+  const explicitTarget = String(
+    options.actionUrl ||
+      options.dealUrl ||
+      options.data?.actionUrl ||
+      options.data?.url ||
+      options.data?.dealUrl ||
+      options.data?.invoiceUrl ||
+      "",
+  ).trim();
+
+  if (explicitTarget) return explicitTarget;
+  if (listingId) return `/listing/${encodeURIComponent(listingId)}`;
+  return "";
+}
+
+function buildInAppTargetUrl(options: SendPushNotificationOptions): string {
+  const conversationId = String(options.data?.conversationId || "").trim();
+  const listingId = String(options.listingId || options.data?.listingId || "").trim();
+  const actionUrl = buildPushActionUrl(options);
+
+  if (actionUrl) return actionUrl;
+
+  if (options.data?.type === "message" || conversationId) {
+    if (!conversationId) return "";
+    const query = new URLSearchParams({
+      conversationId,
+      ...(listingId ? { listingId } : {}),
+    }).toString();
+    return `/chat/${encodeURIComponent(listingId || conversationId)}${query ? `?${query}` : ""}`;
+  }
+
+  if (options.data?.type === "subscription_renewal" || options.data?.type === "subscription_expired") {
+    return "/subscriptions";
+  }
+
+  if (
+    options.data?.type === "payment_success" ||
+    options.data?.type === "payment_failed" ||
+    options.data?.type === "invoice_generated"
+  ) {
+    return String(options.data?.invoiceUrl || "/invoices").trim();
+  }
+
+  if (options.data?.type === "nearby_listings" || options.data?.type === "daily_digest") {
+    return "/search";
+  }
+
+  return "";
+}
+
+async function createMirroredInAppNotifications(
+  targets: Array<{ userId: string | null; userType?: "buyer" | "seller" | "all" | "admin" }>,
+  options: SendPushNotificationOptions,
+  overrideKind?: string,
+): Promise<void> {
+  const kind = normalizePushKind(options, overrideKind || "general");
+  const type = mapPushKindToInAppType(kind);
+  const category = mapPushKindToCategory(kind);
+  const actionUrl = buildInAppTargetUrl(options) || undefined;
+  const listingId = String(options.listingId || options.data?.listingId || "").trim();
+  const actionLabel = String(options.data?.actionLabel || "").trim() || undefined;
+  const priority =
+    options.priority === "high"
+      ? "high"
+      : options.priority === "normal"
+        ? "normal"
+        : "normal";
+
+  await Promise.all(
+    targets.map((target) =>
+      createInAppNotification({
+        userId: target.userId,
+        userType: target.userType || (target.userId ? "all" : "all"),
+        title: options.title,
+        message: options.body,
+        type,
+        imageUrl: options.imageUrl || undefined,
+        actionLabel,
+        actionUrl,
+        category,
+        referenceId: listingId || undefined,
+        priority,
+        createdBy: options.data?.sentBy ? String(options.data.sentBy) : undefined,
+      }),
+    ),
+  );
+}
+
 /**
  * Send push notification to a single user
  */
@@ -63,6 +243,12 @@ export async function sendPushToUser(
   options: SendPushNotificationOptions,
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    await createMirroredInAppNotifications([{ userId, userType: "all" }], options).catch(
+      (error) => {
+        console.error("[Push] Failed to mirror push to in-app notifications:", error);
+      },
+    );
+
     // Get user's push tokens
     const tokens = await db.query.pushTokens.findMany({
       where: and(eq(pushTokens.userId, userId), eq(pushTokens.isActive, true)),
@@ -114,6 +300,13 @@ export async function sendPushToUsers(
   options: SendPushNotificationOptions,
 ): Promise<{ success: boolean; sentCount: number; errors: string[] }> {
   try {
+    await createMirroredInAppNotifications(
+      userIds.map((userId) => ({ userId, userType: "all" })),
+      options,
+    ).catch((error) => {
+      console.error("[Push] Failed to mirror multi-user push to in-app notifications:", error);
+    });
+
     // Get all active tokens for these users
     const tokens = await db.query.pushTokens.findMany({
       where: and(
@@ -174,6 +367,24 @@ export async function broadcastPushNotification(
 ): Promise<{ success: boolean; sentCount: number; errors: string[] }> {
   try {
     const userIds = await resolveTargetUserIds(options);
+    if (userIds.length > 0) {
+      await createMirroredInAppNotifications(
+        userIds.map((userId) => ({ userId, userType: "all" })),
+        options,
+        options.notificationType,
+      ).catch((error) => {
+        console.error("[Push] Failed to mirror broadcast push to in-app notifications:", error);
+      });
+    } else {
+      await createMirroredInAppNotifications(
+        [{ userId: null, userType: options.userType || "all" }],
+        options,
+        options.notificationType,
+      ).catch((error) => {
+        console.error("[Push] Failed to mirror broadcast push to in-app notifications:", error);
+      });
+    }
+
     const conditions = [eq(pushTokens.isActive, true)];
     if (options.userType && options.userType !== "all") {
       conditions.push(eq(pushTokens.userType, options.userType));

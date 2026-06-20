@@ -206,7 +206,7 @@ export function registerPushNotificationRoutes(app: Express) {
    */
   app.post("/api/push/send", async (req: Request, res: Response) => {
     try {
-      const { userId, title, body, data, sound, badge, channelId } = req.body;
+      const { userId, title, body, data, sound, badge, channelId, imageUrl } = req.body;
 
       if (!userId || !title || !body) {
         return res.status(400).json({
@@ -222,6 +222,10 @@ export function registerPushNotificationRoutes(app: Express) {
         sound,
         badge,
         channelId,
+        imageUrl:
+          typeof imageUrl === "string" && imageUrl.trim()
+            ? imageUrl.trim()
+            : undefined,
       });
 
       if (!result.success) {
@@ -250,7 +254,7 @@ export function registerPushNotificationRoutes(app: Express) {
    */
   app.post("/api/push/send-multiple", async (req: Request, res: Response) => {
     try {
-      const { userIds, title, body, data, sound, badge, channelId } = req.body;
+      const { userIds, title, body, data, sound, badge, channelId, imageUrl } = req.body;
 
       if (!userIds || !Array.isArray(userIds) || !title || !body) {
         return res.status(400).json({
@@ -266,6 +270,10 @@ export function registerPushNotificationRoutes(app: Express) {
         sound,
         badge,
         channelId,
+        imageUrl:
+          typeof imageUrl === "string" && imageUrl.trim()
+            ? imageUrl.trim()
+            : undefined,
       });
 
       res.json({

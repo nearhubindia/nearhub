@@ -203,6 +203,88 @@ export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2
   return R * c;
 }
 
+function isValidCoordinatePair(latitude: number, longitude: number): boolean {
+  return (
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
+}
+
+/**
+ * Returns the direct distance by default, but defensively recovers from
+ * accidentally swapped latitude/longitude pairs when that interpretation is
+ * dramatically more plausible than the original.
+ */
+export function calculateBestDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  if (!isValidCoordinatePair(lat1, lon1) || !isValidCoordinatePair(lat2, lon2)) {
+    return Number.NaN;
+  }
+
+  const directDistance = calculateDistance(lat1, lon1, lat2, lon2);
+  const candidateDistances = [directDistance];
+
+  if (isValidCoordinatePair(lon1, lat1)) {
+    candidateDistances.push(calculateDistance(lon1, lat1, lat2, lon2));
+  }
+
+  if (isValidCoordinatePair(lon2, lat2)) {
+    candidateDistances.push(calculateDistance(lat1, lon1, lon2, lat2));
+  }
+
+  if (isValidCoordinatePair(lon1, lat1) && isValidCoordinatePair(lon2, lat2)) {
+    candidateDistances.push(calculateDistance(lon1, lat1, lon2, lat2));
+  }
+
+  const bestDistance = candidateDistances.reduce((smallest, current) =>
+    current < smallest ? current : smallest
+  );
+
+  if (
+    directDistance > 1000 &&
+    Number.isFinite(bestDistance) &&
+    bestDistance < directDistance * 0.25 &&
+    bestDistance <= 500
+  ) {
+    return bestDistance;
+  }
+
+  return directDistance;
+}
+
+/**
+ * Check whether a coordinate pair can be used for distance calculations.
+ * We treat 0,0 as invalid because the app uses it as a fallback for missing data.
+ */
+export function hasMeaningfulCoordinates(
+  latitude: number | null | undefined,
+  longitude: number | null | undefined
+): boolean {
+  return (
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    !(latitude === 0 && longitude === 0)
+  );
+}
+
+export function formatDistanceAway(distanceKm?: number): string {
+  if (typeof distanceKm !== 'number' || !Number.isFinite(distanceKm)) {
+    return 'Distance unavailable';
+  }
+  if (distanceKm < 1) {
+    return '<1 km away';
+  }
+  return `${Math.round(distanceKm)} km away`;
+}
+
 /**
  * Get demand-adjusted price multiplier for a city
  * @param city City name

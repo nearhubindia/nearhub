@@ -33,9 +33,7 @@ const NotificationsPage = lazy(() => import('./features/landing/pages/Notificati
 const DealInboxPage = lazy(() => import('./features/landing/pages/DealInboxPage'));
 const MyOrdersPage = lazy(() => import('./features/landing/pages/MyOrdersPage'));
 const UserSubscriptionsPage = lazy(() => import('./features/landing/pages/SubscriptionsPage'));
-const SubscriptionsDeepLink = lazy(
-  () => import('./features/landing/pages/SubscriptionsDeepLink')
-);
+const SubscriptionsDeepLink = lazy(() => import('./features/landing/pages/SubscriptionsDeepLink'));
 const InvoicesPage = lazy(() => import('./features/landing/pages/InvoicesPage'));
 const UserSettingsPage = lazy(() => import('./features/landing/pages/SettingsPage'));
 const ConversationPage = lazy(() => import('./features/landing/pages/ConversationPage'));

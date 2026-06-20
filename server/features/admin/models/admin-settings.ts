@@ -1268,6 +1268,7 @@ export const inAppNotifications = pgTable('in_app_notifications', {
   title: text('title').notNull(),
   message: text('message').notNull(),
   type: varchar('type', { length: 20 }).notNull().default('info'), // 'info' | 'success' | 'warning' | 'error'
+  imageUrl: text('image_url'),
 
   // Action/link (optional)
   actionLabel: varchar('action_label', { length: 50 }),

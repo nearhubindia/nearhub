@@ -460,7 +460,9 @@ export const usersApi = {
     return handleResponse(response);
   },
 
-  async getUserById(id: string): Promise<{ success?: boolean; data?: AdminUserDetail; error?: string }> {
+  async getUserById(
+    id: string
+  ): Promise<{ success?: boolean; data?: AdminUserDetail; error?: string }> {
     const response = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
       headers: getAuthHeaders(),
     });

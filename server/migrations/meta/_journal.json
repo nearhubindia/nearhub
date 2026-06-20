@@ -148,6 +148,13 @@
       "when": 1777077605000,
       "tag": "0020_drop_legacy_listing_attributes",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1777077606000,
+      "tag": "0024_in_app_notification_image_url",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Image,
   FlatList,
   Pressable,
   Platform,
@@ -63,20 +64,23 @@ function NotificationItem({
   item,
   theme,
   onRemove,
+  onMarkRead,
 }: {
   item: Notification;
   theme: ScreenTheme;
   onRemove: (id: string) => void;
+  onMarkRead: (notification: Notification) => void;
 }) {
   const handleOpen = () => {
     if (item.data) {
+      onMarkRead(item);
       void openNotificationTarget(item.data);
       return;
     }
 
     if (item.action) {
+      onMarkRead(item);
       item.action.onPress();
-      onRemove(item.id);
     }
   };
 
@@ -94,6 +98,9 @@ function NotificationItem({
       accessibilityRole={item.data || item.action ? 'button' : undefined}
       accessibilityLabel={item.data || item.action ? `Open ${item.title}` : undefined}
     >
+      {item.imageUrl ? (
+        <Image source={{ uri: item.imageUrl }} style={styles.itemImage} resizeMode="cover" />
+      ) : null}
       <View style={[styles.iconCircle, { backgroundColor: getIconColor(item.type) + '20' }]}>
         <Feather name={getIconName(item.type)} size={14} color={getIconColor(item.type)} />
       </View>
@@ -123,7 +130,7 @@ export default function NotificationsScreen() {
   const isDark = colorScheme === 'dark';
   const insets = useSafeAreaInsets();
   const webTopInset = Platform.OS === 'web' ? 56 : 0;
-  const { notifications, removeNotification, clearAll } = useNotifications();
+  const { notifications, removeNotification, clearAll, markNotificationRead } = useNotifications();
 
   const theme: ScreenTheme = isDark
     ? {
@@ -197,7 +204,12 @@ export default function NotificationsScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
-            <NotificationItem item={item} theme={theme} onRemove={removeNotification} />
+            <NotificationItem
+              item={item}
+              theme={theme}
+              onRemove={removeNotification}
+              onMarkRead={markNotificationRead}
+            />
           )}
         />
       ) : (
@@ -272,6 +284,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     gap: 10,
+  },
+  itemImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 10,
+    backgroundColor: '#f3f4f6',
   },
   iconCircle: {
     width: 28,

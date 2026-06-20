@@ -39,6 +39,8 @@ type EditableListing = {
   pincode?: string | number;
   pinCode?: string | number;
   postalCode?: string | number;
+  latitude?: string | number;
+  longitude?: string | number;
   price?: string | number;
   offerPrice?: string | number;
   priceUnit?: string;
@@ -76,6 +78,15 @@ type EditableListing = {
 const defaultMainCategory = getDefaultAdminMainCategory();
 const defaultSubCategory = getSubCategoriesForMainCategory(defaultMainCategory)[0] || 'Other';
 
+type LocationLookupResult = {
+  locationName?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  latitude?: string | number;
+  longitude?: string | number;
+};
+
 function sanitizePriceInput(value: string | number | null | undefined): string {
   const raw = String(value ?? '').trim();
   if (!raw) return '';
@@ -101,6 +112,60 @@ function toInputDateTime(value: string): { date: string; time: string } {
     date: date.toISOString().slice(0, 10),
     time: date.toTimeString().slice(0, 5),
   };
+}
+
+function isCoordinateLabel(value: string): boolean {
+  return /^-?\d{1,2}(?:\.\d+)?\s*,\s*-?\d{1,3}(?:\.\d+)?$/.test(value.trim());
+}
+
+function parseCoordinateLabel(value: string): { latitude: string; longitude: string } | null {
+  if (!isCoordinateLabel(value)) return null;
+  const [latitude, longitude] = value.split(',').map((item) => item.trim());
+  return { latitude, longitude };
+}
+
+function formatLocationName(data?: LocationLookupResult | null): string {
+  if (!data) return '';
+  const locationName = String(data.locationName || '').trim();
+  if (locationName && !isCoordinateLabel(locationName)) {
+    return locationName;
+  }
+  return [data.city, data.state]
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .join(', ');
+}
+
+function parseFiniteCoordinate(value: unknown): number | undefined {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+async function fetchLocationFromCoordinates(
+  latitude: string,
+  longitude: string
+): Promise<LocationLookupResult | null> {
+  const response = await fetch(
+    `${getApiUrl()}/api/location/reverse-geocode?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`
+  );
+  const payload = (await response.json().catch(() => ({}))) as {
+    success?: boolean;
+    data?: LocationLookupResult;
+  };
+  if (!response.ok || !payload.success || !payload.data) return null;
+  return payload.data;
+}
+
+async function fetchLocationFromPincode(pincodeValue: string): Promise<LocationLookupResult | null> {
+  const response = await fetch(
+    `${getApiUrl()}/api/location/pincode/${encodeURIComponent(pincodeValue)}`
+  );
+  const payload = (await response.json().catch(() => ({}))) as {
+    success?: boolean;
+    data?: LocationLookupResult;
+  };
+  if (!response.ok || !payload.success || !payload.data) return null;
+  return payload.data;
 }
 
 function textInputClass(extra = ''): string {
@@ -152,6 +217,8 @@ export default function EditListingPage(): ReactElement {
   const [condition, setCondition] = useState('Good');
   const [location, setLocation] = useState('');
   const [pincode, setPincode] = useState('');
+  const [listingLatitude, setListingLatitude] = useState<number | undefined>();
+  const [listingLongitude, setListingLongitude] = useState<number | undefined>();
   const [visibilityMode, setVisibilityMode] = useState<'local' | 'online'>('local');
   const [visibilityRadiusKm, setVisibilityRadiusKm] = useState('50');
   const [status, setStatus] = useState('active');
@@ -226,6 +293,8 @@ export default function EditListingPage(): ReactElement {
             .replace(/[^0-9]/g, '')
             .slice(0, 6)
         );
+        setListingLatitude(parseFiniteCoordinate(listing.latitude));
+        setListingLongitude(parseFiniteCoordinate(listing.longitude));
         const nextVisibilityMode =
           String(listing.visibilityMode || 'local').toLowerCase() === 'online' ? 'online' : 'local';
         setVisibilityMode(nextVisibilityMode);
@@ -349,6 +418,35 @@ export default function EditListingPage(): ReactElement {
     try {
       const images = parseMediaList(imagesText);
       const videos = parseMediaList(videosText);
+      let nextLatitude = listingLatitude;
+      let nextLongitude = listingLongitude;
+      let nextLocation = location.trim();
+      let nextPincode = pincode.trim();
+      const coordinates = parseCoordinateLabel(nextLocation);
+      const resolved = coordinates
+        ? await fetchLocationFromCoordinates(coordinates.latitude, coordinates.longitude).catch(
+            () => null
+          )
+        : /^\d{6}$/.test(nextPincode)
+          ? await fetchLocationFromPincode(nextPincode).catch(() => null)
+          : null;
+      const resolvedName = formatLocationName(resolved);
+      const resolvedPincode = String(resolved?.pincode || '').trim();
+      const resolvedLatitude = parseFiniteCoordinate(resolved?.latitude);
+      const resolvedLongitude = parseFiniteCoordinate(resolved?.longitude);
+      if (resolvedName) nextLocation = resolvedName;
+      if (resolvedPincode) nextPincode = resolvedPincode;
+      if (coordinates) {
+        nextLatitude = parseFiniteCoordinate(coordinates.latitude);
+        nextLongitude = parseFiniteCoordinate(coordinates.longitude);
+      } else if (resolvedLatitude !== undefined && resolvedLongitude !== undefined) {
+        nextLatitude = resolvedLatitude;
+        nextLongitude = resolvedLongitude;
+      }
+      if (nextLocation !== location.trim()) setLocation(nextLocation);
+      if (nextPincode !== pincode.trim()) setPincode(nextPincode);
+      if (nextLatitude !== listingLatitude) setListingLatitude(nextLatitude);
+      if (nextLongitude !== listingLongitude) setListingLongitude(nextLongitude);
       const dealEndAt =
         isDeal && dealEndDate && dealEndTime
           ? new Date(`${dealEndDate}T${dealEndTime}`).toISOString()
@@ -363,8 +461,10 @@ export default function EditListingPage(): ReactElement {
         offerPrice: offerPrice.trim() ? Number(offerPrice) : undefined,
         priceUnit: isDeal ? undefined : priceUnit,
         condition: shouldRequireCondition ? condition : undefined,
-        location: location.trim(),
-        pincode: pincode.trim(),
+        location: nextLocation,
+        pincode: nextPincode,
+        latitude: nextLatitude,
+        longitude: nextLongitude,
         visibilityMode,
         visibilityRadiusKm:
           visibilityMode === 'online' ? Number(visibilityRadiusKm || 0) : undefined,

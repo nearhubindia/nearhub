@@ -131,9 +131,7 @@ export function AdminDealFields<TForm extends DealFormState>({
             <input
               type="datetime-local"
               value={toLocalDateTimeValue(formData.dealStartAt)}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, dealStartAt: e.target.value }))
-              }
+              onChange={(e) => setFormData((prev) => ({ ...prev, dealStartAt: e.target.value }))}
               className={inputClass}
               disabled={locked}
             />
@@ -226,7 +224,8 @@ export function AdminDealFields<TForm extends DealFormState>({
           <div className="md:col-span-2 rounded-2xl border border-cyan-100 bg-cyan-50/70 p-4 text-sm text-slate-700">
             <p className="font-semibold text-slate-900">Preview</p>
             <p className="mt-1">
-              Start: {toPrettyDateTime(formData.dealStartAt)} · End: {toPrettyDateTime(formData.dealEndAt)}
+              Start: {toPrettyDateTime(formData.dealStartAt)} · End:{' '}
+              {toPrettyDateTime(formData.dealEndAt)}
             </p>
           </div>
         </div>

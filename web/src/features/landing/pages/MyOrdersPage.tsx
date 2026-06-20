@@ -208,27 +208,27 @@ export default function MyOrdersPage(): ReactElement {
 
           <div className="space-y-5">
             {orders.map((order) => (
-            <DealVoucherCard
-              key={order.id}
-              booking={order}
-              dateLabel="Booked"
-              voucherLoadingId={voucherLoadingId}
-              onOpenVoucher={(bookingId) => void openVoucher(bookingId)}
-              extraActions={
-                String(order.status || 'booked').toLowerCase() === 'booked' ? (
-                  <button
-                    type="button"
-                    onClick={() => void cancelBooking(order)}
-                    disabled={cancellingBookingId === order.id}
-                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-normal text-rose-700 transition hover:border-rose-300 disabled:opacity-60"
-                  >
-                    <Trash2 size={15} />
-                    {cancellingBookingId === order.id ? 'Cancelling...' : 'Cancel Booking'}
-                  </button>
-                ) : null
-              }
-            />
-          ))}
+              <DealVoucherCard
+                key={order.id}
+                booking={order}
+                dateLabel="Booked"
+                voucherLoadingId={voucherLoadingId}
+                onOpenVoucher={(bookingId) => void openVoucher(bookingId)}
+                extraActions={
+                  String(order.status || 'booked').toLowerCase() === 'booked' ? (
+                    <button
+                      type="button"
+                      onClick={() => void cancelBooking(order)}
+                      disabled={cancellingBookingId === order.id}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-normal text-rose-700 transition hover:border-rose-300 disabled:opacity-60"
+                    >
+                      <Trash2 size={15} />
+                      {cancellingBookingId === order.id ? 'Cancelling...' : 'Cancel Booking'}
+                    </button>
+                  ) : null
+                }
+              />
+            ))}
           </div>
           {!ordersQuery.isLoading && orders.length > 0 ? (
             <p className="mt-7 text-center text-sm font-normal text-[#5d718f]">

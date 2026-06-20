@@ -24,18 +24,13 @@ export default function SubscriptionsDeepLink(): ReactElement {
     const query = params.toString();
     return query ? `nearhub://subscriptions?${query}` : 'nearhub://subscriptions';
   }, [couponCode, tierId]);
-  const androidIntentLink = useMemo(
-    () => {
-      const query = new URLSearchParams();
-      if (tierId) query.set('tierId', tierId);
-      if (couponCode) query.set('couponCode', couponCode);
-      const intentPath = query.toString()
-        ? `subscriptions?${query.toString()}`
-        : 'subscriptions';
-      return `intent://${intentPath}#Intent;scheme=nearhub;package=com.synvide.nearhub;S.browser_fallback_url=${encodeURIComponent(playStoreInstallUrl)};end`;
-    },
-    [couponCode, playStoreInstallUrl, tierId]
-  );
+  const androidIntentLink = useMemo(() => {
+    const query = new URLSearchParams();
+    if (tierId) query.set('tierId', tierId);
+    if (couponCode) query.set('couponCode', couponCode);
+    const intentPath = query.toString() ? `subscriptions?${query.toString()}` : 'subscriptions';
+    return `intent://${intentPath}#Intent;scheme=nearhub;package=com.synvide.nearhub;S.browser_fallback_url=${encodeURIComponent(playStoreInstallUrl)};end`;
+  }, [couponCode, playStoreInstallUrl, tierId]);
   const openAppLink = isAndroidDevice() ? androidIntentLink : appDeepLink;
 
   useEffect(() => {
@@ -68,8 +63,8 @@ export default function SubscriptionsDeepLink(): ReactElement {
               Subscribe In The NearHub App
             </h1>
             <p className="mt-4 max-w-3xl text-sm leading-relaxed text-slate-600 sm:text-base">
-              Subscription purchases are handled inside the NearHub app now. Open the app to pick
-              a plan, apply coupons, and finish checkout securely.
+              Subscription purchases are handled inside the NearHub app now. Open the app to pick a
+              plan, apply coupons, and finish checkout securely.
             </p>
 
             {tierId || couponCode ? (

@@ -6,7 +6,9 @@
 const PRODUCTION_API_URL = 'https://api.nearhub.in';
 
 function normalizeUrl(value: string): string {
-  return String(value || '').trim().replace(/\/+$/, '');
+  return String(value || '')
+    .trim()
+    .replace(/\/+$/, '');
 }
 
 function isLocalhostHost(hostname: string): boolean {

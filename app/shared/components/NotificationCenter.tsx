@@ -15,7 +15,7 @@ import { openNotificationTarget } from '@/lib/notification-navigation';
 import { responsiveFont, responsiveModerateScale } from '@/lib/responsive';
 
 export function NotificationCenter() {
-  const { popupNotification, clearPopupNotification } = useNotifications();
+  const { popupNotification, clearPopupNotification, markNotificationRead } = useNotifications();
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
   const isDark = colorScheme === 'dark';
@@ -106,6 +106,9 @@ export function NotificationCenter() {
   const accentColor = getAccentColor(popupNotification.type);
 
   const handlePress = () => {
+    if (popupNotification) {
+      markNotificationRead(popupNotification);
+    }
     clearPopupNotification();
     void openNotificationTarget(popupNotification.data);
   };
@@ -138,12 +141,24 @@ export function NotificationCenter() {
           accessibilityRole="button"
           accessibilityLabel={`Open ${popupNotification.title}`}
         >
-          <View style={styles.content}>
-            <View style={[styles.iconCircle, { backgroundColor: `${accentColor}20` }]}>
-              <Feather
-                name={getIconName(popupNotification.type)}
-                size={responsiveModerateScale(16)}
-                color={accentColor}
+            <View style={styles.content}>
+              {popupNotification.imageUrl ? (
+                <View style={styles.imageWrap}>
+                  <Animated.Image
+                    source={{ uri: popupNotification.imageUrl }}
+                    style={styles.image}
+                    resizeMode="cover"
+                    onError={() => {
+                      // Ignore preview failures and fall back to text only.
+                    }}
+                  />
+                </View>
+              ) : null}
+              <View style={[styles.iconCircle, { backgroundColor: `${accentColor}20` }]}>
+                <Feather
+                  name={getIconName(popupNotification.type)}
+                  size={responsiveModerateScale(16)}
+                  color={accentColor}
               />
             </View>
             <View style={styles.textBlock}>
@@ -221,6 +236,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
+  },
+  imageWrap: {
+    width: responsiveModerateScale(40),
+    height: responsiveModerateScale(40),
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#f3f4f6',
+    marginTop: 1,
+  },
+  image: {
+    width: '100%',
+    height: '100%',
   },
   iconCircle: {
     width: responsiveModerateScale(34),

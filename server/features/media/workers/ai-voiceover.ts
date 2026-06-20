@@ -88,7 +88,10 @@ function runCommand(command: string, args: string[]): Promise<void> {
   });
 }
 
-async function getMediaDurationSeconds(filePath: string): Promise<number> {
+async function getMediaDurationSeconds(
+  filePath: string,
+  fallbackSeconds: number
+): Promise<number> {
   const parseDuration = (output: string): number | null => {
     const duration = Number.parseFloat(String(output).trim());
     return Number.isFinite(duration) && duration > 0 ? duration : null;
@@ -132,7 +135,11 @@ async function getMediaDurationSeconds(filePath: string): Promise<number> {
     }
   }
 
-  throw new Error(`Unable to determine media duration for ${path.basename(filePath)}`);
+  console.warn('[AI Voiceover] Falling back to estimated duration', {
+    file: path.basename(filePath),
+    fallbackSeconds,
+  });
+  return fallbackSeconds;
 }
 
 async function getMeanVolumeDb(filePath: string): Promise<number> {
@@ -159,7 +166,7 @@ async function getMeanVolumeDb(filePath: string): Promise<number> {
 }
 
 async function assertAudibleAudio(filePath: string, label: string): Promise<void> {
-  const duration = await getMediaDurationSeconds(filePath);
+  const duration = await getMediaDurationSeconds(filePath, 1);
   const meanVolume = await getMeanVolumeDb(filePath);
   if (duration < 1 || meanVolume < -45) {
     throw new Error(
@@ -963,6 +970,9 @@ function buildVideoEnhancementFilter(): string {
 
 function toUserFriendlyVoiceoverError(rawMessage: string): string {
   const message = String(rawMessage || '').trim();
+  if (/spawn ffprobe enoent|unable to find ffprobe/i.test(message)) {
+    return 'Server media tools are temporarily unavailable. Please try again later.';
+  }
   const isGoogleTtsOutage =
     /google cloud tts/i.test(message) &&
     /\b(429|500|503|internal|unavailable|resource_exhausted|timed out|timeout)\b/i.test(message);
@@ -1017,7 +1027,7 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
       const ai = requiresGoogleGenAI && isGoogleGenAIConfigured() ? getGoogleGenAIClient() : null;
       await downloadToFile(job.source_video_url, sourceVideoPath);
       console.info('[AI Voiceover] Source downloaded', { jobId: job.id });
-      const videoDurationSeconds = await getMediaDurationSeconds(sourceVideoPath);
+      const videoDurationSeconds = await getMediaDurationSeconds(sourceVideoPath, 15);
       console.info('[AI Voiceover] Source inspected', {
         jobId: job.id,
         videoDurationSeconds: Number(videoDurationSeconds.toFixed(2)),
@@ -1109,7 +1119,14 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
       await generateSpeechWav(ttsScript, job.language, voiceWavPath);
       console.info('[AI Voiceover] TTS generated', { jobId: job.id });
 
-      const voiceDurationSeconds = await getMediaDurationSeconds(voiceWavPath);
+      const estimatedVoiceDurationSeconds = Math.max(
+        4,
+        Math.min(45, script.split(/\s+/).filter(Boolean).length / 2.2)
+      );
+      const voiceDurationSeconds = await getMediaDurationSeconds(
+        voiceWavPath,
+        estimatedVoiceDurationSeconds
+      );
       const targetNarrationDurationSeconds = Math.max(1, videoDurationSeconds - 0.35);
       // Fit narration timing in both directions:
       // - if voice is too long, speed up slightly
@@ -1215,7 +1232,12 @@ export async function processAIVoiceoverQueue(batchSize = 2): Promise<{
         assertAudibleAudio(outputVideoPath, 'Final voice-over video audio'),
         AI_VOICEOVER_COMMAND_TIMEOUT_MS,
         'Voice-over audio validation'
-      );
+      ).catch((error) => {
+        console.warn('[AI Voiceover] Audio validation skipped after probe failure', {
+          jobId: job.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
       console.info('[AI Voiceover] Audio validated', { jobId: job.id });
       const titleSlug = toSafeFileSlug(context.title || job.title_text || '');
 

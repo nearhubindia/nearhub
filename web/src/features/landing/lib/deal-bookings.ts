@@ -131,10 +131,13 @@ export async function cancelDealBooking(params: {
   authHeaders: HeadersInit;
 }): Promise<DealBooking> {
   const { bookingId, authHeaders } = params;
-  const response = await fetch(apiUrl(`/api/deals/bookings/${encodeURIComponent(bookingId)}/cancel`), {
-    method: 'POST',
-    headers: authHeaders,
-  });
+  const response = await fetch(
+    apiUrl(`/api/deals/bookings/${encodeURIComponent(bookingId)}/cancel`),
+    {
+      method: 'POST',
+      headers: authHeaders,
+    }
+  );
 
   const payload = (await response.json().catch(() => ({}))) as BookingResponse;
   if (!response.ok || payload.success === false || !payload.booking) {

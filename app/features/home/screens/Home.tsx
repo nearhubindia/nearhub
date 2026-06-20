@@ -31,14 +31,14 @@ import { useAuth } from '@/shared/contexts/auth-context';
 import { useUserInterests } from '@/shared/contexts/user-interests-context';
 import { getDiscountPercent, hasValidOfferPrice } from '@/lib/deals';
 import {
-  formatDealStatus,
-  getEffectiveDealWindow,
   isDealActiveNow,
   isDealExpired,
   isDealUpcoming,
 } from '@/lib/deal-timer';
 import { bookDeal, DealBookingError } from '@/lib/deal-bookings';
-import { calculateDistance } from '@/lib/location-data';
+import { createDealCardItem, sortDealItemsByDistance, type DealCardItem } from '@/lib/deal-card-items';
+import { normalizeDealListingLocation, normalizeDealListingRecord } from '@/lib/deal-normalizers';
+import { calculateBestDistance, hasMeaningfulCoordinates } from '@/lib/location-data';
 import { Category, type Listing } from '@/lib/types';
 import { formatCondition } from '@/lib/utils';
 import { NotificationBell } from '@/shared/components/NotificationBell';
@@ -72,86 +72,15 @@ interface CitySuggestion {
   region: string;
 }
 
-type HomeDealItem = {
-  id: string;
-  title: string;
-  price: number;
-  originalPrice?: number;
-  image: string;
-  images: string[];
-  location: string;
-  distance: string;
-  sortDistanceKm?: number;
-  dealEndsAt?: number;
-  dealStatus: string;
-  comboItems?: string[];
-  badge?: string;
-  voucherEnabled?: boolean;
-  dealType?: string;
-};
-
-function formatDistanceLabel(distanceKm?: number): string {
-  if (typeof distanceKm !== 'number' || !Number.isFinite(distanceKm)) return 'Distance unavailable';
-  if (distanceKm < 1) return '<1 km away';
-  return `${Math.round(distanceKm)} km away`;
-}
+type HomeDealItem = DealCardItem;
 
 function normalizeDealItems(items: unknown[]): Listing[] {
   return items
     .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
     .map((item) => {
-      const location = item.location;
-      const normalizedLocation =
-        location && typeof location === 'object'
-          ? {
-              latitude: Number((location as Record<string, unknown>).latitude) || 0,
-              longitude: Number((location as Record<string, unknown>).longitude) || 0,
-              city: String((location as Record<string, unknown>).city || 'Unknown'),
-            }
-          : { latitude: 0, longitude: 0, city: 'Unknown' };
-
       return {
         ...(item as object),
-        isDeal: Boolean(
-          (item as Record<string, unknown>).isDeal ?? (item as Record<string, unknown>).is_deal
-        ),
-        dealType: String(
-          (item as Record<string, unknown>).dealType ??
-            (item as Record<string, unknown>).deal_type ??
-            ''
-        ).toLowerCase() as 'normal' | 'combo',
-        dealStartAt:
-          String(
-            (item as Record<string, unknown>).dealStartAt ??
-              (item as Record<string, unknown>).deal_start_at ??
-              ''
-          ).trim() || undefined,
-        dealEndAt:
-          String(
-            (item as Record<string, unknown>).dealEndAt ??
-              (item as Record<string, unknown>).deal_end_at ??
-              ''
-          ).trim() || undefined,
-        dealRecurrence: String(
-          (item as Record<string, unknown>).dealRecurrence ??
-            (item as Record<string, unknown>).deal_recurrence ??
-            'none'
-        ).toLowerCase() as 'none' | 'daily' | 'weekly' | 'monthly',
-        dealRecurrenceUntil:
-          String(
-            (item as Record<string, unknown>).dealRecurrenceUntil ??
-              (item as Record<string, unknown>).deal_recurrence_until ??
-              ''
-          ).trim() || undefined,
-        comboItems: Array.isArray((item as Record<string, unknown>).comboItems)
-          ? ((item as Record<string, unknown>).comboItems as string[])
-          : Array.isArray((item as Record<string, unknown>).combo_items)
-            ? ((item as Record<string, unknown>).combo_items as string[])
-            : undefined,
-        voucherEnabled: Boolean(
-          (item as Record<string, unknown>).voucherEnabled ??
-          (item as Record<string, unknown>).voucher_enabled
-        ),
+        ...normalizeDealListingRecord(item),
         status: String((item as Record<string, unknown>).status || 'active').toLowerCase() as
           | 'active'
           | 'sold'
@@ -159,7 +88,7 @@ function normalizeDealItems(items: unknown[]): Listing[] {
           | 'rejected'
           | 'inactive'
           | 'expired',
-        location: normalizedLocation,
+        location: normalizeDealListingLocation(item),
         images: Array.isArray((item as Record<string, unknown>).images)
           ? ((item as Record<string, unknown>).images as string[])
           : [],
@@ -235,14 +164,20 @@ export default function HomeScreen() {
       }),
     [listings]
   );
+  const hasUserCoordinates = hasMeaningfulCoordinates(Number(userLat), Number(userLon));
   const distanceByListingId = useMemo(() => {
-    if (!userLat || !userLon) return new Map<string, number>();
+    if (!hasUserCoordinates || userLat == null || userLon == null) return new Map<string, number>();
 
     const distanceMap = new Map<string, number>();
+    const sourceLat = userLat;
+    const sourceLon = userLon;
     for (const listing of visibleListings) {
-      const distance = calculateDistance(
-        userLat,
-        userLon,
+      if (!hasMeaningfulCoordinates(listing.location.latitude, listing.location.longitude)) {
+        continue;
+      }
+      const distance = calculateBestDistance(
+        sourceLat,
+        sourceLon,
         listing.location.latitude,
         listing.location.longitude
       );
@@ -250,7 +185,7 @@ export default function HomeScreen() {
     }
 
     return distanceMap;
-  }, [visibleListings, userLat, userLon]);
+  }, [visibleListings, userLat, userLon, hasUserCoordinates]);
 
   // Helper function to batch location state updates
   const updateLocation = useCallback((lat: number, lon: number, city: string) => {
@@ -888,7 +823,7 @@ export default function HomeScreen() {
             </View>
             {options?.showDistance ? (
               <Text style={styles.cardDistance}>
-                {userLat && userLon && typeof itemDistanceKm === 'number'
+                {hasUserCoordinates && typeof itemDistanceKm === 'number'
                   ? Math.round(itemDistanceKm)
                   : '?'}{' '}
                 km away
@@ -913,52 +848,29 @@ export default function HomeScreen() {
     [alignedResultCardWidth, distanceByListingId, userLat, userLon]
   );
 
-  const dealListings = useMemo(() => listings.filter((item) => Boolean(item.isDeal)), [listings]);
+  const dealListings = useMemo(
+    () => broadDealListings.filter((item) => Boolean(item.isDeal)),
+    [broadDealListings]
+  );
+  const dealListingsById = useMemo(
+    () => new Map(dealListings.map((item) => [item.id, item])),
+    [dealListings]
+  );
 
   const mappedDeals = useMemo(() => {
-    return dealListings
+    return sortDealItemsByDistance(
+      dealListings
       .filter((item) => Boolean(item.isDeal))
-      .map((item) => {
-        const window = getEffectiveDealWindow(item, nowMs);
-        const distanceKm =
+      .map((item) =>
+        createDealCardItem(
+          item,
+          nowMs,
           typeof userLat === 'number' && typeof userLon === 'number'
-            ? calculateDistance(userLat, userLon, item.location.latitude, item.location.longitude)
-            : undefined;
-        const displayPrice =
-          typeof item.offerPrice === 'number' && item.offerPrice > 0 && item.offerPrice < item.price
-            ? item.offerPrice
-            : item.price;
-        const originalPrice = displayPrice !== item.price ? item.price : undefined;
-
-        return {
-          id: item.id,
-          title: item.title,
-          price: displayPrice,
-          originalPrice,
-          image: item.images[0] || '',
-          images: item.images || [],
-          location: item.location.city,
-          distance: formatDistanceLabel(distanceKm),
-          sortDistanceKm: distanceKm,
-          dealEndsAt: window?.endMs,
-          dealStatus: formatDealStatus(item, nowMs),
-          comboItems: item.comboItems,
-          badge: isDealActiveNow(item, nowMs) ? 'Deal' : undefined,
-          voucherEnabled: item.voucherEnabled,
-          dealType: item.dealType,
-        } satisfies HomeDealItem;
-      })
-      .sort((a, b) => {
-        const distanceA =
-          typeof a.sortDistanceKm === 'number' && Number.isFinite(a.sortDistanceKm)
-            ? a.sortDistanceKm
-            : Number.POSITIVE_INFINITY;
-        const distanceB =
-          typeof b.sortDistanceKm === 'number' && Number.isFinite(b.sortDistanceKm)
-            ? b.sortDistanceKm
-            : Number.POSITIVE_INFINITY;
-        return distanceA - distanceB;
-      });
+            ? { latitude: userLat, longitude: userLon }
+            : null
+        )
+      )
+    );
   }, [dealListings, nowMs, userLat, userLon]);
 
   const todaysDeals = useMemo(
@@ -966,94 +878,42 @@ export default function HomeScreen() {
       mappedDeals
         .filter((item) => item.dealType !== 'combo')
         .filter((item) => {
-          const source = listings.find((listing) => listing.id === item.id);
+          const source = dealListingsById.get(item.id);
           return source ? isDealActiveNow(source, nowMs) : false;
         })
         .sort((a, b) => Number(a.dealEndsAt || 0) - Number(b.dealEndsAt || 0))
         .slice(0, 6),
-    [listings, mappedDeals, nowMs]
+    [dealListingsById, mappedDeals, nowMs]
   );
 
   const upcomingDeals = useMemo(
     () =>
       mappedDeals.filter((item) => {
-        const source = listings.find((listing) => listing.id === item.id);
+        const source = dealListingsById.get(item.id);
         return source ? isDealUpcoming(source, nowMs) : false;
       }),
-    [listings, mappedDeals, nowMs]
+    [dealListingsById, mappedDeals, nowMs]
   );
-
-  const broadUpcomingDeals = useMemo(
-    () =>
-      normalizeDealItems(broadDealListings)
-        .filter((item) => isDealUpcoming(item, nowMs))
-        .map((item) => {
-          const window = getEffectiveDealWindow(item, nowMs);
-          const distanceKm =
-            typeof userLat === 'number' && typeof userLon === 'number'
-              ? calculateDistance(userLat, userLon, item.location.latitude, item.location.longitude)
-              : undefined;
-          const displayPrice =
-            typeof item.offerPrice === 'number' &&
-            item.offerPrice > 0 &&
-            item.offerPrice < item.price
-              ? item.offerPrice
-              : item.price;
-          const originalPrice = displayPrice !== item.price ? item.price : undefined;
-
-          return {
-            id: item.id,
-            title: item.title,
-            price: displayPrice,
-            originalPrice,
-            image: item.images[0] || '',
-            images: item.images || [],
-            location: item.location.city,
-            distance: formatDistanceLabel(distanceKm),
-            sortDistanceKm: distanceKm,
-            dealEndsAt: window?.endMs,
-            dealStatus: formatDealStatus(item, nowMs),
-            comboItems: item.comboItems,
-            badge: isDealActiveNow(item, nowMs) ? 'Deal' : undefined,
-            voucherEnabled: item.voucherEnabled,
-            dealType: item.dealType,
-          } satisfies HomeDealItem;
-        })
-        .sort((a, b) => {
-          const distanceA =
-            typeof a.sortDistanceKm === 'number' && Number.isFinite(a.sortDistanceKm)
-              ? a.sortDistanceKm
-              : Number.POSITIVE_INFINITY;
-          const distanceB =
-            typeof b.sortDistanceKm === 'number' && Number.isFinite(b.sortDistanceKm)
-              ? b.sortDistanceKm
-              : Number.POSITIVE_INFINITY;
-          return distanceA - distanceB;
-        }),
-    [broadDealListings, nowMs, userLat, userLon]
-  );
-
-  const displayUpcomingDeals = upcomingDeals.length > 0 ? upcomingDeals : broadUpcomingDeals;
 
   const comboDeals = useMemo(
     () =>
       mappedDeals.filter((item) => {
-        const source = listings.find((listing) => listing.id === item.id);
+        const source = dealListingsById.get(item.id);
         return item.dealType === 'combo' && source ? isDealActiveNow(source, nowMs) : false;
       }),
-    [listings, mappedDeals, nowMs]
+    [dealListingsById, mappedDeals, nowMs]
   );
 
   const expiredDeals = useMemo(
     () =>
       mappedDeals
         .filter((item) => {
-          const source = listings.find((listing) => listing.id === item.id);
+          const source = dealListingsById.get(item.id);
           return source ? isDealExpired(source, nowMs) : false;
         })
         .sort((a, b) => Number(b.dealEndsAt || 0) - Number(a.dealEndsAt || 0))
         .slice(0, 6),
-    [listings, mappedDeals, nowMs]
+    [dealListingsById, mappedDeals, nowMs]
   );
 
   const renderDealRailCard = useCallback(
@@ -1317,7 +1177,12 @@ export default function HomeScreen() {
                     <Feather name="tag" size={16} color={Colors.primary} />
                     <Text style={styles.sectionTitle}>Deals</Text>
                   </View>
-                  <Pressable onPress={() => router.push('/deals')} style={styles.viewAllButton}>
+                  <Pressable
+                    onPress={() =>
+                      router.push({ pathname: '/deals', params: { section: 'today' } })
+                    }
+                    style={styles.viewAllButton}
+                  >
                     <Text style={styles.viewAllText}>View All</Text>
                   </Pressable>
                 </View>
@@ -1339,7 +1204,12 @@ export default function HomeScreen() {
                     <Ionicons name="layers" size={16} color={Colors.primary} />
                     <Text style={styles.sectionTitle}>Combo Deals</Text>
                   </View>
-                  <Pressable onPress={() => router.push('/deals')} style={styles.viewAllButton}>
+                  <Pressable
+                    onPress={() =>
+                      router.push({ pathname: '/deals', params: { section: 'combo' } })
+                    }
+                    style={styles.viewAllButton}
+                  >
                     <Text style={styles.viewAllText}>View All</Text>
                   </Pressable>
                 </View>
@@ -1362,18 +1232,23 @@ export default function HomeScreen() {
                   <Feather name="clock" size={16} color="#F97316" />
                   <Text style={styles.sectionTitle}>Up Coming Deals</Text>
                 </View>
-                <Pressable onPress={() => router.push('/deals')} style={styles.viewAllButton}>
+                <Pressable
+                  onPress={() =>
+                    router.push({ pathname: '/deals', params: { section: 'upcoming' } })
+                  }
+                  style={styles.viewAllButton}
+                >
                   <Text style={styles.viewAllText}>View All</Text>
                 </Pressable>
               </View>
               <Text style={styles.sectionSubtext}>Deals starting soon, sorted by proximity</Text>
-              {displayUpcomingDeals.length > 0 ? (
+              {upcomingDeals.length > 0 ? (
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.dealRailContent}
                 >
-                  {displayUpcomingDeals.map((item) => renderDealRailCard(item))}
+                  {upcomingDeals.map((item) => renderDealRailCard(item))}
                 </ScrollView>
               ) : (
                 <View style={styles.dealEmptyState}>
@@ -1391,7 +1266,12 @@ export default function HomeScreen() {
                     <Feather name="clock" size={16} color={Colors.textSecondary} />
                     <Text style={styles.sectionTitle}>Expired Deals</Text>
                   </View>
-                  <Pressable onPress={() => router.push('/deals')} style={styles.viewAllButton}>
+                  <Pressable
+                    onPress={() =>
+                      router.push({ pathname: '/deals', params: { section: 'expired' } })
+                    }
+                    style={styles.viewAllButton}
+                  >
                     <Text style={styles.viewAllText}>View All</Text>
                   </Pressable>
                 </View>
@@ -2093,9 +1973,6 @@ const styles = createResponsiveStyles({
     letterSpacing: 0.2,
   },
   dealDiscountPill: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
     backgroundColor: '#DC2626',
     borderRadius: 999,
     paddingHorizontal: 6,
@@ -2140,9 +2017,9 @@ const styles = createResponsiveStyles({
     position: 'absolute',
     top: 6,
     right: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: 6,
+    maxWidth: '52%',
   },
   dealMicroBadge: {
     width: 16,

@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, usePathname } from 'expo-router';
+import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -20,44 +20,56 @@ import { useAuth } from '@/shared/contexts/auth-context';
 import {
   countdownPartsFromMs,
   formatCountdown,
-  formatDealStatus,
-  getEffectiveDealWindow,
   isDealActiveNow,
   isDealExpired,
   isDealUpcoming,
 } from '@/lib/deal-timer';
 import { getDiscountPercent } from '@/lib/deals';
-import { calculateDistance } from '@/lib/location-data';
+import { calculateBestDistance, hasMeaningfulCoordinates } from '@/lib/location-data';
 import { bookDeal, DealBookingError } from '@/lib/deal-bookings';
+import { createDealCardItem, sortDealItemsByDistance, type DealCardItem } from '@/lib/deal-card-items';
+import { normalizeDealListingLocation, normalizeDealListingRecord } from '@/lib/deal-normalizers';
 import { createResponsiveStyles } from '@/lib/responsive';
 import AppTopHeader from '@/shared/components/AppTopHeader';
+import { getApiUrl } from '@/lib/query-client';
+import { useAdminSettings } from '@/lib/use-admin-settings';
+import { Listing } from '@/lib/types';
 
-type DealSectionItem = {
-  id: string;
-  title: string;
-  price: number;
-  originalPrice?: number;
-  image: string;
-  images: string[];
-  location: string;
-  distance: string;
-  sortDistanceKm?: number;
-  dealEndsAt?: number;
-  dealStatus: string;
-  comboItems?: string[];
-  badge?: string;
-  voucherEnabled?: boolean;
-  dealType?: string;
-};
+type DealSectionItem = DealCardItem;
+
+type DealSectionFilter = 'today' | 'upcoming' | 'combo' | 'expired';
+
+function normalizeSectionFilter(value: string | string[] | undefined): DealSectionFilter | null {
+  const normalized = String(Array.isArray(value) ? value[0] : value || '')
+    .trim()
+    .toLowerCase();
+
+  if (
+    normalized === 'today' ||
+    normalized === 'upcoming' ||
+    normalized === 'combo' ||
+    normalized === 'expired'
+  ) {
+    return normalized;
+  }
+
+  return null;
+}
 
 function formatPriceInr(value?: number): string {
   return `₹${Number(value || 0).toLocaleString('en-IN')}`;
 }
 
-function formatDistanceLabel(distanceKm?: number): string {
-  if (typeof distanceKm !== 'number' || !Number.isFinite(distanceKm)) return 'Distance unavailable';
-  if (distanceKm < 1) return '<1 km away';
-  return `${Math.round(distanceKm)} km away`;
+function normalizeDealItems(items: unknown[]): Listing[] {
+  return items
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map((item) => {
+      return {
+        ...(item as object),
+        ...normalizeDealListingRecord(item),
+        location: normalizeDealListingLocation(item),
+      } as Listing;
+    });
 }
 
 function EmptyState({ message }: { message: string }) {
@@ -338,18 +350,61 @@ function ComboDealCard({
 
 export default function DealsScreen() {
   const insets = useSafeAreaInsets();
+  const { section } = useLocalSearchParams<{ section?: string | string[] }>();
   const pathname = usePathname();
+  const selectedSection = normalizeSectionFilter(section);
   const authRedirect = pathname && pathname !== '/auth/register' ? pathname : '';
   const { listings, savedIds, toggleSaved, refreshListings, isRefreshing } = useListings();
   const { user, cachedLocation, isAuthenticated } = useAuth();
+  const { geoRadiusKm } = useAdminSettings();
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [broadDealListings, setBroadDealListings] = useState<Listing[]>([]);
+  const [isBroadRefreshing, setIsBroadRefreshing] = useState(false);
   const currentLocation = user?.location || cachedLocation;
+  const effectiveDealRadiusKm = user?.preferences?.searchRadiusKm ?? geoRadiusKm;
+  const hasCurrentLocationCoordinates = hasMeaningfulCoordinates(
+    Number(currentLocation?.latitude),
+    Number(currentLocation?.longitude)
+  );
+  const dealsLocationMessage = 'Set your location to browse deals within your radius.';
 
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const loadBroadDealListings = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `${getApiUrl()}/api/listings?limit=500&dealsOnly=1&includeExpiredDeals=1`
+      );
+      if (!response.ok) return;
+
+      const payload = (await response.json()) as {
+        data?: unknown[];
+        results?: unknown[];
+      };
+      setBroadDealListings(normalizeDealItems(payload.data || payload.results || []));
+    } catch (error) {
+      if (!(error instanceof Error && error.name === 'AbortError')) {
+        setBroadDealListings([]);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBroadDealListings();
+  }, [loadBroadDealListings]);
+
+  const refreshDeals = useCallback(async () => {
+    setIsBroadRefreshing(true);
+    try {
+      await Promise.all([refreshListings(), loadBroadDealListings()]);
+    } finally {
+      setIsBroadRefreshing(false);
+    }
+  }, [loadBroadDealListings, refreshListings]);
 
   const handleBookDeal = useCallback(
     async (listingId: string) => {
@@ -386,112 +441,137 @@ export default function DealsScreen() {
     [isAuthenticated, user?.id, user?.phone]
   );
 
-  const mappedDeals = useMemo(() => {
-    return listings
+  const allDealListings = useMemo(() => {
+    const merged = new Map<string, Listing>();
+    [...listings, ...broadDealListings]
       .filter((item) => Boolean(item.isDeal))
-      .map((item) => {
-        const window = getEffectiveDealWindow(item, nowMs);
-        const distanceKm =
-          typeof currentLocation?.latitude === 'number' &&
-          typeof currentLocation?.longitude === 'number'
-            ? calculateDistance(
-                currentLocation.latitude,
-                currentLocation.longitude,
-                item.location.latitude,
-                item.location.longitude
-              )
-            : undefined;
-        const displayPrice =
-          typeof item.offerPrice === 'number' && item.offerPrice > 0 && item.offerPrice < item.price
-            ? item.offerPrice
-            : item.price;
-        const originalPrice = displayPrice !== item.price ? item.price : undefined;
-
-        return {
-          id: item.id,
-          title: item.title,
-          price: displayPrice,
-          originalPrice,
-          image: item.images[0] || '',
-          images: item.images || [],
-          location: item.location.city,
-          distance: formatDistanceLabel(distanceKm),
-          sortDistanceKm: distanceKm,
-          dealEndsAt: window?.endMs,
-          dealStatus: formatDealStatus(item, nowMs),
-          comboItems: item.comboItems,
-          badge: isDealActiveNow(item, nowMs) ? 'Deal' : undefined,
-          voucherEnabled: item.voucherEnabled,
-          dealType: item.dealType,
-        } satisfies DealSectionItem;
-      })
-      .sort((a, b) => {
-        const distanceA =
-          typeof a.sortDistanceKm === 'number' && Number.isFinite(a.sortDistanceKm)
-            ? a.sortDistanceKm
-            : Number.POSITIVE_INFINITY;
-        const distanceB =
-          typeof b.sortDistanceKm === 'number' && Number.isFinite(b.sortDistanceKm)
-            ? b.sortDistanceKm
-            : Number.POSITIVE_INFINITY;
-        return distanceA - distanceB;
+      .forEach((listing) => {
+        merged.set(listing.id, listing);
       });
-  }, [listings, nowMs, currentLocation?.latitude, currentLocation?.longitude]);
+    return [...merged.values()];
+  }, [broadDealListings, listings]);
+
+  const mappedDeals = useMemo(() => {
+    if (!hasCurrentLocationCoordinates || !currentLocation) {
+      return [];
+    }
+
+    const sourceLat = currentLocation.latitude;
+    const sourceLon = currentLocation.longitude;
+
+    return allDealListings
+      .filter((item) => {
+        if (!hasMeaningfulCoordinates(item.location.latitude, item.location.longitude)) {
+          return false;
+        }
+
+        const distanceKm = calculateBestDistance(
+          sourceLat,
+          sourceLon,
+          item.location.latitude,
+          item.location.longitude
+        );
+
+        return Number.isFinite(distanceKm) && distanceKm <= effectiveDealRadiusKm;
+      })
+      .map((item) =>
+        createDealCardItem(item, nowMs, {
+          latitude: sourceLat,
+          longitude: sourceLon,
+        })
+      );
+  }, [
+    allDealListings,
+    nowMs,
+    currentLocation?.latitude,
+    currentLocation?.longitude,
+    hasCurrentLocationCoordinates,
+    effectiveDealRadiusKm,
+  ]);
+  const sortedMappedDeals = useMemo(() => sortDealItemsByDistance(mappedDeals), [mappedDeals]);
 
   const todaysDeals = useMemo(
     () =>
-      mappedDeals
+      sortedMappedDeals
         .filter((item) => item.dealType !== 'combo')
         .filter((item) => {
-          const source = listings.find((listing) => listing.id === item.id);
+          const source = allDealListings.find((listing) => listing.id === item.id);
           return source ? isDealActiveNow(source, nowMs) : false;
         })
-        .sort((a, b) => Number(a.dealEndsAt || 0) - Number(b.dealEndsAt || 0))
-        .slice(0, 6),
-    [listings, mappedDeals, nowMs]
+        .sort((a, b) => Number(a.dealEndsAt || 0) - Number(b.dealEndsAt || 0)),
+    [allDealListings, sortedMappedDeals, nowMs]
   );
 
   const upcomingDeals = useMemo(
     () =>
-      mappedDeals.filter((item) => {
-        const source = listings.find((listing) => listing.id === item.id);
+      sortedMappedDeals.filter((item) => {
+        const source = allDealListings.find((listing) => listing.id === item.id);
         return source ? isDealUpcoming(source, nowMs) : false;
       }),
-    [listings, mappedDeals, nowMs]
+    [allDealListings, sortedMappedDeals, nowMs]
   );
 
   const comboDeals = useMemo(
     () =>
-      mappedDeals.filter((item) => {
-        const source = listings.find((listing) => listing.id === item.id);
+      sortedMappedDeals.filter((item) => {
+        const source = allDealListings.find((listing) => listing.id === item.id);
         return item.dealType === 'combo' && source ? isDealActiveNow(source, nowMs) : false;
       }),
-    [listings, mappedDeals, nowMs]
+    [allDealListings, sortedMappedDeals, nowMs]
   );
 
   const expiredDeals = useMemo(
     () =>
-      mappedDeals
+      sortedMappedDeals
         .filter((item) => {
-          const source = listings.find((listing) => listing.id === item.id);
+          const source = allDealListings.find((listing) => listing.id === item.id);
           return source ? isDealExpired(source, nowMs) : false;
         })
-        .sort((a, b) => Number(b.dealEndsAt || 0) - Number(a.dealEndsAt || 0))
-        .slice(0, 6),
-    [listings, mappedDeals, nowMs]
+        .sort((a, b) => Number(b.dealEndsAt || 0) - Number(a.dealEndsAt || 0)),
+    [allDealListings, sortedMappedDeals, nowMs]
   );
+
+  const showTodaySection = !selectedSection || selectedSection === 'today';
+  const showUpcomingSection = !selectedSection || selectedSection === 'upcoming';
+  const showComboSection = !selectedSection || selectedSection === 'combo';
+  const showExpiredSection = !selectedSection || selectedSection === 'expired';
+
+  const heroTitle =
+    selectedSection === 'today'
+      ? "Today's Deals"
+      : selectedSection === 'upcoming'
+        ? 'Upcoming Deals'
+        : selectedSection === 'combo'
+          ? 'Combo Deals'
+          : selectedSection === 'expired'
+            ? 'Expired Deals'
+            : 'Discover Deals';
+  const heroSubtitle =
+    selectedSection === 'today'
+      ? 'Browse every live deal currently active across NearHub.'
+      : selectedSection === 'upcoming'
+        ? 'Browse every scheduled deal that is starting soon.'
+        : selectedSection === 'combo'
+          ? 'Browse every active combo bundle in one place.'
+          : selectedSection === 'expired'
+            ? 'Browse all expired deals kept for reference.'
+            : hasCurrentLocationCoordinates
+              ? 'Browse live offers, upcoming promotions, and combo bundles in the same native app layout as the rest of NearHub.'
+              : dealsLocationMessage;
 
   return (
     <ScrollView
       style={styles.container}
-      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refreshListings} />}
+      refreshControl={
+        <RefreshControl refreshing={isRefreshing || isBroadRefreshing} onRefresh={refreshDeals} />
+      }
       contentContainerStyle={{ paddingBottom: insets.bottom + 96 }}
     >
       <View style={[styles.hero, { paddingTop: insets.top + 12 }]}>
         <AppTopHeader
           eyebrow="NearHub Deals"
-          title="Discover Deals"
-          subtitle="Browse live offers, upcoming promotions, and combo bundles in the same native app layout as the rest of NearHub."
+          title={heroTitle}
+          subtitle={heroSubtitle}
           rightAction={
             <Pressable style={styles.bookingsButton} onPress={() => router.push('/bookings')}>
               <Feather name="clipboard" size={16} color={Colors.text} />
@@ -500,12 +580,12 @@ export default function DealsScreen() {
         />
       </View>
 
-      <View style={styles.section}>
+      {showTodaySection ? <View style={styles.section}>
         <SectionHeader
           icon={<Feather name="tag" size={18} color={Colors.primary} />}
           title="Today's Deals"
         />
-        {todaysDeals.length > 0 ? (
+        {hasCurrentLocationCoordinates && todaysDeals.length > 0 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -526,17 +606,23 @@ export default function DealsScreen() {
             ))}
           </ScrollView>
         ) : (
-          <EmptyState message="No active deals are available right now." />
+          <EmptyState
+            message={
+              hasCurrentLocationCoordinates
+                ? 'No active deals are available right now.'
+                : dealsLocationMessage
+            }
+          />
         )}
-      </View>
+      </View> : null}
 
-      <View style={styles.section}>
+      {showUpcomingSection ? <View style={styles.section}>
         <SectionHeader
           icon={<Feather name="zap" size={18} color="#F97316" />}
           title="Upcoming Deals"
           subtitle="Deals starting soon, sorted by distance"
         />
-        {upcomingDeals.length > 0 ? (
+        {hasCurrentLocationCoordinates && upcomingDeals.length > 0 ? (
           <View style={styles.grid}>
             {upcomingDeals.map((item) => (
               <View key={item.id} style={styles.gridItem}>
@@ -552,17 +638,23 @@ export default function DealsScreen() {
             ))}
           </View>
         ) : (
-          <EmptyState message="No upcoming deals are available right now." />
+          <EmptyState
+            message={
+              hasCurrentLocationCoordinates
+                ? 'No upcoming deals are available right now.'
+                : dealsLocationMessage
+            }
+          />
         )}
-      </View>
+      </View> : null}
 
-      <View style={styles.section}>
+      {showComboSection ? <View style={styles.section}>
         <SectionHeader
           icon={<Feather name="gift" size={18} color="#F97316" />}
           title="Combo Deals You'll Love"
           subtitle="Save more with handpicked product bundles by distance"
         />
-        {comboDeals.length > 0 ? (
+        {hasCurrentLocationCoordinates && comboDeals.length > 0 ? (
           <View style={styles.comboGrid}>
             {comboDeals.map((item) => (
               <ComboDealCard
@@ -575,17 +667,23 @@ export default function DealsScreen() {
             ))}
           </View>
         ) : (
-          <EmptyState message="No combo deals are available right now." />
+          <EmptyState
+            message={
+              hasCurrentLocationCoordinates
+                ? 'No combo deals are available right now.'
+                : dealsLocationMessage
+            }
+          />
         )}
-      </View>
+      </View> : null}
 
-      <View style={styles.section}>
+      {showExpiredSection ? <View style={styles.section}>
         <SectionHeader
           icon={<Feather name="clock" size={18} color={Colors.textSecondary} />}
           title="Expired Deals"
           subtitle="Closed offers are still visible for price reference"
         />
-        {expiredDeals.length > 0 ? (
+        {hasCurrentLocationCoordinates && expiredDeals.length > 0 ? (
           <View style={styles.grid}>
             {expiredDeals.map((item) => (
               <View key={item.id} style={styles.gridItem}>
@@ -601,9 +699,13 @@ export default function DealsScreen() {
             ))}
           </View>
         ) : (
-          <EmptyState message="No expired deals yet." />
+          <EmptyState
+            message={
+              hasCurrentLocationCoordinates ? 'No expired deals yet.' : dealsLocationMessage
+            }
+          />
         )}
-      </View>
+      </View> : null}
     </ScrollView>
   );
 }

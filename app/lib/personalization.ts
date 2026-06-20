@@ -10,7 +10,7 @@
  * - Trending factor (5 points)
  */
 
-import { calculateDistance } from './location-data';
+import { calculateDistance, hasMeaningfulCoordinates } from './location-data';
 import type { UserInterests, CategoryInterest } from '@/shared/contexts/user-interests-context';
 import type { Listing } from './types';
 
@@ -62,11 +62,17 @@ function calculateLocationScore(
   userLat?: number,
   userLon?: number
 ): { score: number; explanation: string } {
-  if (!userLat || !userLon) {
+  if (!hasMeaningfulCoordinates(userLat ?? NaN, userLon ?? NaN)) {
     return { score: 12.5, explanation: 'Location unknown' };
   }
 
-  const distance = calculateDistance(userLat, userLon, listingLat, listingLon);
+  if (!hasMeaningfulCoordinates(listingLat, listingLon)) {
+    return { score: 5, explanation: '📍 Location unavailable' };
+  }
+
+  const sourceLat = userLat as number;
+  const sourceLon = userLon as number;
+  const distance = calculateDistance(sourceLat, sourceLon, listingLat, listingLon);
 
   // Score inversely proportional to distance
   // 0-5km: 25 points

@@ -57,8 +57,7 @@ export default function UserFormModal({ mode, user, onClose, onSaved }: UserForm
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const isSaving = createUser.isPending || updateUser.isPending;
-  const subscriptions: AdminUserSubscription[] =
-    userDetailQuery.data?.data?.subscriptions ?? [];
+  const subscriptions: AdminUserSubscription[] = userDetailQuery.data?.data?.subscriptions ?? [];
 
   const inputClass =
     'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-4 focus:ring-cyan-100';
@@ -276,9 +275,7 @@ export default function UserFormModal({ mode, user, onClose, onSaved }: UserForm
                               <Clock3 size={12} />
                               Expires {formatDate(subscription.expiresAt)}
                             </p>
-                            <p className="mt-1">
-                              Started {formatDate(subscription.subscribedAt)}
-                            </p>
+                            <p className="mt-1">Started {formatDate(subscription.subscribedAt)}</p>
                           </div>
                         </div>
 
@@ -304,7 +301,10 @@ export default function UserFormModal({ mode, user, onClose, onSaved }: UserForm
                               Payment
                             </p>
                             <p className="truncate text-sm font-bold text-slate-900">
-                              {subscription.paymentId || subscription.orderId || subscription.invoiceId || '-'}
+                              {subscription.paymentId ||
+                                subscription.orderId ||
+                                subscription.invoiceId ||
+                                '-'}
                             </p>
                           </div>
                         </div>

@@ -123,13 +123,13 @@ export default function DealBookingsScreen() {
 
       setDownloadingVoucherId(booking.id);
       try {
-        const result = await downloadDealVoucherPdf(booking.id, {
+        await downloadDealVoucherPdf(booking.id, {
           id: user.id,
           phone: user.phone || undefined,
           token: user.token || undefined,
         });
         if (Platform.OS !== 'web') {
-          Alert.alert('Voucher ready', `Saved PDF voucher to:\n${result.uri}`);
+          Alert.alert('Voucher ready', 'The PDF opened in your browser or PDF viewer.');
         }
       } catch (error) {
         Alert.alert(

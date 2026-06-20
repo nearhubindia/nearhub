@@ -35,7 +35,7 @@ const LISTINGS_KEY = '@marketlocal_listings';
 const SAVED_KEY = '@marketlocal_saved';
 const INITIALIZED_KEY = '@marketlocal_initialized';
 const DATA_VERSION_KEY = '@marketlocal_data_version';
-const CURRENT_DATA_VERSION = '11'; // Refresh cache to clear stale listings and enforce latest geo-filtering
+const CURRENT_DATA_VERSION = '12'; // Refresh cache so deal-field normalization updates take effect
 const NETWORK_TIMEOUT_MS = 12000;
 const isDebugLoggingEnabled = getDebug();
 
@@ -441,38 +441,54 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                 : undefined,
             duration: Number(listing.durationDays || listing.duration || 0) || undefined,
             durationDays: Number(listing.durationDays || listing.duration || 0) || undefined,
-            isDeal: Boolean(listing.isDeal),
-            dealType: (listing.dealType || undefined) as Listing['dealType'],
-            dealStartAt: listing.dealStartAt || undefined,
-            dealEndAt: listing.dealEndAt || undefined,
-            dealRecurrence: (listing.dealRecurrence || undefined) as Listing['dealRecurrence'],
-            dealRecurrenceUntil: listing.dealRecurrenceUntil || undefined,
+            isDeal: Boolean(listing.isDeal ?? listing.is_deal),
+            dealType: (listing.dealType ?? listing.deal_type ?? undefined) as Listing['dealType'],
+            dealStartAt: listing.dealStartAt ?? listing.deal_start_at ?? undefined,
+            dealEndAt: listing.dealEndAt ?? listing.deal_end_at ?? undefined,
+            dealRecurrence: (listing.dealRecurrence ??
+              listing.deal_recurrence ??
+              undefined) as Listing['dealRecurrence'],
+            dealRecurrenceUntil:
+              listing.dealRecurrenceUntil ?? listing.deal_recurrence_until ?? undefined,
             dealCycleQuantity:
-              listing.dealCycleQuantity !== undefined && listing.dealCycleQuantity !== null
-                ? Number(listing.dealCycleQuantity)
+              (listing.dealCycleQuantity ?? listing.deal_cycle_quantity) !== undefined &&
+              (listing.dealCycleQuantity ?? listing.deal_cycle_quantity) !== null
+                ? Number(listing.dealCycleQuantity ?? listing.deal_cycle_quantity)
                 : undefined,
             maxDealBookings:
-              listing.maxDealBookings !== undefined && listing.maxDealBookings !== null
-                ? Number(listing.maxDealBookings)
+              (listing.maxDealBookings ?? listing.max_deal_bookings) !== undefined &&
+              (listing.maxDealBookings ?? listing.max_deal_bookings) !== null
+                ? Number(listing.maxDealBookings ?? listing.max_deal_bookings)
                 : undefined,
             purchaseLimitType:
-              listing.purchaseLimitType === 'ONE_TIME' || listing.purchaseLimitType === 'UNLIMITED'
-                ? listing.purchaseLimitType
+              (listing.purchaseLimitType ?? listing.purchase_limit_type) === 'ONE_TIME' ||
+              (listing.purchaseLimitType ?? listing.purchase_limit_type) === 'UNLIMITED'
+                ? ((listing.purchaseLimitType ?? listing.purchase_limit_type) as
+                    | 'ONE_TIME'
+                    | 'UNLIMITED')
                 : undefined,
-            postDealPriceMode: (listing.postDealPriceMode ||
+            postDealPriceMode: (listing.postDealPriceMode ??
+              listing.post_deal_price_mode ??
               undefined) as Listing['postDealPriceMode'],
             postDealDiscountPrice:
-              listing.postDealDiscountPrice !== undefined && listing.postDealDiscountPrice !== null
-                ? Number(listing.postDealDiscountPrice)
+              (listing.postDealDiscountPrice ?? listing.post_deal_discount_price) !== undefined &&
+              (listing.postDealDiscountPrice ?? listing.post_deal_discount_price) !== null
+                ? Number(listing.postDealDiscountPrice ?? listing.post_deal_discount_price)
                 : undefined,
-            comboItems: Array.isArray(listing.comboItems) ? listing.comboItems : undefined,
+            comboItems: Array.isArray(listing.comboItems)
+              ? listing.comboItems
+              : Array.isArray(listing.combo_items)
+                ? listing.combo_items
+                : undefined,
             dealTerms:
-              typeof listing.dealTerms === 'string' && listing.dealTerms.trim()
-                ? listing.dealTerms.trim()
+              typeof (listing.dealTerms ?? listing.deal_terms) === 'string' &&
+              String(listing.dealTerms ?? listing.deal_terms).trim()
+                ? String(listing.dealTerms ?? listing.deal_terms).trim()
                 : undefined,
             voucherEnabled:
-              listing.voucherEnabled !== undefined && listing.voucherEnabled !== null
-                ? Boolean(listing.voucherEnabled)
+              (listing.voucherEnabled ?? listing.voucher_enabled) !== undefined &&
+              (listing.voucherEnabled ?? listing.voucher_enabled) !== null
+                ? Boolean(listing.voucherEnabled ?? listing.voucher_enabled)
                 : undefined,
             status: listing.status || 'active',
             rejectionReason:

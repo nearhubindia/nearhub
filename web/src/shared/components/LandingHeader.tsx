@@ -174,10 +174,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
   const [user, setUser] = useState<StoredWebUser | null>(null);
   const navigate = useNavigate();
   const routerLocation = useLocation();
-  const authRegisterPath = buildAuthRegisterPath(
-    routerLocation.pathname,
-    routerLocation.search
-  );
+  const authRegisterPath = buildAuthRegisterPath(routerLocation.pathname, routerLocation.search);
   const appendSearch = (path: string) => `${path}${routerLocation.search || ''}`;
   const storedGeoCoords = useMemo(() => readStoredWebGeoCoords(), []);
   const persistedHeaderState = useMemo(() => readPersistedHeaderState(HEADER_PERSIST_KEY), []);
@@ -797,7 +794,9 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                   <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
                 ) : null}
               </span>
-              <span className="max-w-[7.5rem] truncate pr-0.5">{isLoggedIn ? userLabel : 'User'}</span>
+              <span className="max-w-[7.5rem] truncate pr-0.5">
+                {isLoggedIn ? userLabel : 'User'}
+              </span>
               <ChevronDown
                 size={14}
                 className={`ml-0.5 text-slate-400 transition duration-200 ${
@@ -922,7 +921,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
       </Container>
 
       {isMenuOpen ? (
-        <div ref={mobileMenuPanelRef} className="border-t border-slate-200 bg-white px-4 py-3 md:hidden">
+        <div
+          ref={mobileMenuPanelRef}
+          className="border-t border-slate-200 bg-white px-4 py-3 md:hidden"
+        >
           <Container className="flex flex-col gap-2 text-sm font-semibold">
             <Link
               to={appendSearch('/search')}

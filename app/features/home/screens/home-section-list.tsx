@@ -8,7 +8,7 @@ import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useUserInterests } from '@/shared/contexts/user-interests-context';
-import { calculateDistance } from '@/lib/location-data';
+import { calculateBestDistance, hasMeaningfulCoordinates } from '@/lib/location-data';
 import { isHotelDeal, isNewProductDeal, isRestaurantDeal } from '@/lib/deals';
 import { formatCondition } from '@/lib/utils';
 import ListingCard from '@/shared/components/ListingCard';
@@ -47,6 +47,7 @@ export default function HomeSectionListScreen() {
             ? 'New Product Deals'
             : 'Near You';
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const hasUserCoordinates = hasMeaningfulCoordinates(Number(userLat), Number(userLon));
 
   const visibleListings = useMemo(
     () =>
@@ -60,28 +61,45 @@ export default function HomeSectionListScreen() {
   );
 
   const listingsByLocation = useMemo(() => {
-    if (userLat === null || userLon === null) return visibleListings;
+    if (!hasUserCoordinates || userLat === null || userLon === null) return visibleListings;
+    const sourceLat = userLat;
+    const sourceLon = userLon;
 
     return visibleListings.filter((item) => {
-      const distance = calculateDistance(
-        userLat,
-        userLon,
+      if (!hasMeaningfulCoordinates(item.location.latitude, item.location.longitude)) {
+        return false;
+      }
+      const distance = calculateBestDistance(
+        sourceLat,
+        sourceLon,
         item.location.latitude,
         item.location.longitude
       );
       return distance <= selectedRadiusKm;
     });
-  }, [visibleListings, userLat, userLon, selectedRadiusKm]);
+  }, [visibleListings, userLat, userLon, selectedRadiusKm, hasUserCoordinates]);
 
   const nearYouListings = useMemo(() => {
-    if (userLat === null || userLon === null) return [];
+    if (!hasUserCoordinates || userLat === null || userLon === null) return [];
+    const sourceLat = userLat;
+    const sourceLon = userLon;
 
     return [...listingsByLocation].sort((a, b) => {
-      const distA = calculateDistance(userLat, userLon, a.location.latitude, a.location.longitude);
-      const distB = calculateDistance(userLat, userLon, b.location.latitude, b.location.longitude);
+      const distA = calculateBestDistance(
+        sourceLat,
+        sourceLon,
+        a.location.latitude,
+        a.location.longitude
+      );
+      const distB = calculateBestDistance(
+        sourceLat,
+        sourceLon,
+        b.location.latitude,
+        b.location.longitude
+      );
       return distA - distB;
     });
-  }, [listingsByLocation, userLat, userLon]);
+  }, [listingsByLocation, userLat, userLon, hasUserCoordinates]);
 
   const featuredListings = useMemo(
     () => listingsByLocation.filter((item) => Boolean(item.featured)),

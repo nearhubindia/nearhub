@@ -13,8 +13,8 @@ if [[ -f "$CONFIG_FILE" ]]; then
   set +a
 fi
 
-VERSION_CODE="${VERSION_CODE:-45}"
-VERSION_NAME="${VERSION_NAME:-1.3.4}"
+VERSION_CODE="${VERSION_CODE:-58}"
+VERSION_NAME="${VERSION_NAME:-1.3.12}"
 MIN_SDK_VERSION="${MIN_SDK_VERSION:-24}"
 ANDROID_ENABLE_MINIFY_IN_RELEASE_BUILDS="${ANDROID_ENABLE_MINIFY_IN_RELEASE_BUILDS:-true}"
 ANDROID_RELEASE_ABIS="${ANDROID_RELEASE_ABIS:-armeabi-v7a,arm64-v8a}"
@@ -43,7 +43,7 @@ echo "  GRADLE_USER_HOME=$GRADLE_USER_HOME"
 echo "Starting local Android App Bundle build..."
 (
   cd "$ROOT_DIR/android"
-  ./gradlew :app:bundleRelease "-PreactNativeArchitectures=$ANDROID_RELEASE_ABIS"
+  ./gradlew --no-daemon :app:bundleRelease "-PreactNativeArchitectures=$ANDROID_RELEASE_ABIS"
 )
 
 AAB_SOURCE="$ROOT_DIR/android/app/build/outputs/bundle/release/app-release.aab"

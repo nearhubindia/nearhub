@@ -3,9 +3,10 @@
  * Send and manage notifications from one place.
  */
 
-import { useState, useEffect } from 'react';
-import { Send, Trash2, TrendingUp, AlertCircle } from 'lucide-react';
+import { useState, useEffect, type ChangeEvent } from 'react';
+import { Send, Trash2, TrendingUp, AlertCircle, Upload, X } from 'lucide-react';
 import { getApiUrl } from '@/lib/config';
+import { uploadListingImages } from '@/features/admin/utils/listing-media-upload';
 
 function getAdminToken() {
   return localStorage.getItem('adminToken') || '';
@@ -20,6 +21,7 @@ interface InAppNotification {
   type: string;
   actionLabel: string | null;
   actionUrl: string | null;
+  imageUrl: string | null;
   category: string | null;
   referenceId: string | null;
   isRead: boolean;
@@ -62,6 +64,8 @@ export default function InAppNotificationsView() {
   const [category, setCategory] = useState('');
   const [actionLabel, setActionLabel] = useState('');
   const [actionUrl, setActionUrl] = useState('');
+  const [bannerImageUrl, setBannerImageUrl] = useState('');
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
 
   // Success/error state
   const [successMessage, setSuccessMessage] = useState('');
@@ -109,6 +113,24 @@ export default function InAppNotificationsView() {
     }
   };
 
+  const handleBannerUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!selectedFile) return;
+
+    try {
+      setIsUploadingBanner(true);
+      setErrorMessage('');
+      const [publicUrl] = await uploadListingImages([selectedFile]);
+      setBannerImageUrl(publicUrl || '');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to upload banner image');
+    } finally {
+      setIsUploadingBanner(false);
+    }
+  };
+
   const handleSendNotification = async () => {
     if (!title.trim() || !message.trim()) {
       setErrorMessage('Title and message are required');
@@ -133,6 +155,7 @@ export default function InAppNotificationsView() {
           notificationType: category.trim() || 'admin_broadcast',
           actionUrl: actionUrl || undefined,
           priority: priority === 'urgent' || priority === 'high' ? 'high' : 'normal',
+          imageUrl: bannerImageUrl.trim() || undefined,
           data: {
             type: notificationType,
             category: category.trim() || 'system',
@@ -151,6 +174,7 @@ export default function InAppNotificationsView() {
         setCategory('');
         setActionLabel('');
         setActionUrl('');
+        setBannerImageUrl('');
         fetchStats();
         fetchNotifications();
       } else {
@@ -358,15 +382,16 @@ export default function InAppNotificationsView() {
             </p>
             <h1 className="mb-2 text-3xl font-black sm:text-4xl">Notifications</h1>
             <p className="text-sm text-slate-200 sm:text-base">
-              Send notifications, track recent activity, and keep the app feed clean from one
-              place.
+              Send notifications, track recent activity, and keep the app feed clean from one place.
             </p>
           </div>
           <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
             <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/70">
               Live Sync
             </div>
-            <div className="mt-1 text-sm text-white">Push delivery and app activity stay aligned.</div>
+            <div className="mt-1 text-sm text-white">
+              Push delivery and app activity stay aligned.
+            </div>
           </div>
         </div>
       </div>
@@ -387,7 +412,9 @@ export default function InAppNotificationsView() {
                 Unread
               </div>
               <div className="mt-3 text-3xl font-black text-cyan-900">{stats.unread}</div>
-              <div className="mt-1 text-sm text-cyan-800/80">Waiting in user notification trays</div>
+              <div className="mt-1 text-sm text-cyan-800/80">
+                Waiting in user notification trays
+              </div>
             </div>
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
@@ -396,7 +423,9 @@ export default function InAppNotificationsView() {
               <div className="mt-3 text-3xl font-black text-emerald-900">
                 {stats.byType.success || 0}
               </div>
-              <div className="mt-1 text-sm text-emerald-800/80">Positive updates and confirmations</div>
+              <div className="mt-1 text-sm text-emerald-800/80">
+                Positive updates and confirmations
+              </div>
             </div>
             <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-5 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
@@ -405,7 +434,9 @@ export default function InAppNotificationsView() {
               <div className="mt-3 text-3xl font-black text-amber-900">
                 {stats.byType.warning || 0}
               </div>
-              <div className="mt-1 text-sm text-amber-800/80">Reminders, nudges, and expiring items</div>
+              <div className="mt-1 text-sm text-amber-800/80">
+                Reminders, nudges, and expiring items
+              </div>
             </div>
           </div>
         )}
@@ -566,11 +597,76 @@ export default function InAppNotificationsView() {
               />
             </div>
 
+            {/* Banner Image */}
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                Banner Image
+              </label>
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50">
+                    {isUploadingBanner ? (
+                      <>
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={16} />
+                        Upload banner
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleBannerUpload}
+                      className="hidden"
+                      disabled={isUploadingBanner}
+                    />
+                  </label>
+                  <span className="text-xs font-medium leading-5 text-slate-500">
+                    Optional. Uses the same image in push and the app notification feed.
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                  <input
+                    type="url"
+                    value={bannerImageUrl}
+                    onChange={(e) => setBannerImageUrl(e.target.value)}
+                    placeholder="Paste banner image URL or upload a file"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2"
+                  />
+                  {bannerImageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => setBannerImageUrl('')}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-rose-600 ring-1 ring-rose-100 transition hover:bg-rose-50"
+                    >
+                      <X size={16} />
+                      Clear
+                    </button>
+                  ) : null}
+                </div>
+
+                {bannerImageUrl ? (
+                  <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    <img
+                      src={bannerImageUrl}
+                      alt="Notification banner preview"
+                      className="h-44 w-full object-cover"
+                      onError={(event) => {
+                        event.currentTarget.src = '/nearhub.png';
+                      }}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
             {/* Category */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Category
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Category</label>
               <input
                 type="text"
                 value={category}
@@ -582,9 +678,7 @@ export default function InAppNotificationsView() {
 
             {/* Action Button (Optional) */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Action Link
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Action Link</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   type="text"
@@ -619,9 +713,9 @@ export default function InAppNotificationsView() {
             {/* Send Button */}
             <button
               onClick={handleSendNotification}
-              disabled={sending || !title.trim() || !message.trim()}
+              disabled={sending || isUploadingBanner || !title.trim() || !message.trim()}
               className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 font-semibold ${
-                sending || !title.trim() || !message.trim()
+                sending || isUploadingBanner || !title.trim() || !message.trim()
                   ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                   : 'bg-gradient-to-r from-teal-500 to-cyan-500 text-white hover:from-teal-600 hover:to-cyan-600'
               }`}
@@ -630,6 +724,11 @@ export default function InAppNotificationsView() {
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Sending...
+                </>
+              ) : isUploadingBanner ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+                  Uploading banner...
                 </>
               ) : (
                 <>
@@ -668,6 +767,18 @@ export default function InAppNotificationsView() {
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
+                        {notification.imageUrl ? (
+                          <div className="mb-3 overflow-hidden rounded-xl border border-slate-200">
+                            <img
+                              src={notification.imageUrl}
+                              alt={notification.title}
+                              className="h-36 w-full object-cover"
+                              onError={(event) => {
+                                event.currentTarget.src = '/nearhub.png';
+                              }}
+                            />
+                          </div>
+                        ) : null}
                         <div className="flex items-center gap-2 mb-1">
                           <span
                             className={`rounded-full px-2 py-0.5 text-xs font-medium ${getTypeColor(notification.type)}`}

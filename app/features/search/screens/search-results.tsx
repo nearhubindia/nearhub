@@ -21,7 +21,7 @@ import {
   rankListingsByPersonalization,
   hasEnoughDataForPersonalization,
 } from '@/lib/personalization';
-import { calculateDistance } from '@/lib/location-data';
+import { calculateBestDistance, hasMeaningfulCoordinates } from '@/lib/location-data';
 import { Category } from '@/lib/types';
 import { formatCondition } from '@/lib/utils';
 import ListingCard from '@/shared/components/ListingCard';
@@ -85,21 +85,27 @@ export default function SearchResultsScreen() {
   const isProductCategorySelected = isProductCategory(selectedCategory);
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
+  const hasUserCoordinates = hasMeaningfulCoordinates(Number(userLat), Number(userLon));
   const distanceByListingId = useMemo(() => {
-    if (userLat === null || userLon === null) return new Map<string, number>();
+    if (!hasUserCoordinates || userLat === null || userLon === null) return new Map<string, number>();
 
     const distanceMap = new Map<string, number>();
+    const sourceLat = userLat;
+    const sourceLon = userLon;
     for (const item of listings) {
-      const distance = calculateDistance(
-        userLat,
-        userLon,
+      if (!hasMeaningfulCoordinates(item.location.latitude, item.location.longitude)) {
+        continue;
+      }
+      const distance = calculateBestDistance(
+        sourceLat,
+        sourceLon,
         item.location.latitude,
         item.location.longitude
       );
       distanceMap.set(item.id, distance);
     }
     return distanceMap;
-  }, [listings, userLat, userLon]);
+  }, [listings, userLat, userLon, hasUserCoordinates]);
 
   const filteredListings = useMemo(() => {
     let results = listings.filter((item) => {
@@ -130,7 +136,7 @@ export default function SearchResultsScreen() {
       );
     }
 
-    if (userLat !== null && userLon !== null) {
+    if (hasUserCoordinates) {
       results = results.filter((item) => {
         const distance = distanceByListingId.get(item.id);
         return distance !== undefined && distance <= effectiveRadiusKm;
@@ -144,7 +150,7 @@ export default function SearchResultsScreen() {
     }
 
     // Sort by distance if location is available
-    if (userLat !== null && userLon !== null) {
+    if (hasUserCoordinates) {
       results = results.sort((a, b) => {
         const distA = distanceByListingId.get(a.id) ?? Number.POSITIVE_INFINITY;
         const distB = distanceByListingId.get(b.id) ?? Number.POSITIVE_INFINITY;
@@ -161,6 +167,7 @@ export default function SearchResultsScreen() {
     hasEnoughData,
     userLat,
     userLon,
+    hasUserCoordinates,
     effectiveRadiusKm,
     distanceByListingId,
     isProductCategorySelected,

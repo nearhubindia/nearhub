@@ -25,7 +25,7 @@ import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useUserInterests } from '@/shared/contexts/user-interests-context';
 import { getPersonalizedShortsFeed, hasEnoughDataForPersonalization } from '@/lib/personalization';
-import { calculateDistance } from '@/lib/location-data';
+import { calculateBestDistance, hasMeaningfulCoordinates } from '@/lib/location-data';
 import { formatCondition } from '@/lib/utils';
 import { useAdminSettings } from '@/lib/use-admin-settings';
 import { getShortsSwipeHapticsEnabled } from '@/lib/config';
@@ -147,7 +147,7 @@ export default function ShortsScreen() {
 
     const userLat = Number(user?.location?.latitude);
     const userLon = Number(user?.location?.longitude);
-    const hasUserCoordinates = Number.isFinite(userLat) && Number.isFinite(userLon);
+    const hasUserCoordinates = hasMeaningfulCoordinates(userLat, userLon);
     const userCity = String(user?.location?.city || '')
       .trim()
       .toLowerCase();
@@ -160,11 +160,11 @@ export default function ShortsScreen() {
       filtered = filtered.filter((l) => {
         const listingLat = Number(l.location.latitude);
         const listingLon = Number(l.location.longitude);
-        if (!Number.isFinite(listingLat) || !Number.isFinite(listingLon)) {
+        if (!hasMeaningfulCoordinates(listingLat, listingLon)) {
           return false;
         }
 
-        const distance = calculateDistance(userLat, userLon, listingLat, listingLon);
+        const distance = calculateBestDistance(userLat, userLon, listingLat, listingLon);
         return Number.isFinite(distance) && distance <= effectiveGeoRadiusKm;
       });
     } else if (userCity || userState) {

@@ -241,8 +241,8 @@ export default function UsersView() {
             className="cursor-pointer rounded-lg p-2 transition hover:bg-teal-100"
             title="Edit User"
             type="button"
-            >
-              <Edit2 size={16} className="text-teal-600" />
+          >
+            <Edit2 size={16} className="text-teal-600" />
           </button>
           <button
             onClick={() => handleGrantSubscriptionClick(row.original)}

@@ -3232,6 +3232,29 @@ export function registerSubscriptionRoutes(app: Express) {
             .json({ success: false, error: "Boost plan has no boost credits" });
         }
 
+        try {
+          const boostAmount = Number(
+            (tier as any).offerPrice != null ? (tier as any).offerPrice : (tier as any).price || 0,
+          );
+          await upsertCompletedTransaction({
+            subscriptionId: String(subscriptionId),
+            userId: String(userId),
+            amount: Number.isFinite(boostAmount) ? boostAmount : 0,
+            paymentId: String(razorpay_payment_id),
+            orderId: String(razorpay_order_id),
+            razorpayData: {
+              source: "boost-verify-payment",
+              tierId: String(tierId),
+              listingId: listingId ? String(listingId) : null,
+            },
+          });
+        } catch (transactionError) {
+          console.error(
+            "[Subscriptions] Failed to persist boost transaction record:",
+            transactionError,
+          );
+        }
+
         const { db } = await import("../../../data/db");
         const { userSubscriptions } =
           await import("../../admin/models/admin-settings");
@@ -3513,6 +3536,26 @@ export function registerSubscriptionRoutes(app: Express) {
             success: false,
             error: "Failed to upgrade listing",
           });
+        }
+
+        try {
+          await upsertCompletedTransaction({
+            subscriptionId: null,
+            userId: String(userId),
+            amount: numericPrice,
+            paymentId: String(razorpay_payment_id),
+            orderId: String(razorpay_order_id),
+            razorpayData: {
+              source: "upgrade-listing-verify-payment",
+              listingId: String(listingId),
+              duration: Number(duration),
+            },
+          });
+        } catch (transactionError) {
+          console.error(
+            "[Subscriptions] Failed to persist listing upgrade transaction record:",
+            transactionError,
+          );
         }
 
         console.log(

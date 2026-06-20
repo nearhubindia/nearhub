@@ -84,7 +84,9 @@ function extractShortsPath(pathname: string): string | null {
 }
 
 function extractSubscriptionsPath(pathname: string): string | null {
-  const trimmed = String(pathname || '').split('#')[0].trim();
+  const trimmed = String(pathname || '')
+    .split('#')[0]
+    .trim();
   if (!trimmed) return null;
 
   const [cleanPath, query = ''] = trimmed.split('?');

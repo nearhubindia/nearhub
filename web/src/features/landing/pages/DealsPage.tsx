@@ -6,7 +6,11 @@ import { ComboDealCard } from '@/features/landing/components/ComboDealCard';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
-import { FALLBACK_LISTING_IMAGE, getListingImages, getPrimaryListingImage } from '@/features/landing/lib';
+import {
+  FALLBACK_LISTING_IMAGE,
+  getListingImages,
+  getPrimaryListingImage,
+} from '@/features/landing/lib';
 import {
   SAVED_LISTING_IDS_KEY,
   countdownPartsFromMs,
@@ -403,12 +407,8 @@ export default function DealsPage(): ReactElement {
   const upcomingDeals = filteredDeals.filter((item) => isUpcomingDeal(item, nowMs));
   const expiredDeals = filteredDeals.filter((item) => isExpiredDeal(item, nowMs));
 
-  const allDeals = activeDeals.filter(
-    (item) => !isComboDeal(item)
-  );
-  const comboDeals = activeDeals.filter(
-    (item) => isComboDeal(item)
-  );
+  const allDeals = activeDeals.filter((item) => !isComboDeal(item));
+  const comboDeals = activeDeals.filter((item) => isComboDeal(item));
 
   return (
     <div className="min-h-screen bg-[#f7faff] text-slate-950">
@@ -484,7 +484,7 @@ export default function DealsPage(): ReactElement {
           </div>
           {upcomingDeals.length > 0 ? (
             <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-              {upcomingDeals.map((item) => (
+              {upcomingDeals.map((item) =>
                 isComboDeal(item) ? (
                   <ComboDealCard
                     key={`upcoming-${item.id}`}
@@ -503,7 +503,7 @@ export default function DealsPage(): ReactElement {
                     nowMs={nowMs}
                   />
                 )
-              ))}
+              )}
             </div>
           ) : (
             <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">
@@ -528,7 +528,7 @@ export default function DealsPage(): ReactElement {
           </div>
           {expiredDeals.length > 0 ? (
             <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-              {expiredDeals.map((item) => (
+              {expiredDeals.map((item) =>
                 isComboDeal(item) ? (
                   <ComboDealCard
                     key={`expired-${item.id}`}
@@ -547,7 +547,7 @@ export default function DealsPage(): ReactElement {
                     nowMs={nowMs}
                   />
                 )
-              ))}
+              )}
             </div>
           ) : (
             <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">

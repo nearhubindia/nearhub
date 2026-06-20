@@ -65,6 +65,38 @@ interface UploadProgressState {
 
 const LISTING_IMAGE_CROP_ASPECT: [number, number] = [3, 4];
 
+const padTwo = (value: number) => String(value).padStart(2, '0');
+
+const toDateInputValue = (date: Date) =>
+  `${date.getFullYear()}-${padTwo(date.getMonth() + 1)}-${padTwo(date.getDate())}`;
+
+const toTimeInputValue = (date: Date) => `${padTwo(date.getHours())}:${padTwo(date.getMinutes())}`;
+
+const parseLocalDateTime = (dateValue: string, timeValue: string): Date | null => {
+  const dateMatch = dateValue.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const timeMatch = timeValue.trim().match(/^(\d{2}):(\d{2})$/);
+  if (!dateMatch || !timeMatch) return null;
+
+  const year = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]);
+  const day = Number(dateMatch[3]);
+  const hour = Number(timeMatch[1]);
+  const minute = Number(timeMatch[2]);
+  const candidate = new Date(year, month - 1, day, hour, minute, 0, 0);
+
+  if (
+    candidate.getFullYear() !== year ||
+    candidate.getMonth() !== month - 1 ||
+    candidate.getDate() !== day ||
+    candidate.getHours() !== hour ||
+    candidate.getMinutes() !== minute
+  ) {
+    return null;
+  }
+
+  return candidate;
+};
+
 export default function EditListingScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -106,6 +138,18 @@ export default function EditListingScreen() {
   );
   const [visibilityRadiusKm, setVisibilityRadiusKm] = useState(
     listing?.visibilityMode === 'online' ? String(listing?.visibilityRadiusKm || 50) : '50'
+  );
+  const [dealStartDate, setDealStartDate] = useState(() =>
+    listing?.dealStartAt ? toDateInputValue(new Date(listing.dealStartAt)) : ''
+  );
+  const [dealStartTime, setDealStartTime] = useState(() =>
+    listing?.dealStartAt ? toTimeInputValue(new Date(listing.dealStartAt)) : ''
+  );
+  const [dealEndDate, setDealEndDate] = useState(() =>
+    listing?.dealEndAt ? toDateInputValue(new Date(listing.dealEndAt)) : ''
+  );
+  const [dealEndTime, setDealEndTime] = useState(() =>
+    listing?.dealEndAt ? toTimeInputValue(new Date(listing.dealEndAt)) : ''
   );
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [mapsLinkInput, setMapsLinkInput] = useState('');
@@ -155,6 +199,24 @@ export default function EditListingScreen() {
     mainCategory,
     subCategory: category,
   });
+  const isDealListing = Boolean(listing?.isDeal);
+  const dealStartAt = useMemo(
+    () => parseLocalDateTime(dealStartDate, dealStartTime)?.toISOString() || '',
+    [dealStartDate, dealStartTime]
+  );
+  const dealEndAt = useMemo(
+    () => parseLocalDateTime(dealEndDate, dealEndTime)?.toISOString() || '',
+    [dealEndDate, dealEndTime]
+  );
+
+  useEffect(() => {
+    if (!listing) return;
+
+    setDealStartDate(listing.dealStartAt ? toDateInputValue(new Date(listing.dealStartAt)) : '');
+    setDealStartTime(listing.dealStartAt ? toTimeInputValue(new Date(listing.dealStartAt)) : '');
+    setDealEndDate(listing.dealEndAt ? toDateInputValue(new Date(listing.dealEndAt)) : '');
+    setDealEndTime(listing.dealEndAt ? toTimeInputValue(new Date(listing.dealEndAt)) : '');
+  }, [listing?.dealStartAt, listing?.dealEndAt, listing]);
 
   if (!listing) {
     return (
@@ -1135,6 +1197,28 @@ export default function EditListingScreen() {
       }
     }
 
+    if (isDealListing) {
+      if (!dealStartAt) {
+        Alert.alert('Error', 'Please enter a valid deal start date and time.');
+        return;
+      }
+      if (!dealEndAt) {
+        Alert.alert('Error', 'Please enter a valid deal end date and time.');
+        return;
+      }
+
+      const startAtMs = new Date(dealStartAt).getTime();
+      const endAtMs = new Date(dealEndAt).getTime();
+      if (!Number.isFinite(startAtMs) || !Number.isFinite(endAtMs)) {
+        Alert.alert('Error', 'Please enter valid deal start and end date-times.');
+        return;
+      }
+      if (endAtMs <= startAtMs) {
+        Alert.alert('Error', 'Deal end date and time must be after the start date and time.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setSubmitProgress(10);
     setSubmitStatusMessage('Preparing your update...');
@@ -1177,6 +1261,13 @@ export default function EditListingScreen() {
           visibilityMode === 'online' ? Number(visibilityRadiusKm || 0) : undefined,
         images: portableImages,
         videos,
+        ...(isDealListing
+          ? {
+              isDeal: true,
+              dealStartAt,
+              dealEndAt,
+            }
+          : {}),
       });
 
       const previousMedia = [...(listing.images || []), ...(listing.videos || [])];
@@ -1614,6 +1705,71 @@ export default function EditListingScreen() {
               </View>
             </Pressable>
           </View>
+
+          {isDealListing ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Deal Timing</Text>
+              <Text style={styles.helperText}>
+                Update the exact start and end date-time for this deal.
+              </Text>
+              <View style={styles.dealTimingGrid}>
+                <View style={styles.dealTimingField}>
+                  <Text style={styles.formSubLabel}>Start Date</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={dealStartDate}
+                    onChangeText={setDealStartDate}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={Colors.textTertiary}
+                    keyboardType="numbers-and-punctuation"
+                  />
+                </View>
+                <View style={styles.dealTimingField}>
+                  <Text style={styles.formSubLabel}>Start Time</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={dealStartTime}
+                    onChangeText={setDealStartTime}
+                    placeholder="HH:MM"
+                    placeholderTextColor={Colors.textTertiary}
+                    keyboardType="numbers-and-punctuation"
+                  />
+                </View>
+                <View style={styles.dealTimingField}>
+                  <Text style={styles.formSubLabel}>End Date</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={dealEndDate}
+                    onChangeText={setDealEndDate}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={Colors.textTertiary}
+                    keyboardType="numbers-and-punctuation"
+                  />
+                </View>
+                <View style={styles.dealTimingField}>
+                  <Text style={styles.formSubLabel}>End Time</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={dealEndTime}
+                    onChangeText={setDealEndTime}
+                    placeholder="HH:MM"
+                    placeholderTextColor={Colors.textTertiary}
+                    keyboardType="numbers-and-punctuation"
+                  />
+                </View>
+              </View>
+              <View style={styles.timingPreviewCard}>
+                <Text style={styles.timingPreviewLabel}>Start preview</Text>
+                <Text style={styles.timingPreviewValue}>
+                  {dealStartAt ? new Date(dealStartAt).toLocaleString('en-IN') : 'Unavailable'}
+                </Text>
+                <Text style={styles.timingPreviewLabel}>End preview</Text>
+                <Text style={styles.timingPreviewValue}>
+                  {dealEndAt ? new Date(dealEndAt).toLocaleString('en-IN') : 'Unavailable'}
+                </Text>
+              </View>
+            </View>
+          ) : null}
 
           <View style={styles.section}>
             <Text style={styles.label}>Visibility</Text>
@@ -2476,6 +2632,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
+  },
+  dealTimingGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 8,
+  },
+  dealTimingField: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    gap: 6,
+  },
+  timingPreviewCard: {
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
+    backgroundColor: '#F8FFFB',
+    padding: 12,
+    gap: 4,
+  },
+  timingPreviewLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  timingPreviewValue: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.text,
+    marginBottom: 6,
   },
   footer: {
     padding: 16,

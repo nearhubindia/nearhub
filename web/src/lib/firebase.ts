@@ -90,9 +90,7 @@ function isValidWebPushVapidKey(value: string | null): value is string {
   return Boolean(decoded && decoded.length === 65);
 }
 
-const webPushVapidKey = normalizeWebPushVapidKey(
-  import.meta.env.VITE_FIREBASE_WEB_PUSH_VAPID_KEY
-);
+const webPushVapidKey = normalizeWebPushVapidKey(import.meta.env.VITE_FIREBASE_WEB_PUSH_VAPID_KEY);
 
 let appInstance: FirebaseApp | null = null;
 let analyticsPromise: Promise<Analytics | null> | null = null;

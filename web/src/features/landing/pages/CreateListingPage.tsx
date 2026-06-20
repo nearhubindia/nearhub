@@ -90,6 +90,8 @@ type SourceListingResponse = {
     condition?: string;
     location?: string;
     pincode?: string | number;
+    latitude?: string | number;
+    longitude?: string | number;
     images?: string[];
     videos?: string[];
     image?: string;
@@ -115,6 +117,8 @@ type LocationLookupResult = {
   city?: string;
   state?: string;
   pincode?: string;
+  latitude?: number | string;
+  longitude?: number | string;
 };
 
 const MAX_IMAGE_UPLOADS = 5;
@@ -218,6 +222,11 @@ function formatLocationName(data?: LocationLookupResult | null): string {
     .map((item) => String(item || '').trim())
     .filter(Boolean)
     .join(', ');
+}
+
+function parseFiniteCoordinate(value: unknown): number | undefined {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 async function fetchPublicLocationFromCoordinates(
@@ -438,6 +447,8 @@ export default function CreateListingPage(): ReactElement {
   const [condition, setCondition] = useState('Good');
   const [location, setLocation] = useState('');
   const [pincode, setPincode] = useState('');
+  const [listingLatitude, setListingLatitude] = useState<number | undefined>();
+  const [listingLongitude, setListingLongitude] = useState<number | undefined>();
   const [visibilityMode, setVisibilityMode] = useState<'local' | 'online'>('local');
   const [visibilityRadiusKm, setVisibilityRadiusKm] = useState('50');
   const [brand, setBrand] = useState('');
@@ -741,6 +752,12 @@ export default function CreateListingPage(): ReactElement {
                 .replace(/[^0-9]/g, '')
                 .slice(0, 6)
         );
+        const sourceLatitude = parseFiniteCoordinate(source.latitude);
+        const sourceLongitude = parseFiniteCoordinate(source.longitude);
+        if (shouldReplaceSource || (sourceLatitude !== undefined && sourceLongitude !== undefined)) {
+          setListingLatitude(sourceLatitude);
+          setListingLongitude(sourceLongitude);
+        }
         if (source.mainCategory) {
           const nextMain = String(source.mainCategory);
           const nextSubs =
@@ -1053,6 +1070,8 @@ export default function CreateListingPage(): ReactElement {
           if (resolvedPincode) {
             setPincode(resolvedPincode);
           }
+          setListingLatitude(parseFiniteCoordinate(latitude));
+          setListingLongitude(parseFiniteCoordinate(longitude));
         } catch {
           setMessage('Unable to find a location name. Please enter it manually.');
         } finally {
@@ -1085,6 +1104,8 @@ export default function CreateListingPage(): ReactElement {
     setCondition('Good');
     setLocation('');
     setPincode('');
+    setListingLatitude(undefined);
+    setListingLongitude(undefined);
     setBrand('');
     setImages([]);
     setVideos([]);
@@ -1092,11 +1113,17 @@ export default function CreateListingPage(): ReactElement {
     setMessage('Selected listing removed. Choose another listing to promote.');
   };
 
-  const resolveDealLocationForSubmit = async (): Promise<{ location: string; pincode: string }> => {
+  const resolveListingLocationForSubmit = async (): Promise<{
+    location: string;
+    pincode: string;
+    latitude?: number;
+    longitude?: number;
+  }> => {
     let nextLocation = location.trim();
     let nextPincode = pincode.trim();
+    let nextLatitude = listingLatitude;
+    let nextLongitude = listingLongitude;
 
-    if (mode !== 'deal') return { location: nextLocation, pincode: nextPincode };
     if (!nextPincode && isPincodeLabel(nextLocation)) {
       nextPincode = nextLocation;
     }
@@ -1119,14 +1146,30 @@ export default function CreateListingPage(): ReactElement {
 
     const resolvedName = formatLocationName(resolved);
     const resolvedPincode = String(resolved?.pincode || '').trim();
+    const resolvedLatitude = parseFiniteCoordinate(resolved?.latitude);
+    const resolvedLongitude = parseFiniteCoordinate(resolved?.longitude);
 
     if (resolvedName) nextLocation = resolvedName;
     if (resolvedPincode) nextPincode = resolvedPincode;
+    if (coordinates) {
+      nextLatitude = parseFiniteCoordinate(coordinates.latitude);
+      nextLongitude = parseFiniteCoordinate(coordinates.longitude);
+    } else if (resolvedLatitude !== undefined && resolvedLongitude !== undefined) {
+      nextLatitude = resolvedLatitude;
+      nextLongitude = resolvedLongitude;
+    }
 
     if (nextLocation !== location.trim()) setLocation(nextLocation);
     if (nextPincode !== pincode.trim()) setPincode(nextPincode);
+    if (nextLatitude !== listingLatitude) setListingLatitude(nextLatitude);
+    if (nextLongitude !== listingLongitude) setListingLongitude(nextLongitude);
 
-    return { location: nextLocation, pincode: nextPincode };
+    return {
+      location: nextLocation,
+      pincode: nextPincode,
+      latitude: nextLatitude,
+      longitude: nextLongitude,
+    };
   };
 
   const getAttributeFieldValue = (
@@ -1264,10 +1307,7 @@ export default function CreateListingPage(): ReactElement {
       return;
     }
 
-    const resolvedLocation =
-      mode === 'deal' && sourceListingId
-        ? { location: location.trim(), pincode: pincode.trim() }
-        : await resolveDealLocationForSubmit();
+    const resolvedLocation = await resolveListingLocationForSubmit();
     if (!validateForm(resolvedLocation.location, resolvedLocation.pincode)) return;
     if (isUploadingMedia) {
       setMessage('Please wait for media upload to finish.');
@@ -1335,6 +1375,10 @@ export default function CreateListingPage(): ReactElement {
             },
             body: JSON.stringify({
               isDeal: true,
+              location: resolvedLocation.location,
+              pincode: resolvedLocation.pincode || undefined,
+              latitude: resolvedLocation.latitude,
+              longitude: resolvedLocation.longitude,
               dealType,
               offerPrice: Number(offerPrice),
               dealStartAt: dealStartAt ? dealStartAt.toISOString() : undefined,
@@ -1388,6 +1432,8 @@ export default function CreateListingPage(): ReactElement {
           condition: shouldRequireCondition ? condition : undefined,
           location: resolvedLocation.location,
           pincode: resolvedLocation.pincode || undefined,
+          latitude: resolvedLocation.latitude,
+          longitude: resolvedLocation.longitude,
           visibilityMode,
           visibilityRadiusKm:
             visibilityMode === 'online' ? Number(visibilityRadiusKm || 0) : undefined,
