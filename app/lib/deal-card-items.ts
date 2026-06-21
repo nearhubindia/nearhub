@@ -41,11 +41,12 @@ export function createDealCardItem(
           item.location.longitude
         )
       : undefined;
-  const displayPrice =
-    typeof item.offerPrice === 'number' && item.offerPrice > 0 && item.offerPrice < item.price
-      ? item.offerPrice
-      : item.price;
-  const originalPrice = displayPrice !== item.price ? item.price : undefined;
+  const regularPrice = Number(item.price) || 0;
+  const offerPrice = Number(item.offerPrice);
+  const hasValidOfferPrice =
+    Number.isFinite(offerPrice) && offerPrice > 0 && regularPrice > 0 && offerPrice < regularPrice;
+  const displayPrice = hasValidOfferPrice ? offerPrice : regularPrice;
+  const originalPrice = hasValidOfferPrice ? regularPrice : undefined;
 
   return {
     id: item.id,

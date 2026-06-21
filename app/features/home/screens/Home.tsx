@@ -812,11 +812,11 @@ export default function HomeScreen() {
               {item.title}
             </Text>
             <View style={styles.cardPriceRow}>
-              <Text style={styles.cardPrice} numberOfLines={1}>
+              <Text style={styles.cardPrice}>
                 ₹{displayPrice.toLocaleString('en-IN')}
               </Text>
               {hasValidOfferPrice(item) ? (
-                <Text style={styles.cardOriginalPrice} numberOfLines={1}>
+                <Text style={styles.cardOriginalPrice}>
                   ₹{basePrice.toLocaleString('en-IN')}
                 </Text>
               ) : null}
@@ -975,21 +975,11 @@ export default function HomeScreen() {
             ) : null}
             <View style={styles.dealPriceRow}>
               <View style={styles.dealPriceStack}>
-                <Text
-                  style={styles.dealPrice}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.8}
-                >
+                <Text style={styles.dealPrice}>
                   ₹{displayPrice.toLocaleString('en-IN')}
                 </Text>
                 {item.originalPrice ? (
-                  <Text
-                    style={styles.dealOriginalPrice}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                  >
+                  <Text style={styles.dealOriginalPrice}>
                     ₹{basePrice.toLocaleString('en-IN')}
                   </Text>
                 ) : null}
@@ -2180,6 +2170,7 @@ const styles = createResponsiveStyles({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'flex-start',
+    flexWrap: 'wrap',
     gap: 3,
     marginTop: 3,
     minWidth: 0,

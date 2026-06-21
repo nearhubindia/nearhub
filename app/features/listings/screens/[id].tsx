@@ -54,6 +54,27 @@ function parseMediaArray(value: unknown): string[] {
   }
 }
 
+function parseStringArrayValue(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean);
+  }
+  if (typeof value !== 'string') return [];
+
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) return [trimmed];
+    return parsed.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean);
+  } catch {
+    return trimmed
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+}
+
 function toNumber(value: unknown, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -190,6 +211,43 @@ function mapApiListing(listing: any): Listing {
   };
 }
 
+function normalizeListingForDetail(rawListing: Listing): Listing {
+  const rawLocation = (rawListing as any)?.location;
+  const normalizedLocation =
+    rawLocation && typeof rawLocation === 'object'
+      ? {
+          latitude: toNumber((rawLocation as any).latitude, 0),
+          longitude: toNumber((rawLocation as any).longitude, 0),
+          city:
+            typeof (rawLocation as any).city === 'string' && (rawLocation as any).city.trim()
+              ? (rawLocation as any).city.trim()
+              : 'Unknown',
+        }
+      : {
+          latitude: toNumber((rawListing as any)?.latitude, 0),
+          longitude: toNumber((rawListing as any)?.longitude, 0),
+          city: typeof rawLocation === 'string' && rawLocation.trim() ? rawLocation.trim() : 'Unknown',
+        };
+
+  return {
+    ...rawListing,
+    title: String(rawListing?.title || '').trim(),
+    description: String(rawListing?.description || ''),
+    images: parseMediaArray((rawListing as any)?.images),
+    videos: parseMediaArray((rawListing as any)?.videos),
+    sellerName: String(rawListing?.sellerName || 'Seller').trim() || 'Seller',
+    sellerAvatar:
+      typeof rawListing?.sellerAvatar === 'string' ? rawListing.sellerAvatar.trim() : '',
+    location: normalizedLocation,
+    comboItems: parseStringArrayValue((rawListing as any)?.comboItems ?? (rawListing as any)?.combo_items),
+  };
+}
+
+function getListingCity(value: Partial<Listing> | null | undefined): string {
+  const city = value?.location && typeof value.location === 'object' ? value.location.city : undefined;
+  return typeof city === 'string' && city.trim() ? city.trim() : 'Unknown';
+}
+
 export default function ListingDetailScreen() {
   const { id: idParam } = useLocalSearchParams<{ id?: string | string[] }>();
   const listingId = Array.isArray(idParam)
@@ -220,7 +278,10 @@ export default function ListingDetailScreen() {
   );
 
   const listingFromContext = getListingById(listingId);
-  const listing = listingFromContext || deepLinkedListing;
+  const listing = useMemo(() => {
+    const source = listingFromContext || deepLinkedListing;
+    return source ? normalizeListingForDetail(source) : null;
+  }, [deepLinkedListing, listingFromContext]);
   const isSaved = savedIds.has(listingId);
   const normalizedUserId = (user?.id || '').replace(/[\s+-]/g, '');
   const listingPhoneRaw = (
@@ -278,7 +339,7 @@ export default function ListingDetailScreen() {
       category: listing.category,
       price: Number(listing.offerPrice || listing.price || 0),
       listingType: listing.isDeal ? 'deal' : 'listing',
-      location: listing.location?.city || '',
+      location: getListingCity(listing),
     });
   }, [listing]);
 
@@ -376,7 +437,7 @@ export default function ListingDetailScreen() {
   const recommendedProducts = useMemo(() => {
     if (!listing) return [];
 
-    const selectedCity = String(listing.location.city || '')
+    const selectedCity = getListingCity(listing)
       .trim()
       .toLowerCase();
     const selectedCategory = String(listing.category || '')
@@ -418,7 +479,7 @@ export default function ListingDetailScreen() {
       .map((item) => {
         let score = 0;
 
-        const itemCity = String(item.location.city || '')
+        const itemCity = getListingCity(item)
           .trim()
           .toLowerCase();
         if (selectedCity && itemCity && selectedCity === itemCity) score += 3;
@@ -581,7 +642,7 @@ export default function ListingDetailScreen() {
     }
   };
 
-  const handleBookDeal = useCallback(() => {
+  const handleBookDeal = () => {
     if (!listing?.isDeal) return;
 
     requireAuth(() => {
@@ -626,7 +687,7 @@ export default function ListingDetailScreen() {
         }
       })();
     });
-  }, [isOwner, listing, requireAuth, user?.id, user?.phone]);
+  };
 
   const handleSave = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -836,7 +897,7 @@ export default function ListingDetailScreen() {
               </View>
               <View style={styles.metaItem}>
                 <Feather name="map-pin" size={14} color={Colors.textTertiary} />
-                <Text style={styles.metaText}>{listing.location.city}</Text>
+                <Text style={styles.metaText}>{getListingCity(listing)}</Text>
               </View>
               <View style={styles.condBadge}>
                 <Text style={styles.condText}>{formatCondition(listing.condition)}</Text>
@@ -901,7 +962,7 @@ export default function ListingDetailScreen() {
                     </View>
                   )}
                 </View>
-                <Text style={styles.sellerLocation}>{listing.location.city}</Text>
+                <Text style={styles.sellerLocation}>{getListingCity(listing)}</Text>
               </View>
             </View>
           </View>
@@ -957,7 +1018,7 @@ export default function ListingDetailScreen() {
                           )}
                         </View>
                         <Text style={styles.recommendedMeta} numberOfLines={1}>
-                          {item.location.city}
+                          {getListingCity(item)}
                         </Text>
                       </View>
                     </Pressable>

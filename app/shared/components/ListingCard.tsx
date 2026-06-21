@@ -119,17 +119,12 @@ export default function ListingCard({
       </View>
       <View style={styles.info}>
         <View style={styles.priceRow}>
-          <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+          <Text style={styles.price}>
             ₹{displayPrice.toLocaleString('en-IN')}
           </Text>
           {priceUnit && <Text style={styles.priceUnit}> / {priceUnit}</Text>}
           {hasValidOfferPrice && (
-            <Text
-              style={styles.originalPrice}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.8}
-            >
+            <Text style={styles.originalPrice}>
               ₹{price.toLocaleString('en-IN')}
             </Text>
           )}
