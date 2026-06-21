@@ -106,6 +106,14 @@ function roundToTwo(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function countsTowardSubscriptionQuota() {
+  return or(
+    eq(listingsTable.status, "pending"),
+    eq(listingsTable.status, "active"),
+    eq(listingsTable.status, "inactive"),
+  )!;
+}
+
 function normalizeUserLookupPhone(value: unknown): string {
   if (typeof value !== "string" && typeof value !== "number") return "";
   const digits = String(value).replace(/\D/g, "");
@@ -436,8 +444,7 @@ export function registerSubscriptionRoutes(app: Express) {
               .where(
                 and(
                   inArray(listingsTable.userSubscriptionId, subscriptionIds),
-                  eq(listingsTable.isActive, true),
-                  eq(listingsTable.status, "active"),
+                  countsTowardSubscriptionQuota(),
                 ),
               )
               .groupBy(listingsTable.userSubscriptionId)
@@ -456,8 +463,7 @@ export function registerSubscriptionRoutes(app: Express) {
           and(
             eq(listingsTable.sellerId, userId),
             isNull(listingsTable.userSubscriptionId),
-            eq(listingsTable.isActive, true),
-            eq(listingsTable.status, "active"),
+            countsTowardSubscriptionQuota(),
           ),
         );
       const orphanedCount = Number(orphanedListingsResult[0]?.count || 0);

@@ -14,7 +14,15 @@ import {
   type InsertSubscriptionTier,
   type UserSubscription,
 } from '../../admin/models/admin-settings';
-import { eq, and, gt, sql, asc } from 'drizzle-orm';
+import { eq, and, gt, sql, asc, or } from 'drizzle-orm';
+
+function countsTowardListingQuota() {
+  return or(
+    eq(listings.status, 'pending'),
+    eq(listings.status, 'active'),
+    eq(listings.status, 'inactive')
+  )!;
+}
 
 function toDecimalString(value: unknown): string | null | undefined {
   if (value === null || value === undefined || value === '') return value as null | undefined;
@@ -580,9 +588,7 @@ export async function getActiveListingCount(userId: string): Promise<number> {
   const result = await db
     .select({ count: sql<number>`count(*)` })
     .from(listings)
-    .where(
-      and(eq(listings.sellerId, userId), eq(listings.isActive, true), eq(listings.status, 'active'))
-    );
+    .where(and(eq(listings.sellerId, userId), countsTowardListingQuota()));
 
   return Number(result[0]?.count || 0);
 }
@@ -713,13 +719,7 @@ export async function canCreateListingWithSubscription(
   const result = await db
     .select({ count: sql<number>`count(*)` })
     .from(listings)
-    .where(
-      and(
-        eq(listings.userSubscriptionId, userSubscriptionId),
-        eq(listings.isActive, true),
-        eq(listings.status, 'active')
-      )
-    );
+    .where(and(eq(listings.userSubscriptionId, userSubscriptionId), countsTowardListingQuota()));
 
   const currentCount = Number(result[0]?.count || 0);
   const maxListings = tier.maxListings;
