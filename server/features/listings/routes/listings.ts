@@ -55,6 +55,11 @@ function normalizeOptionalNumber(value: unknown): number | null | undefined {
   return Number.isFinite(amount) ? amount : undefined;
 }
 
+function normalizeRequiredNumber(value: unknown, fallback = 0): number {
+  const amount = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(amount) ? amount : fallback;
+}
+
 function dropUndefinedValues<T extends Record<string, unknown>>(value: T): T {
   for (const key of Object.keys(value)) {
     if (value[key] === undefined) {
@@ -356,9 +361,13 @@ function toPublicListing(
   const primaryImage = typeof publicImages[0] === 'string' ? publicImages[0] : '';
   const derivedDealStatus =
     listing?.dealStatus ?? listing?.deal_status ?? deriveDealStatus(listing, Date.now());
+  const price = normalizeRequiredNumber(listing?.price);
+  const offerPrice = normalizeOptionalNumber(listing?.offerPrice ?? listing?.offer_price);
 
   return {
     ...rest,
+    price,
+    offerPrice,
     sellerId: includeSellerIdentity ? sellerId : '',
     userId: includeSellerIdentity ? sellerId : '',
     sellerName: getSellerDisplayName(listing, sellerMeta),
@@ -395,11 +404,12 @@ function toMutationListingResponse(listing: any) {
     ...listing,
     sellerId,
     userId: sellerId,
+    price: normalizeRequiredNumber(listing.price),
     mainCategory,
     subCategory,
     category,
     listingType: listing.listingType ?? listing.listing_type ?? null,
-    offerPrice: listing.offerPrice ?? listing.offer_price ?? null,
+    offerPrice: normalizeOptionalNumber(listing.offerPrice ?? listing.offer_price),
     priceUnit: listing.priceUnit ?? listing.price_unit ?? null,
     contactPhone: listing.contactPhone ?? listing.contact_phone ?? null,
     isActive: listing.isActive ?? listing.is_active ?? false,
