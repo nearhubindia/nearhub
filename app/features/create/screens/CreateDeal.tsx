@@ -16,6 +16,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
+import {
+  formatIstDateInputValue,
+  formatIstDateTime,
+  formatIstTimeInputValue,
+  parseIstDateTimeToDate,
+} from '@/lib/ist-time';
 import { createResponsiveStyles } from '@/lib/responsive';
 import { Listing } from '@/lib/types';
 import { useAuth } from '@/shared/contexts/auth-context';
@@ -27,51 +33,7 @@ type DealRecurrence = 'none' | 'daily' | 'weekly' | 'monthly';
 type PurchaseLimitType = 'ONE_TIME' | 'UNLIMITED';
 type PostDealMode = 'original' | 'discount';
 
-const formatDealTimestamp = (value: string) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return 'Unavailable';
-  }
-
-  return date.toLocaleString('en-IN', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
-};
-
-const padTwo = (value: number) => String(value).padStart(2, '0');
-
-const toDateInputValue = (date: Date) =>
-  `${date.getFullYear()}-${padTwo(date.getMonth() + 1)}-${padTwo(date.getDate())}`;
-
-const toTimeInputValue = (date: Date) => `${padTwo(date.getHours())}:${padTwo(date.getMinutes())}`;
-
-const parseLocalDateTime = (dateValue: string, timeValue: string): Date | null => {
-  const dateMatch = dateValue.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  const timeMatch = timeValue.trim().match(/^(\d{2}):(\d{2})$/);
-  if (!dateMatch || !timeMatch) {
-    return null;
-  }
-
-  const year = Number(dateMatch[1]);
-  const month = Number(dateMatch[2]);
-  const day = Number(dateMatch[3]);
-  const hour = Number(timeMatch[1]);
-  const minute = Number(timeMatch[2]);
-  const candidate = new Date(year, month - 1, day, hour, minute, 0, 0);
-
-  if (
-    candidate.getFullYear() !== year ||
-    candidate.getMonth() !== month - 1 ||
-    candidate.getDate() !== day ||
-    candidate.getHours() !== hour ||
-    candidate.getMinutes() !== minute
-  ) {
-    return null;
-  }
-
-  return candidate;
-};
+const formatDealTimestamp = (value: string) => formatIstDateTime(value);
 
 const addDays = (date: Date, days: number) => {
   const next = new Date(date);
@@ -107,10 +69,12 @@ export default function CreateDealScreen() {
     params.dealType === 'combo' ? 'combo' : 'normal'
   );
   const [offerPrice, setOfferPrice] = useState('');
-  const [dealStartDate, setDealStartDate] = useState(() => toDateInputValue(new Date()));
-  const [dealStartTime, setDealStartTime] = useState(() => toTimeInputValue(new Date()));
-  const [dealEndDate, setDealEndDate] = useState(() => toDateInputValue(addDays(new Date(), 7)));
-  const [dealEndTime, setDealEndTime] = useState(() => toTimeInputValue(new Date()));
+  const [dealStartDate, setDealStartDate] = useState(() => formatIstDateInputValue(new Date()));
+  const [dealStartTime, setDealStartTime] = useState(() => formatIstTimeInputValue(new Date()));
+  const [dealEndDate, setDealEndDate] = useState(() =>
+    formatIstDateInputValue(addDays(new Date(), 7))
+  );
+  const [dealEndTime, setDealEndTime] = useState(() => formatIstTimeInputValue(new Date()));
   const [dealRecurrence, setDealRecurrence] = useState<DealRecurrence>('none');
   const [dealRecurrenceUntilDays, setDealRecurrenceUntilDays] = useState('30');
   const [dealCycleQuantity, setDealCycleQuantity] = useState('1');
@@ -137,11 +101,11 @@ export default function CreateDealScreen() {
   );
   const primaryListing = selectedListings[0];
   const dealStartAt = useMemo(
-    () => parseLocalDateTime(dealStartDate, dealStartTime)?.toISOString() || '',
+    () => parseIstDateTimeToDate(dealStartDate, dealStartTime)?.toISOString() || '',
     [dealStartDate, dealStartTime]
   );
   const dealEndAt = useMemo(
-    () => parseLocalDateTime(dealEndDate, dealEndTime)?.toISOString() || '',
+    () => parseIstDateTimeToDate(dealEndDate, dealEndTime)?.toISOString() || '',
     [dealEndDate, dealEndTime]
   );
   const comboItems = useMemo(() => {

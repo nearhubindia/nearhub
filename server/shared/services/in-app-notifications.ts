@@ -8,6 +8,8 @@ import { inAppNotifications, listings } from '../../features/admin/models/admin-
 import { eq, and, desc, isNull, or, lt, inArray } from 'drizzle-orm';
 import { parseJsonArrayField } from '../utils/json-fields';
 
+const DEFAULT_NOTIFICATION_EXPIRY_MS = 24 * 60 * 60 * 1000;
+
 export interface CreateInAppNotificationOptions {
   userId?: string | null;
   userType?: 'buyer' | 'seller' | 'admin' | 'all';
@@ -41,6 +43,7 @@ export async function createInAppNotification(
   options: CreateInAppNotificationOptions
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
+    const expiresAt = options.expiresAt ?? new Date(Date.now() + DEFAULT_NOTIFICATION_EXPIRY_MS);
     const [notification] = await db
       .insert(inAppNotifications)
       .values({
@@ -55,7 +58,7 @@ export async function createInAppNotification(
         category: options.category || null,
         referenceId: options.referenceId || null,
         priority: options.priority || 'normal',
-        expiresAt: options.expiresAt || null,
+        expiresAt,
         createdBy: options.createdBy || null,
       })
       .returning({ id: inAppNotifications.id });

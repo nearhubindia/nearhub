@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import request from 'supertest';
+import { eq } from 'drizzle-orm';
 import { db } from '../../data/db';
 import { users } from '../../features/users/models/users';
 import { createListing } from '../../features/listings/services/listings';
@@ -50,8 +51,10 @@ describe('Users API - Strict Tests', () => {
     expect(res.status).toBe(200);
     expect(res.body?.success).toBe(true);
 
-    const afterDelete = await request(app).get('/api/users/profile').set('x-user-id', userId);
-    expect(afterDelete.status).toBe(404);
+    const deletedRow = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+    expect(deletedRow).toBeUndefined();
   });
 
   it('GET /api/users/:userId/profile validates user id format', async () => {
@@ -157,5 +160,31 @@ describe('Users API - Strict Tests', () => {
     expect(auth.status).toBe(200);
     expect(auth.body?.success).toBe(true);
     expect(Array.isArray(auth.body?.invoices)).toBe(true);
+  });
+
+  it('POST /api/invoices/generate preserves submitted customer identity fields', async () => {
+    const app = createTestApp();
+    const res = await request(app).post('/api/invoices/generate').send({
+      customerId: randomUUID(),
+      customerName: 'Correct Customer Name',
+      customerEmail: 'customer@nearhub.local',
+      customerPhone: '9876543210',
+      items: [
+        {
+          description: 'Subscription Plan',
+          quantity: 1,
+          unitPrice: 499,
+          amount: 499,
+        },
+      ],
+      paymentMethod: 'Razorpay',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body?.success).toBe(true);
+    expect(res.body?.data?.customerName).toBe('Correct Customer Name');
+    expect(res.body?.data?.customerPhone).toBe('9876543210');
+    expect(res.body?.data?.vendorName).toBeDefined();
+    expect(res.body?.data?.vendorPhone).toBeDefined();
   });
 });

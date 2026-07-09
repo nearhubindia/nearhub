@@ -34,7 +34,6 @@ export interface Listing {
   aiValidated?: boolean;
   isPaid?: boolean;
   featured?: boolean;
-  sponsored?: boolean;
   boostedUntil?: string;
   boostCount?: number;
   pincode?: string;

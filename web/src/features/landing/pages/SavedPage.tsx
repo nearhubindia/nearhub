@@ -122,7 +122,9 @@ export default function SavedPage(): ReactElement {
                     <MapPin size={12} /> {item.location || 'Nearby'}
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-2">
-                    <p className="text-sm font-bold text-[#0f4b8a]">{formatPriceInr(item.price)}</p>
+                    <p className="whitespace-nowrap text-sm font-bold leading-none text-[#0f4b8a]">
+                      {formatPriceInr(item.price)}
+                    </p>
                     <div className="flex shrink-0 items-center gap-2">
                       <Link
                         to={`/listing/${item.id}`}

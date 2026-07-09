@@ -102,7 +102,6 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
   const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [isSuggestingCategory, setIsSuggestingCategory] = useState(false);
-  const [sponsored, setSponsored] = useState(Boolean(listing?.sponsored));
   const {
     mainCategories,
     subCategories,
@@ -189,7 +188,6 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
         location: formData.location,
         status: formData.status as 'active' | 'sold' | 'pending',
         contactPhone: String(formData.contactPhone || '').trim(),
-        sponsored,
         ...enhancements,
         isDeal: formData.isDeal,
         dealType: formData.isDeal ? formData.dealType : undefined,
@@ -399,22 +397,6 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
         </h3>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-            <input
-              type="checkbox"
-              checked={sponsored}
-              onChange={() => setSponsored((prev) => !prev)}
-              className="h-5 w-5 rounded"
-            />
-            <div className="flex-1">
-              <div className="flex items-center gap-2 font-bold text-slate-900">
-                <Star size={18} className="text-amber-500" />
-                Sponsored Tag
-              </div>
-              <p className="mt-1 text-xs text-slate-600">Separate from featured boost ranking</p>
-            </div>
-          </label>
-
           <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
             <input
               type="checkbox"
@@ -480,15 +462,10 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
           </label>
         </div>
 
-        {(sponsored || Object.values(enhancements).some((v) => v)) && (
+        {Object.values(enhancements).some((v) => v) && (
           <div className="mt-4 rounded-xl border border-teal-200 bg-teal-50 p-4">
             <p className="mb-2 text-sm font-bold text-teal-900">Active Enhancements:</p>
             <div className="flex flex-wrap gap-2">
-              {sponsored && (
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
-                  Sponsored
-                </span>
-              )}
               {enhancements.featured && (
                 <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
                   Featured

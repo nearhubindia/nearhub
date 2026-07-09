@@ -17,6 +17,7 @@ import {
 import './index.css';
 import { ProtectedRoute } from './shared/components/ProtectedRoute';
 import { SeoManager } from './shared/components/SeoManager';
+import { WhatsAppFloatingButton } from './shared/components/WhatsAppFloatingButton';
 const UserHomePage = lazy(() => import('./features/landing/pages/UserHomePage'));
 const Features = lazy(() => import('./features/landing/pages/Features'));
 const Contact = lazy(() => import('./features/landing/pages/Contact'));
@@ -246,6 +247,7 @@ function App() {
         <SeoManager />
         <WebTelemetry />
         <ScrollToTop />
+        {!showInitialSplash ? <WhatsAppFloatingButton /> : null}
         <Suspense fallback={<SplashScreen />}>
           <RouteTransitionShell>
             <Routes>

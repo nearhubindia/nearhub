@@ -12,7 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Listing, Category } from '@/lib/types';
 import { getBackendURL, getDebug } from '@/lib/config';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
-import { loadCachedLocation } from '@/lib/location-cache';
+import { mapApiListing } from '@/lib/listing-normalizers';
 
 type DealListingInput = {
   isDeal?: boolean;
@@ -49,17 +49,6 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function parseOptionalCount(...candidates: unknown[]): number | undefined {
-  for (const candidate of candidates) {
-    if (candidate === undefined || candidate === null || candidate === '') continue;
-    const numericValue = Number(candidate);
-    if (Number.isFinite(numericValue) && numericValue >= 0) {
-      return numericValue;
-    }
-  }
-  return undefined;
-}
-
 type StoredAuthUser = {
   id?: string;
   phone?: string;
@@ -76,6 +65,37 @@ async function getStoredAuthUser(): Promise<StoredAuthUser | null> {
   } catch {
     return null;
   }
+}
+
+function normalizeMediaUrlFactory(backendURL: string): (url: string) => string {
+  return (url: string) => {
+    const value = typeof url === 'string' ? url.trim() : '';
+    if (!value) return value;
+
+    if (value.startsWith('/')) {
+      return `${backendURL}${value}`;
+    }
+
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      try {
+        const parsed = new URL(value);
+        if (
+          parsed.hostname === 'localhost' ||
+          parsed.hostname === '127.0.0.1' ||
+          parsed.hostname === '0.0.0.0'
+        ) {
+          const apiBase = new URL(backendURL);
+          parsed.protocol = apiBase.protocol;
+          parsed.host = apiBase.host;
+          return parsed.toString();
+        }
+      } catch {
+        return value;
+      }
+    }
+
+    return value;
+  };
 }
 
 function mergeListings(existing: Listing | undefined, incoming: Listing): Listing {
@@ -97,74 +117,6 @@ function mergeListings(existing: Listing | undefined, incoming: Listing): Listin
     images: incoming.images?.length ? incoming.images : existing.images,
     videos: incoming.videos?.length ? incoming.videos : existing.videos,
   };
-}
-
-function resolveSellerName(listing: any): string {
-  const isPlaceholderName = (value: string): boolean => {
-    const normalized = value.trim().toLowerCase();
-    const digitsOnly = value.replace(/\D/g, '');
-    return (
-      normalized === 'seller' ||
-      normalized === 'unknown' ||
-      normalized === 'anonymous' ||
-      digitsOnly.length >= 10
-    );
-  };
-
-  const candidates = [
-    listing?.sellerName,
-    listing?.seller_name,
-    listing?.seller?.name,
-    listing?.seller?.username,
-    listing?.ownerName,
-    listing?.owner_name,
-    listing?.userName,
-    listing?.user_name,
-    listing?.username,
-    listing?.name,
-  ];
-
-  for (const candidate of candidates) {
-    if (typeof candidate === 'string' && candidate.trim().length > 0) {
-      const normalized = candidate.trim();
-      if (!isPlaceholderName(normalized)) {
-        return normalized;
-      }
-    }
-  }
-
-  return 'Seller';
-}
-
-function normalizeAppListingType(listing: any): Listing['listingType'] {
-  const rawType =
-    typeof listing?.listingType === 'string' ? listing.listingType.trim().toLowerCase() : '';
-  if (rawType === 'sell' || rawType === 'buy' || rawType === 'service' || rawType === 'job') {
-    return rawType;
-  }
-
-  const normalizedSubCategory = String(
-    listing?.subCategory || listing?.subcategory || listing?.category || ''
-  )
-    .trim()
-    .toLowerCase();
-  if (normalizedSubCategory === 'jobs') return 'job';
-  if (
-    normalizedSubCategory === 'services' ||
-    normalizedSubCategory === 'freelance' ||
-    normalizedSubCategory === 'business' ||
-    normalizedSubCategory === 'education' ||
-    normalizedSubCategory === 'health'
-  ) {
-    return 'service';
-  }
-
-  const normalizedMainCategory = String(listing?.mainCategory || '')
-    .trim()
-    .toLowerCase();
-  if (normalizedMainCategory === 'jobs & services') return 'service';
-
-  return 'sell';
 }
 
 async function fetchWithTimeout(
@@ -256,14 +208,12 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         }
 
         const backendURL = getBackendURL();
-        const [dataVersion, cachedListingsStr, savedStr, userDataStr, cachedLocation] =
-          await Promise.all([
-            AsyncStorage.getItem(DATA_VERSION_KEY),
-            AsyncStorage.getItem(LISTINGS_KEY),
-            AsyncStorage.getItem(SAVED_KEY),
-            AsyncStorage.getItem('@nearhub_auth_user'),
-            loadCachedLocation(),
-          ]);
+        const [dataVersion, cachedListingsStr, savedStr, userDataStr] = await Promise.all([
+          AsyncStorage.getItem(DATA_VERSION_KEY),
+          AsyncStorage.getItem(LISTINGS_KEY),
+          AsyncStorage.getItem(SAVED_KEY),
+          AsyncStorage.getItem('@nearhub_auth_user'),
+        ]);
 
         if (savedStr) {
           try {
@@ -298,214 +248,19 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
         let currentUserId = '';
         let currentUserPhone = '';
-        let userLatitude: number | undefined;
-        let userLongitude: number | undefined;
-        let userRadiusKm = 50;
-
         if (userDataStr) {
           try {
             const userData = JSON.parse(userDataStr);
             currentUserId = String(userData?.id || '');
             currentUserPhone = String(userData?.phone || '');
-            userLatitude = userData?.location?.latitude;
-            userLongitude = userData?.location?.longitude;
-            userRadiusKm = Number(userData?.preferences?.searchRadiusKm || 50) || 50;
           } catch (userError) {
             console.warn('[Listings] Could not parse user data for geo-filtering:', userError);
           }
         }
 
-        if (cachedLocation) {
-          if (!Number.isFinite(userLatitude as number)) {
-            userLatitude = cachedLocation.latitude;
-          }
-          if (!Number.isFinite(userLongitude as number)) {
-            userLongitude = cachedLocation.longitude;
-          }
-        }
+        const normalizeMediaUrl = normalizeMediaUrlFactory(backendURL);
 
-        const normalizeMediaUrl = (url: unknown): string => {
-          if (typeof url !== 'string') return '';
-          const value = url.trim();
-          if (!value) return value;
-
-          if (value.startsWith('/')) {
-            return `${backendURL}${value}`;
-          }
-
-          if (value.startsWith('http://') || value.startsWith('https://')) {
-            try {
-              const parsed = new URL(value);
-              if (
-                parsed.hostname === 'localhost' ||
-                parsed.hostname === '127.0.0.1' ||
-                parsed.hostname === '0.0.0.0'
-              ) {
-                const apiBase = new URL(backendURL);
-                parsed.protocol = apiBase.protocol;
-                parsed.host = apiBase.host;
-                return parsed.toString();
-              }
-            } catch {
-              return value;
-            }
-          }
-
-          return value;
-        };
-
-        const mapApiListing = (listing: any): Listing => {
-          const images =
-            typeof listing.images === 'string'
-              ? JSON.parse(listing.images || '[]')
-              : listing.images || [];
-          const videos =
-            typeof listing.videos === 'string'
-              ? JSON.parse(listing.videos || '[]')
-              : listing.videos || [];
-
-          return {
-            id: listing.id,
-            userId: listing.userId || '',
-            title: listing.title,
-            description: listing.description || '',
-            price: typeof listing.price === 'string' ? parseFloat(listing.price) : listing.price,
-            offerPrice:
-              listing.offerPrice !== undefined && listing.offerPrice !== null
-                ? typeof listing.offerPrice === 'string'
-                  ? parseFloat(listing.offerPrice)
-                  : listing.offerPrice
-                : undefined,
-            mainCategory:
-              typeof listing.mainCategory === 'string' && listing.mainCategory.trim()
-                ? listing.mainCategory.trim()
-                : undefined,
-            subCategory: (listing.subCategory || listing.subcategory || listing.category) as
-              | Category
-              | undefined,
-            subcategory: (listing.subCategory || listing.subcategory || listing.category) as
-              | Category
-              | undefined,
-            category: (listing.subCategory || listing.subcategory || listing.category) as Category,
-            condition: listing.condition || 'good',
-            images: (images || []).map(normalizeMediaUrl).filter(Boolean),
-            videos: (videos || []).map(normalizeMediaUrl).filter(Boolean),
-            location: {
-              city: listing.location || 'Unknown',
-              latitude: listing.latitude ? parseFloat(listing.latitude) : 0,
-              longitude: listing.longitude ? parseFloat(listing.longitude) : 0,
-            },
-            visibilityMode:
-              listing.visibilityMode === 'online' || listing.visibilityMode === 'local'
-                ? listing.visibilityMode
-                : undefined,
-            visibilityRadiusKm:
-              listing.visibilityRadiusKm !== undefined && listing.visibilityRadiusKm !== null
-                ? Number(listing.visibilityRadiusKm)
-                : undefined,
-            sellerName: resolveSellerName(listing),
-            sellerVerified: Boolean((listing as any).sellerVerified),
-            sellerPhone: listing.contactPhone || listing.sellerPhone || '',
-            contactPhone: listing.contactPhone || listing.sellerPhone || '',
-            sellerAvatar:
-              typeof (listing as any).sellerAvatar === 'string'
-                ? normalizeMediaUrl((listing as any).sellerAvatar)
-                : '',
-            createdAt: listing.createdAt || new Date().toISOString(),
-            expiresAt: listing.expiresAt || undefined,
-            isPaid: listing.isPaid || false,
-            featured: Boolean(listing.featured),
-            sponsored: Boolean((listing as any).sponsored),
-            boostedUntil: listing.boostedUntil || undefined,
-            boostCount:
-              listing.boostCount !== undefined && listing.boostCount !== null
-                ? Number(listing.boostCount)
-                : undefined,
-            viewCount: parseOptionalCount(
-              listing.viewCount,
-              listing.views,
-              listing.totalViews,
-              listing['view_count']
-            ),
-            chatCount:
-              listing.chatCount !== undefined && listing.chatCount !== null
-                ? Number(listing.chatCount)
-                : undefined,
-            likeCount:
-              listing.likeCount !== undefined && listing.likeCount !== null
-                ? Number(listing.likeCount)
-                : undefined,
-            saveCount:
-              listing.saveCount !== undefined && listing.saveCount !== null
-                ? Number(listing.saveCount)
-                : undefined,
-            duration: Number(listing.durationDays || listing.duration || 0) || undefined,
-            durationDays: Number(listing.durationDays || listing.duration || 0) || undefined,
-            isDeal: Boolean(listing.isDeal ?? listing.is_deal),
-            dealType: (listing.dealType ?? listing.deal_type ?? undefined) as Listing['dealType'],
-            dealStartAt: listing.dealStartAt ?? listing.deal_start_at ?? undefined,
-            dealEndAt: listing.dealEndAt ?? listing.deal_end_at ?? undefined,
-            dealRecurrence: (listing.dealRecurrence ??
-              listing.deal_recurrence ??
-              undefined) as Listing['dealRecurrence'],
-            dealRecurrenceUntil:
-              listing.dealRecurrenceUntil ?? listing.deal_recurrence_until ?? undefined,
-            dealCycleQuantity:
-              (listing.dealCycleQuantity ?? listing.deal_cycle_quantity) !== undefined &&
-              (listing.dealCycleQuantity ?? listing.deal_cycle_quantity) !== null
-                ? Number(listing.dealCycleQuantity ?? listing.deal_cycle_quantity)
-                : undefined,
-            maxDealBookings:
-              (listing.maxDealBookings ?? listing.max_deal_bookings) !== undefined &&
-              (listing.maxDealBookings ?? listing.max_deal_bookings) !== null
-                ? Number(listing.maxDealBookings ?? listing.max_deal_bookings)
-                : undefined,
-            purchaseLimitType:
-              (listing.purchaseLimitType ?? listing.purchase_limit_type) === 'ONE_TIME' ||
-              (listing.purchaseLimitType ?? listing.purchase_limit_type) === 'UNLIMITED'
-                ? ((listing.purchaseLimitType ?? listing.purchase_limit_type) as
-                    | 'ONE_TIME'
-                    | 'UNLIMITED')
-                : undefined,
-            postDealPriceMode: (listing.postDealPriceMode ??
-              listing.post_deal_price_mode ??
-              undefined) as Listing['postDealPriceMode'],
-            postDealDiscountPrice:
-              (listing.postDealDiscountPrice ?? listing.post_deal_discount_price) !== undefined &&
-              (listing.postDealDiscountPrice ?? listing.post_deal_discount_price) !== null
-                ? Number(listing.postDealDiscountPrice ?? listing.post_deal_discount_price)
-                : undefined,
-            comboItems: Array.isArray(listing.comboItems)
-              ? listing.comboItems
-              : Array.isArray(listing.combo_items)
-                ? listing.combo_items
-                : undefined,
-            dealTerms:
-              typeof (listing.dealTerms ?? listing.deal_terms) === 'string' &&
-              String(listing.dealTerms ?? listing.deal_terms).trim()
-                ? String(listing.dealTerms ?? listing.deal_terms).trim()
-                : undefined,
-            voucherEnabled:
-              (listing.voucherEnabled ?? listing.voucher_enabled) !== undefined &&
-              (listing.voucherEnabled ?? listing.voucher_enabled) !== null
-                ? Boolean(listing.voucherEnabled ?? listing.voucher_enabled)
-                : undefined,
-            status: listing.status || 'active',
-            rejectionReason:
-              typeof listing.rejectionReason === 'string' && listing.rejectionReason.trim()
-                ? listing.rejectionReason.trim()
-                : undefined,
-            listingType: normalizeAppListingType(listing),
-          };
-        };
-
-        let url = `${backendURL}/api/listings?limit=${LIMIT}&offset=0`;
-        if (userLatitude !== undefined && userLongitude !== undefined) {
-          url += `&latitude=${userLatitude}&longitude=${userLongitude}&radius=${userRadiusKm}`;
-          debugLog(
-            `[Listings] Geo-filtering: lat=${userLatitude}, lon=${userLongitude}, radius=${userRadiusKm}km`
-          );
-        }
+        const url = `${backendURL}/api/listings?limit=${LIMIT}&offset=0`;
 
         try {
           const response = await fetchWithTimeout(url, {
@@ -519,7 +274,7 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
 
             if (data.success && data.data) {
               const apiListings: Listing[] = (data.data || []).map((listing: any) =>
-                mapApiListing(listing)
+                mapApiListing(listing, { normalizeMediaUrl })
               );
 
               let userListings: Listing[] = [];
@@ -541,7 +296,9 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
                       : Array.isArray(userData?.activeListings)
                         ? userData.activeListings
                         : [];
-                    userListings = rawUserListings.map((listing: any) => mapApiListing(listing));
+                    userListings = rawUserListings.map((listing: any) =>
+                      mapApiListing(listing, { normalizeMediaUrl })
+                    );
                   }
                 } catch (userErr) {
                   console.warn('[Listings] Failed to fetch user listings:', userErr);
@@ -979,36 +736,18 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
       const backendURL = getBackendURL();
       let authUserId = '';
       let authUserPhone = '';
-      let userLatitude: number | undefined;
-      let userLongitude: number | undefined;
-      let userRadiusKm = 50;
       try {
         const userDataStr = await AsyncStorage.getItem('@nearhub_auth_user');
-        const cachedLocation = await loadCachedLocation();
         if (userDataStr) {
           const userData = JSON.parse(userDataStr);
           authUserId = String(userData?.id || '');
           authUserPhone = String(userData?.phone || '');
-          userLatitude = Number(userData?.location?.latitude);
-          userLongitude = Number(userData?.location?.longitude);
-          userRadiusKm = Number(userData?.preferences?.searchRadiusKm || 50) || 50;
-        }
-        if (cachedLocation) {
-          if (!Number.isFinite(userLatitude)) {
-            userLatitude = cachedLocation.latitude;
-          }
-          if (!Number.isFinite(userLongitude)) {
-            userLongitude = cachedLocation.longitude;
-          }
         }
       } catch {
         // Best-effort auth header attachment; continue without auth headers.
       }
 
       let url = `${backendURL}/api/listings?limit=${LIMIT}&offset=${offset}`;
-      if (Number.isFinite(userLatitude) && Number.isFinite(userLongitude)) {
-        url += `&latitude=${userLatitude}&longitude=${userLongitude}&radius=${userRadiusKm}`;
-      }
 
       const response = await fetchWithTimeout(url, {
         method: 'GET',
@@ -1020,93 +759,10 @@ export function ListingsProvider({ children }: { children: ReactNode }) {
         const responseListings = Array.isArray(data?.data) ? data.data : [];
 
         if (data.success) {
-          const parseMedia = (value: unknown): string[] => {
-            if (Array.isArray(value)) return value.filter((v) => typeof v === 'string');
-            if (typeof value !== 'string' || !value.trim()) return [];
-            try {
-              const parsed = JSON.parse(value);
-              return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : [];
-            } catch {
-              return [value];
-            }
-          };
-
-          const newListings: Listing[] = responseListings.map((listing: any) => ({
-            id: listing.id,
-            userId: listing.userId || '',
-            title: listing.title,
-            description: listing.description || '',
-            price: typeof listing.price === 'string' ? Number(listing.price) : listing.price,
-            offerPrice:
-              listing.offerPrice !== undefined && listing.offerPrice !== null
-                ? typeof listing.offerPrice === 'string'
-                  ? Number(listing.offerPrice)
-                  : listing.offerPrice
-                : undefined,
-            mainCategory:
-              typeof listing.mainCategory === 'string' && listing.mainCategory.trim()
-                ? listing.mainCategory.trim()
-                : undefined,
-            subCategory: (listing.subCategory || listing.subcategory || listing.category) as
-              | Category
-              | undefined,
-            subcategory: (listing.subCategory || listing.subcategory || listing.category) as
-              | Category
-              | undefined,
-            category: (listing.subCategory || listing.subcategory || listing.category) as Category,
-            condition: listing.condition,
-            images: parseMedia(listing.images),
-            videos: parseMedia(listing.videos),
-            location: {
-              city: listing.location || 'Unknown',
-              latitude: listing.latitude ? Number(listing.latitude) : 0,
-              longitude: listing.longitude ? Number(listing.longitude) : 0,
-            },
-            sellerName: resolveSellerName(listing),
-            sellerVerified: Boolean((listing as any).sellerVerified),
-            sellerPhone: listing.contactPhone || listing.sellerPhone || '',
-            contactPhone: listing.contactPhone || listing.sellerPhone || '',
-            sellerAvatar:
-              typeof (listing as any).sellerAvatar === 'string'
-                ? (listing as any).sellerAvatar.trim()
-                : '',
-            createdAt: listing.createdAt || new Date().toISOString(),
-            expiresAt: listing.expiresAt || undefined,
-            isPaid: listing.isPaid || false,
-            featured: Boolean(listing.featured),
-            sponsored: Boolean((listing as any).sponsored),
-            boostedUntil: listing.boostedUntil || undefined,
-            boostCount:
-              listing.boostCount !== undefined && listing.boostCount !== null
-                ? Number(listing.boostCount)
-                : undefined,
-            viewCount: parseOptionalCount(
-              listing.viewCount,
-              listing.views,
-              listing.totalViews,
-              listing['view_count']
-            ),
-            chatCount:
-              listing.chatCount !== undefined && listing.chatCount !== null
-                ? Number(listing.chatCount)
-                : undefined,
-            likeCount:
-              listing.likeCount !== undefined && listing.likeCount !== null
-                ? Number(listing.likeCount)
-                : undefined,
-            saveCount:
-              listing.saveCount !== undefined && listing.saveCount !== null
-                ? Number(listing.saveCount)
-                : undefined,
-            duration: Number(listing.durationDays || listing.duration || 0) || undefined,
-            durationDays: Number(listing.durationDays || listing.duration || 0) || undefined,
-            status: listing.status || 'active',
-            rejectionReason:
-              typeof listing.rejectionReason === 'string' && listing.rejectionReason.trim()
-                ? listing.rejectionReason.trim()
-                : undefined,
-            listingType: normalizeAppListingType(listing),
-          }));
+          const normalizeMediaUrl = normalizeMediaUrlFactory(backendURL);
+          const newListings: Listing[] = responseListings.map((listing: any) =>
+            mapApiListing(listing, { normalizeMediaUrl })
+          );
 
           setListings((prev) => {
             const listingMap = new Map<string, Listing>();

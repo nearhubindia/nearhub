@@ -18,6 +18,7 @@ import {
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { trackWebGenerateLead, trackWebViewItem } from '@/lib/firebase';
+import { IST_TIME_ZONE } from '@/lib/ist-time';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
 import { buildAuthRegisterPath } from '@/lib/auth-redirect';
@@ -141,6 +142,7 @@ type Listing = {
 function formatDealWindow(value: number): string {
   if (!Number.isFinite(value)) return '';
   return new Date(value).toLocaleString('en-IN', {
+    timeZone: IST_TIME_ZONE,
     day: '2-digit',
     month: 'short',
     hour: '2-digit',

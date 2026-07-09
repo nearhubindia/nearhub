@@ -712,7 +712,6 @@ export function registerSubscriptionRoutes(app: Express) {
           dealCycleQuantity,
           maxDealBookings,
           purchaseLimitType,
-          comboItems,
           dealTerms,
           voucherEnabled = true,
           attributes,
@@ -738,11 +737,7 @@ export function registerSubscriptionRoutes(app: Express) {
             ? condition.trim()
             : "";
         const normalizedIsDeal = Boolean(isDeal);
-        const normalizedDealType =
-          typeof dealType === "string" &&
-          (dealType === "normal" || dealType === "combo")
-            ? dealType
-            : "normal";
+        const normalizedDealType = "normal";
         const normalizedDealStartAt =
           typeof dealStartAt === "string" && dealStartAt.trim()
             ? new Date(dealStartAt)
@@ -788,12 +783,6 @@ export function registerSubscriptionRoutes(app: Express) {
             ? "online"
             : "local";
         const normalizedVisibilityRadiusKm = Number(visibilityRadiusKm);
-        const normalizedComboItems = Array.isArray(comboItems)
-          ? comboItems
-              .map((item) => String(item || "").trim())
-              .filter(Boolean)
-              .slice(0, 20)
-          : [];
         const shouldRequireCondition = requiresListingCondition({
           mainCategory: normalizedMainCategory,
           subCategory: normalizedSubCategory,
@@ -1156,7 +1145,6 @@ export function registerSubscriptionRoutes(app: Express) {
           purchaseLimitType: normalizedIsDeal
             ? normalizedPurchaseLimitType
             : undefined,
-          comboItems: normalizedIsDeal ? normalizedComboItems : undefined,
           dealTerms: normalizedIsDeal
             ? String(dealTerms || "").trim()
             : undefined,
@@ -1198,9 +1186,7 @@ export function registerSubscriptionRoutes(app: Express) {
             userSubscriptionId: userSubscriptionId || null, // NEW: Track which subscription instance
             featured: isFeatured,
             isDeal: listingData.isDeal || false,
-            dealType: listingData.isDeal
-              ? listingData.dealType || "normal"
-              : null,
+            dealType: listingData.isDeal ? "normal" : null,
             dealStartAt:
               listingData.isDeal && listingData.dealStartAt
                 ? new Date(listingData.dealStartAt)
@@ -1226,9 +1212,6 @@ export function registerSubscriptionRoutes(app: Express) {
             dealBookingsUsed: 0,
             purchaseLimitType: listingData.isDeal
               ? (listingData as any).purchaseLimitType || null
-              : null,
-            comboItems: listingData.isDeal
-              ? JSON.stringify(listingData.comboItems || [])
               : null,
             dealTerms: listingData.isDeal
               ? listingData.dealTerms || null
@@ -1986,14 +1969,16 @@ export function registerSubscriptionRoutes(app: Express) {
 
             // Financial source of truth comes from server-side computed amount.
             const items = serverInvoiceItems;
-            const customerDisplayName = String(
+            const customerDisplayName = String(customerName || "").trim();
+            const profileDisplayName = String(
               customerProfile?.displayName || "",
             ).trim();
             const customerAddress = String(
               customerProfile?.address || "",
             ).trim();
             const customerGstin = String(customerProfile?.gstin || "").trim();
-            const effectiveCustomerName = customerDisplayName || customerName;
+            const effectiveCustomerName =
+              customerDisplayName || profileDisplayName || customerName;
 
             invoiceData = invoiceService.createInvoice(
               effectiveCustomerName,

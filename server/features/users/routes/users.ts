@@ -13,6 +13,7 @@ import {
   isMeaningfulDisplayName,
   normalizePhone,
   pickMeaningfulDisplayName,
+  removeUserProfile,
   upsertUser,
   type AppUser,
 } from '../services/user-profiles';
@@ -273,6 +274,7 @@ export function registerUserRoutes(app: Express) {
       const { deleteUserDataByAdmin } = await import('../services/user-lifecycle');
       await deleteUserDataByAdmin(deletionUserId);
       await db.delete(users).where(eq(users.id, deletionUserId));
+      removeUserProfile(deletionUserId);
 
       return res.json({
         success: true,

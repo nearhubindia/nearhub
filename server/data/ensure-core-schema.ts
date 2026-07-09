@@ -55,7 +55,6 @@ async function applyCoreSchemaPatches(): Promise<void> {
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS max_deal_bookings integer`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_bookings_used integer NOT NULL DEFAULT 0`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS purchase_limit_type varchar(20)`);
-  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS combo_items text`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_terms text`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS voucher_enabled boolean NOT NULL DEFAULT true`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS visibility_mode varchar(20) NOT NULL DEFAULT 'local'`);

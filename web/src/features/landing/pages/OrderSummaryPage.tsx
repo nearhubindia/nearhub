@@ -5,6 +5,7 @@ import { CheckCircle2, MapPin, Package, ShieldCheck, Ticket } from 'lucide-react
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { trackWebPurchase } from '@/lib/firebase';
+import { IST_TIME_ZONE } from '@/lib/ist-time';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { formatPriceInr, parseMediaList } from '@/features/landing/lib';
 import { buildAuthRegisterPath } from '@/lib/auth-redirect';
@@ -266,7 +267,7 @@ export default function OrderSummaryPage(): ReactElement {
                 <p className="text-sm font-black text-amber-900">Deal Window</p>
                 <p className="mt-1 text-sm text-amber-800">
                   {isWindowValid
-                    ? `${new Date(dealStart).toLocaleString('en-IN')} - ${new Date(dealEnd).toLocaleString('en-IN')}`
+                    ? `${new Date(dealStart).toLocaleString('en-IN', { timeZone: IST_TIME_ZONE })} - ${new Date(dealEnd).toLocaleString('en-IN', { timeZone: IST_TIME_ZONE })}`
                     : 'Deal window is not configured'}
                 </p>
                 <p className="mt-1 text-sm text-amber-800">

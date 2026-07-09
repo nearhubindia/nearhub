@@ -60,11 +60,6 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
         return (
           <div className="flex items-center gap-2">
             <span>{listing.title}</span>
-            {listing.sponsored && (
-              <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
-                Sponsored
-              </span>
-            )}
             {listing.featured && (
               <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800">
                 Featured

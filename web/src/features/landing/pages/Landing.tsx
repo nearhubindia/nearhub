@@ -19,7 +19,6 @@ import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { BRAND_SIGNATURE } from '@/shared/brand';
 import { getPrimaryListingImage } from '@/features/landing/lib';
-import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
 import { formatPriceInr } from '@/features/landing/lib';
 
 const capabilityCards = [
@@ -128,9 +127,8 @@ type ListingsResponse = {
 export default function Landing(): ReactElement {
   const [searchParams] = useSearchParams();
   const location = searchParams.get('location') ?? '';
-  const storedGeoCoords = readStoredWebGeoCoords();
-  const latitude = searchParams.get('latitude') ?? String(storedGeoCoords?.latitude ?? '');
-  const longitude = searchParams.get('longitude') ?? String(storedGeoCoords?.longitude ?? '');
+  const latitude = searchParams.get('latitude') ?? '';
+  const longitude = searchParams.get('longitude') ?? '';
   const radius = searchParams.get('radius') ?? '50';
   const query = searchParams.get('q') ?? '';
 
@@ -297,7 +295,7 @@ export default function Landing(): ReactElement {
                   <p className="line-clamp-2 text-sm font-semibold text-[#113965]">
                     {listing.title}
                   </p>
-                  <p className="mt-2 text-sm font-bold text-slate-950">
+                  <p className="mt-2 whitespace-nowrap text-sm font-bold leading-none text-slate-950">
                     {formatPriceInr(listing.offerPrice || listing.price)}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">{listing.location || 'Nearby'}</p>

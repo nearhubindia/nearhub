@@ -19,10 +19,10 @@ interface ListingCardProps {
   imageAspectRatio?: number;
   imageHeight?: number;
   location: string;
+  distanceLabel?: string;
   condition: string;
   sellerVerified?: boolean;
   isBoosted?: boolean;
-  isSponsored?: boolean;
   isSaved: boolean;
   onPress: () => void;
   onSave: () => void;
@@ -40,10 +40,10 @@ export default function ListingCard({
   imageAspectRatio = 1.1,
   imageHeight,
   location,
+  distanceLabel,
   condition,
   sellerVerified = false,
   isBoosted = false,
-  isSponsored = false,
   isSaved,
   onPress,
   onSave,
@@ -102,11 +102,6 @@ export default function ListingCard({
               <Feather name="check-circle" size={11} color="#fff" />
             </View>
           )}
-          {isSponsored && (
-            <View style={styles.sponsoredBadge}>
-              <Text style={styles.sponsoredText}>Ad</Text>
-            </View>
-          )}
         </View>
         <View style={styles.conditionBadge}>
           <Text style={styles.conditionText}>{condition}</Text>
@@ -119,12 +114,22 @@ export default function ListingCard({
       </View>
       <View style={styles.info}>
         <View style={styles.priceRow}>
-          <Text style={styles.price}>
+          <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
             ₹{displayPrice.toLocaleString('en-IN')}
           </Text>
-          {priceUnit && <Text style={styles.priceUnit}> / {priceUnit}</Text>}
+          {priceUnit && (
+            <Text style={styles.priceUnit} numberOfLines={1}>
+              {' / '}
+              {priceUnit}
+            </Text>
+          )}
           {hasValidOfferPrice && (
-            <Text style={styles.originalPrice}>
+            <Text
+              style={styles.originalPrice}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
               ₹{price.toLocaleString('en-IN')}
             </Text>
           )}
@@ -137,7 +142,7 @@ export default function ListingCard({
         </Text>
         <View style={styles.meta}>
           <Feather name="map-pin" size={responsiveModerateScale(11)} color={Colors.textTertiary} />
-          <Text style={styles.metaText}>{location}</Text>
+          <Text style={styles.metaText}>{distanceLabel || location}</Text>
         </View>
       </View>
     </Pressable>
@@ -148,7 +153,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     backgroundColor: Colors.surface,
-    borderRadius: 0,
+    borderRadius: 5,
     overflow: 'hidden',
     marginBottom: responsiveModerateScale(3),
     shadowColor: '#000',
@@ -212,8 +217,9 @@ const styles = StyleSheet.create({
     right: responsiveModerateScale(8),
     bottom: responsiveModerateScale(8),
     backgroundColor: '#DC2626',
-    paddingHorizontal: responsiveModerateScale(7),
-    paddingVertical: responsiveModerateScale(2),
+    minWidth: responsiveModerateScale(42),
+    paddingHorizontal: responsiveModerateScale(8),
+    paddingVertical: responsiveModerateScale(3),
     borderRadius: responsiveModerateScale(8),
     shadowColor: '#7F1D1D',
     shadowOffset: { width: 0, height: 2 },
@@ -224,7 +230,9 @@ const styles = StyleSheet.create({
   discountBadgeText: {
     color: '#fff',
     fontSize: responsiveFont(10),
+    lineHeight: responsiveFont(12),
     fontFamily: 'Inter_700Bold',
+    textAlign: 'center',
   },
   badgeStack: {
     position: 'absolute',
@@ -240,17 +248,6 @@ const styles = StyleSheet.create({
     borderRadius: responsiveModerateScale(11),
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  sponsoredBadge: {
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: responsiveModerateScale(7),
-    paddingVertical: responsiveModerateScale(2),
-    borderRadius: responsiveModerateScale(8),
-  },
-  sponsoredText: {
-    color: '#fff',
-    fontSize: responsiveFont(10),
-    fontFamily: 'Inter_700Bold',
   },
   verifiedBadge: {
     backgroundColor: '#0F766E',

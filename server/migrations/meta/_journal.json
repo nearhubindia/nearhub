@@ -155,6 +155,20 @@
       "when": 1777077606000,
       "tag": "0024_in_app_notification_image_url",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1777077607000,
+      "tag": "0025_drop_listing_sponsored",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1783560000000,
+      "tag": "0026_drop_listing_combo_items",
+      "breakpoints": true
     }
   ]
 }

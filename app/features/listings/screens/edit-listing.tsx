@@ -18,6 +18,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import * as Haptics from 'expo-haptics';
+import { IST_TIME_ZONE } from '@/lib/ist-time';
 import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -1761,11 +1762,15 @@ export default function EditListingScreen() {
               <View style={styles.timingPreviewCard}>
                 <Text style={styles.timingPreviewLabel}>Start preview</Text>
                 <Text style={styles.timingPreviewValue}>
-                  {dealStartAt ? new Date(dealStartAt).toLocaleString('en-IN') : 'Unavailable'}
+                  {dealStartAt
+                    ? new Date(dealStartAt).toLocaleString('en-IN', { timeZone: IST_TIME_ZONE })
+                    : 'Unavailable'}
                 </Text>
                 <Text style={styles.timingPreviewLabel}>End preview</Text>
                 <Text style={styles.timingPreviewValue}>
-                  {dealEndAt ? new Date(dealEndAt).toLocaleString('en-IN') : 'Unavailable'}
+                  {dealEndAt
+                    ? new Date(dealEndAt).toLocaleString('en-IN', { timeZone: IST_TIME_ZONE })
+                    : 'Unavailable'}
                 </Text>
               </View>
             </View>

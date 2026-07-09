@@ -37,16 +37,17 @@ console.warn = (...args: any[]) => {
 // Global test timeout
 jest.setTimeout(10000);
 
-beforeAll(async () => {
-  const { ensureCoreSchema } = await import('../../data/ensure-core-schema');
-  await ensureCoreSchema();
-});
-
 afterAll(async () => {
-  const [{ closeDatabasePool }, { redisCache }] = await Promise.all([
+  const [{ closeDatabasePool, db }, { redisCache }] = await Promise.all([
     import('../../data/db'),
     import('../../shared/cache/redis-cache'),
   ]);
 
-  await Promise.allSettled([closeDatabasePool(), redisCache.disconnect()]);
+  const teardownTasks = [redisCache.disconnect()];
+
+  if (typeof closeDatabasePool === 'function' && typeof (db as any)?.execute === 'function') {
+    teardownTasks.unshift(closeDatabasePool());
+  }
+
+  await Promise.allSettled(teardownTasks);
 });

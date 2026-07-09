@@ -121,14 +121,14 @@ const styles = StyleSheet.create({
   bannerCard: {
     width: BANNER_WIDTH,
     height: BANNER_HEIGHT,
-    borderRadius: 12,
+    borderRadius: 5,
     overflow: 'hidden',
     backgroundColor: '#000',
   },
   bannerImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 12,
+    borderRadius: 5,
   },
   dotsContainer: {
     flexDirection: 'row',

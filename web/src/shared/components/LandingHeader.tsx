@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bell,
   Search,
-  Pin,
   MapPin,
   CheckCircle2,
   ChevronDown,
@@ -20,6 +19,7 @@ import {
   Menu,
   MessageCircle,
   Package,
+  RefreshCw,
   Settings,
   UserRoundPen,
   X,
@@ -35,7 +35,6 @@ import {
   writeStoredWebUser,
   type StoredWebUser,
 } from '@/lib/web-auth-storage';
-import { readStoredWebGeoCoords } from '@/lib/web-geo-storage';
 import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 import { Logo } from './Logo';
 import { Container } from './Container';
@@ -43,6 +42,7 @@ import { useClickAway } from '@/shared/hooks/useClickAway';
 
 type NavKey = 'home' | 'features' | 'browse' | 'deals' | 'contact';
 const HEADER_PERSIST_KEY = 'nearhub:header:inputs:v1';
+const ALL_LOCATIONS_LABEL = 'All locations';
 
 interface LandingHeaderProps {
   active: NavKey;
@@ -63,6 +63,7 @@ type InAppNotification = {
 function isTransientLocationValue(value: string): boolean {
   const normalized = value.trim().toLowerCase();
   return (
+    normalized === ALL_LOCATIONS_LABEL.toLowerCase() ||
     normalized === 'detecting location...' ||
     normalized === 'location unavailable' ||
     normalized === 'allow location access' ||
@@ -130,8 +131,7 @@ function getInitialHeaderState(
     query?: string;
     location?: string;
     geo?: { latitude: number; longitude: number } | null;
-  } | null,
-  fallbackGeo: { latitude: number; longitude: number } | null
+  } | null
 ): {
   query: string;
   location: string;
@@ -140,22 +140,18 @@ function getInitialHeaderState(
 } {
   const params = new URLSearchParams(search);
   const persistedQuery = persisted?.query || '';
-  const persistedLocation = persisted?.location || '';
-  const persistedGeo = persisted?.geo || null;
 
   const query = params.get('q') || persistedQuery;
 
   const locationParam = params.get('location') || '';
-  const location = isTransientLocationValue(locationParam)
-    ? ''
-    : locationParam || (isTransientLocationValue(persistedLocation) ? '' : persistedLocation);
+  const location = isTransientLocationValue(locationParam) ? '' : locationParam;
 
   const lat = params.get('latitude');
   const lon = params.get('longitude');
   const geoCoords =
     lat && lon && Number.isFinite(Number(lat)) && Number.isFinite(Number(lon))
       ? { latitude: Number(lat), longitude: Number(lon) }
-      : persistedGeo || fallbackGeo;
+      : null;
 
   return {
     query,
@@ -176,11 +172,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
   const routerLocation = useLocation();
   const authRegisterPath = buildAuthRegisterPath(routerLocation.pathname, routerLocation.search);
   const appendSearch = (path: string) => `${path}${routerLocation.search || ''}`;
-  const storedGeoCoords = useMemo(() => readStoredWebGeoCoords(), []);
   const persistedHeaderState = useMemo(() => readPersistedHeaderState(HEADER_PERSIST_KEY), []);
   const initialHeaderState = useMemo(
-    () => getInitialHeaderState(routerLocation.search, persistedHeaderState, storedGeoCoords),
-    [persistedHeaderState, routerLocation.search, storedGeoCoords]
+    () => getInitialHeaderState(routerLocation.search, persistedHeaderState),
+    [persistedHeaderState, routerLocation.search]
   );
 
   // Search & location (moved from pages)
@@ -340,19 +335,31 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
     if (event) event.preventDefault();
     const params = new URLSearchParams();
     if (query.trim()) params.set('q', query.trim());
-    if (location.trim()) params.set('location', location.trim());
+    const normalizedLocation = isTransientLocationValue(location) ? '' : location.trim();
+    if (normalizedLocation) params.set('location', normalizedLocation);
     if (geoCoords) {
       params.set('latitude', String(geoCoords.latitude));
       params.set('longitude', String(geoCoords.longitude));
       params.set('radius', '50');
     }
-    persistHeaderState({ query, location, geo: geoCoords });
+    persistHeaderState({ query, location: normalizedLocation, geo: geoCoords });
     void trackWebSearch({
       searchTerm: query.trim(),
-      location: location.trim(),
+      location: normalizedLocation,
     });
     navigate(`/search${params.toString() ? `?${params.toString()}` : ''}`);
   };
+
+  const clearLocationSelection = useCallback(() => {
+    setLocation('');
+    setLocationQuery('');
+    setGeoCoords(null);
+    persistHeaderState({ query, location: '', geo: null });
+  }, [query]);
+
+  const displayLocation = isLocating
+    ? 'Locating...'
+    : location || (!isLocationFocused ? ALL_LOCATIONS_LABEL : '');
 
   // Location autocomplete using internal city search API
   useEffect(() => {
@@ -534,97 +541,137 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
         </Link>
 
         <form onSubmit={submitSearch} className="hidden flex-1 items-center gap-4 md:flex">
-          <div className="relative flex items-center">
-            <MapPin
-              size={14}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#08295e]"
-            />
-            <input
-              ref={locationInputRef}
-              value={location}
-              onChange={(e) => {
-                const nextValue = e.target.value;
-                setLocation(nextValue);
-                setLocationQuery(nextValue);
-                setIsLocationFocused(Boolean(nextValue.trim()));
-              }}
-              onFocus={() => {
-                setIsLocationFocused(true);
-              }}
-              onBlur={() => {
-                window.setTimeout(() => setIsLocationFocused(false), 150);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  submitSearch();
-                }
-              }}
-              placeholder="Location (city, area)"
-              className="h-12 w-60 rounded-full border border-slate-200 bg-white px-10 text-sm font-normal text-slate-800 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.55)] outline-none transition focus:border-[#0759e6] focus:ring-2 focus:ring-[#0759e6]/15"
-            />
+          <div className="relative flex min-w-0 flex-1 items-center">
+            <div className="relative flex h-14 w-[220px] shrink-0 items-center rounded-l-[999px] border border-[#d7ebf3] bg-white px-4 shadow-[0_10px_28px_-18px_rgba(15,23,42,0.35)]">
+              <MapPin size={14} className="mr-2 shrink-0 text-[#8a97a8]" />
+              <input
+                ref={locationInputRef}
+                value={displayLocation}
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  if (!nextValue.trim() || isTransientLocationValue(nextValue)) {
+                    clearLocationSelection();
+                    setIsLocationFocused(true);
+                    return;
+                  }
+                  setLocation(nextValue);
+                  setLocationQuery(nextValue);
+                  setIsLocationFocused(true);
+                }}
+                onFocus={() => {
+                  setIsLocationFocused(true);
+                  if (!location.trim()) {
+                    setLocationQuery('');
+                  }
+                }}
+                onBlur={() => {
+                  window.setTimeout(() => setIsLocationFocused(false), 150);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitSearch();
+                  }
+                }}
+                placeholder={ALL_LOCATIONS_LABEL}
+                className="min-w-0 flex-1 bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-900/80"
+              />
+            </div>
+
             <button
               type="button"
               onClick={detectLocation}
               disabled={isLocating}
-              className="ml-2 inline-flex h-12 items-center justify-center rounded-full border border-slate-200 bg-white px-3 text-xs text-slate-950 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.55)] transition hover:border-[#0759e6] hover:text-[#0759e6] disabled:opacity-60"
+              className="relative z-10 -ml-px inline-flex h-14 w-14 shrink-0 items-center justify-center border-y border-[#d7ebf3] bg-white text-slate-500 transition hover:text-slate-900 disabled:opacity-60"
               aria-label="Detect location"
             >
-              <Pin size={14} className="text-[#0759e6]" />
+              <RefreshCw size={15} className={isLocating ? 'animate-spin text-[#0759e6]' : ''} />
             </button>
-            {isLocationFocused && locationQuery.trim() && suggestions.length > 0 ? (
+
+            <div className="relative flex h-14 min-w-0 flex-1 items-center rounded-r-[999px] border border-[#d7ebf3] bg-white pl-4 pr-2 shadow-[0_10px_28px_-18px_rgba(15,23,42,0.35)]">
+              <Search size={16} className="mr-3 shrink-0 text-slate-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitSearch();
+                  }
+                }}
+                placeholder="Search clinics, clinicians, specialties..."
+                className="min-w-0 flex-1 bg-transparent text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400"
+              />
+              <button
+                type="submit"
+                className="ml-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0f172a] text-white shadow-[0_12px_24px_-10px_rgba(15,23,42,0.6)] transition hover:bg-[#111c33]"
+                aria-label="Search"
+              >
+                <Search size={16} />
+              </button>
+            </div>
+
+            {isLocationFocused ? (
               <div
                 ref={locationSuggestionsPanelRef}
-                className="absolute left-0 top-[110%] z-50 w-56 rounded-md border border-slate-200 bg-white shadow-lg"
+                className="absolute left-0 top-[110%] z-50 w-[220px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_40px_-24px_rgba(15,23,42,0.55)]"
               >
-                {suggestions.map((s, idx) => (
+                <div className="border-b border-slate-100 px-3 py-2.5">
                   <button
-                    key={idx}
                     type="button"
                     onClick={() => {
-                      setLocation(s.display);
-                      setLocationQuery(s.display);
+                      clearLocationSelection();
                       setIsLocationFocused(false);
-                      const nextGeo =
-                        s.lat && s.lon
-                          ? {
-                              latitude: Number(s.lat),
-                              longitude: Number(s.lon),
-                            }
-                          : null;
-                      setGeoCoords(nextGeo);
-                      persistHeaderState({
-                        query,
-                        location: s.display,
-                        geo: nextGeo,
-                      });
                     }}
-                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                   >
-                    {s.display}
+                    <span className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-500">
+                      <MapPin size={15} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                        Reset
+                      </span>
+                      <span className="block truncate text-sm font-bold text-slate-950">
+                        {ALL_LOCATIONS_LABEL}
+                      </span>
+                    </span>
                   </button>
-                ))}
+                </div>
+                <div className="max-h-72 overflow-y-auto p-2">
+                  {locationQuery.trim() && suggestions.length === 0 ? (
+                    <p className="px-3 py-2 text-sm text-slate-500">Searching locations...</p>
+                  ) : null}
+                  {suggestions.map((s, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setLocation(s.display);
+                        setLocationQuery(s.display);
+                        setIsLocationFocused(false);
+                        const nextGeo =
+                          s.lat && s.lon
+                            ? {
+                                latitude: Number(s.lat),
+                                longitude: Number(s.lon),
+                              }
+                            : null;
+                        setGeoCoords(nextGeo);
+                        persistHeaderState({
+                          query,
+                          location: s.display,
+                          geo: nextGeo,
+                        });
+                      }}
+                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                    >
+                      {s.display}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : null}
-          </div>
-
-          <div className="relative flex-1">
-            <Search
-              size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#08295e]"
-            />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  submitSearch();
-                }
-              }}
-              placeholder="Search listings, brands, products near you..."
-              className="h-12 w-full rounded-full border border-slate-200 bg-white px-10 text-sm font-normal text-slate-800 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.55)] outline-none transition focus:border-[#0759e6] focus:ring-2 focus:ring-[#0759e6]/15"
-            />
           </div>
         </form>
 
@@ -900,10 +947,10 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-xs font-bold leading-4 text-slate-950">
-                {isLocating ? 'Locating...' : location || 'Anakapalle'}
+                {isLocating ? 'Locating...' : location || 'All locations'}
               </span>
               <span className="block truncate text-[10px] font-semibold leading-3 text-slate-500">
-                Within 50 km
+                {location ? 'Filtered by location' : 'All locations'}
               </span>
             </span>
             <ChevronDown size={15} className="hidden shrink-0 text-slate-500 min-[390px]:block" />
@@ -918,7 +965,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
             {isMenuOpen ? <X size={19} /> : <Menu size={19} />}
           </button>
         </div>
-      </Container>
+        </Container>
 
       {isMenuOpen ? (
         <div

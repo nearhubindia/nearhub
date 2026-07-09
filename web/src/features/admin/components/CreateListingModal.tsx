@@ -56,7 +56,6 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     images: [] as string[],
     videos: [] as string[],
     featured: false,
-    sponsored: false,
     isDeal: false,
     dealType: 'normal',
     dealStartAt: '',
@@ -211,7 +210,6 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
         images: formData.images,
         videos: formData.videos,
         featured: Boolean(formData.featured),
-        sponsored: Boolean(formData.sponsored),
         listingType:
           formData.videos.length > 0 && formData.images.length === 0
             ? 'video'
@@ -496,18 +494,6 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <input
-            type="checkbox"
-            checked={formData.sponsored}
-            onChange={(e) => setFormData({ ...formData, sponsored: e.target.checked })}
-            className="h-4 w-4 accent-amber-600"
-          />
-          <div>
-            <p className="text-sm font-semibold text-amber-900">Sponsored Tag</p>
-            <p className="text-xs text-amber-800">Show sponsored label in cards/details.</p>
-          </div>
-        </label>
         <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4">
           <input
             type="checkbox"
@@ -517,7 +503,7 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
           />
           <div>
             <p className="text-sm font-semibold text-blue-900">Featured Listing</p>
-            <p className="text-xs text-blue-800">Use featured ranking separately from sponsored.</p>
+            <p className="text-xs text-blue-800">Use featured ranking for homepage and search.</p>
           </div>
         </label>
       </div>

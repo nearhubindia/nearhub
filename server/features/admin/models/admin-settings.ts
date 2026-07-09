@@ -814,14 +814,13 @@ export const listings = pgTable('listings', {
 
   // Featured listing (requires subscription tier)
   featured: boolean('featured').notNull().default(false),
-  sponsored: boolean('sponsored').notNull().default(false),
   boostedUntil: timestamp('boosted_until'),
   boostCount: integer('boost_count').notNull().default(0),
 
   // Deal listing controls (time-window + slot-based booking)
   isDeal: boolean('is_deal').notNull().default(false),
   dealStatus: varchar('deal_status', { length: 20 }),
-  dealType: varchar('deal_type', { length: 20 }), // normal | combo
+  dealType: varchar('deal_type', { length: 20 }), // standard deal type
   dealStartAt: timestamp('deal_start_at'),
   dealEndAt: timestamp('deal_end_at'),
   dealRecurrence: varchar('deal_recurrence', { length: 20 }).notNull().default('none'),
@@ -831,7 +830,6 @@ export const listings = pgTable('listings', {
   maxDealBookings: integer('max_deal_bookings'),
   dealBookingsUsed: integer('deal_bookings_used').notNull().default(0),
   purchaseLimitType: varchar('purchase_limit_type', { length: 20 }), // ONE_TIME | UNLIMITED
-  comboItems: text('combo_items'), // JSON array of combo/freebie items
   dealTerms: text('deal_terms'),
   voucherEnabled: boolean('voucher_enabled').notNull().default(true),
 
@@ -981,10 +979,6 @@ export const insertListingSchema = createInsertSchema(listings)
       .optional()
       .nullable(),
     videos: z
-      .union([z.string(), z.array(z.string())])
-      .optional()
-      .nullable(),
-    comboItems: z
       .union([z.string(), z.array(z.string())])
       .optional()
       .nullable(),

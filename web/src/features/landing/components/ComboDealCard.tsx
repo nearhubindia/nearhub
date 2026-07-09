@@ -98,14 +98,14 @@ export function ComboDealCard({
   const purchaseLimitLabel = getPurchaseLimitLabel(item.purchaseLimitType);
 
   return (
-    <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+    <article className="flex h-full flex-col overflow-hidden rounded-[5px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <Link to={`/listing/${encodeURIComponent(item.id)}`} className="block">
         <div className="relative aspect-[1.18] overflow-hidden bg-white p-2">
-          <div className="grid h-full grid-cols-2 gap-2 rounded-xl bg-slate-100 p-0.5">
+          <div className="grid h-full grid-cols-2 gap-2 rounded-[5px] bg-slate-100 p-0.5">
             {[leftImage, rightImage].map((src, index) => (
               <div
                 key={`${item.id}-combo-image-${index}`}
-                className="flex min-w-0 items-center justify-center overflow-hidden rounded-lg bg-white"
+                className="flex min-w-0 items-center justify-center overflow-hidden rounded-[5px] bg-white"
               >
                 <img
                   src={src}
@@ -122,7 +122,7 @@ export function ComboDealCard({
           <span className="absolute left-1/2 top-1/2 grid h-9 w-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-4 border-white bg-red-600 text-xl font-black leading-none text-white shadow-lg">
             +
           </span>
-          <span className="absolute left-3 top-3 rounded-full bg-[#0f172a]/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-sm">
+          <span className="absolute left-3 top-3 inline-flex min-w-[5rem] items-center justify-center rounded-[5px] bg-[#0f172a]/90 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-sm">
             {dealTag}
           </span>
         </div>
@@ -132,7 +132,7 @@ export function ComboDealCard({
         <button
           type="button"
           onClick={() => onToggleSaved(item.id)}
-          className="absolute -top-[calc(100%+0.25rem)] right-2 rounded-full bg-white/90 p-1 text-slate-800 shadow-sm backdrop-blur sm:right-3 sm:p-1.5"
+          className="absolute -top-[calc(100%+0.25rem)] right-2 rounded-[5px] bg-white/90 p-1 text-slate-800 shadow-sm backdrop-blur sm:right-3 sm:p-1.5"
           aria-label={saved ? 'Remove from favourites' : 'Save deal'}
         >
           <Heart
@@ -168,11 +168,11 @@ export function ComboDealCard({
 
           <div className="mt-3 flex flex-wrap gap-2">
             {purchaseLimitLabel ? (
-              <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-[#0759e6]">
+              <span className="inline-flex items-center rounded-[5px] bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-[#0759e6]">
                 {purchaseLimitLabel}
               </span>
             ) : null}
-            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+            <span className="inline-flex items-center rounded-[5px] bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
               {isLive ? 'Live now' : item.dealStatus || 'Deal status'}
             </span>
           </div>
@@ -187,7 +187,7 @@ export function ComboDealCard({
                   ).map((part) => (
                     <div
                       key={part.label}
-                      className="grid h-[38px] place-items-center rounded-xl bg-slate-50 text-center text-[#dc1633] ring-1 ring-slate-100"
+                    className="grid h-[38px] place-items-center rounded-[5px] bg-slate-50 text-center text-[#dc1633] ring-1 ring-slate-100"
                     >
                       <span className="block text-[12px] font-black leading-none">
                         {part.value}
@@ -200,13 +200,13 @@ export function ComboDealCard({
                 </div>
                 <Link
                   to={`/listing/${encodeURIComponent(item.id)}`}
-                  className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-xl bg-[#0759e6] px-3 text-sm font-black text-white transition hover:bg-[#0448bd]"
+                className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-[5px] bg-[#0759e6] px-3 text-sm font-black text-white transition hover:bg-[#0448bd]"
                 >
                   {ctaLabel}
                 </Link>
               </>
             ) : (
-              <div className="rounded-xl bg-slate-50 px-3 py-3">
+              <div className="rounded-[5px] bg-slate-50 px-3 py-3">
                 <p className="inline-flex items-center gap-1 text-sm font-black text-rose-500">
                   <Timer size={15} /> {item.dealStatus || 'Deal unavailable'}
                 </p>

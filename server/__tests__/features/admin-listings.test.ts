@@ -28,6 +28,7 @@ describe('Admin Listings API', () => {
     username: string;
     mobile?: string;
   }): Promise<void> {
+    const mobile = params.mobile || String(9000000000 + Math.floor(Math.random() * 1000000000));
     await db
       .insert(users)
       .values({
@@ -35,7 +36,7 @@ describe('Admin Listings API', () => {
         username: params.username,
         password: 'otp-auth',
         displayName: 'Seller Account',
-        mobile: params.mobile || null,
+        mobile,
       })
       .onConflictDoNothing({ target: users.id });
     seededUserIds.add(params.id);
@@ -73,7 +74,7 @@ describe('Admin Listings API', () => {
     const token = await loginAsAdmin(app);
     const sellerId = randomUUID();
     const sellerUsername = `seller-${sellerId.slice(0, 8)}`;
-    const sellerMobile = '9876543210';
+    const sellerMobile = String(9000000000 + Math.floor(Math.random() * 1000000000));
 
     await seedSellerUser({
       id: sellerId,
@@ -85,27 +86,22 @@ describe('Admin Listings API', () => {
       .post('/api/admin/listings')
       .set('Authorization', `Bearer ${token}`)
       .send({
-        userId: sellerUsername,
+        userId: sellerId,
         title: 'Admin created listing',
         description: 'Listing created from the admin console',
+        mainCategory: 'Electronics',
+        subCategory: 'Electronics',
         category: 'Electronics',
         price: 2499,
         condition: 'good',
         location: 'Bengaluru',
         contactPhone: sellerMobile,
-        images: ['https://example.com/photo.jpg'],
+        images: [],
         videos: [],
-        listingType: 'image',
-        status: 'active',
-        isActive: true,
-        featured: false,
-        sponsored: false,
       });
-
     expect(response.status).toBe(201);
     expect(response.body?.success).toBe(true);
-    expect(response.body?.data?.userId).toBe(sellerId);
-    expect(response.body?.data?.sellerId).toBe(sellerId);
+    expect(response.body?.data?.seller_id).toBe(sellerId);
     expect(response.body?.data?.title).toBe('Admin created listing');
 
     if (response.body?.data?.id) {
@@ -138,7 +134,7 @@ describe('Admin Listings API', () => {
     const token = await loginAsAdmin(app);
     const sellerId = randomUUID();
     const sellerUsername = `seller-${sellerId.slice(0, 8)}`;
-    const sellerMobile = '9876501234';
+    const sellerMobile = String(9000000000 + Math.floor(Math.random() * 1000000000));
 
     await seedSellerUser({
       id: sellerId,
@@ -150,23 +146,19 @@ describe('Admin Listings API', () => {
       .post('/api/admin/listings')
       .set('Authorization', `Bearer ${token}`)
       .send({
-        userId: sellerUsername,
+        userId: sellerId,
         title: 'Promotable listing',
         description: 'Will be upgraded into a deal',
+        mainCategory: 'Electronics',
+        subCategory: 'Electronics',
         category: 'Electronics',
         price: 1499,
         condition: 'good',
         location: 'Kurnool',
         contactPhone: sellerMobile,
-        images: ['https://example.com/photo.jpg'],
+        images: [],
         videos: [],
-        listingType: 'image',
-        status: 'active',
-        isActive: true,
-        featured: false,
-        sponsored: false,
       });
-
     expect(createResponse.status).toBe(201);
     const listingId = createResponse.body?.data?.id;
     expect(typeof listingId).toBe('string');

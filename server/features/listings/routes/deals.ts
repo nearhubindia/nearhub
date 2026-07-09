@@ -494,7 +494,6 @@ export function registerDealRoutes(app: Express): void {
           dealCycleKey: dealWindow.cycleKey,
           listingImage: primaryImage,
           listingImages,
-          comboItems: parseStringArrayField(listing.comboItems),
           terms: String(listing.dealTerms || '').trim(),
         };
 

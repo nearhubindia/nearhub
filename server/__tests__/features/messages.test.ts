@@ -54,9 +54,10 @@ describe('Messages API', () => {
     const listingId = randomUUID();
     const text = `hello-${Date.now()}`;
     const sellerAvatar = `https://example.com/sellers/${Date.now()}.jpg`;
+    const buyerAvatar = `https://example.com/buyers/${Date.now()}.jpg`;
 
     await seedUser(sellerId, 'Seller One', sellerAvatar);
-    await seedUser(buyerId, 'Buyer One');
+    await seedUser(buyerId, 'Buyer One', buyerAvatar);
     await seedListing(listingId, sellerId, `Phone ${Date.now()}`);
 
     const send = await request(app)
@@ -96,7 +97,7 @@ describe('Messages API', () => {
     expect(sellerConversation.body?.success).toBe(true);
     expect(sellerConversation.body?.data?.conversationId).toBe(conversationId);
     expect(sellerConversation.body?.data?.listingId).toBe(listingId);
-    expect(sellerConversation.body?.data?.otherUserAvatar).toBe(sellerAvatar);
+    expect(sellerConversation.body?.data?.otherUserAvatar).toBe(buyerAvatar);
 
     const sellerMessages = await request(app)
       .get(`/api/messages/conversations/${conversationId}/messages`)

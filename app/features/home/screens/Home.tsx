@@ -14,7 +14,6 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
-  InteractionManager,
   Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,13 +31,22 @@ import { useUserInterests } from '@/shared/contexts/user-interests-context';
 import { getDiscountPercent, hasValidOfferPrice } from '@/lib/deals';
 import {
   isDealActiveNow,
-  isDealExpired,
-  isDealUpcoming,
+  isDealExpiredWithinWindow,
+  isDealUpcomingWithinWindow,
 } from '@/lib/deal-timer';
 import { bookDeal, DealBookingError } from '@/lib/deal-bookings';
-import { createDealCardItem, sortDealItemsByDistance, type DealCardItem } from '@/lib/deal-card-items';
+import {
+  createDealCardItem,
+  sortDealItemsByDistance,
+  type DealCardItem,
+} from '@/lib/deal-card-items';
 import { normalizeDealListingLocation, normalizeDealListingRecord } from '@/lib/deal-normalizers';
-import { calculateBestDistance, hasMeaningfulCoordinates } from '@/lib/location-data';
+import {
+  calculateBestDistance,
+  formatDistanceAway,
+  hasMeaningfulCoordinates,
+} from '@/lib/location-data';
+import { filterActiveListings, filterFeaturedListings } from '@/lib/home-feed';
 import { Category, type Listing } from '@/lib/types';
 import { formatCondition } from '@/lib/utils';
 import { NotificationBell } from '@/shared/components/NotificationBell';
@@ -59,7 +67,7 @@ const LISTING_IMAGE_ASPECT_RATIO = 3 / 4;
 const HOME_LIST_INITIAL_RENDER = 8;
 const HOME_LIST_MAX_BATCH = 8;
 const HOME_LIST_WINDOW_SIZE = 7;
-const LOCATION_BOOTSTRAP_TIMEOUT_MS = 2800;
+const ALL_LOCATIONS_LABEL = 'All locations';
 
 interface CitySuggestion {
   pincode: string;
@@ -73,6 +81,24 @@ interface CitySuggestion {
 }
 
 type HomeDealItem = DealCardItem;
+
+function parseDealImages(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((entry) => (typeof entry === 'string' ? entry.trim() : '')).filter(Boolean);
+  }
+  if (typeof value !== 'string') return [];
+
+  const trimmed = value.trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) return [trimmed];
+    return parsed.map((entry) => (typeof entry === 'string' ? entry.trim() : '')).filter(Boolean);
+  } catch {
+    return [trimmed];
+  }
+}
 
 function normalizeDealItems(items: unknown[]): Listing[] {
   return items
@@ -89,9 +115,7 @@ function normalizeDealItems(items: unknown[]): Listing[] {
           | 'inactive'
           | 'expired',
         location: normalizeDealListingLocation(item),
-        images: Array.isArray((item as Record<string, unknown>).images)
-          ? ((item as Record<string, unknown>).images as string[])
-          : [],
+        images: parseDealImages((item as Record<string, unknown>).images),
       } as Listing;
     });
 }
@@ -111,7 +135,7 @@ export default function HomeScreen() {
     loadMore,
     hasMore,
   } = useListings();
-  const { user, cachedLocation, setUserSearchRadius, setUserLocation, isAuthenticated } = useAuth();
+  const { user, setUserSearchRadius, setUserLocation, isAuthenticated } = useAuth();
   const { trackSave } = useUserInterests();
   const { geoRadiusKm } = useAdminSettings();
   const { groups: categoryGroups } = useListingTaxonomy();
@@ -141,30 +165,20 @@ export default function HomeScreen() {
   const [selectedSearchRadiusKm, setSelectedSearchRadiusKm] = useState<number>(geoRadiusKm);
   const [isAutoLocatingUser, setIsAutoLocatingUser] = useState(false);
   const [isAutoDetectingLocation, setIsAutoDetectingLocation] = useState(false);
-  const [isBootstrappingLocation, setIsBootstrappingLocation] = useState(false);
-  const [isLocationBootstrapActive, setIsLocationBootstrapActive] = useState(false);
   const [locationPermissionRequired, setLocationPermissionRequired] = useState(false);
   const [canAskLocationPermissionAgain, setCanAskLocationPermissionAgain] = useState(true);
   const cityInputRef = useRef<TextInput>(null);
   const locationUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const startupAutoLocationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const userCity =
-    selectedLocationCity || user?.location?.city || cachedLocation?.city || 'Your City';
-  const userLat = selectedLocationLat ?? user?.location?.latitude ?? cachedLocation?.latitude;
-  const userLon = selectedLocationLon ?? user?.location?.longitude ?? cachedLocation?.longitude;
+  const hasSelectedLocationCoordinates =
+    selectedLocationLat !== null && selectedLocationLon !== null;
+  const userCity = selectedLocationCity || ALL_LOCATIONS_LABEL;
+  const userLat = hasSelectedLocationCoordinates ? selectedLocationLat : null;
+  const userLon = hasSelectedLocationCoordinates ? selectedLocationLon : null;
   const effectiveGeoRadiusKm = user?.preferences?.searchRadiusKm ?? geoRadiusKm;
-  const visibleListings = useMemo(
-    () =>
-      listings.filter((listing) => {
-        const status = String(listing.status || 'active').toLowerCase();
-        if (status !== 'active') return false;
-        if (listing.expiresAt && new Date(listing.expiresAt).getTime() < Date.now()) return false;
-        return true;
-      }),
-    [listings]
-  );
-  const hasUserCoordinates = hasMeaningfulCoordinates(Number(userLat), Number(userLon));
+  const visibleListings = useMemo(() => filterActiveListings(listings), [listings]);
+  const hasUserCoordinates =
+    hasSelectedLocationCoordinates && hasMeaningfulCoordinates(Number(userLat), Number(userLon));
   const distanceByListingId = useMemo(() => {
     if (!hasUserCoordinates || userLat == null || userLon == null) return new Map<string, number>();
 
@@ -443,75 +457,17 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // Try to resolve location in the background, but do not block the feed behind a splash screen.
   useEffect(() => {
-    const hasResolvedLocation =
-      (selectedLocationLat !== null && selectedLocationLon !== null) ||
-      (typeof user?.location?.latitude === 'number' &&
-        typeof user?.location?.longitude === 'number') ||
-      (typeof cachedLocation?.latitude === 'number' &&
-        typeof cachedLocation?.longitude === 'number');
-
-    if (hasResolvedLocation) {
-      setIsBootstrappingLocation(false);
-      setIsLocationBootstrapActive(false);
-      return;
-    }
-
-    let cancelled = false;
-    setIsBootstrappingLocation(true);
-
-    const interactionTask = InteractionManager.runAfterInteractions(() => {
-      startupAutoLocationTimeoutRef.current = setTimeout(() => {
-        if (cancelled) return;
-        void autoDetectLocation(setIsAutoLocatingUser).finally(() => {
-          if (!cancelled) {
-            setIsBootstrappingLocation(false);
-          }
-        });
-      }, 120);
-    });
-
-    const fallbackTimer = setTimeout(() => {
-      if (!cancelled) {
-        setIsBootstrappingLocation(false);
-        setIsLocationBootstrapActive(false);
-      }
-    }, LOCATION_BOOTSTRAP_TIMEOUT_MS);
-
-    return () => {
-      cancelled = true;
-      interactionTask.cancel();
-      clearTimeout(fallbackTimer);
-      if (startupAutoLocationTimeoutRef.current) {
-        clearTimeout(startupAutoLocationTimeoutRef.current);
-        startupAutoLocationTimeoutRef.current = null;
-      }
-    };
-  }, [
-    autoDetectLocation,
-    cachedLocation?.latitude,
-    cachedLocation?.longitude,
-    selectedLocationLat,
-    selectedLocationLon,
-    user?.location?.latitude,
-    user?.location?.longitude,
-  ]);
-
-  useEffect(() => {
-    if (!(userLat && userLon)) {
+    if (!(hasSelectedLocationCoordinates && userLat && userLon)) {
       void checkLocationPermissionState();
     }
-  }, [checkLocationPermissionState, userLat, userLon]);
+  }, [checkLocationPermissionState, hasSelectedLocationCoordinates, userLat, userLon]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (locationUpdateTimeoutRef.current) {
         clearTimeout(locationUpdateTimeoutRef.current);
-      }
-      if (startupAutoLocationTimeoutRef.current) {
-        clearTimeout(startupAutoLocationTimeoutRef.current);
       }
     };
   }, []);
@@ -558,10 +514,20 @@ export default function HomeScreen() {
     [setUserLocation, updateLocation]
   );
 
+  const clearSelectedLocation = useCallback(() => {
+    if (locationUpdateTimeoutRef.current) {
+      clearTimeout(locationUpdateTimeoutRef.current);
+    }
+    setSelectedLocationCity(null);
+    setSelectedLocationLat(null);
+    setSelectedLocationLon(null);
+    setSelectedCategory('All');
+  }, []);
+
   const { filteredListingsByLocation, allNearYouListings } = useMemo(() => {
-    if (!userLat || !userLon) {
+    if (!hasSelectedLocationCoordinates || userLat == null || userLon == null) {
       return {
-        filteredListingsByLocation: isLocationBootstrapActive ? [] : visibleListings,
+        filteredListingsByLocation: visibleListings,
         allNearYouListings: [] as (typeof listings)[0][],
       };
     }
@@ -583,15 +549,18 @@ export default function HomeScreen() {
     };
   }, [
     distanceByListingId,
-    isLocationBootstrapActive,
+    hasSelectedLocationCoordinates,
     visibleListings,
     userLat,
     userLon,
     selectedSearchRadiusKm,
   ]);
 
-  const nearYouListings = useMemo(() => allNearYouListings, [allNearYouListings]);
-  const showNearYouSection = nearYouListings.length > 0;
+  const featuredListings = useMemo(
+    () => filterFeaturedListings(filteredListingsByLocation),
+    [filteredListingsByLocation]
+  );
+  const showFeaturedSection = featuredListings.length > 0;
 
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1000);
@@ -657,7 +626,7 @@ export default function HomeScreen() {
   }, [filteredListingsByLocation, selectedCategory]);
 
   const activeListingsForGrid = homeListingsForGrid;
-  const hasLocation = Boolean(userLat && userLon);
+  const hasLocation = hasSelectedLocationCoordinates;
   const onRefresh = useCallback(async () => {
     await Promise.all([refreshListings(), refreshBanners()]);
   }, [refreshListings, refreshBanners]);
@@ -744,6 +713,8 @@ export default function HomeScreen() {
         return <View style={[columnStyle, styles.placeholderColumn]} pointerEvents="none" />;
       }
 
+      const itemDistanceKm = distanceByListingId.get(item.id);
+
       return (
         <View style={columnStyle}>
           <ListingCard
@@ -757,10 +728,14 @@ export default function HomeScreen() {
             image={item.images[0]}
             imageAspectRatio={1}
             location={item.location.city}
+            distanceLabel={
+              typeof itemDistanceKm === 'number' && Number.isFinite(itemDistanceKm)
+                ? formatDistanceAway(itemDistanceKm)
+                : undefined
+            }
             condition={formatCondition(item.condition)}
             sellerVerified={Boolean(item.sellerVerified)}
             isBoosted={Boolean(item.featured)}
-            isSponsored={Boolean((item as any).sponsored)}
             isSaved={savedIds.has(item.id)}
             onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
             onSave={() => handleSave(item.id, item.category)}
@@ -769,14 +744,14 @@ export default function HomeScreen() {
         </View>
       );
     },
-    [savedIds, handleSave]
+    [savedIds, handleSave, distanceByListingId]
   );
 
   const renderCompactRailCard = useCallback(
     (
       item: (typeof listings)[0],
       options?: {
-        showDistance?: boolean;
+        showLocation?: boolean;
         showFeaturedBadge?: boolean;
         badgeLabel?: string;
       }
@@ -784,7 +759,6 @@ export default function HomeScreen() {
       const basePrice = Number(item.price) || 0;
       const displayPrice = hasValidOfferPrice(item) ? Number(item.offerPrice) : basePrice;
       const discountPercent = getDiscountPercent(item);
-      const itemDistanceKm = distanceByListingId.get(item.id);
 
       return (
         <Pressable
@@ -812,21 +786,21 @@ export default function HomeScreen() {
               {item.title}
             </Text>
             <View style={styles.cardPriceRow}>
-              <Text style={styles.cardPrice}>
+              <Text
+                style={styles.cardPrice}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
                 ₹{displayPrice.toLocaleString('en-IN')}
               </Text>
               {hasValidOfferPrice(item) ? (
-                <Text style={styles.cardOriginalPrice}>
-                  ₹{basePrice.toLocaleString('en-IN')}
-                </Text>
+                <Text style={styles.cardOriginalPrice}>₹{basePrice.toLocaleString('en-IN')}</Text>
               ) : null}
             </View>
-            {options?.showDistance ? (
-              <Text style={styles.cardDistance}>
-                {hasUserCoordinates && typeof itemDistanceKm === 'number'
-                  ? Math.round(itemDistanceKm)
-                  : '?'}{' '}
-                km away
+            {options?.showLocation ? (
+              <Text style={styles.cardLocation}>
+                {item.location?.city || 'Location unavailable'}
               </Text>
             ) : null}
           </View>
@@ -845,7 +819,7 @@ export default function HomeScreen() {
         </Pressable>
       );
     },
-    [alignedResultCardWidth, distanceByListingId, userLat, userLon]
+    [alignedResultCardWidth]
   );
 
   const dealListings = useMemo(
@@ -860,23 +834,22 @@ export default function HomeScreen() {
   const mappedDeals = useMemo(() => {
     return sortDealItemsByDistance(
       dealListings
-      .filter((item) => Boolean(item.isDeal))
-      .map((item) =>
-        createDealCardItem(
-          item,
-          nowMs,
-          typeof userLat === 'number' && typeof userLon === 'number'
-            ? { latitude: userLat, longitude: userLon }
-            : null
+        .filter((item) => Boolean(item.isDeal))
+        .map((item) =>
+          createDealCardItem(
+            item,
+            nowMs,
+            typeof userLat === 'number' && typeof userLon === 'number'
+              ? { latitude: userLat, longitude: userLon }
+              : null
+          )
         )
-      )
     );
   }, [dealListings, nowMs, userLat, userLon]);
 
   const todaysDeals = useMemo(
     () =>
       mappedDeals
-        .filter((item) => item.dealType !== 'combo')
         .filter((item) => {
           const source = dealListingsById.get(item.id);
           return source ? isDealActiveNow(source, nowMs) : false;
@@ -890,16 +863,7 @@ export default function HomeScreen() {
     () =>
       mappedDeals.filter((item) => {
         const source = dealListingsById.get(item.id);
-        return source ? isDealUpcoming(source, nowMs) : false;
-      }),
-    [dealListingsById, mappedDeals, nowMs]
-  );
-
-  const comboDeals = useMemo(
-    () =>
-      mappedDeals.filter((item) => {
-        const source = dealListingsById.get(item.id);
-        return item.dealType === 'combo' && source ? isDealActiveNow(source, nowMs) : false;
+        return source ? isDealUpcomingWithinWindow(source, nowMs) : false;
       }),
     [dealListingsById, mappedDeals, nowMs]
   );
@@ -909,7 +873,7 @@ export default function HomeScreen() {
       mappedDeals
         .filter((item) => {
           const source = dealListingsById.get(item.id);
-          return source ? isDealExpired(source, nowMs) : false;
+          return source ? isDealExpiredWithinWindow(source, nowMs) : false;
         })
         .sort((a, b) => Number(b.dealEndsAt || 0) - Number(a.dealEndsAt || 0))
         .slice(0, 6),
@@ -921,7 +885,6 @@ export default function HomeScreen() {
       item: HomeDealItem,
       options?: {
         showBadge?: boolean;
-        combo?: boolean;
       }
     ) => {
       const basePrice = Number(item.originalPrice || item.price);
@@ -932,7 +895,7 @@ export default function HomeScreen() {
         <Pressable
           key={item.id}
           onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
-          style={[styles.dealCard, options?.combo && styles.comboDealCard]}
+          style={styles.dealCard}
         >
           <View style={styles.dealCardMedia}>
             <Image source={{ uri: item.image }} style={styles.dealCardImage} contentFit="cover" />
@@ -957,38 +920,30 @@ export default function HomeScreen() {
                 </View>
               ) : null}
             </View>
-            {options?.combo ? (
-              <View style={styles.comboDealPill}>
-                <Ionicons name="layers" size={11} color="#FFFFFF" />
-                <Text style={styles.comboDealPillText}>Combo</Text>
-              </View>
-            ) : null}
           </View>
           <View style={styles.dealCardBody}>
             <Text style={styles.dealCardTitle} numberOfLines={2}>
               {item.title}
             </Text>
-            {options?.combo && item.comboItems?.length ? (
-              <Text style={styles.dealCardSubtitle} numberOfLines={1}>
-                {item.comboItems.slice(0, 2).join(' + ')}
-              </Text>
-            ) : null}
             <View style={styles.dealPriceRow}>
               <View style={styles.dealPriceStack}>
-                <Text style={styles.dealPrice}>
+                <Text
+                  style={styles.dealPrice}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
                   ₹{displayPrice.toLocaleString('en-IN')}
                 </Text>
                 {item.originalPrice ? (
-                  <Text style={styles.dealOriginalPrice}>
-                    ₹{basePrice.toLocaleString('en-IN')}
-                  </Text>
+                  <Text style={styles.dealOriginalPrice}>₹{basePrice.toLocaleString('en-IN')}</Text>
                 ) : null}
               </View>
             </View>
             <View style={styles.dealMetaRow}>
               <Feather name="map-pin" size={11} color={Colors.textTertiary} />
               <Text style={styles.dealDistanceText} numberOfLines={1}>
-                {item.distance}
+                {item.location}
               </Text>
             </View>
             <View style={styles.dealStatusPanel}>
@@ -1083,7 +1038,9 @@ export default function HomeScreen() {
                             {userCity}
                           </Text>
                           <Text style={styles.locationPillSubtext} numberOfLines={1}>
-                            Within {Math.round(selectedSearchRadiusKm)} km
+                            {hasLocation
+                              ? `Within ${Math.round(selectedSearchRadiusKm)} km`
+                              : 'All listings'}
                           </Text>
                         </View>
                         <Feather name="chevron-down" size={13} color={Colors.textSecondary} />
@@ -1110,7 +1067,7 @@ export default function HomeScreen() {
                   >
                     <Feather name="search" size={16} color={Colors.textTertiary} />
                     <Text style={styles.searchPlaceholder} numberOfLines={1}>
-                      Search listings near you
+                      Search listings, brands, products...
                     </Text>
                     <Feather name="chevron-right" size={16} color={Colors.textTertiary} />
                   </Pressable>
@@ -1122,19 +1079,19 @@ export default function HomeScreen() {
             {/* App Screen Banners (Admin-uploaded) */}
             <AppScreenBanners banners={homeBanners} isLoading={isHomeBannersLoading} />
 
-            {showNearYouSection ? (
+            {showFeaturedSection ? (
               <View style={styles.nearYouSection}>
                 <View style={styles.sectionHeader}>
                   <View style={styles.sectionHeaderLeft}>
-                    <Feather name="map-pin" size={16} color={Colors.primary} />
-                    <Text style={styles.sectionTitle}>Near You</Text>
+                    <Feather name="grid" size={16} color={Colors.primary} />
+                    <Text style={styles.sectionTitle}>Featured Listings</Text>
                   </View>
                   <Pressable
                     onPress={() =>
                       router.push({
                         pathname: '/home-section-list',
                         params: {
-                          section: 'nearby',
+                          section: 'featured',
                           lat: userLat?.toString() || '',
                           lon: userLon?.toString() || '',
                           radius: selectedSearchRadiusKm.toString(),
@@ -1147,14 +1104,19 @@ export default function HomeScreen() {
                     <Text style={styles.viewAllText}>View All</Text>
                   </Pressable>
                 </View>
+                <Text style={styles.sectionSubtext}>
+                  {hasLocation
+                    ? 'Featured listings across all locations, with your chosen city used to refine results.'
+                    : 'Featured listings across all locations.'}
+                </Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   style={styles.nearYouScroll}
                   contentContainerStyle={styles.horizontalResultsContent}
                 >
-                  {nearYouListings.map((item) =>
-                    renderCompactRailCard(item, { showDistance: true })
+                  {featuredListings.map((item) =>
+                    renderCompactRailCard(item, { showLocation: true })
                   )}
                 </ScrollView>
               </View>
@@ -1165,7 +1127,7 @@ export default function HomeScreen() {
                 <View style={styles.sectionHeader}>
                   <View style={styles.sectionHeaderLeft}>
                     <Feather name="tag" size={16} color={Colors.primary} />
-                    <Text style={styles.sectionTitle}>Deals</Text>
+                    <Text style={styles.sectionTitle}>Active Deals</Text>
                   </View>
                   <Pressable
                     onPress={() =>
@@ -1176,42 +1138,15 @@ export default function HomeScreen() {
                     <Text style={styles.viewAllText}>View All</Text>
                   </Pressable>
                 </View>
-                <Text style={styles.sectionSubtext}>Live offers ending soon near you</Text>
+                <Text style={styles.sectionSubtext}>
+                  {hasLocation ? 'Live offers ending soon near you' : 'Live offers ending soon'}
+                </Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.dealRailContent}
                 >
                   {todaysDeals.map((item) => renderDealRailCard(item, { showBadge: true }))}
-                </ScrollView>
-              </View>
-            ) : null}
-
-            {comboDeals.length > 0 ? (
-              <View style={styles.dealsSection}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionHeaderLeft}>
-                    <Ionicons name="layers" size={16} color={Colors.primary} />
-                    <Text style={styles.sectionTitle}>Combo Deals</Text>
-                  </View>
-                  <Pressable
-                    onPress={() =>
-                      router.push({ pathname: '/deals', params: { section: 'combo' } })
-                    }
-                    style={styles.viewAllButton}
-                  >
-                    <Text style={styles.viewAllText}>View All</Text>
-                  </Pressable>
-                </View>
-                <Text style={styles.sectionSubtext}>Bundle offers with extra savings</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.dealRailContent}
-                >
-                  {comboDeals.map((item) =>
-                    renderDealRailCard(item, { showBadge: true, combo: true })
-                  )}
                 </ScrollView>
               </View>
             ) : null}
@@ -1231,7 +1166,9 @@ export default function HomeScreen() {
                   <Text style={styles.viewAllText}>View All</Text>
                 </Pressable>
               </View>
-              <Text style={styles.sectionSubtext}>Deals starting soon, sorted by proximity</Text>
+              <Text style={styles.sectionSubtext}>
+                {hasLocation ? 'Deals starting soon, sorted by proximity' : 'Deals starting soon'}
+              </Text>
               {upcomingDeals.length > 0 ? (
                 <ScrollView
                   horizontal
@@ -1340,12 +1277,12 @@ export default function HomeScreen() {
                 color={Colors.textTertiary}
               />
               <Text style={styles.emptyStateTitle}>
-                {hasLocation ? 'No Listings Found' : 'Set Your Location'}
+                {hasLocation ? 'No Listings Found' : 'No Listings Available'}
               </Text>
               <Text style={styles.emptyStateText}>
                 {hasLocation
                   ? 'No listings found in your area. Try adjusting your location, radius, or category.'
-                  : 'Use the location selector to detect or choose your city and see nearby listings.'}
+                  : 'Listings from all locations will appear here once they are available.'}
               </Text>
             </View>
           ) : null
@@ -1396,10 +1333,28 @@ export default function HomeScreen() {
               contentContainerStyle={{ paddingBottom: 40 }}
             >
               <Text style={styles.locationDescription}>
-                Change your location to find listings within {selectedSearchRadiusKm} km
+                Browse all locations by default, or choose a city to narrow listings within{' '}
+                {selectedSearchRadiusKm} km
               </Text>
 
               {/* City Search Input */}
+              <Pressable
+                style={styles.allLocationsButton}
+                onPress={() => {
+                  clearSelectedLocation();
+                  setShowLocationModal(false);
+                  setCitySearchInput('');
+                  setCitySuggestions([]);
+                  setCitySearchError(null);
+                }}
+              >
+                <View style={styles.allLocationsButtonLeft}>
+                  <Feather name="globe" size={16} color={Colors.primary} />
+                  <Text style={styles.allLocationsButtonText}>All locations</Text>
+                </View>
+                <Text style={styles.allLocationsButtonSubtext}>Show every listing</Text>
+              </Pressable>
+
               <View style={styles.pincodeSearchContainer}>
                 <Feather
                   name="map-pin"
@@ -1558,7 +1513,9 @@ export default function HomeScreen() {
                 <View style={styles.coverageTextContainer}>
                   <Text style={styles.coverageTitle}>Search Coverage</Text>
                   <Text style={styles.coverageText}>
-                    Find listings within {selectedSearchRadiusKm} km from your selected city.
+                    {hasLocation
+                      ? `Find listings within ${selectedSearchRadiusKm} km from your selected city.`
+                      : 'All locations are shown by default. Choose a city to narrow results.'}
                   </Text>
                 </View>
               </View>
@@ -1605,7 +1562,7 @@ const styles = createResponsiveStyles({
   menuButton: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: 5,
     backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1619,7 +1576,7 @@ const styles = createResponsiveStyles({
     backgroundColor: Colors.primary,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 5,
   },
   aiBadgeText: {
     color: '#fff',
@@ -1671,7 +1628,7 @@ const styles = createResponsiveStyles({
     borderWidth: 1,
     borderColor: 'rgba(10,102,194,0.22)',
     backgroundColor: 'rgba(255,255,255,0.96)',
-    borderRadius: 999,
+    borderRadius: 5,
     paddingHorizontal: 8,
     paddingVertical: 4,
     shadowColor: '#0A66C2',
@@ -1719,7 +1676,7 @@ const styles = createResponsiveStyles({
     gap: 0,
   },
   nearhubPromoBanner: {
-    borderRadius: 0,
+    borderRadius: 5,
     overflow: 'hidden',
     paddingHorizontal: 16,
     paddingVertical: 16,
@@ -1782,7 +1739,7 @@ const styles = createResponsiveStyles({
   nearhubFeaturePill: {
     alignSelf: 'flex-start',
     backgroundColor: Colors.surface,
-    borderRadius: 0,
+    borderRadius: 5,
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
@@ -1814,7 +1771,7 @@ const styles = createResponsiveStyles({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 999,
+    borderRadius: 5,
     paddingVertical: 10,
     paddingHorizontal: 12,
     gap: 8,
@@ -1829,7 +1786,7 @@ const styles = createResponsiveStyles({
     color: Colors.text,
   },
   categoryScroll: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 0,
     gap: 8,
   },
   categorySection: {
@@ -1839,7 +1796,7 @@ const styles = createResponsiveStyles({
   categoryChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 999,
+    borderRadius: 5,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: '#FFFFFF',
@@ -1862,14 +1819,14 @@ const styles = createResponsiveStyles({
     marginBottom: 6,
   },
   dealsSection: {
-    marginTop: 8,
-    marginBottom: 8,
+    marginTop: 4,
+    marginBottom: 4,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: HOME_HORIZONTAL_INSET,
+    paddingHorizontal: 0,
     marginBottom: 6,
   },
   sectionHeaderLeft: {
@@ -1883,7 +1840,7 @@ const styles = createResponsiveStyles({
     color: Colors.text,
   },
   sectionSubtext: {
-    paddingHorizontal: HOME_HORIZONTAL_INSET,
+    paddingHorizontal: 0,
     marginTop: -2,
     marginBottom: 8,
     fontSize: 11,
@@ -1903,12 +1860,12 @@ const styles = createResponsiveStyles({
     marginTop: 0,
   },
   dealRailContent: {
-    paddingHorizontal: HOME_HORIZONTAL_INSET,
+    paddingHorizontal: 0,
     gap: 6,
   },
   dealEmptyState: {
-    marginHorizontal: HOME_HORIZONTAL_INSET,
-    borderRadius: 14,
+    marginHorizontal: 0,
+    borderRadius: 5,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: '#CBD5E1',
@@ -1926,14 +1883,11 @@ const styles = createResponsiveStyles({
   dealCard: {
     width: 176,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 5,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(10,102,194,0.16)',
-    marginRight: 6,
-  },
-  comboDealCard: {
-    width: 188,
+    marginRight: 0,
   },
   dealCardMedia: {
     position: 'relative',
@@ -1952,7 +1906,7 @@ const styles = createResponsiveStyles({
     top: 6,
     left: 6,
     backgroundColor: 'rgba(15, 23, 42, 0.78)',
-    borderRadius: 999,
+    borderRadius: 5,
     paddingHorizontal: 6,
     paddingVertical: 3,
   },
@@ -1964,8 +1918,9 @@ const styles = createResponsiveStyles({
   },
   dealDiscountPill: {
     backgroundColor: '#DC2626',
-    borderRadius: 999,
-    paddingHorizontal: 6,
+    minWidth: 42,
+    borderRadius: 5,
+    paddingHorizontal: 8,
     paddingVertical: 3,
     shadowColor: '#7F1D1D',
     shadowOffset: { width: 0, height: 2 },
@@ -1976,24 +1931,9 @@ const styles = createResponsiveStyles({
   dealDiscountText: {
     color: '#FFFFFF',
     fontSize: 8,
+    lineHeight: 10,
     fontFamily: 'Inter_700Bold',
-  },
-  comboDealPill: {
-    position: 'absolute',
-    left: 6,
-    bottom: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(10, 18, 36, 0.75)',
-    borderRadius: 999,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-  },
-  comboDealPillText: {
-    color: '#FFFFFF',
-    fontSize: 8,
-    fontFamily: 'Inter_700Bold',
+    textAlign: 'center',
   },
   dealCardTopRight: {
     position: 'absolute',
@@ -2074,7 +2014,7 @@ const styles = createResponsiveStyles({
   },
   dealStatusPanel: {
     marginTop: 6,
-    borderRadius: 10,
+    borderRadius: 5,
     backgroundColor: '#F8FBFF',
     borderWidth: 1,
     borderColor: 'rgba(10,102,194,0.12)',
@@ -2095,7 +2035,7 @@ const styles = createResponsiveStyles({
   dealBookButton: {
     marginTop: 6,
     height: 30,
-    borderRadius: 8,
+    borderRadius: 5,
     backgroundColor: '#0759e6',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2128,7 +2068,7 @@ const styles = createResponsiveStyles({
     backgroundColor: 'rgba(15, 23, 42, 0.78)',
     paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: 999,
+    borderRadius: 5,
   },
   cardLabelBadgeText: {
     fontSize: 9,
@@ -2140,9 +2080,10 @@ const styles = createResponsiveStyles({
     top: 8,
     right: 8,
     backgroundColor: '#DC2626',
-    paddingHorizontal: 7,
+    minWidth: 42,
+    paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 999,
+    borderRadius: 5,
     shadowColor: '#7F1D1D',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -2151,8 +2092,10 @@ const styles = createResponsiveStyles({
   },
   cardDiscountBadgeText: {
     fontSize: 9,
+    lineHeight: 11,
     fontFamily: 'Inter_700Bold',
     color: '#FFFFFF',
+    textAlign: 'center',
   },
   cardTitle: {
     fontSize: 11,
@@ -2182,7 +2125,7 @@ const styles = createResponsiveStyles({
     textDecorationLine: 'line-through',
     flexShrink: 1,
   },
-  cardDistance: {
+  cardLocation: {
     fontSize: 9,
     fontFamily: 'Inter_400Regular',
     color: 'rgba(255,255,255,0.85)',
@@ -2190,7 +2133,7 @@ const styles = createResponsiveStyles({
   },
   featuredCard: {
     backgroundColor: '#0B1D30',
-    borderRadius: 14,
+    borderRadius: 5,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)',
@@ -2220,14 +2163,14 @@ const styles = createResponsiveStyles({
   sectionHeaderCompact: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: HOME_HORIZONTAL_INSET,
+    paddingHorizontal: 0,
     marginBottom: 2,
   },
   allListingsSectionSubtitle: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
-    paddingHorizontal: HOME_HORIZONTAL_INSET,
+    paddingHorizontal: 0,
     marginTop: -2,
   },
   listContent: {
@@ -2235,7 +2178,7 @@ const styles = createResponsiveStyles({
     paddingVertical: 6,
   },
   horizontalResultsContent: {
-    paddingHorizontal: HOME_HORIZONTAL_INSET,
+    paddingHorizontal: 0,
     gap: HOME_RAIL_GAP,
   },
   row: {
@@ -2354,12 +2297,39 @@ const styles = createResponsiveStyles({
     fontSize: 14,
     color: Colors.textSecondary,
     marginBottom: 20,
+    lineHeight: 20,
+  },
+  allLocationsButton: {
+    backgroundColor: 'rgba(10, 102, 194, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(10, 102, 194, 0.18)',
+    borderRadius: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 14,
+    gap: 4,
+  },
+  allLocationsButtonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  allLocationsButtonText: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.text,
+  },
+  allLocationsButtonSubtext: {
+    marginLeft: 24,
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: Colors.textSecondary,
   },
   radiusControlsSection: {
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 5,
     padding: 14,
     marginBottom: 16,
     gap: 10,
@@ -2383,7 +2353,7 @@ const styles = createResponsiveStyles({
   radiusStepButton: {
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: 5,
     borderWidth: 1,
     borderColor: Colors.primary,
     alignItems: 'center',
@@ -2393,7 +2363,7 @@ const styles = createResponsiveStyles({
   radiusValuePill: {
     flex: 1,
     minHeight: 40,
-    borderRadius: 10,
+    borderRadius: 5,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(10, 102, 194, 0.08)',
@@ -2413,7 +2383,7 @@ const styles = createResponsiveStyles({
     paddingVertical: 6,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 5,
     backgroundColor: Colors.background,
   },
   radiusPresetChipActive: {
@@ -2435,7 +2405,7 @@ const styles = createResponsiveStyles({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 5,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 16,
@@ -2458,7 +2428,7 @@ const styles = createResponsiveStyles({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
+    borderRadius: 5,
     marginBottom: 16,
     overflow: 'hidden',
   },
@@ -2515,7 +2485,7 @@ const styles = createResponsiveStyles({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primary,
-    borderRadius: 12,
+    borderRadius: 5,
     paddingVertical: 13,
     marginBottom: 20,
     gap: 8,
@@ -2538,7 +2508,7 @@ const styles = createResponsiveStyles({
     backgroundColor: Colors.primary,
     borderWidth: 1,
     borderColor: Colors.primaryDark,
-    borderRadius: 14,
+    borderRadius: 5,
     paddingVertical: 13,
     paddingHorizontal: 14,
     marginBottom: 20,
@@ -2581,7 +2551,7 @@ const styles = createResponsiveStyles({
     backgroundColor: 'rgba(239, 68, 68, 0.08)',
     borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.2)',
-    borderRadius: 10,
+    borderRadius: 5,
     paddingVertical: 12,
     paddingHorizontal: 14,
     marginBottom: 16,
@@ -2598,7 +2568,7 @@ const styles = createResponsiveStyles({
     backgroundColor: 'rgba(34, 197, 94, 0.08)',
     borderWidth: 1.5,
     borderColor: Colors.success,
-    borderRadius: 12,
+    borderRadius: 5,
     paddingVertical: 14,
     paddingHorizontal: 14,
     marginTop: 16,

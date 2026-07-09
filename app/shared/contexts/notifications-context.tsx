@@ -165,7 +165,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
     try {
       const apiUrl = await getApiUrl();
-      const response = await fetch(`${apiUrl}/api/notifications?limit=100`, {
+      const response = await fetch(`${apiUrl}/api/notifications?limit=50`, {
         headers: buildUserAuthHeaders({ id: user.id, phone: user.phone || '' }),
       });
 

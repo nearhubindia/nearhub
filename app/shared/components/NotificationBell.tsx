@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
     padding: responsiveModerateScale(6),
   },
   bellButtonDark: {
-    borderRadius: 12,
+    borderRadius: 5,
     backgroundColor: 'rgba(30, 41, 59, 0.85)',
     borderWidth: 1,
     borderColor: 'rgba(148, 163, 184, 0.28)',
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     top: 2,
     right: 2,
     backgroundColor: '#ef4444',
-    borderRadius: 10,
+    borderRadius: 5,
     minWidth: responsiveModerateScale(18),
     height: responsiveModerateScale(18),
     justifyContent: 'center',

@@ -8,7 +8,12 @@ import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useUserInterests } from '@/shared/contexts/user-interests-context';
-import { calculateBestDistance, hasMeaningfulCoordinates } from '@/lib/location-data';
+import {
+  calculateBestDistance,
+  formatDistanceAway,
+  hasMeaningfulCoordinates,
+} from '@/lib/location-data';
+import { filterActiveListings, filterFeaturedListings } from '@/lib/home-feed';
 import { isHotelDeal, isNewProductDeal, isRestaurantDeal } from '@/lib/deals';
 import { formatCondition } from '@/lib/utils';
 import ListingCard from '@/shared/components/ListingCard';
@@ -38,7 +43,7 @@ export default function HomeSectionListScreen() {
 
   const headerTitle =
     sectionParam === 'featured'
-      ? 'Featured Deals'
+      ? 'Featured Listings'
       : sectionParam === 'restaurantDeals'
         ? 'Restaurant Deals'
         : sectionParam === 'hotelDeals'
@@ -49,16 +54,7 @@ export default function HomeSectionListScreen() {
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const hasUserCoordinates = hasMeaningfulCoordinates(Number(userLat), Number(userLon));
 
-  const visibleListings = useMemo(
-    () =>
-      listings.filter((item) => {
-        const status = (item.status || 'active').toLowerCase();
-        if (status !== 'active') return false;
-        if (item.expiresAt && new Date(item.expiresAt).getTime() < Date.now()) return false;
-        return true;
-      }),
-    [listings]
-  );
+  const visibleListings = useMemo(() => filterActiveListings(listings), [listings]);
 
   const listingsByLocation = useMemo(() => {
     if (!hasUserCoordinates || userLat === null || userLon === null) return visibleListings;
@@ -102,7 +98,7 @@ export default function HomeSectionListScreen() {
   }, [listingsByLocation, userLat, userLon, hasUserCoordinates]);
 
   const featuredListings = useMemo(
-    () => listingsByLocation.filter((item) => Boolean(item.featured)),
+    () => filterFeaturedListings(listingsByLocation),
     [listingsByLocation]
   );
 
@@ -155,6 +151,11 @@ export default function HomeSectionListScreen() {
         return <View style={[columnStyle, styles.placeholderColumn]} pointerEvents="none" />;
       }
 
+      const itemDistanceKm =
+        hasUserCoordinates && userLat !== null && userLon !== null
+          ? calculateBestDistance(userLat, userLon, item.location.latitude, item.location.longitude)
+          : undefined;
+
       return (
         <View style={columnStyle}>
           <ListingCard
@@ -167,10 +168,14 @@ export default function HomeSectionListScreen() {
             priceUnit={item.priceUnit}
             image={item.images[0]}
             location={item.location.city}
+            distanceLabel={
+              typeof itemDistanceKm === 'number' && Number.isFinite(itemDistanceKm)
+                ? formatDistanceAway(itemDistanceKm)
+                : undefined
+            }
             condition={formatCondition(item.condition)}
             sellerVerified={Boolean(item.sellerVerified)}
             isBoosted={Boolean(item.featured)}
-            isSponsored={Boolean((item as any).sponsored)}
             isSaved={savedIds.has(item.id)}
             onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
             onSave={() => handleSave(item.id, item.category)}
@@ -179,7 +184,7 @@ export default function HomeSectionListScreen() {
         </View>
       );
     },
-    [savedIds, handleSave]
+    [savedIds, handleSave, hasUserCoordinates, userLat, userLon]
   );
 
   return (
@@ -217,7 +222,7 @@ export default function HomeSectionListScreen() {
             <Text style={styles.emptyTitle}>No listings found</Text>
             <Text style={styles.emptySubtitle}>
               {sectionParam === 'featured'
-                ? 'No featured deals available for this location yet.'
+                ? 'No featured listings available for this location yet.'
                 : sectionParam === 'restaurantDeals'
                   ? 'No restaurant deals found nearby yet.'
                   : sectionParam === 'hotelDeals'

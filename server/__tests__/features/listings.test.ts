@@ -7,6 +7,7 @@ import { createTestApp } from '../setup/test-app';
 
 describe('Listings API - Strict Tests', () => {
   async function seedUser(id: string, mobile?: string) {
+    const uniqueMobile = mobile || `${Math.floor(9000000000 + Math.random() * 100000000)}`;
     await db
       .insert(users)
       .values({
@@ -14,7 +15,7 @@ describe('Listings API - Strict Tests', () => {
         username: id,
         password: 'otp-auth',
         displayName: 'Test User',
-        mobile,
+        mobile: uniqueMobile,
       })
       .onConflictDoNothing({ target: users.id });
   }
@@ -31,6 +32,34 @@ describe('Listings API - Strict Tests', () => {
       status: 'active',
       isActive: true,
       images: ['https://example.com/a.jpg'],
+      videos: [],
+    } as any);
+  }
+
+  async function seedGeoListing(
+    ownerId: string,
+    input: {
+      title: string;
+      location: string;
+      latitude: string;
+      longitude: string;
+      isDeal?: boolean;
+    }
+  ) {
+    return createListing({
+      sellerId: ownerId,
+      title: input.title,
+      description: 'Geo test listing',
+      category: 'Electronics',
+      price: '1200',
+      condition: 'good',
+      location: input.location,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      status: 'active',
+      isActive: true,
+      isDeal: input.isDeal ?? true,
+      images: ['https://example.com/geo.jpg'],
       videos: [],
     } as any);
   }
@@ -65,6 +94,40 @@ describe('Listings API - Strict Tests', () => {
     expect(Array.isArray(res.body?.data)).toBe(true);
   });
 
+  it('GET /api/listings with geo filters still returns a nearby deal even when a newer far-away deal fills the page limit', async () => {
+    const app = createTestApp();
+    const ownerId = randomUUID();
+    await seedUser(ownerId);
+
+    const nearbyDeal = await seedGeoListing(ownerId, {
+      title: `Nearby Deal ${randomUUID().slice(0, 8)}`,
+      location: 'Bengaluru',
+      latitude: '12.9716',
+      longitude: '77.5946',
+    });
+
+    await seedGeoListing(ownerId, {
+      title: `Far Deal ${randomUUID().slice(0, 8)}`,
+      location: 'Delhi',
+      latitude: '28.6139',
+      longitude: '77.2090',
+    });
+
+    const res = await request(app).get('/api/listings').query({
+      dealsOnly: '1',
+      limit: 1,
+      latitude: 12.9716,
+      longitude: 77.5946,
+      radius: 10,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body?.success).toBe(true);
+    expect(Array.isArray(res.body?.data)).toBe(true);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0]?.id).toBe(nearbyDeal.id);
+  });
+
   it('GET /api/listings/:id returns 200 for existing listing and 404 for missing listing', async () => {
     const app = createTestApp();
     const ownerId = randomUUID();
@@ -85,9 +148,9 @@ describe('Listings API - Strict Tests', () => {
     const app = createTestApp();
     const ownerId = randomUUID();
     const requesterId = randomUUID();
-    const sellerMobile = '9876543210';
+    const sellerMobile = `98765${randomUUID().replace(/\D/g, '').slice(0, 5)}`;
     await seedUser(ownerId, sellerMobile);
-    await seedUser(requesterId, '9123456780');
+    await seedUser(requesterId, `91234${randomUUID().replace(/\D/g, '').slice(0, 5)}`);
     const listing = await seedListing(ownerId);
 
     const res = await request(app)

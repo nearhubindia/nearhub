@@ -34,57 +34,57 @@ export async function checkAndDeactivateListings(): Promise<ExpirationResult> {
         and(eq(listings.isActive, true), eq(listings.status, 'active'), lt(listings.expiresAt, now))
       );
 
+    let deactivatedCount = 0;
+
     if (expiredListings.length === 0) {
       console.log('[ListingWorker] No expired listings found');
-      return {
-        deactivatedCount: 0,
-        errors: 0,
-        duration: Date.now() - startTime,
-      };
-    }
+    } else {
+      console.log(`[ListingWorker] Found ${expiredListings.length} expired listings`);
 
-    console.log(`[ListingWorker] Found ${expiredListings.length} expired listings`);
-
-    // Batch update all expired listings
-    const result = await db
-      .update(listings)
-      .set({
-        isActive: false,
-        status: 'expired',
-        updatedAt: now,
-      })
-      .where(
-        and(eq(listings.isActive, true), eq(listings.status, 'active'), lt(listings.expiresAt, now))
-      )
-      .returning();
-
-    const expiredDealIds = expiredListings.filter((listing) => Boolean(listing.isDeal)).map((listing) => listing.id);
-    if (expiredDealIds.length > 0) {
-      await db
+      // Batch update all expired listings
+      const result = await db
         .update(listings)
         .set({
-          dealStatus: 'expired',
+          isActive: false,
+          status: 'expired',
           updatedAt: now,
-        } as never)
-        .where(inArray(listings.id, expiredDealIds));
+        })
+        .where(
+          and(eq(listings.isActive, true), eq(listings.status, 'active'), lt(listings.expiresAt, now))
+        )
+        .returning();
+      deactivatedCount = result.length;
+
+      const expiredDealIds = expiredListings
+        .filter((listing) => Boolean(listing.isDeal))
+        .map((listing) => listing.id);
+      if (expiredDealIds.length > 0) {
+        await db
+          .update(listings)
+          .set({
+            dealStatus: 'expired',
+            updatedAt: now,
+          } as never)
+          .where(inArray(listings.id, expiredDealIds));
+      }
+
+      // Invalidate cache for affected listings and categories
+      await invalidateListingCache(expiredListings.map((l) => l.id));
+
+      // Invalidate category caches
+      const affectedCategories = [...new Set(expiredListings.map((l) => l.category))];
+      await invalidateCategoryCache(affectedCategories);
     }
-
-    // Invalidate cache for affected listings and categories
-    await invalidateListingCache(expiredListings.map((l) => l.id));
-
-    // Invalidate category caches
-    const affectedCategories = [...new Set(expiredListings.map((l) => l.category))];
-    await invalidateCategoryCache(affectedCategories);
 
     const dealSyncResult = await syncDealStatuses(nowMs);
 
     const duration = Date.now() - startTime;
     console.log(
-      `[ListingWorker] Deactivated ${result.length} listings and synced ${dealSyncResult.updatedCount} deal statuses in ${duration}ms`
+      `[ListingWorker] Deactivated ${deactivatedCount} listings and synced ${dealSyncResult.updatedCount} deal statuses in ${duration}ms`
     );
 
     return {
-      deactivatedCount: result.length + dealSyncResult.updatedCount,
+      deactivatedCount: deactivatedCount + dealSyncResult.updatedCount,
       errors: 0,
       duration,
     };

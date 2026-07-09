@@ -21,35 +21,33 @@ import {
   countdownPartsFromMs,
   formatCountdown,
   isDealActiveNow,
-  isDealExpired,
-  isDealUpcoming,
+  isDealExpiredWithinWindow,
+  isDealUpcomingWithinWindow,
 } from '@/lib/deal-timer';
 import { getDiscountPercent } from '@/lib/deals';
-import { calculateBestDistance, hasMeaningfulCoordinates } from '@/lib/location-data';
+import { hasMeaningfulCoordinates } from '@/lib/location-data';
 import { bookDeal, DealBookingError } from '@/lib/deal-bookings';
-import { createDealCardItem, sortDealItemsByDistance, type DealCardItem } from '@/lib/deal-card-items';
+import {
+  createDealCardItem,
+  sortDealItemsByDistance,
+  type DealCardItem,
+} from '@/lib/deal-card-items';
 import { normalizeDealListingLocation, normalizeDealListingRecord } from '@/lib/deal-normalizers';
 import { createResponsiveStyles } from '@/lib/responsive';
 import AppTopHeader from '@/shared/components/AppTopHeader';
 import { getApiUrl } from '@/lib/query-client';
-import { useAdminSettings } from '@/lib/use-admin-settings';
 import { Listing } from '@/lib/types';
 
 type DealSectionItem = DealCardItem;
 
-type DealSectionFilter = 'today' | 'upcoming' | 'combo' | 'expired';
+type DealSectionFilter = 'today' | 'upcoming' | 'expired';
 
 function normalizeSectionFilter(value: string | string[] | undefined): DealSectionFilter | null {
   const normalized = String(Array.isArray(value) ? value[0] : value || '')
     .trim()
     .toLowerCase();
 
-  if (
-    normalized === 'today' ||
-    normalized === 'upcoming' ||
-    normalized === 'combo' ||
-    normalized === 'expired'
-  ) {
+  if (normalized === 'today' || normalized === 'upcoming' || normalized === 'expired') {
     return normalized;
   }
 
@@ -147,10 +145,6 @@ function DealCard({
     price: item.originalPrice || item.price,
     offerPrice: item.price,
   });
-  const comboTitle =
-    item.comboItems && item.comboItems.length >= 2
-      ? `${item.comboItems[0]} + ${item.comboItems[1]}`
-      : item.title;
 
   return (
     <View style={[styles.card, compact && styles.compactCard]}>
@@ -181,13 +175,8 @@ function DealCard({
 
       <View style={[styles.cardBody, compact && styles.compactCardBody]}>
         <Text style={[styles.cardTitle, compact && styles.compactCardTitle]} numberOfLines={2}>
-          {comboTitle}
+          {item.title}
         </Text>
-        {item.comboItems && item.comboItems.length >= 2 ? (
-          <Text style={styles.comboSubTitle} numberOfLines={1}>
-            {item.title}
-          </Text>
-        ) : null}
         <View style={styles.priceRow}>
           <View style={styles.priceStack}>
             <Text
@@ -220,7 +209,7 @@ function DealCard({
             style={[styles.distanceText, compact && styles.compactDistanceText]}
             numberOfLines={1}
           >
-            {item.distance}
+            {item.location}
           </Text>
         </View>
 
@@ -258,96 +247,6 @@ function DealCard({
   );
 }
 
-function ComboDealCard({
-  item,
-  nowMs,
-  bookingId,
-  onBook,
-}: {
-  item: DealSectionItem;
-  nowMs: number;
-  bookingId: string | null;
-  onBook: (id: string) => void;
-}) {
-  const comboImages = [
-    item.images[0] || item.image,
-    item.images[1] || item.images[0] || item.image,
-  ];
-  const comboTitle =
-    item.comboItems && item.comboItems.length >= 2
-      ? `${item.comboItems[0]} + ${item.comboItems[1]}`
-      : item.title;
-
-  return (
-    <View style={styles.comboCard}>
-      <Pressable
-        onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
-      >
-        <View style={styles.comboMedia}>
-          <View style={styles.comboSectionGrid}>
-            {comboImages.map((image, index) => (
-              <View key={`${item.id}-${index}`} style={styles.comboGridCell}>
-                <Image source={{ uri: image }} style={styles.comboImage} contentFit="cover" />
-              </View>
-            ))}
-          </View>
-          <View style={styles.comboPlusBubble}>
-            <Text style={styles.comboPlusText}>+</Text>
-          </View>
-        </View>
-      </Pressable>
-      <View style={styles.comboBody}>
-        <Text style={styles.comboTitle} numberOfLines={2}>
-          {comboTitle}
-        </Text>
-        <View style={styles.priceRow}>
-          <View style={styles.priceStack}>
-            <Text
-              style={styles.comboPrice}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.8}
-            >
-              {formatPriceInr(item.price)}
-            </Text>
-            {item.originalPrice ? (
-              <Text
-                style={styles.cardOriginalPrice}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.8}
-              >
-                {formatPriceInr(item.originalPrice)}
-              </Text>
-            ) : null}
-          </View>
-        </View>
-        <View style={styles.statusPanel}>
-          <Text style={styles.statusKicker}>Deal status</Text>
-          {item.dealStatus.startsWith('Ends in') ? (
-            <CountdownBlocks endAt={item.dealEndsAt} nowMs={nowMs} />
-          ) : (
-            <Text style={styles.statusValue}>{item.dealStatus}</Text>
-          )}
-        </View>
-        {item.dealStatus.startsWith('Ends in') ? (
-          <Pressable
-            style={[styles.bookButton, bookingId === item.id && styles.bookButtonDisabled]}
-            onPress={() => onBook(item.id)}
-            disabled={bookingId === item.id}
-          >
-            {bookingId === item.id ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.bookButtonText}>Book Deal</Text>
-            )}
-          </Pressable>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
 export default function DealsScreen() {
   const insets = useSafeAreaInsets();
   const { section } = useLocalSearchParams<{ section?: string | string[] }>();
@@ -356,18 +255,22 @@ export default function DealsScreen() {
   const authRedirect = pathname && pathname !== '/auth/register' ? pathname : '';
   const { listings, savedIds, toggleSaved, refreshListings, isRefreshing } = useListings();
   const { user, cachedLocation, isAuthenticated } = useAuth();
-  const { geoRadiusKm } = useAdminSettings();
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [broadDealListings, setBroadDealListings] = useState<Listing[]>([]);
   const [isBroadRefreshing, setIsBroadRefreshing] = useState(false);
   const currentLocation = user?.location || cachedLocation;
-  const effectiveDealRadiusKm = user?.preferences?.searchRadiusKm ?? geoRadiusKm;
   const hasCurrentLocationCoordinates = hasMeaningfulCoordinates(
     Number(currentLocation?.latitude),
     Number(currentLocation?.longitude)
   );
-  const dealsLocationMessage = 'Set your location to browse deals within your radius.';
+  const distanceCoords =
+    hasCurrentLocationCoordinates && currentLocation
+      ? {
+          latitude: Number(currentLocation.latitude),
+          longitude: Number(currentLocation.longitude),
+        }
+      : null;
 
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1000);
@@ -451,49 +354,15 @@ export default function DealsScreen() {
     return [...merged.values()];
   }, [broadDealListings, listings]);
 
-  const mappedDeals = useMemo(() => {
-    if (!hasCurrentLocationCoordinates || !currentLocation) {
-      return [];
-    }
-
-    const sourceLat = currentLocation.latitude;
-    const sourceLon = currentLocation.longitude;
-
-    return allDealListings
-      .filter((item) => {
-        if (!hasMeaningfulCoordinates(item.location.latitude, item.location.longitude)) {
-          return false;
-        }
-
-        const distanceKm = calculateBestDistance(
-          sourceLat,
-          sourceLon,
-          item.location.latitude,
-          item.location.longitude
-        );
-
-        return Number.isFinite(distanceKm) && distanceKm <= effectiveDealRadiusKm;
-      })
-      .map((item) =>
-        createDealCardItem(item, nowMs, {
-          latitude: sourceLat,
-          longitude: sourceLon,
-        })
-      );
-  }, [
-    allDealListings,
-    nowMs,
-    currentLocation?.latitude,
-    currentLocation?.longitude,
-    hasCurrentLocationCoordinates,
-    effectiveDealRadiusKm,
-  ]);
+  const mappedDeals = useMemo(
+    () => allDealListings.map((item) => createDealCardItem(item, nowMs, distanceCoords)),
+    [allDealListings, nowMs, distanceCoords]
+  );
   const sortedMappedDeals = useMemo(() => sortDealItemsByDistance(mappedDeals), [mappedDeals]);
 
   const todaysDeals = useMemo(
     () =>
       sortedMappedDeals
-        .filter((item) => item.dealType !== 'combo')
         .filter((item) => {
           const source = allDealListings.find((listing) => listing.id === item.id);
           return source ? isDealActiveNow(source, nowMs) : false;
@@ -506,16 +375,7 @@ export default function DealsScreen() {
     () =>
       sortedMappedDeals.filter((item) => {
         const source = allDealListings.find((listing) => listing.id === item.id);
-        return source ? isDealUpcoming(source, nowMs) : false;
-      }),
-    [allDealListings, sortedMappedDeals, nowMs]
-  );
-
-  const comboDeals = useMemo(
-    () =>
-      sortedMappedDeals.filter((item) => {
-        const source = allDealListings.find((listing) => listing.id === item.id);
-        return item.dealType === 'combo' && source ? isDealActiveNow(source, nowMs) : false;
+        return source ? isDealUpcomingWithinWindow(source, nowMs) : false;
       }),
     [allDealListings, sortedMappedDeals, nowMs]
   );
@@ -525,7 +385,7 @@ export default function DealsScreen() {
       sortedMappedDeals
         .filter((item) => {
           const source = allDealListings.find((listing) => listing.id === item.id);
-          return source ? isDealExpired(source, nowMs) : false;
+          return source ? isDealExpiredWithinWindow(source, nowMs) : false;
         })
         .sort((a, b) => Number(b.dealEndsAt || 0) - Number(a.dealEndsAt || 0)),
     [allDealListings, sortedMappedDeals, nowMs]
@@ -533,31 +393,24 @@ export default function DealsScreen() {
 
   const showTodaySection = !selectedSection || selectedSection === 'today';
   const showUpcomingSection = !selectedSection || selectedSection === 'upcoming';
-  const showComboSection = !selectedSection || selectedSection === 'combo';
   const showExpiredSection = !selectedSection || selectedSection === 'expired';
 
   const heroTitle =
     selectedSection === 'today'
-      ? "Today's Deals"
+      ? 'Active Deals'
       : selectedSection === 'upcoming'
         ? 'Upcoming Deals'
-        : selectedSection === 'combo'
-          ? 'Combo Deals'
-          : selectedSection === 'expired'
-            ? 'Expired Deals'
-            : 'Discover Deals';
+        : selectedSection === 'expired'
+          ? 'Expired Deals'
+          : 'Discover Deals';
   const heroSubtitle =
     selectedSection === 'today'
       ? 'Browse every live deal currently active across NearHub.'
       : selectedSection === 'upcoming'
         ? 'Browse every scheduled deal that is starting soon.'
-        : selectedSection === 'combo'
-          ? 'Browse every active combo bundle in one place.'
-          : selectedSection === 'expired'
-            ? 'Browse all expired deals kept for reference.'
-            : hasCurrentLocationCoordinates
-              ? 'Browse live offers, upcoming promotions, and combo bundles in the same native app layout as the rest of NearHub.'
-              : dealsLocationMessage;
+        : selectedSection === 'expired'
+          ? 'Browse all expired deals kept for reference.'
+          : 'Browse live offers and upcoming promotions in the same native app layout as the rest of NearHub.';
 
   return (
     <ScrollView
@@ -580,132 +433,93 @@ export default function DealsScreen() {
         />
       </View>
 
-      {showTodaySection ? <View style={styles.section}>
-        <SectionHeader
-          icon={<Feather name="tag" size={18} color={Colors.primary} />}
-          title="Today's Deals"
-        />
-        {hasCurrentLocationCoordinates && todaysDeals.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalRail}
-          >
-            {todaysDeals.map((item) => (
-              <View key={item.id} style={styles.railCardWrap}>
-                <DealCard
-                  item={item}
-                  nowMs={nowMs}
-                  compact
-                  bookingId={bookingId}
-                  onToggleSaved={toggleSaved}
-                  saved={savedIds.has(item.id)}
-                  onBook={handleBookDeal}
-                />
-              </View>
-            ))}
-          </ScrollView>
-        ) : (
-          <EmptyState
-            message={
-              hasCurrentLocationCoordinates
-                ? 'No active deals are available right now.'
-                : dealsLocationMessage
-            }
+      {showTodaySection ? (
+        <View style={styles.section}>
+          <SectionHeader
+            icon={<Feather name="tag" size={18} color={Colors.primary} />}
+            title="Active Deals"
           />
-        )}
-      </View> : null}
+          {todaysDeals.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalRail}
+            >
+              {todaysDeals.map((item) => (
+                <View key={item.id} style={styles.railCardWrap}>
+                  <DealCard
+                    item={item}
+                    nowMs={nowMs}
+                    compact
+                    bookingId={bookingId}
+                    onToggleSaved={toggleSaved}
+                    saved={savedIds.has(item.id)}
+                    onBook={handleBookDeal}
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <EmptyState message="No active deals are available right now." />
+          )}
+        </View>
+      ) : null}
 
-      {showUpcomingSection ? <View style={styles.section}>
-        <SectionHeader
-          icon={<Feather name="zap" size={18} color="#F97316" />}
-          title="Upcoming Deals"
-          subtitle="Deals starting soon, sorted by distance"
-        />
-        {hasCurrentLocationCoordinates && upcomingDeals.length > 0 ? (
-          <View style={styles.grid}>
-            {upcomingDeals.map((item) => (
-              <View key={item.id} style={styles.gridItem}>
-                <DealCard
-                  item={item}
-                  nowMs={nowMs}
-                  bookingId={bookingId}
-                  onToggleSaved={toggleSaved}
-                  saved={savedIds.has(item.id)}
-                  onBook={handleBookDeal}
-                />
-              </View>
-            ))}
-          </View>
-        ) : (
-          <EmptyState
-            message={
-              hasCurrentLocationCoordinates
-                ? 'No upcoming deals are available right now.'
-                : dealsLocationMessage
-            }
+      {showUpcomingSection ? (
+        <View style={styles.section}>
+          <SectionHeader
+            icon={<Feather name="zap" size={18} color="#F97316" />}
+            title="Upcoming Deals"
+            subtitle="Deals starting soon, sorted by distance"
           />
-        )}
-      </View> : null}
+          {upcomingDeals.length > 0 ? (
+            <View style={styles.grid}>
+              {upcomingDeals.map((item) => (
+                <View key={item.id} style={styles.gridItem}>
+                  <DealCard
+                    item={item}
+                    nowMs={nowMs}
+                    bookingId={bookingId}
+                    onToggleSaved={toggleSaved}
+                    saved={savedIds.has(item.id)}
+                    onBook={handleBookDeal}
+                  />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <EmptyState message="No upcoming deals are available right now." />
+          )}
+        </View>
+      ) : null}
 
-      {showComboSection ? <View style={styles.section}>
-        <SectionHeader
-          icon={<Feather name="gift" size={18} color="#F97316" />}
-          title="Combo Deals You'll Love"
-          subtitle="Save more with handpicked product bundles by distance"
-        />
-        {hasCurrentLocationCoordinates && comboDeals.length > 0 ? (
-          <View style={styles.comboGrid}>
-            {comboDeals.map((item) => (
-              <ComboDealCard
-                key={item.id}
-                item={item}
-                nowMs={nowMs}
-                bookingId={bookingId}
-                onBook={handleBookDeal}
-              />
-            ))}
-          </View>
-        ) : (
-          <EmptyState
-            message={
-              hasCurrentLocationCoordinates
-                ? 'No combo deals are available right now.'
-                : dealsLocationMessage
-            }
+      {showExpiredSection ? (
+        <View style={styles.section}>
+          <SectionHeader
+            icon={<Feather name="clock" size={18} color={Colors.textSecondary} />}
+            title="Expired Deals"
+            subtitle="Closed offers are still visible for price reference"
           />
-        )}
-      </View> : null}
-
-      {showExpiredSection ? <View style={styles.section}>
-        <SectionHeader
-          icon={<Feather name="clock" size={18} color={Colors.textSecondary} />}
-          title="Expired Deals"
-          subtitle="Closed offers are still visible for price reference"
-        />
-        {hasCurrentLocationCoordinates && expiredDeals.length > 0 ? (
-          <View style={styles.grid}>
-            {expiredDeals.map((item) => (
-              <View key={item.id} style={styles.gridItem}>
-                <DealCard
-                  item={item}
-                  nowMs={nowMs}
-                  bookingId={bookingId}
-                  onToggleSaved={toggleSaved}
-                  saved={savedIds.has(item.id)}
-                  onBook={handleBookDeal}
-                />
-              </View>
-            ))}
-          </View>
-        ) : (
-          <EmptyState
-            message={
-              hasCurrentLocationCoordinates ? 'No expired deals yet.' : dealsLocationMessage
-            }
-          />
-        )}
-      </View> : null}
+          {expiredDeals.length > 0 ? (
+            <View style={styles.grid}>
+              {expiredDeals.map((item) => (
+                <View key={item.id} style={styles.gridItem}>
+                  <DealCard
+                    item={item}
+                    nowMs={nowMs}
+                    bookingId={bookingId}
+                    onToggleSaved={toggleSaved}
+                    saved={savedIds.has(item.id)}
+                    onBook={handleBookDeal}
+                  />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <EmptyState message="No expired deals yet." />
+          )}
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
@@ -820,13 +634,15 @@ const styles = createResponsiveStyles({
     right: 8,
     borderRadius: 999,
     backgroundColor: 'rgba(15,23,42,0.85)',
-    paddingHorizontal: 8,
+    minWidth: 44,
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
   dealBadgeText: {
     color: '#FFFFFF',
     fontSize: 10,
     fontFamily: 'Inter_700Bold',
+    textAlign: 'center',
   },
   saveButton: {
     position: 'absolute',
@@ -854,12 +670,6 @@ const styles = createResponsiveStyles({
   compactCardTitle: {
     fontSize: 13,
     fontFamily: 'Inter_700Bold',
-  },
-  comboSubTitle: {
-    marginTop: 4,
-    fontSize: 11,
-    color: '#64748B',
-    fontFamily: 'Inter_400Regular',
   },
   priceRow: {
     marginTop: 8,
@@ -988,62 +798,6 @@ const styles = createResponsiveStyles({
   bookButtonText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  comboCard: {
-    overflow: 'hidden',
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  comboMedia: {
-    position: 'relative',
-    height: 176,
-    backgroundColor: '#FFFFFF',
-  },
-  comboGrid: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
-    gap: StyleSheet.hairlineWidth,
-  },
-  comboGridCell: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  comboImage: {
-    width: '100%',
-    height: '100%',
-  },
-  comboPlusBubble: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    marginLeft: -20,
-    marginTop: -20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    backgroundColor: '#DC2626',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  comboPlusText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontFamily: 'Inter_700Bold',
-    lineHeight: 24,
-  },
-  comboBody: {
-    padding: 12,
-  },
-  comboTitle: {
-    fontSize: 15,
-    lineHeight: 20,
-    color: '#0F172A',
     fontFamily: 'Inter_600SemiBold',
   },
   emptyState: {

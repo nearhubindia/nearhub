@@ -290,7 +290,7 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
               <button
                 key={item.label}
                 onClick={() => updateCategory(item.label)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold ${
                   category === item.label
                     ? 'border-[#1e5da8] bg-[#1e5da8] text-white'
                     : 'border-slate-300 bg-white text-slate-700 hover:border-[#1e5da8]/40'
@@ -428,11 +428,11 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                         </span>
                       </div>
                     ) : null}
-                    <div className="mt-2 flex items-center justify-between sm:mt-3">
-                      <p className="text-xs font-black text-[#0f4b8a] sm:text-sm">
+                    <div className="mt-2 flex items-center justify-between gap-2 sm:mt-3">
+                      <p className="min-w-0 shrink-0 whitespace-nowrap text-xs font-black leading-none text-[#0f4b8a] sm:text-sm">
                         {formatPriceInr(getDisplayPriceValue(listing))}
                       </p>
-                      <div className="flex items-center gap-3">
+                      <div className="flex shrink-0 items-center gap-3">
                         <Link
                           to={`/listing/${listing.id}`}
                           className="text-xs font-black text-[#ff7b00] hover:underline"

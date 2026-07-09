@@ -288,7 +288,7 @@ export default function InvoicesScreen() {
         renderItem={({ item }) => (
           <View style={styles.invoiceCard}>
             <View style={styles.invoiceHeader}>
-              <View>
+              <View style={styles.invoiceHeaderContent}>
                 <Text style={styles.invoiceNumber}>{item.invoiceNumber}</Text>
                 <Text style={styles.invoiceDate}>
                   {new Date(item.storedAt || item.invoiceDate).toLocaleDateString('en-IN')}
@@ -306,13 +306,21 @@ export default function InvoicesScreen() {
             </View>
 
             <View style={styles.invoiceBody}>
-              <View style={styles.invoiceDetail}>
-                <Text style={styles.detailLabel}>Customer</Text>
-                <Text style={styles.detailValue}>{item.customerName}</Text>
+              <View style={styles.invoiceRow}>
+                <View style={styles.invoiceDetail}>
+                  <Text style={styles.detailLabel}>Customer</Text>
+                  <Text style={styles.detailValue} numberOfLines={1}>
+                    {item.customerName}
+                  </Text>
+                </View>
+                <View style={[styles.invoiceDetail, styles.amountDetail]}>
+                  <Text style={styles.detailLabel}>Amount</Text>
+                  <Text style={styles.amountValue}>₹{item.total.toLocaleString('en-IN')}</Text>
+                </View>
               </View>
-              <View style={styles.invoiceDetail}>
-                <Text style={styles.detailLabel}>Amount</Text>
-                <Text style={styles.amountValue}>₹{item.total.toLocaleString('en-IN')}</Text>
+              <View style={styles.invoiceRow}>
+                <Text style={styles.detailLabel}>Status</Text>
+                <Text style={styles.statusInlineValue}>{item.status}</Text>
               </View>
             </View>
 
@@ -445,22 +453,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
+  invoiceHeaderContent: {
+    flex: 1,
+    minWidth: 0,
+  },
   invoiceNumber: {
-    fontSize: 16,
+    fontSize: 15,
+    lineHeight: 21,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: 2,
+    marginBottom: 4,
+    flexShrink: 1,
   },
   invoiceDate: {
     fontSize: 12,
     color: colors.textSecondary,
   },
   statusBadge: {
+    alignSelf: 'flex-start',
+    flexShrink: 0,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
@@ -480,11 +497,20 @@ const styles = StyleSheet.create({
   invoiceBody: {
     paddingHorizontal: 16,
     paddingVertical: 12,
+    gap: 10,
+  },
+  invoiceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
   },
   invoiceDetail: {
     flex: 1,
+    minWidth: 0,
+  },
+  amountDetail: {
+    alignItems: 'flex-end',
   },
   detailLabel: {
     fontSize: 11,
@@ -498,6 +524,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.text,
   },
+  statusInlineValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
+    textTransform: 'capitalize',
+  },
   amountValue: {
     fontSize: 16,
     fontWeight: '700',
@@ -505,6 +537,7 @@ const styles = StyleSheet.create({
   },
   invoiceActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
@@ -512,7 +545,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionButton: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: 0,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -542,6 +577,7 @@ const styles = StyleSheet.create({
   deleteButton: {
     borderColor: '#FCA5A5',
     backgroundColor: '#FEF2F2',
-    flex: 0.5,
+    flexGrow: 0,
+    flexBasis: 52,
   },
 });

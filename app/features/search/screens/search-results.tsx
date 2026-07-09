@@ -87,7 +87,8 @@ export default function SearchResultsScreen() {
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const hasUserCoordinates = hasMeaningfulCoordinates(Number(userLat), Number(userLon));
   const distanceByListingId = useMemo(() => {
-    if (!hasUserCoordinates || userLat === null || userLon === null) return new Map<string, number>();
+    if (!hasUserCoordinates || userLat === null || userLon === null)
+      return new Map<string, number>();
 
     const distanceMap = new Map<string, number>();
     const sourceLat = userLat;
@@ -234,7 +235,6 @@ export default function SearchResultsScreen() {
             location={item.location.city}
             condition={formatCondition(item.condition)}
             sellerVerified={Boolean(item.sellerVerified)}
-            isSponsored={Boolean((item as any).sponsored)}
             isSaved={savedIds.has(item.id)}
             onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
             onSave={() => handleSave(item.id, item.category)}

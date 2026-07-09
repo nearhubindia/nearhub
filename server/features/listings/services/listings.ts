@@ -5,7 +5,6 @@ import {
   type Listing,
   type InsertListing,
 } from '../../admin/models/admin-settings';
-import { calculateDistance } from '../../search/services/distance';
 import { loadListingAttributeValueMap, replaceListingAttributeValues } from './listing-attributes';
 import { eq, and, desc, or, gte, lt, isNull, inArray } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
@@ -50,22 +49,6 @@ function isListingsImagesSchemaMismatchError(error: unknown): boolean {
   );
 }
 
-function normalizeVisibilityMode(value: unknown): 'local' | 'online' {
-  return typeof value === 'string' && value.trim().toLowerCase() === 'online' ? 'online' : 'local';
-}
-
-function getEffectiveVisibilityRadiusKm(listing: {
-  visibilityMode?: unknown;
-  visibilityRadiusKm?: unknown;
-}): number {
-  if (normalizeVisibilityMode(listing.visibilityMode) !== 'online') {
-    return 0;
-  }
-
-  const radius = Number(listing.visibilityRadiusKm);
-  return Number.isFinite(radius) && radius > 0 ? radius : 0;
-}
-
 function isDbError(error: unknown): error is { code?: string; message?: string } {
   return typeof error === 'object' && error !== null;
 }
@@ -83,7 +66,6 @@ async function insertListingWithPgArrayImages(
     category: string;
     images: string[];
     videos: string;
-    comboItems: string;
     expiresAt: Date | null;
   }
 ): Promise<Listing> {
@@ -92,18 +74,18 @@ async function insertListingWithPgArrayImages(
       seller_id, title, description, main_category, sub_category, category, listing_type,
       price, offer_price, price_unit, contact_phone, condition, location, pincode,
       latitude, longitude, images, videos, subscription_tier_id, user_subscription_id,
-      coupon_id, status, is_active, is_paid, featured, sponsored, boosted_until,
+      coupon_id, status, is_active, is_paid, featured, boosted_until,
       boost_count, is_deal, deal_type, deal_start_at, deal_end_at, deal_recurrence,
       deal_recurrence_until, deal_cycle_quantity, deal_last_cycle_key, max_deal_bookings,
-      deal_bookings_used, combo_items, deal_terms, voucher_enabled, duration_days, expires_at
+      deal_bookings_used, deal_terms, voucher_enabled, duration_days, expires_at
     ) values (
       $1, $2, $3, $4, $5, $6, $7,
       $8, $9, $10, $11, $12, $13, $14,
       $15, $16, $17, $18, $19, $20,
       $21, $22, $23, $24, $25, $26,
-      $27, $28, $29, $30, $31, $32, $33,
-      $34, $35, $36, $37, $38, $39, $40,
-      $41, $42, $43
+      $27, $28, $29, $30, $31, $32,
+      $33, $34, $35, $36, $37, $38,
+      $39, $40, $41
     ) returning *`,
     [
       values.sellerId,
@@ -131,7 +113,6 @@ async function insertListingWithPgArrayImages(
       values.isActive ?? true,
       values.isPaid ?? false,
       values.featured ?? false,
-      values.sponsored ?? false,
       values.boostedUntil ?? null,
       values.boostCount ?? 0,
       values.isDeal ?? false,
@@ -144,7 +125,6 @@ async function insertListingWithPgArrayImages(
       values.dealLastCycleKey ?? null,
       values.maxDealBookings ?? null,
       values.dealBookingsUsed ?? 0,
-      values.comboItems,
       values.dealTerms ?? null,
       values.voucherEnabled ?? true,
       values.durationDays ?? null,
@@ -205,9 +185,6 @@ export async function createListing(
   const imagesAsArray = coerceMediaToArray(validated.images);
   const imagesAsJson = coerceMediaToJson(validated.images);
   const videosAsJson = coerceMediaToJson(validated.videos);
-  const comboItemsAsJson = coerceMediaToJson(
-    (validated as { comboItems?: unknown }).comboItems
-  );
 
   // Calculate expiration if duration is provided
   const expiresAt = validated.durationDays
@@ -222,7 +199,6 @@ export async function createListing(
       category: normalizedSubCategory || validated.category,
       images: imagesValue,
       videos: videosValue,
-      comboItems: comboItemsAsJson,
       expiresAt,
     });
 
@@ -234,7 +210,6 @@ export async function createListing(
       category: normalizedSubCategory || validated.category,
       images: imagesAsArray,
       videos: videosAsJson,
-      comboItems: comboItemsAsJson,
       expiresAt,
     });
     if (created) {
@@ -379,7 +354,55 @@ export async function getActiveListing(
   }
 
   // Build base query
-  const query = db
+  if (latitude !== undefined && longitude !== undefined && radiusKm !== undefined && radiusKm > 0) {
+    const distanceExpression = sql<number>`
+      6371 * acos(
+        least(
+          1,
+          greatest(
+            -1,
+            cos(radians(${latitude}))
+              * cos(radians(CAST(${listings.latitude} AS double precision)))
+              * cos(
+                radians(CAST(${listings.longitude} AS double precision))
+                - radians(${longitude})
+              )
+              + sin(radians(${latitude}))
+              * sin(radians(CAST(${listings.latitude} AS double precision)))
+          )
+        )
+      )
+    `;
+    const effectiveRadiusExpression = sql<number>`
+      greatest(
+        ${radiusKm},
+        case
+          when ${listings.visibilityMode} = 'online' then coalesce(${listings.visibilityRadiusKm}, 0)
+          else 0
+        end
+      )
+    `;
+
+    return await db
+      .select()
+      .from(listings)
+      .where(
+        and(
+          ...conditions,
+          sql`${listings.latitude} IS NOT NULL AND ${listings.longitude} IS NOT NULL`,
+          sql`${distanceExpression} <= ${effectiveRadiusExpression}`
+        )
+      )
+      .orderBy(
+        sql`CASE WHEN ${listings.boostedUntil} IS NOT NULL AND ${listings.boostedUntil} > now() THEN 1 ELSE 0 END DESC`,
+        desc(listings.featured),
+        desc(listings.createdAt)
+      )
+      .limit(limit)
+      .offset(offset);
+  }
+
+  return await db
     .select()
     .from(listings)
     .where(and(...conditions))
@@ -390,27 +413,6 @@ export async function getActiveListing(
     )
     .limit(limit)
     .offset(offset);
-
-  // If geo-filtering is requested, filter by distance
-  if (latitude !== undefined && longitude !== undefined && radiusKm !== undefined && radiusKm > 0) {
-    const allResults = await query;
-
-    // Filter results by distance (since we can't use HAVING without GROUP BY)
-    const filtered = allResults.filter((listing) => {
-      // When geo filtering is active, only show listings with valid coordinates.
-      // This prevents unrelated locations from leaking into nearby results.
-      if (!listing.latitude || !listing.longitude) return false;
-      const lat1 = parseFloat(listing.latitude);
-      const lon1 = parseFloat(listing.longitude);
-      const distance = calculateDistance(lat1, lon1, latitude, longitude);
-      const effectiveRadiusKm = Math.max(radiusKm, getEffectiveVisibilityRadiusKm(listing));
-      return distance <= effectiveRadiusKm;
-    });
-
-    return filtered;
-  }
-
-  return await query;
 }
 
 /**
@@ -537,14 +539,6 @@ export async function updateListing(
     updateValues.videos = coerceMediaToJson(normalizedUpdates.videos);
   } else {
     delete updateValues.videos;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(normalizedUpdates, 'comboItems')) {
-    updateValues.comboItems = coerceMediaToJson(
-      (normalizedUpdates as { comboItems?: unknown }).comboItems
-    );
-  } else {
-    delete updateValues.comboItems;
   }
 
   updateValues.dealStatus = deriveDealStatus(

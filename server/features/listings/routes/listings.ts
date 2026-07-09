@@ -359,8 +359,8 @@ function toPublicListing(
   const publicImages = sanitizeMediaForPublic(req, listingId, 'images', images);
   const publicVideos = sanitizeMediaForPublic(req, listingId, 'videos', videos);
   const primaryImage = typeof publicImages[0] === 'string' ? publicImages[0] : '';
-  const derivedDealStatus =
-    listing?.dealStatus ?? listing?.deal_status ?? deriveDealStatus(listing, Date.now());
+  const derivedDealStatus = deriveDealStatus(listing, Date.now());
+  const responseDealStatus = derivedDealStatus ?? listing?.dealStatus ?? listing?.deal_status ?? null;
   const price = normalizeRequiredNumber(listing?.price);
   const offerPrice = normalizeOptionalNumber(listing?.offerPrice ?? listing?.offer_price);
 
@@ -376,7 +376,7 @@ function toPublicListing(
     // Never expose raw phone numbers in public listing payloads.
     contactPhone: '',
     sellerPhone: '',
-    dealStatus: derivedDealStatus,
+    dealStatus: responseDealStatus,
     chatCount,
     likeCount,
     saveCount: likeCount,
@@ -424,7 +424,7 @@ function toMutationListingResponse(listing: any) {
     boostCount: listing.boostCount ?? listing.boost_count ?? 0,
     isDeal: listing.isDeal ?? listing.is_deal ?? false,
     dealStatus:
-      listing.dealStatus ?? listing.deal_status ?? deriveDealStatus(listing, Date.now()),
+      deriveDealStatus(listing, Date.now()) ?? listing.dealStatus ?? listing.deal_status ?? null,
     dealType: listing.dealType ?? listing.deal_type ?? null,
     dealStartAt: listing.dealStartAt ?? listing.deal_start_at ?? null,
     dealEndAt: listing.dealEndAt ?? listing.deal_end_at ?? null,
@@ -438,7 +438,6 @@ function toMutationListingResponse(listing: any) {
     dealBookingsUsed: listing.dealBookingsUsed ?? listing.deal_bookings_used ?? 0,
     purchaseLimitType:
       listing.purchaseLimitType ?? listing.purchase_limit_type ?? null,
-    comboItems: parseJsonArrayField(listing.comboItems ?? listing.combo_items),
     dealTerms: listing.dealTerms ?? listing.deal_terms ?? null,
     voucherEnabled: listing.voucherEnabled ?? listing.voucher_enabled ?? true,
     visibilityMode: listing.visibilityMode ?? listing.visibility_mode ?? 'local',
@@ -1109,10 +1108,6 @@ export function registerListingRoutes(app: Express) {
       }
       delete sanitizedUpdates.postDealPriceMode;
       delete sanitizedUpdates.postDealDiscountPrice;
-
-      if (Array.isArray(sanitizedUpdates.comboItems)) {
-        sanitizedUpdates.comboItems = JSON.stringify(sanitizedUpdates.comboItems);
-      }
 
       dropUndefinedValues(sanitizedUpdates);
 

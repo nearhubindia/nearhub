@@ -5,7 +5,7 @@ export function Container({
   className = '',
 }: PropsWithChildren<{ className?: string }>): ReactElement {
   return (
-    <div className={['w-full px-3 sm:px-4 lg:px-5', className].filter(Boolean).join(' ')}>
+    <div className={['w-full px-4 sm:px-4 lg:px-5', className].filter(Boolean).join(' ')}>
       {children}
     </div>
   );

@@ -2,13 +2,17 @@ import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Heart, Sparkles, Timer } from 'lucide-react';
-import { ComboDealCard } from '@/features/landing/components/ComboDealCard';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
-import { formatDealStatus, getEffectiveDealWindow } from '@/lib/deal-timer';
+import {
+  formatDealStatus,
+  getEffectiveDealWindow,
+  isDealActiveNow,
+  isDealExpiredWithinWindow,
+  isDealUpcomingWithinWindow,
+} from '@/lib/deal-timer';
 import {
   FALLBACK_LISTING_IMAGE,
-  getListingImages,
   getPrimaryListingImage,
 } from '@/features/landing/lib';
 import {
@@ -16,7 +20,6 @@ import {
   countdownPartsFromMs,
   discountPercentage,
   formatPriceInr,
-  formatDistanceKm,
   parsePositiveNumber,
   readStoredStringSet,
   writeStoredStringSet,
@@ -68,10 +71,6 @@ type DealsQueryResult = {
 
 const FALLBACK_IMAGE = FALLBACK_LISTING_IMAGE;
 
-function isComboDeal(item: DealListing): boolean {
-  return String(item.dealType || item.deal_type || '').toLowerCase() === 'combo';
-}
-
 function formatTimeLeft(item: DealListing, nowMs: number): string {
   const end = getEffectiveDealWindow(item, nowMs)?.endMs || 0;
   const diff = end - nowMs;
@@ -86,31 +85,6 @@ function formatTimeLeft(item: DealListing, nowMs: number): string {
     : `${pad(hours)}h : ${pad(minutes)}m : ${pad(seconds)}s`;
 }
 
-function getComboSubtitle(item: DealListing): string {
-  const raw = item.comboItems;
-  if (Array.isArray(raw)) return raw.slice(0, 2).join(' + ');
-  if (typeof raw === 'string') {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed.slice(0, 2).join(' + ');
-    } catch {
-      return raw
-        .split(/\r?\n|,/)
-        .map((part) => part.trim())
-        .filter(Boolean)
-        .slice(0, 2)
-        .join(' + ');
-    }
-  }
-  return item.description || item.category || 'Combo offer';
-}
-
-function getDealTypeLabel(item: DealListing): string {
-  return String(item.dealType || item.deal_type || '').toLowerCase() === 'combo'
-    ? 'Combo Deal'
-    : 'Deal';
-}
-
 function getPurchaseLimitLabel(item: DealListing): string {
   const normalized = String(item.purchaseLimitType || item.purchase_limit_type || '').toUpperCase();
   if (normalized === 'ONE_TIME') return 'One Purchase Per Customer';
@@ -119,12 +93,11 @@ function getPurchaseLimitLabel(item: DealListing): string {
 }
 
 function isExpiredDeal(item: DealListing, nowMs: number): boolean {
-  return formatDealStatus(item, nowMs) === 'Deal expired';
+  return isDealExpiredWithinWindow(item, nowMs);
 }
 
 function isUpcomingDeal(item: DealListing, nowMs: number): boolean {
-  const status = formatDealStatus(item, nowMs);
-  return status.startsWith('Deal starts') || status.startsWith('Next deal');
+  return isDealUpcomingWithinWindow(item, nowMs);
 }
 
 function normalizeDeals(items: DealListing[]): DealListing[] {
@@ -145,74 +118,38 @@ function DealCard({
   saved,
   onToggleSaved,
   nowMs,
-  combo = false,
 }: {
   item: DealListing;
   saved: boolean;
   onToggleSaved: (id: string) => void;
   nowMs: number;
-  combo?: boolean;
 }): ReactElement {
   const price = parsePositiveNumber(item.price) || 0;
   const offer = parsePositiveNumber(item.offerPrice) || 0;
   const hasOffer = offer > 0 && price > 0 && offer < price;
   const displayPrice = hasOffer ? item.offerPrice : item.price;
-  const dealTag = discountPercentage(hasOffer ? offer : undefined, price) || getDealTypeLabel(item);
-  const images = getListingImages(item);
+  const dealTag = discountPercentage(hasOffer ? offer : undefined, price) || 'Deal';
   const image = getPrimaryListingImage(item);
-  const comboImages = [images[0] || FALLBACK_IMAGE, images[1] || images[0] || FALLBACK_IMAGE];
   const dealStatus = formatDealStatus(item, nowMs);
-  const distance = formatDistanceKm(item.distanceKm ?? item.distance_km);
+  const distance = item.location || 'Location not available';
   const purchaseLimitLabel = getPurchaseLimitLabel(item);
 
   return (
     <article className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <Link to={`/listing/${item.id}`} className="block">
-        <div
-          className={`relative bg-slate-50 ${
-            combo
-              ? 'h-32 overflow-hidden bg-white sm:h-40 xl:h-36'
-              : 'aspect-[1.05] sm:aspect-[1.22]'
-          }`}
-        >
-          {combo ? (
-            <>
-              <div className="grid h-full grid-cols-2 gap-px bg-slate-200">
-                {comboImages.map((comboImage, index) => (
-                  <div
-                    key={`${item.id}-combo-image-${index}`}
-                    className="flex min-w-0 items-center justify-center overflow-hidden bg-white"
-                  >
-                    <img
-                      src={comboImage}
-                      alt={`${item.title} item ${index + 1}`}
-                      className="block h-full w-full object-contain"
-                      loading="lazy"
-                      onError={(event) => {
-                        event.currentTarget.src = FALLBACK_IMAGE;
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-              <span className="absolute left-1/2 top-1/2 grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[3px] border-white bg-red-600 text-xl font-black leading-none text-white shadow-lg sm:h-10 sm:w-10 sm:text-2xl">
-                +
-              </span>
-            </>
-          ) : (
-            <div className="flex h-full w-full items-center justify-center overflow-hidden bg-slate-50">
-              <img
-                src={image}
-                alt={item.title}
-                className="mx-auto h-full w-full object-contain object-center sm:object-cover"
-                loading="lazy"
-                onError={(event) => {
-                  event.currentTarget.src = FALLBACK_IMAGE;
-                }}
-              />
-            </div>
-          )}
-          <span className="absolute left-0 top-0 z-10 rounded-br-sm bg-red-600 px-3 py-1.5 text-[13px] font-black leading-none text-white shadow-[8px_0_0_#d8c4b6] sm:left-3 sm:top-3 sm:rounded-full sm:px-2.5 sm:py-1 sm:text-xs sm:shadow-sm">
+        <div className="relative aspect-[1.05] bg-slate-50 sm:aspect-[1.22]">
+          <div className="flex h-full w-full items-center justify-center overflow-hidden bg-slate-50">
+            <img
+              src={image}
+              alt={item.title}
+              className="mx-auto h-full w-full object-contain object-center sm:object-cover"
+              loading="lazy"
+              onError={(event) => {
+                event.currentTarget.src = FALLBACK_IMAGE;
+              }}
+            />
+          </div>
+          <span className="absolute left-0 top-0 z-10 inline-flex min-w-[4.5rem] items-center justify-center rounded-br-sm bg-red-600 px-3 py-1.5 text-[13px] font-black leading-none text-white shadow-[8px_0_0_#d8c4b6] sm:left-3 sm:top-3 sm:rounded-full sm:px-3 sm:py-1.5 sm:text-xs sm:shadow-sm">
             {dealTag}
           </span>
         </div>
@@ -233,11 +170,6 @@ function DealCard({
           <h2 className="line-clamp-2 min-h-8 text-xs font-black leading-snug text-slate-950 sm:min-h-10 sm:text-sm">
             {item.title}
           </h2>
-          {combo ? (
-            <p className="mt-1 line-clamp-2 min-h-8 text-[11px] leading-snug text-slate-500 sm:min-h-9 sm:text-sm">
-              {getComboSubtitle(item)}
-            </p>
-          ) : null}
           <div className="mt-1.5 flex flex-wrap items-baseline gap-1.5 sm:mt-2 sm:gap-2">
             <span className="text-xs font-black text-slate-950 sm:text-base">
               {formatPriceInr(displayPrice)}
@@ -401,14 +333,11 @@ export default function DealsPage(): ReactElement {
     );
   }, [dealsQuery.data, query]);
 
-  const activeDeals = filteredDeals.filter(
-    (item) => !isExpiredDeal(item, nowMs) && !isUpcomingDeal(item, nowMs)
-  );
+  const activeDeals = filteredDeals.filter((item) => isDealActiveNow(item, nowMs));
   const upcomingDeals = filteredDeals.filter((item) => isUpcomingDeal(item, nowMs));
   const expiredDeals = filteredDeals.filter((item) => isExpiredDeal(item, nowMs));
 
-  const allDeals = activeDeals.filter((item) => !isComboDeal(item));
-  const comboDeals = activeDeals.filter((item) => isComboDeal(item));
+  const allDeals = activeDeals;
 
   return (
     <div className="min-h-screen bg-[#f7faff] text-slate-950">
@@ -454,21 +383,6 @@ export default function DealsPage(): ReactElement {
         </section>
 
         <section className="mt-9">
-          <h2 className="text-2xl font-black">Combo Deals</h2>
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-            {comboDeals.map((item) => (
-              <ComboDealCard
-                key={item.id}
-                item={item}
-                saved={savedIds.has(item.id)}
-                onToggleSaved={toggleSaved}
-                nowMs={nowMs}
-              />
-            ))}
-          </div>
-        </section>
-
-        <section className="mt-9">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-2xl font-black">Upcoming Deals</h2>
@@ -484,26 +398,15 @@ export default function DealsPage(): ReactElement {
           </div>
           {upcomingDeals.length > 0 ? (
             <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-              {upcomingDeals.map((item) =>
-                isComboDeal(item) ? (
-                  <ComboDealCard
-                    key={`upcoming-${item.id}`}
-                    item={item}
-                    saved={savedIds.has(item.id)}
-                    onToggleSaved={toggleSaved}
-                    nowMs={nowMs}
-                    ctaLabel="View deal"
-                  />
-                ) : (
-                  <DealCard
-                    key={`upcoming-${item.id}`}
-                    item={item}
-                    saved={savedIds.has(item.id)}
-                    onToggleSaved={toggleSaved}
-                    nowMs={nowMs}
-                  />
-                )
-              )}
+              {upcomingDeals.map((item) => (
+                <DealCard
+                  key={`upcoming-${item.id}`}
+                  item={item}
+                  saved={savedIds.has(item.id)}
+                  onToggleSaved={toggleSaved}
+                  nowMs={nowMs}
+                />
+              ))}
             </div>
           ) : (
             <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">
@@ -528,26 +431,15 @@ export default function DealsPage(): ReactElement {
           </div>
           {expiredDeals.length > 0 ? (
             <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-              {expiredDeals.map((item) =>
-                isComboDeal(item) ? (
-                  <ComboDealCard
-                    key={`expired-${item.id}`}
-                    item={item}
-                    saved={savedIds.has(item.id)}
-                    onToggleSaved={toggleSaved}
-                    nowMs={nowMs}
-                    ctaLabel="View deal"
-                  />
-                ) : (
-                  <DealCard
-                    key={`expired-${item.id}`}
-                    item={item}
-                    saved={savedIds.has(item.id)}
-                    onToggleSaved={toggleSaved}
-                    nowMs={nowMs}
-                  />
-                )
-              )}
+              {expiredDeals.map((item) => (
+                <DealCard
+                  key={`expired-${item.id}`}
+                  item={item}
+                  saved={savedIds.has(item.id)}
+                  onToggleSaved={toggleSaved}
+                  nowMs={nowMs}
+                />
+              ))}
             </div>
           ) : (
             <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">

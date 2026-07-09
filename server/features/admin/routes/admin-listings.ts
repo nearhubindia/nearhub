@@ -137,7 +137,6 @@ export function registerAdminListingsRoutes(app: Express) {
     contactPhone: extras.contactPhone !== undefined ? extras.contactPhone : listing.contactPhone,
     isActive: listing.isActive,
     featured: listing.featured,
-    sponsored: listing.sponsored,
     createdAt: listing.createdAt?.toISOString(),
     expiresAt: listing.expiresAt?.toISOString(),
     images: parseJsonArrayField(listing.images),
@@ -153,7 +152,6 @@ export function registerAdminListingsRoutes(app: Express) {
     maxDealBookings: listing.maxDealBookings,
     dealBookingsUsed: listing.dealBookingsUsed,
     purchaseLimitType: listing.purchaseLimitType,
-    comboItems: parseJsonArrayField(listing.comboItems),
     dealTerms: listing.dealTerms,
     voucherEnabled: listing.voucherEnabled,
   });
@@ -377,7 +375,6 @@ export function registerAdminListingsRoutes(app: Express) {
         status,
         isActive,
         featured,
-        sponsored,
         contactPhone,
         isDeal,
         dealType,
@@ -388,7 +385,6 @@ export function registerAdminListingsRoutes(app: Express) {
         dealCycleQuantity,
         maxDealBookings,
         purchaseLimitType,
-        comboItems,
         dealTerms,
         voucherEnabled,
       } = req.body;
@@ -445,7 +441,7 @@ export function registerAdminListingsRoutes(app: Express) {
       const parsedLatitude = parseCoordinateInput(latitude, 'latitude', -90, 90);
       const parsedLongitude = parseCoordinateInput(longitude, 'longitude', -180, 180);
       const normalizedIsDeal = Boolean(isDeal);
-      const normalizedDealType = normalizeOptionalText(dealType) || 'normal';
+      const normalizedDealType = 'normal';
       const normalizedDealStartAt = normalizeOptionalDate(dealStartAt);
       const normalizedDealEndAt = normalizeOptionalDate(dealEndAt);
       const normalizedDealRecurrenceInput = normalizeOptionalText(dealRecurrence);
@@ -458,12 +454,6 @@ export function registerAdminListingsRoutes(app: Express) {
       const normalizedDealCycleQuantity = normalizeOptionalNumber(dealCycleQuantity);
       const normalizedMaxDealBookings = normalizeOptionalNumber(maxDealBookings);
       const normalizedPurchaseLimitType = normalizePurchaseLimitType(purchaseLimitType);
-      const normalizedComboItems = Array.isArray(comboItems)
-        ? comboItems
-            .map((item) => String(item || '').trim())
-            .filter(Boolean)
-            .slice(0, 20)
-        : [];
       const normalizedDealTerms = normalizeOptionalText(dealTerms);
 
       if (parsedLatitude.error || parsedLongitude.error) {
@@ -597,7 +587,6 @@ export function registerAdminListingsRoutes(app: Express) {
         status: status || 'active',
         isActive: typeof isActive === 'boolean' ? isActive : true,
         featured: typeof featured === 'boolean' ? featured : false,
-        sponsored: typeof sponsored === 'boolean' ? sponsored : false,
         durationDays: Number(durationDays) > 0 ? Number(durationDays) : 30,
         isDeal: normalizedIsDeal,
         dealType: normalizedIsDeal ? normalizedDealType : undefined,
@@ -614,7 +603,6 @@ export function registerAdminListingsRoutes(app: Express) {
             : undefined,
         maxDealBookings: normalizedIsDeal ? normalizedMaxDealBookings ?? undefined : undefined,
         purchaseLimitType: normalizedIsDeal ? normalizedPurchaseLimitType : undefined,
-        comboItems: normalizedIsDeal ? normalizedComboItems : undefined,
         dealTerms: normalizedIsDeal ? normalizedDealTerms : undefined,
         voucherEnabled: normalizedIsDeal ? Boolean(voucherEnabled ?? true) : undefined,
       } as InsertListing);
@@ -830,7 +818,6 @@ export function registerAdminListingsRoutes(app: Express) {
         status,
         isActive,
         featured,
-        sponsored,
         contactPhone,
         images,
         videos,
@@ -844,7 +831,6 @@ export function registerAdminListingsRoutes(app: Express) {
         maxDealBookings,
         dealBookingsUsed,
         purchaseLimitType,
-        comboItems,
         dealTerms,
         voucherEnabled,
       } = req.body;
@@ -915,7 +901,6 @@ export function registerAdminListingsRoutes(app: Express) {
       if (status !== undefined) updateData.status = status;
       if (isActive !== undefined) updateData.isActive = isActive;
       if (featured !== undefined) updateData.featured = featured;
-      if (sponsored !== undefined) updateData.sponsored = sponsored;
       if (contactPhone !== undefined) updateData.contactPhone = normalizeContactPhone(contactPhone);
       if (isDeal !== undefined) updateData.isDeal = Boolean(isDeal);
       if (images !== undefined) {
@@ -969,10 +954,7 @@ export function registerAdminListingsRoutes(app: Express) {
       const normalizedDealCycleQuantity = normalizeOptionalNumber(dealCycleQuantity);
       const normalizedPurchaseLimitType =
         purchaseLimitType !== undefined ? normalizePurchaseLimitType(purchaseLimitType) : '';
-      const nextDealType =
-        normalizeOptionalText(dealType) ||
-        (normalizedIsDeal ? normalizeOptionalText((existingListing as any).dealType) : '') ||
-        (normalizedIsDeal ? 'normal' : '');
+      const nextDealType = normalizedIsDeal ? 'normal' : '';
       const nextDealStartAt = normalizedDealStartAt ?? normalizeOptionalDate((existingListing as any).dealStartAt);
       const nextDealEndAt = normalizedDealEndAt ?? normalizeOptionalDate((existingListing as any).dealEndAt);
       const nextDealRecurrence =
@@ -990,10 +972,6 @@ export function registerAdminListingsRoutes(app: Express) {
       const nextPurchaseLimitType =
         normalizedPurchaseLimitType ||
         normalizePurchaseLimitType((existingListing as any).purchaseLimitType);
-      const nextComboItems =
-        Array.isArray(comboItems)
-          ? comboItems.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 20)
-          : parseJsonArrayField((existingListing as any).comboItems);
       const nextDealTerms =
         normalizeOptionalText(dealTerms) ?? normalizeOptionalText((existingListing as any).dealTerms);
       const nextVoucherEnabled =
@@ -1023,13 +1001,6 @@ export function registerAdminListingsRoutes(app: Express) {
             code: 'PURCHASE_LIMIT_REQUIRED',
           });
         }
-        if (!nextDealType) {
-          return res.status(400).json({
-            success: false,
-            error: 'Please select a deal type.',
-            code: 'DEAL_TYPE_REQUIRED',
-          });
-        }
         updateData.isDeal = true;
         updateData.dealType = nextDealType as any;
         updateData.purchaseLimitType = nextPurchaseLimitType;
@@ -1041,7 +1012,6 @@ export function registerAdminListingsRoutes(app: Express) {
         updateData.dealCycleQuantity = nextDealRecurrence !== 'none' ? nextDealCycleQuantity ?? null : null;
         updateData.maxDealBookings = nextMaxDealBookings ?? null;
         updateData.dealBookingsUsed = nextDealBookingsUsed ?? 0;
-        updateData.comboItems = JSON.stringify(nextComboItems);
         updateData.dealTerms = nextDealTerms || null;
         updateData.voucherEnabled = nextVoucherEnabled;
       } else if (isDeal === false) {
@@ -1055,7 +1025,6 @@ export function registerAdminListingsRoutes(app: Express) {
         updateData.maxDealBookings = null;
         updateData.dealBookingsUsed = 0;
         updateData.purchaseLimitType = null;
-        updateData.comboItems = null;
         updateData.dealTerms = null;
         updateData.voucherEnabled = true;
       }
@@ -1087,14 +1056,6 @@ export function registerAdminListingsRoutes(app: Express) {
             code: 'INVALID_VIDEO_FORMAT',
           });
         }
-      }
-
-      if (Array.isArray(comboItems) && comboItems.some((item: unknown) => hasLocalDeviceUri(item))) {
-        return res.status(400).json({
-          success: false,
-          error: 'Combo items cannot be local device paths.',
-          code: 'INVALID_COMBO_ITEMS',
-        });
       }
 
       dropUndefinedValues(updateData);

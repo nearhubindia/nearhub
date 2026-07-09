@@ -49,7 +49,7 @@ describe('Subscriptions create listing', () => {
         username: ownerId,
         password: 'otp-auth',
         displayName: 'Admin Test Seller',
-        mobile: '9876543210',
+        mobile: String(9000000000 + Math.floor(Math.random() * 1000000000)),
       })
       .onConflictDoNothing({ target: users.id });
     seededUserIds.push(ownerId);

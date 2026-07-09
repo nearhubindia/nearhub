@@ -1,3 +1,12 @@
+import {
+  IST_TIME_ZONE,
+  addIstCycleMs,
+  formatIstDateKey,
+  isSameIstDay,
+  isTomorrowIstDay,
+  parseIstDateTimeToDate,
+} from '@/lib/ist-time';
+
 export type DealTimingInput = {
   dealStartAt?: string | null;
   deal_start_at?: string | null;
@@ -13,13 +22,17 @@ export type DealTimingInput = {
   endTime?: string | null;
 };
 
-function isValidTimestamp(value: number): value is number {
-  return Number.isFinite(value) && value > 0;
+export const DEAL_SECTION_WINDOW_DAYS = 5;
+const DEAL_SECTION_WINDOW_MS = DEAL_SECTION_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+function isValidTimestamp(value: number | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
 function parseIsoDateTime(date?: string | null, time?: string | null): number | undefined {
   if (!date || !time) return undefined;
-  const timestamp = new Date(`${date}T${time}`).getTime();
+  const parsedDate = parseIstDateTimeToDate(date, time);
+  const timestamp = parsedDate?.getTime();
   return isValidTimestamp(timestamp) ? timestamp : undefined;
 }
 
@@ -41,14 +54,6 @@ export function parseDealEndMs(input: DealTimingInput): number | undefined {
   return parseRawDateTime(input.dealEndAt ?? input.deal_end_at ?? null);
 }
 
-function addCycle(date: Date, recurrence: string): Date {
-  const next = new Date(date);
-  if (recurrence === 'daily') next.setDate(next.getDate() + 1);
-  if (recurrence === 'weekly') next.setDate(next.getDate() + 7);
-  if (recurrence === 'monthly') next.setMonth(next.getMonth() + 1);
-  return next;
-}
-
 export function getEffectiveDealWindow(
   input: DealTimingInput,
   nowMs: number
@@ -63,7 +68,7 @@ export function getEffectiveDealWindow(
     return {
       startMs: firstStartMs,
       endMs: firstEndMs,
-      cycleKey: new Date(firstStartMs).toISOString().slice(0, 10),
+      cycleKey: formatIstDateKey(firstStartMs),
       isRecurring: false,
     };
   }
@@ -73,43 +78,27 @@ export function getEffectiveDealWindow(
   );
   if (!repeatUntilMs || repeatUntilMs < firstStartMs) return null;
 
-  let start = new Date(firstStartMs);
-  let end = new Date(firstEndMs);
+  let startMs = firstStartMs;
+  let endMs = firstEndMs;
   let guard = 0;
-  while (end.getTime() < nowMs && end.getTime() < repeatUntilMs && guard < 370) {
-    start = addCycle(start, recurrence);
-    end = addCycle(end, recurrence);
+  while (endMs < nowMs && endMs < repeatUntilMs && guard < 370) {
+    startMs = addIstCycleMs(startMs, recurrence);
+    endMs = addIstCycleMs(endMs, recurrence);
     guard += 1;
   }
 
-  if (start.getTime() > repeatUntilMs) return null;
+  if (startMs > repeatUntilMs) return null;
   return {
-    startMs: start.getTime(),
-    endMs: Math.min(end.getTime(), repeatUntilMs),
-    cycleKey: start.toISOString().slice(0, 10),
+    startMs,
+    endMs: Math.min(endMs, repeatUntilMs),
+    cycleKey: formatIstDateKey(startMs),
     isRecurring: true,
   };
 }
 
-function getDateOnly(ms: number): number {
-  const date = new Date(ms);
-  date.setHours(0, 0, 0, 0);
-  return date.getTime();
-}
-
-function isSameDay(msA: number, msB: number): boolean {
-  return getDateOnly(msA) === getDateOnly(msB);
-}
-
-function isTomorrow(startMs: number, nowMs: number): boolean {
-  const tomorrow = new Date(nowMs);
-  tomorrow.setHours(0, 0, 0, 0);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return getDateOnly(startMs) === tomorrow.getTime();
-}
-
 function formatDisplayDate(ms: number): string {
   return new Intl.DateTimeFormat('en-IN', {
+    timeZone: IST_TIME_ZONE,
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -117,10 +106,10 @@ function formatDisplayDate(ms: number): string {
 }
 
 export function formatDealStartMessage(startMs: number, nowMs: number): string {
-  if (isSameDay(startMs, nowMs)) {
+  if (isSameIstDay(startMs, nowMs)) {
     return 'Deal starts today';
   }
-  if (isTomorrow(startMs, nowMs)) {
+  if (isTomorrowIstDay(startMs, nowMs)) {
     return 'Deal starts tomorrow';
   }
   return `Deal starts on ${formatDisplayDate(startMs)}`;
@@ -154,4 +143,16 @@ export function isDealActiveNow(input: DealTimingInput, nowMs: number): boolean 
   const { startMs, endMs } = window;
   if (startMs && nowMs < startMs) return false;
   return nowMs <= endMs;
+}
+
+export function isDealUpcomingWithinWindow(input: DealTimingInput, nowMs: number): boolean {
+  const window = getEffectiveDealWindow(input, nowMs);
+  if (!window || nowMs >= window.startMs) return false;
+  return window.startMs - nowMs <= DEAL_SECTION_WINDOW_MS;
+}
+
+export function isDealExpiredWithinWindow(input: DealTimingInput, nowMs: number): boolean {
+  const window = getEffectiveDealWindow(input, nowMs);
+  if (!window || nowMs <= window.endMs) return false;
+  return nowMs - window.endMs <= DEAL_SECTION_WINDOW_MS;
 }

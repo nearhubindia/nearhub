@@ -269,9 +269,7 @@ export function hasMeaningfulCoordinates(
   longitude: number | null | undefined
 ): boolean {
   return (
-    Number.isFinite(latitude) &&
-    Number.isFinite(longitude) &&
-    !(latitude === 0 && longitude === 0)
+    Number.isFinite(latitude) && Number.isFinite(longitude) && !(latitude === 0 && longitude === 0)
   );
 }
 

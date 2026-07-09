@@ -141,24 +141,24 @@ export function NotificationCenter() {
           accessibilityRole="button"
           accessibilityLabel={`Open ${popupNotification.title}`}
         >
-            <View style={styles.content}>
-              {popupNotification.imageUrl ? (
-                <View style={styles.imageWrap}>
-                  <Animated.Image
-                    source={{ uri: popupNotification.imageUrl }}
-                    style={styles.image}
-                    resizeMode="cover"
-                    onError={() => {
-                      // Ignore preview failures and fall back to text only.
-                    }}
-                  />
-                </View>
-              ) : null}
-              <View style={[styles.iconCircle, { backgroundColor: `${accentColor}20` }]}>
-                <Feather
-                  name={getIconName(popupNotification.type)}
-                  size={responsiveModerateScale(16)}
-                  color={accentColor}
+          <View style={styles.content}>
+            {popupNotification.imageUrl ? (
+              <View style={styles.imageWrap}>
+                <Animated.Image
+                  source={{ uri: popupNotification.imageUrl }}
+                  style={styles.image}
+                  resizeMode="cover"
+                  onError={() => {
+                    // Ignore preview failures and fall back to text only.
+                  }}
+                />
+              </View>
+            ) : null}
+            <View style={[styles.iconCircle, { backgroundColor: `${accentColor}20` }]}>
+              <Feather
+                name={getIconName(popupNotification.type)}
+                size={responsiveModerateScale(16)}
+                color={accentColor}
               />
             </View>
             <View style={styles.textBlock}>

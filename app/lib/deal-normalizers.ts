@@ -48,8 +48,7 @@ function getStringArray(record: Record<string, unknown>, keys: string[]): string
 }
 
 export function normalizeDealListingLocation(listing: unknown): Listing['location'] {
-  const record =
-    listing && typeof listing === 'object' ? (listing as Record<string, unknown>) : {};
+  const record = listing && typeof listing === 'object' ? (listing as Record<string, unknown>) : {};
   const rawLocation = record.location;
   const locationRecord =
     rawLocation && typeof rawLocation === 'object'

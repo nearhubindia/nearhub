@@ -1350,13 +1350,6 @@
           "notNull": true,
           "default": false
         },
-        "sponsored": {
-          "name": "sponsored",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "boosted_until": {
           "name": "boosted_until",
           "type": "timestamp",

@@ -25,6 +25,11 @@ import { getApiUrl } from '@/lib/config';
 import { trackWebCreateListing } from '@/lib/firebase';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { buildAuthRegisterPath } from '@/lib/auth-redirect';
+import {
+  formatIstDateInputValue,
+  formatIstTimeInputValue,
+  parseIstDateTimeToDate,
+} from '@/lib/ist-time';
 import { createListing } from '../api/listings';
 import { getListingImages, parsePositiveNumber } from '@/features/landing/lib';
 import {
@@ -176,18 +181,17 @@ function readStoredToken(): string {
 }
 
 function todayDateValue(): string {
-  return new Date().toISOString().slice(0, 10);
+  return formatIstDateInputValue(new Date());
 }
 
 function oneWeekLaterDateValue(): string {
   const date = new Date();
   date.setDate(date.getDate() + 7);
-  return date.toISOString().slice(0, 10);
+  return formatIstDateInputValue(date);
 }
 
 function nowTimeValue(): string {
-  const date = new Date();
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  return formatIstTimeInputValue(new Date());
 }
 
 function classNames(...values: Array<string | false | null | undefined>): string {
@@ -1230,9 +1234,9 @@ export default function CreateListingPage(): ReactElement {
         setMessage('Please choose deal start date and time.');
         return false;
       }
-      const startAt = new Date(`${dealStartDate}T${dealStartTime}`);
+      const startAt = parseIstDateTimeToDate(dealStartDate, dealStartTime);
       const nowMs = new Date().getTime();
-      if (startAt.getTime() <= nowMs) {
+      if (!startAt || startAt.getTime() <= nowMs) {
         setMessage('Deal start time must be in the future.');
         return false;
       }
@@ -1240,8 +1244,8 @@ export default function CreateListingPage(): ReactElement {
         setMessage('Please choose deal end date and time.');
         return false;
       }
-      const endAt = new Date(`${dealEndDate}T${dealEndTime}`);
-      if (endAt.getTime() <= nowMs) {
+      const endAt = parseIstDateTimeToDate(dealEndDate, dealEndTime);
+      if (!endAt || endAt.getTime() <= nowMs) {
         setMessage('Deal end time must be in the future.');
         return false;
       }
@@ -1254,7 +1258,11 @@ export default function CreateListingPage(): ReactElement {
           setMessage('Please choose repeat until date.');
           return false;
         }
-        const repeatUntil = new Date(`${dealRecurrenceUntil}T23:59`);
+        const repeatUntil = parseIstDateTimeToDate(dealRecurrenceUntil, '23:59');
+        if (!repeatUntil) {
+          setMessage('Please choose a valid repeat until date.');
+          return false;
+        }
         if (repeatUntil.getTime() <= endAt.getTime()) {
           setMessage('Repeat until date must be after the first deal end time.');
           return false;
@@ -1333,8 +1341,8 @@ export default function CreateListingPage(): ReactElement {
     setMessage('');
     try {
       const isDeal = mode === 'deal';
-      const dealStartAt = isDeal ? new Date(`${dealStartDate}T${dealStartTime}`) : null;
-      const dealEndAt = isDeal ? new Date(`${dealEndDate}T${dealEndTime}`) : null;
+      const dealStartAt = isDeal ? parseIstDateTimeToDate(dealStartDate, dealStartTime) : null;
+      const dealEndAt = isDeal ? parseIstDateTimeToDate(dealEndDate, dealEndTime) : null;
       const dealDescription =
         isDeal && brand.trim()
           ? `Brand: ${brand.trim()}\n\n${description.trim()}`
@@ -1386,7 +1394,7 @@ export default function CreateListingPage(): ReactElement {
               dealRecurrence,
               dealRecurrenceUntil:
                 dealRecurrence !== 'none'
-                  ? new Date(`${dealRecurrenceUntil}T23:59`).toISOString()
+                  ? parseIstDateTimeToDate(dealRecurrenceUntil, '23:59')?.toISOString()
                   : undefined,
               dealCycleQuantity: dealRecurrence !== 'none' ? Number(stock) : undefined,
               maxDealBookings: Number(stock),
@@ -1461,7 +1469,7 @@ export default function CreateListingPage(): ReactElement {
           dealRecurrence: isDeal ? dealRecurrence : 'none',
           dealRecurrenceUntil:
             isDeal && dealRecurrence !== 'none'
-              ? new Date(`${dealRecurrenceUntil}T23:59`).toISOString()
+              ? parseIstDateTimeToDate(dealRecurrenceUntil, '23:59')?.toISOString()
               : undefined,
           dealCycleQuantity: isDeal && dealRecurrence !== 'none' ? Number(stock) : undefined,
           maxDealBookings: isDeal ? Number(stock) : undefined,

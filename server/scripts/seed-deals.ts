@@ -23,9 +23,8 @@ type DealTemplate = {
   offerPrice: number;
   location: string;
   condition?: string;
-  dealType: 'normal' | 'combo';
+  dealType: 'normal';
   maxDealBookings: number;
-  comboItems?: string[];
   dealTerms: string;
   startOffsetMinutes: number;
   endOffsetMinutes: number;
@@ -60,7 +59,7 @@ const DEALS: DealTemplate[] = [
   },
   {
     title: 'Morning Deal: Breakfast Combo for 2',
-    description: 'Restaurant combo deal with dine-in redemption.',
+    description: 'Restaurant breakfast deal with dine-in redemption.',
     category: 'Food',
     mainCategory: 'Food, Travel & Events',
     subCategory: 'Food',
@@ -68,9 +67,8 @@ const DEALS: DealTemplate[] = [
     offerPrice: 499,
     location: 'Kurnool',
     condition: 'New',
-    dealType: 'combo',
+    dealType: 'normal',
     maxDealBookings: 25,
-    comboItems: ['2x South Indian Breakfast', '2x Fresh Juice'],
     dealTerms: 'Redeem between 7 AM and 11 AM at counter.',
     startOffsetMinutes: -60,
     endOffsetMinutes: 180,
@@ -93,7 +91,7 @@ const DEALS: DealTemplate[] = [
   },
   {
     title: 'Combo Deal: Laptop + Backpack + Wireless Mouse',
-    description: 'Back-to-college combo bundle with accessories.',
+    description: 'Back-to-college deal bundle with accessories.',
     category: 'Computers',
     mainCategory: 'Electronics & Appliances',
     subCategory: 'Computers',
@@ -101,10 +99,9 @@ const DEALS: DealTemplate[] = [
     offerPrice: 64999,
     location: 'Hyderabad',
     condition: 'New',
-    dealType: 'combo',
+    dealType: 'normal',
     maxDealBookings: 8,
-    comboItems: ['Laptop Sleeve', 'Backpack', 'Wireless Mouse'],
-    dealTerms: 'Only first 8 confirmed bookings eligible for combo gifts.',
+    dealTerms: 'Only first 8 confirmed bookings eligible for the bundle offer.',
     startOffsetMinutes: -15,
     endOffsetMinutes: 24 * 60,
   },
@@ -157,7 +154,6 @@ async function seedDeals() {
   await db.execute(
     sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_bookings_used integer NOT NULL DEFAULT 0`
   );
-  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS combo_items text`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_terms text`);
   await db.execute(
     sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS voucher_enabled boolean NOT NULL DEFAULT true`
@@ -181,8 +177,6 @@ async function seedDeals() {
     const seller = sellers[i % sellers.length];
     const dealStartAt = minutesFromNow(template.startOffsetMinutes);
     const dealEndAt = minutesFromNow(template.endOffsetMinutes);
-    const comboItemsJson = JSON.stringify(template.comboItems || []);
-
     const id = `deal-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`;
     const title = `${template.title} ${now.getFullYear()}`;
 
@@ -208,7 +202,6 @@ async function seedDeals() {
       isActive: true,
       isPaid: false,
       featured: true,
-      sponsored: false,
       durationDays: 30,
       expiresAt: daysFromNow(30),
       contactPhone: seller.mobile || undefined,
@@ -218,7 +211,6 @@ async function seedDeals() {
       dealEndAt,
       maxDealBookings: template.maxDealBookings,
       dealBookingsUsed: 0,
-      comboItems: comboItemsJson,
       dealTerms: template.dealTerms,
       voucherEnabled: true,
       createdAt: new Date(Date.now() - i * 3600_000),

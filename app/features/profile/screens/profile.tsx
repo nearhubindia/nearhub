@@ -125,6 +125,14 @@ export default function ProfileScreen() {
     );
   }, []);
 
+  const userAuthHeaders = user
+    ? buildUserAuthHeaders({
+        id: user.id,
+        phone: user.phone || '',
+        token: user.token,
+      })
+    : buildUserAuthHeaders(null);
+
   const syncProfileToServer = async (payload: {
     name: string;
     email?: string;
@@ -138,7 +146,7 @@ export default function ProfileScreen() {
       `${getApiUrl()}/api/users/${encodeURIComponent(user.id)}/profile`,
       {
         method: 'PUT',
-        headers: buildUserAuthHeaders({ id: user.id }),
+        headers: userAuthHeaders,
         body: JSON.stringify(payload),
       }
     );
@@ -159,10 +167,10 @@ export default function ProfileScreen() {
       const apiUrl = getApiUrl();
       const [statsResponse, userListingsResponse] = await Promise.all([
         fetch(`${apiUrl}/api/users/${encodeURIComponent(user.id)}/stats`, {
-          headers: buildUserAuthHeaders({ id: user.id }),
+          headers: userAuthHeaders,
         }),
         fetch(`${apiUrl}/api/subscriptions/user/${encodeURIComponent(user.id)}/listings`, {
-          headers: buildUserAuthHeaders({ id: user.id }),
+          headers: userAuthHeaders,
         }),
       ]);
 
@@ -216,7 +224,7 @@ export default function ProfileScreen() {
       console.warn('[Profile] Failed to load stats:', error);
       setProfileStats({ totalListings: 0, soldListings: 0, rating: null });
     }
-  }, [user?.id]);
+  }, [user?.id, userAuthHeaders]);
 
   const handleChangePhoto = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();

@@ -40,7 +40,6 @@ export interface Listing {
   videos?: string[];
   createdAt?: string;
   featured?: boolean;
-  sponsored?: boolean;
   isDeal?: boolean;
   dealType?: 'normal' | 'combo' | string | null;
   dealStartAt?: string | null;

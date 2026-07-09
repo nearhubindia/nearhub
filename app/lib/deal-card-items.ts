@@ -24,6 +24,11 @@ export type DealCardItem = {
   dealType?: string;
 };
 
+function formatDealLocationLabel(city?: string): string {
+  const trimmed = typeof city === 'string' ? city.trim() : '';
+  return trimmed || 'Location unavailable';
+}
+
 export function createDealCardItem(
   item: Listing,
   nowMs: number,
@@ -55,8 +60,11 @@ export function createDealCardItem(
     originalPrice,
     image: item.images[0] || '',
     images: item.images || [],
-    location: item.location.city,
-    distance: formatDistanceAway(distanceKm),
+    location: formatDealLocationLabel(item.location.city),
+    distance:
+      typeof distanceKm === 'number'
+        ? formatDistanceAway(distanceKm)
+        : formatDealLocationLabel(item.location.city),
     sortDistanceKm: distanceKm,
     dealEndsAt: window?.endMs,
     dealStatus: formatDealStatus(item, nowMs),

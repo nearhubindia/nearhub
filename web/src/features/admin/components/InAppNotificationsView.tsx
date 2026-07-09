@@ -456,6 +456,10 @@ export default function InAppNotificationsView() {
             <p className="mb-5 text-sm text-slate-600">
               Every send reaches devices and is reflected in the app notification feed.
             </p>
+            <div className="mb-5 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
+              <span className="font-semibold">Default expiry:</span> in-app notifications expire
+              after 1 day unless a different expiry is set by the backend.
+            </div>
             <h2 className="sr-only">
               <Send size={20} className="text-teal-500" />
               Send Notification
@@ -815,6 +819,13 @@ export default function InAppNotificationsView() {
                       <span>Audience: {notification.userType || 'all'}</span>
                       <span>•</span>
                       <span>{new Date(notification.createdAt).toLocaleString()}</span>
+                      <span>•</span>
+                      <span>
+                        Expires:{' '}
+                        {notification.expiresAt
+                          ? new Date(notification.expiresAt).toLocaleString()
+                          : '1 day from send'}
+                      </span>
                       {notification.isRead && <span className="text-green-600">✓ Read</span>}
                     </div>
                   </div>

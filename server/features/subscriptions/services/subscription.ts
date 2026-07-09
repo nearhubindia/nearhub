@@ -39,7 +39,7 @@ export interface CreateListingRequest {
   visibilityMode?: 'local' | 'online';
   visibilityRadiusKm?: number;
   isDeal?: boolean;
-  dealType?: 'normal' | 'combo';
+  dealType?: 'normal';
   dealStartAt?: string;
   dealEndAt?: string;
   dealRecurrence?: 'none' | 'daily' | 'weekly' | 'monthly';
@@ -47,7 +47,6 @@ export interface CreateListingRequest {
   dealCycleQuantity?: number;
   maxDealBookings?: number;
   purchaseLimitType?: 'ONE_TIME' | 'UNLIMITED';
-  comboItems?: string[];
   dealTerms?: string;
   voucherEnabled?: boolean;
   attributes?: Record<string, string | number | boolean>;
