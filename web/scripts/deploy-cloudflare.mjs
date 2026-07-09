@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 function run(command, args) {
   const result = spawnSync(command, args, {
+    cwd: webRoot,
     stdio: 'inherit',
     shell: false,
     env: process.env,

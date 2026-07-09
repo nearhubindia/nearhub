@@ -303,8 +303,7 @@ function getDisplayPrices(
 
 function mapListing(
   item: Listing,
-  nowMs: number,
-  _userCoords?: { latitude: number; longitude: number } | null
+  nowMs: number
 ): ProductCardData {
   const { displayPrice, originalPrice } = getDisplayPrices(item, nowMs);
   const images = getListingImages(item);
@@ -723,7 +722,7 @@ export default function UserHomePage(): ReactElement {
   );
 
   const upcomingDeals = useMemo(
-    () => upcomingDealListings.map((item) => mapListing(item, nowMs, distanceCoords)),
+    () => upcomingDealListings.map((item) => mapListing(item, nowMs)),
     [upcomingDealListings, nowMs, distanceCoords]
   );
 
@@ -745,7 +744,7 @@ export default function UserHomePage(): ReactElement {
   const featuredListings = useMemo(() => {
     return filterFeaturedListings(liveListings)
       .slice(0, 6)
-      .map((item) => mapListing(item, nowMs, distanceCoords));
+      .map((item) => mapListing(item, nowMs));
   }, [liveListings, nowMs, distanceCoords]);
 
   const todaysDeals = useMemo(() => {
@@ -753,18 +752,18 @@ export default function UserHomePage(): ReactElement {
       .filter((item) => isDealActive(item, nowMs))
       .sort((a, b) => Number(getDealEndMs(a, nowMs) || 0) - Number(getDealEndMs(b, nowMs) || 0))
       .slice(0, 6)
-      .map((item) => mapListing(item, nowMs, distanceCoords));
+      .map((item) => mapListing(item, nowMs));
   }, [dealListings, nowMs, distanceCoords]);
 
   const expiredDeals = useMemo(() => {
     return expiredDealListings
       .sort((a, b) => Number(getDealEndMs(b, nowMs) || 0) - Number(getDealEndMs(a, nowMs) || 0))
       .slice(0, 6)
-      .map((item) => mapListing(item, nowMs, distanceCoords));
+      .map((item) => mapListing(item, nowMs));
   }, [expiredDealListings, nowMs, distanceCoords]);
 
   const categoryProducts = useMemo(
-    () => regularListings.map((item) => mapListing(item, nowMs, distanceCoords)),
+    () => regularListings.map((item) => mapListing(item, nowMs)),
     [regularListings, nowMs, distanceCoords]
   );
 
@@ -924,7 +923,7 @@ export default function UserHomePage(): ReactElement {
               <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
                 {(upcomingDeals.length > 0
                   ? upcomingDeals
-                  : broadUpcomingDealListings.map((item) => mapListing(item, nowMs, distanceCoords))
+                  : broadUpcomingDealListings.map((item) => mapListing(item, nowMs))
                 ).map((product) => (
                   <ProductCard
                     key={`upcoming-${product.id}`}
