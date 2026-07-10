@@ -7,14 +7,16 @@ import { getApiUrl } from '@/lib/config';
 import {
   formatDealStatus,
   getEffectiveDealWindow,
-  isDealExpiredWithinWindow,
   isDealUpcomingWithinWindow,
 } from '@/lib/deal-timer';
 import {
   FALLBACK_LISTING_IMAGE,
   getPrimaryListingImage,
 } from '@/features/landing/lib';
-import { isDeal as isDealListing } from '@/features/landing/lib/deal-visibility';
+import {
+  isDeal as isDealListing,
+  isDealCompleted,
+} from '@/features/landing/lib/deal-visibility';
 import {
   SAVED_LISTING_IDS_KEY,
   countdownPartsFromMs,
@@ -93,7 +95,7 @@ function getPurchaseLimitLabel(item: DealListing): string {
 }
 
 function isExpiredDeal(item: DealListing, nowMs: number): boolean {
-  return isDealExpiredWithinWindow(item, nowMs);
+  return isDealCompleted(item, nowMs);
 }
 
 function isUpcomingDeal(item: DealListing, nowMs: number): boolean {

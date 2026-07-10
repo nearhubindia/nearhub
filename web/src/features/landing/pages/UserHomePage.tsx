@@ -616,38 +616,6 @@ export default function UserHomePage(): ReactElement {
     refetchOnMount: 'always',
   });
 
-  const expiredDealsQuery = useQuery({
-    queryKey: ['nearhub-home-expired-deals'],
-    queryFn: async (): Promise<ListingsQueryResult> => {
-      const fetchExpiredDeals = async (params: URLSearchParams) => {
-        const response = await fetch(`${getApiUrl()}/api/listings?${params.toString()}`);
-        if (!response.ok) {
-          throw new Error('Failed to load expired deals');
-        }
-
-        const payload = (await response.json()) as ListingsResponse;
-        return normalizeDealListings(payload.data || payload.results || []).filter(
-          (item) =>
-            Boolean(item.isDeal ?? item.is_deal) &&
-            String(item.dealStatus || item.deal_status || item.status || '').toLowerCase() ===
-              'expired'
-        );
-      };
-
-      const baseParams = new URLSearchParams({
-        limit: '100',
-        dealsOnly: '1',
-        includeExpiredDeals: '1',
-      });
-      return {
-        listings: await fetchExpiredDeals(baseParams),
-        usedLocationFallback: false,
-      };
-    },
-    staleTime: 0,
-    refetchOnMount: 'always',
-  });
-
   const broadDealListingsQuery = useQuery({
     queryKey: ['nearhub-home-broad-deals'],
     queryFn: async (): Promise<ListingsQueryResult> => {
@@ -719,25 +687,20 @@ export default function UserHomePage(): ReactElement {
     [broadDealListings, nowMs]
   );
 
+  const broadExpiredDealListings = useMemo(
+    () => broadDealListings.filter((item) => isDeal(item) && isDealCompleted(item, nowMs)),
+    [broadDealListings, nowMs]
+  );
+
   const upcomingDeals = useMemo(
     () => upcomingDealListings.map((item) => mapListing(item, nowMs)),
     [upcomingDealListings, nowMs, distanceCoords]
   );
 
-  const expiredDealListings = useMemo(() => {
-    const expiredDeals = expiredDealsQuery.data?.listings ?? EMPTY_LISTINGS;
-    return expiredDeals
-      .filter((item) => {
-        return isDeal(item) && isDealCompleted(item, nowMs);
-      })
-      .sort((a, b) => {
-        const aEnd =
-          getDealEndMs(a, nowMs) || new Date(String(a.dealEndAt || a.deal_end_at || 0)).getTime();
-        const bEnd =
-          getDealEndMs(b, nowMs) || new Date(String(b.dealEndAt || b.deal_end_at || 0)).getTime();
-        return bEnd - aEnd;
-      });
-  }, [expiredDealsQuery.data, nowMs]);
+  const broadExpiredDealCards = useMemo(
+    () => broadExpiredDealListings.map((item) => mapListing(item, nowMs)),
+    [broadExpiredDealListings, nowMs, distanceCoords]
+  );
 
   const featuredListings = useMemo(() => {
     return filterFeaturedListings(liveListings)
@@ -752,13 +715,6 @@ export default function UserHomePage(): ReactElement {
       .slice(0, 6)
       .map((item) => mapListing(item, nowMs));
   }, [dealListings, nowMs, distanceCoords]);
-
-  const expiredDeals = useMemo(() => {
-    return expiredDealListings
-      .sort((a, b) => Number(getDealEndMs(b, nowMs) || 0) - Number(getDealEndMs(a, nowMs) || 0))
-      .slice(0, 6)
-      .map((item) => mapListing(item, nowMs));
-  }, [expiredDealListings, nowMs, distanceCoords]);
 
   const categoryProducts = useMemo(
     () => regularListings.map((item) => mapListing(item, nowMs)),
@@ -945,9 +901,9 @@ export default function UserHomePage(): ReactElement {
               title="Expired Deals"
               to="/deals"
             />
-            {expiredDeals.length > 0 ? (
+            {broadExpiredDealCards.length > 0 ? (
               <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:px-0 md:pb-0 xl:grid-cols-6 [&::-webkit-scrollbar]:hidden">
-                {expiredDeals.map((product) => (
+                {broadExpiredDealCards.map((product) => (
                   <ProductCard
                     key={`expired-${product.id}`}
                     product={product}
