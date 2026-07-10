@@ -6,6 +6,8 @@ type DealFormState = {
   dealType: string;
   dealStartAt: string;
   dealEndAt: string;
+  dealRecurrence: string;
+  dealRecurrenceUntil: string;
   purchaseLimitType: string;
   maxDealBookings: string;
   comboItemsText: string;
@@ -155,6 +157,48 @@ export function AdminDealFields<TForm extends DealFormState>({
               <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.dealEndAt}</p>
             ) : null}
           </div>
+
+          <div>
+            <label className={labelClass}>Repeat</label>
+            <select
+              value={formData.dealRecurrence}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, dealRecurrence: e.target.value as string }))
+              }
+              className={inputClass}
+              disabled={locked}
+            >
+              <option value="none">Does not repeat</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+
+          {String(formData.dealRecurrence || 'none').toLowerCase() !== 'none' ? (
+            <div>
+              <label className={`${labelClass} flex items-center gap-2`}>
+                <CalendarClock size={14} /> Repeat Until
+              </label>
+              <input
+                type="datetime-local"
+                value={toLocalDateTimeValue(formData.dealRecurrenceUntil)}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, dealRecurrenceUntil: e.target.value }))
+                }
+                className={inputClass}
+                disabled={locked}
+              />
+              {formErrors.dealRecurrenceUntil ? (
+                <p className="mt-1 text-xs font-medium text-rose-600">
+                  {formErrors.dealRecurrenceUntil}
+                </p>
+              ) : null}
+              <p className="mt-1 text-xs text-slate-500">
+                Choose when this recurring deal should stop repeating.
+              </p>
+            </div>
+          ) : null}
 
           <div>
             <label className={labelClass}>

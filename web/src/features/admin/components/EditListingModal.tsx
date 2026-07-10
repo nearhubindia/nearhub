@@ -83,6 +83,8 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
     dealType: String(listing?.dealType || 'normal'),
     dealStartAt: toLocalDateTimeValue(listing?.dealStartAt),
     dealEndAt: toLocalDateTimeValue(listing?.dealEndAt),
+    dealRecurrence: String(listing?.dealRecurrence || 'none'),
+    dealRecurrenceUntil: toLocalDateTimeValue(listing?.dealRecurrenceUntil),
     purchaseLimitType: String(listing?.purchaseLimitType || 'ONE_TIME'),
     maxDealBookings:
       listing?.maxDealBookings !== null && listing?.maxDealBookings !== undefined
@@ -193,6 +195,11 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
         dealType: formData.isDeal ? formData.dealType : undefined,
         dealStartAt: formData.isDeal ? dealStartAt : undefined,
         dealEndAt: formData.isDeal ? dealEndAt : undefined,
+        dealRecurrence: formData.isDeal ? formData.dealRecurrence : 'none',
+        dealRecurrenceUntil:
+          formData.isDeal && formData.dealRecurrence !== 'none'
+            ? toIsoFromLocal(formData.dealRecurrenceUntil)
+            : undefined,
         purchaseLimitType: formData.isDeal ? formData.purchaseLimitType : undefined,
         maxDealBookings:
           formData.isDeal && formData.maxDealBookings
@@ -222,6 +229,19 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
         if (new Date(dealEndAt).getTime() <= new Date(dealStartAt).getTime()) {
           setFormErrors({
             dealEndAt: 'Deal end time must be after start time',
+          });
+          return;
+        }
+        if (
+          formData.dealRecurrence !== 'none' &&
+          (!formData.dealRecurrenceUntil ||
+            !toIsoFromLocal(formData.dealRecurrenceUntil) ||
+            new Date(toIsoFromLocal(formData.dealRecurrenceUntil) as string).getTime() <=
+              new Date(dealEndAt).getTime())
+        ) {
+          setFormErrors({
+            dealRecurrenceUntil:
+              'Repeat until date must be after the first deal window',
           });
           return;
         }

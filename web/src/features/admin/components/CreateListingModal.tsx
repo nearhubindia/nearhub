@@ -60,6 +60,8 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     dealType: 'normal',
     dealStartAt: '',
     dealEndAt: '',
+    dealRecurrence: 'none',
+    dealRecurrenceUntil: '',
     purchaseLimitType: 'ONE_TIME',
     maxDealBookings: '',
     comboItemsText: '',
@@ -194,6 +196,19 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
           setFormErrors({ dealEndAt: 'Deal end time must be after start time' });
           return;
         }
+
+        if (
+          formData.dealRecurrence !== 'none' &&
+          (!formData.dealRecurrenceUntil ||
+            !toIsoFromLocal(formData.dealRecurrenceUntil) ||
+            new Date(toIsoFromLocal(formData.dealRecurrenceUntil) as string).getTime() <=
+              new Date(dealEndAt).getTime())
+        ) {
+          setFormErrors({
+            dealRecurrenceUntil: 'Repeat until date must be after the first deal window',
+          });
+          return;
+        }
       }
 
       const payload: Record<string, unknown> = {
@@ -235,6 +250,11 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
         payload.dealType = formData.dealType;
         payload.dealStartAt = dealStartAt;
         payload.dealEndAt = dealEndAt;
+        payload.dealRecurrence = formData.dealRecurrence;
+        payload.dealRecurrenceUntil =
+          formData.dealRecurrence !== 'none'
+            ? toIsoFromLocal(formData.dealRecurrenceUntil)
+            : undefined;
         payload.purchaseLimitType = formData.purchaseLimitType;
         payload.maxDealBookings = Number(formData.maxDealBookings || 0);
         payload.comboItems = formData.dealType === 'combo' ? comboItems : [];
