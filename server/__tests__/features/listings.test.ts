@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import request from 'supertest';
 import { db } from '../../data/db';
 import { users } from '../../features/users/models/users';
-import { createListing } from '../../features/listings/services/listings';
+import { createListing, updateListing } from '../../features/listings/services/listings';
 import { createTestApp } from '../setup/test-app';
 
 describe('Listings API - Strict Tests', () => {
@@ -109,6 +109,31 @@ describe('Listings API - Strict Tests', () => {
     const res = await request(app).get('/api/listings').query({ limit: 500 });
 
     expect(res.status).toBe(200);
+    expect(res.body.data.some((item: { id: string }) => item.id === deal.id)).toBe(false);
+  });
+
+  it('GET /api/listings with dealsOnly and includeExpiredDeals still excludes unpublished active deals', async () => {
+    const app = createTestApp();
+    const ownerId = randomUUID();
+    await seedUser(ownerId);
+
+    const deal = await seedGeoListing(ownerId, {
+      title: `Inactive Deal ${randomUUID().slice(0, 8)}`,
+      location: 'Bengaluru',
+      latitude: '12.9716',
+      longitude: '77.5946',
+    });
+
+    await updateListing(deal.id, { isActive: false } as any);
+
+    const res = await request(app).get('/api/listings').query({
+      dealsOnly: '1',
+      includeExpiredDeals: '1',
+      limit: 500,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body?.success).toBe(true);
     expect(res.body.data.some((item: { id: string }) => item.id === deal.id)).toBe(false);
   });
 

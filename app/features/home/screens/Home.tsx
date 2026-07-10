@@ -40,7 +40,11 @@ import {
   sortDealItemsByDistance,
   type DealCardItem,
 } from '@/lib/deal-card-items';
-import { normalizeDealListingLocation, normalizeDealListingRecord } from '@/lib/deal-normalizers';
+import {
+  isPublishedDealListing,
+  normalizeDealListingLocation,
+  normalizeDealListingRecord,
+} from '@/lib/deal-normalizers';
 import {
   calculateBestDistance,
   formatDistanceAway,
@@ -823,7 +827,7 @@ export default function HomeScreen() {
   );
 
   const dealListings = useMemo(
-    () => broadDealListings.filter((item) => Boolean(item.isDeal)),
+    () => broadDealListings.filter((item) => isPublishedDealListing(item)),
     [broadDealListings]
   );
   const dealListingsById = useMemo(

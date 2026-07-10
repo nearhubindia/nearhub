@@ -32,7 +32,11 @@ import {
   sortDealItemsByDistance,
   type DealCardItem,
 } from '@/lib/deal-card-items';
-import { normalizeDealListingLocation, normalizeDealListingRecord } from '@/lib/deal-normalizers';
+import {
+  isPublishedDealListing,
+  normalizeDealListingLocation,
+  normalizeDealListingRecord,
+} from '@/lib/deal-normalizers';
 import { createResponsiveStyles } from '@/lib/responsive';
 import AppTopHeader from '@/shared/components/AppTopHeader';
 import { getApiUrl } from '@/lib/query-client';
@@ -347,7 +351,7 @@ export default function DealsScreen() {
   const allDealListings = useMemo(() => {
     const merged = new Map<string, Listing>();
     [...listings, ...broadDealListings]
-      .filter((item) => Boolean(item.isDeal))
+      .filter((item) => isPublishedDealListing(item))
       .forEach((listing) => {
         merged.set(listing.id, listing);
       });

@@ -328,7 +328,13 @@ export async function getActiveListing(
 
   const conditions =
     includeExpiredDeals && dealsOnly
-      ? [eq(listings.isDeal, true), inArray(listings.status, ['active', 'expired'])]
+      ? [
+          eq(listings.isDeal, true),
+          or(
+            and(eq(listings.status, 'active'), eq(listings.isActive, true)),
+            eq(listings.status, 'expired')
+          ),
+        ]
       : [
           eq(listings.isActive, true),
           eq(listings.status, 'active'),

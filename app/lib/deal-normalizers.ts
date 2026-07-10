@@ -1,6 +1,14 @@
 import type { DealBooking, DealVoucherPayload } from '@/lib/deal-bookings';
 import type { Listing } from '@/lib/types';
 
+export type DealVisibilityListingLike = {
+  isDeal?: boolean | null;
+  is_deal?: boolean | null;
+  status?: string | null;
+  isActive?: boolean | null;
+  is_active?: boolean | null;
+};
+
 function getString(record: Record<string, unknown>, keys: string[]): string | undefined {
   for (const key of keys) {
     const value = record[key];
@@ -99,6 +107,22 @@ export function normalizeDealListingRecord(listing: any): Partial<Listing> {
     dealTerms: getString(record, ['dealTerms', 'deal_terms']),
     voucherEnabled: getBoolean(record, ['voucherEnabled', 'voucher_enabled']),
   };
+}
+
+export function isPublishedDealListing<T extends DealVisibilityListingLike>(listing: T): boolean {
+  if (!(listing.isDeal ?? listing.is_deal ?? false)) {
+    return false;
+  }
+
+  const status = String(listing.status || 'active')
+    .trim()
+    .toLowerCase();
+  if (status === 'expired') {
+    return true;
+  }
+
+  const isActive = listing.isActive ?? listing.is_active ?? true;
+  return status === 'active' && Boolean(isActive);
 }
 
 export function normalizeDealVoucherPayload(
