@@ -21,6 +21,7 @@ import {
   countdownPartsFromMs,
   formatCountdown,
   isDealActiveNow,
+  isDealAvailableForDealSections,
   isDealCompleted,
   isDealUpcomingWithinWindow,
 } from '@/lib/deal-timer';
@@ -369,7 +370,9 @@ export default function DealsScreen() {
       sortedMappedDeals
         .filter((item) => {
           const source = allDealListings.find((listing) => listing.id === item.id);
-          return source ? isDealActiveNow(source, nowMs) : false;
+          return source
+            ? isDealAvailableForDealSections(source, nowMs) && isDealActiveNow(source, nowMs)
+            : false;
         })
         .sort((a, b) => Number(a.dealEndsAt || 0) - Number(b.dealEndsAt || 0)),
     [allDealListings, sortedMappedDeals, nowMs]

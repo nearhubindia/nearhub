@@ -14,6 +14,8 @@ export type DealTimingInput = {
 };
 
 export type DealCompletionInput = DealTimingInput & {
+  isDeal?: boolean | null;
+  is_deal?: boolean | null;
   dealStatus?: string | null;
   deal_status?: string | null;
   status?: string | null;
@@ -197,6 +199,10 @@ function isDealMarkedCompleted(input: DealCompletionInput): boolean {
 export function isDealCompleted(input: DealCompletionInput, nowMs: number): boolean {
   const isExpired = isDealExpiredWithinWindow(input, nowMs);
   return isExpired || isDealStockCompleted(input) || isDealMarkedCompleted(input);
+}
+
+export function isDealAvailableForDealSections(input: DealCompletionInput, nowMs: number): boolean {
+  return Boolean(input.isDeal ?? input.is_deal) && !isDealCompleted(input, nowMs);
 }
 
 export function countdownPartsFromMs(endAt: number | undefined, nowMs: number): CountdownPart[] {

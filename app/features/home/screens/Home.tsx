@@ -31,6 +31,7 @@ import { useUserInterests } from '@/shared/contexts/user-interests-context';
 import { getDiscountPercent, hasValidOfferPrice } from '@/lib/deals';
 import {
   isDealActiveNow,
+  isDealAvailableForDealSections,
   isDealCompleted,
   isDealUpcomingWithinWindow,
 } from '@/lib/deal-timer';
@@ -40,11 +41,7 @@ import {
   sortDealItemsByDistance,
   type DealCardItem,
 } from '@/lib/deal-card-items';
-import {
-  isPublishedDealListing,
-  normalizeDealListingLocation,
-  normalizeDealListingRecord,
-} from '@/lib/deal-normalizers';
+import { normalizeDealListingLocation, normalizeDealListingRecord } from '@/lib/deal-normalizers';
 import {
   calculateBestDistance,
   formatDistanceAway,
@@ -827,8 +824,8 @@ export default function HomeScreen() {
   );
 
   const dealListings = useMemo(
-    () => broadDealListings.filter((item) => isPublishedDealListing(item)),
-    [broadDealListings]
+    () => broadDealListings.filter((item) => isDealAvailableForDealSections(item, nowMs)),
+    [broadDealListings, nowMs]
   );
   const dealListingsById = useMemo(
     () => new Map(dealListings.map((item) => [item.id, item])),
