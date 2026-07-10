@@ -19,7 +19,7 @@ import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
 import { BRAND_SIGNATURE } from '@/shared/brand';
 import { getPrimaryListingImage } from '@/features/landing/lib';
-import { formatPriceInr } from '@/features/landing/lib';
+import { formatPriceInr, parsePositiveNumber } from '@/features/landing/lib';
 
 const capabilityCards = [
   {
@@ -124,6 +124,18 @@ type ListingsResponse = {
   results?: Listing[];
 };
 
+function getLandingDisplayPrices(listing: Listing): {
+  displayPrice: string | number | undefined;
+  originalPrice: string | number | undefined;
+} {
+  const offerPrice = parsePositiveNumber(listing.offerPrice);
+  const price = parsePositiveNumber(listing.price);
+  if (offerPrice && price && offerPrice < price) {
+    return { displayPrice: listing.offerPrice, originalPrice: listing.price };
+  }
+  return { displayPrice: listing.price, originalPrice: undefined };
+}
+
 export default function Landing(): ReactElement {
   const [searchParams] = useSearchParams();
   const location = searchParams.get('location') ?? '';
@@ -152,7 +164,9 @@ export default function Landing(): ReactElement {
       const response = await fetch(nearbyEndpoint);
       if (!response.ok) throw new Error('Failed to load nearby listings');
       const payload = (await response.json()) as ListingsResponse;
-      return (payload.data || payload.results || []).slice(0, 8);
+      return (payload.data || payload.results || [])
+        .filter((listing) => !(listing.isDeal ?? listing.is_deal))
+        .slice(0, 8);
     },
   });
 
@@ -280,28 +294,38 @@ export default function Landing(): ReactElement {
           ) : null}
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {(nearbyListingsQuery.data || []).map((listing) => (
-              <Link
-                key={listing.id}
-                to={`/listing/${listing.id}`}
-                className="group overflow-hidden rounded-2xl border border-[#1e5da8]/12 bg-white shadow-[0_18px_42px_-30px_rgba(30,93,168,0.55)] transition hover:-translate-y-0.5 hover:shadow-[0_28px_54px_-34px_rgba(30,93,168,0.7)]"
-              >
-                <img
-                  src={getPrimaryListingImage(listing)}
-                  alt={listing.title}
-                  className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                />
-                <div className="p-4">
-                  <p className="line-clamp-2 text-sm font-semibold text-[#113965]">
-                    {listing.title}
-                  </p>
-                  <p className="mt-2 whitespace-nowrap text-sm font-bold leading-none text-slate-950">
-                    {formatPriceInr(listing.offerPrice || listing.price)}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">{listing.location || 'Nearby'}</p>
-                </div>
-              </Link>
-            ))}
+            {(nearbyListingsQuery.data || []).map((listing) => {
+              const { displayPrice, originalPrice } = getLandingDisplayPrices(listing);
+              return (
+                <Link
+                  key={listing.id}
+                  to={`/listing/${listing.id}`}
+                  className="group overflow-hidden rounded-2xl border border-[#1e5da8]/12 bg-white shadow-[0_18px_42px_-30px_rgba(30,93,168,0.55)] transition hover:-translate-y-0.5 hover:shadow-[0_28px_54px_-34px_rgba(30,93,168,0.7)]"
+                >
+                  <img
+                    src={getPrimaryListingImage(listing)}
+                    alt={listing.title}
+                    className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                  />
+                  <div className="p-4">
+                    <p className="line-clamp-2 text-sm font-semibold text-[#113965]">
+                      {listing.title}
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <p className="whitespace-nowrap text-sm font-bold leading-none text-slate-950">
+                        {formatPriceInr(displayPrice)}
+                      </p>
+                      {originalPrice ? (
+                        <p className="whitespace-nowrap text-xs font-semibold leading-none text-slate-400 line-through">
+                          {formatPriceInr(originalPrice)}
+                        </p>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">{listing.location || 'Nearby'}</p>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </section>
 

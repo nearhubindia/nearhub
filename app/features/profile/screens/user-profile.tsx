@@ -31,9 +31,22 @@ type UserListing = {
   id: string;
   title: string;
   price: number;
+  offerPrice?: number;
   location?: string;
   images?: string[];
 };
+
+function getListingDisplayPrices(item: UserListing): {
+  displayPrice: number;
+  originalPrice?: number;
+} {
+  const price = Number(item.price || 0);
+  const offerPrice = Number(item.offerPrice || 0);
+  if (offerPrice > 0 && price > 0 && offerPrice < price) {
+    return { displayPrice: offerPrice, originalPrice: price };
+  }
+  return { displayPrice: price };
+}
 
 function isLikelyUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -207,35 +220,43 @@ export default function UserProfileScreen() {
             <Text style={styles.emptyText}>No listings to show</Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <Pressable
-            style={styles.listingCard}
-            onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
-          >
-            {item.images && item.images[0] ? (
-              <Image
-                source={{ uri: item.images[0] }}
-                style={styles.listingImage}
-                contentFit="cover"
-              />
-            ) : (
-              <View style={[styles.listingImage, styles.listingImageFallback]}>
-                <Feather name="image" size={16} color={Colors.textTertiary} />
+        renderItem={({ item }) => {
+          const { displayPrice, originalPrice } = getListingDisplayPrices(item);
+          return (
+            <Pressable
+              style={styles.listingCard}
+              onPress={() => router.push({ pathname: '/listing/[id]', params: { id: item.id } })}
+            >
+              {item.images && item.images[0] ? (
+                <Image
+                  source={{ uri: item.images[0] }}
+                  style={styles.listingImage}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={[styles.listingImage, styles.listingImageFallback]}>
+                  <Feather name="image" size={16} color={Colors.textTertiary} />
+                </View>
+              )}
+              <View style={styles.listingBody}>
+                <Text style={styles.listingTitle} numberOfLines={1}>
+                  {item.title}
+                </Text>
+                <Text style={styles.listingMeta} numberOfLines={1}>
+                  {item.location || 'Unknown location'}
+                </Text>
               </View>
-            )}
-            <View style={styles.listingBody}>
-              <Text style={styles.listingTitle} numberOfLines={1}>
-                {item.title}
-              </Text>
-              <Text style={styles.listingMeta} numberOfLines={1}>
-                {item.location || 'Unknown location'}
-              </Text>
-            </View>
-            <Text style={styles.listingPrice}>
-              ₹{Number(item.price || 0).toLocaleString('en-IN')}
-            </Text>
-          </Pressable>
-        )}
+              <View style={styles.listingPriceWrap}>
+                <Text style={styles.listingPrice}>₹{displayPrice.toLocaleString('en-IN')}</Text>
+                {originalPrice ? (
+                  <Text style={styles.listingOriginalPrice}>
+                    ₹{originalPrice.toLocaleString('en-IN')}
+                  </Text>
+                ) : null}
+              </View>
+            </Pressable>
+          );
+        }}
       />
     </View>
   );
@@ -398,10 +419,20 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 2,
   },
+  listingPriceWrap: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
   listingPrice: {
     fontSize: 13,
     fontFamily: 'Inter_700Bold',
     color: Colors.primary,
+  },
+  listingOriginalPrice: {
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.textTertiary,
+    textDecorationLine: 'line-through',
   },
   emptyWrap: {
     alignItems: 'center',

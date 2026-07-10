@@ -96,18 +96,30 @@ function getPostDealPriceMode(listing: Listing): string {
   ).toLowerCase();
 }
 
-function getDisplayPriceValue(listing: Listing): string | number | undefined {
+function getDisplayPrices(listing: Listing): {
+  displayPrice: string | number | undefined;
+  originalPrice: string | number | undefined;
+} {
   const offer = parsePositiveNumber(listing.offerPrice) || 0;
   const base = parsePositiveNumber(listing.price) || 0;
   const postDealDiscount =
     parsePositiveNumber(listing.postDealDiscountPrice ?? listing.post_deal_discount_price) || 0;
-  if (!offer || !base || offer >= base) return listing.price;
+  if (!offer || !base || offer >= base) {
+    return { displayPrice: listing.price, originalPrice: undefined };
+  }
   const isDeal = Boolean(listing.isDeal ?? listing.is_deal);
-  if (!isDeal) return listing.offerPrice;
+  if (!isDeal) return { displayPrice: listing.offerPrice, originalPrice: listing.price };
   const window = getEffectiveDealWindow(listing, Date.now());
-  if (!window || Date.now() <= window.endMs) return listing.offerPrice;
-  if (getPostDealPriceMode(listing) !== 'discount') return listing.price;
-  return postDealDiscount && postDealDiscount < base ? postDealDiscount : listing.offerPrice;
+  if (!window || Date.now() <= window.endMs) {
+    return { displayPrice: listing.offerPrice, originalPrice: listing.price };
+  }
+  if (getPostDealPriceMode(listing) !== 'discount') {
+    return { displayPrice: listing.offerPrice, originalPrice: listing.price };
+  }
+  return {
+    displayPrice: postDealDiscount && postDealDiscount < base ? postDealDiscount : listing.offerPrice,
+    originalPrice: listing.price,
+  };
 }
 
 function normalizeListings(items: Listing[]): Listing[] {
@@ -227,7 +239,7 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
         }
         const data = (await response.json()) as ListingsResponse;
         const normalized = normalizeListings(data.data || data.results || []);
-        return dealsOnly ? normalized.filter((item) => item.isDeal) : normalized;
+        return normalized.filter((item) => (dealsOnly ? item.isDeal : !item.isDeal));
       };
 
       const filteredListings = await load(buildEndpoint.filtered);
@@ -315,6 +327,7 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
               const listingImages = getListingImages(listing);
               const primaryImage = listingImages[0];
               const secondaryImage = listingImages[1];
+              const { displayPrice, originalPrice } = getDisplayPrices(listing);
               return (
                 <article
                   key={listing.id}
@@ -429,9 +442,16 @@ export default function BrowseListings({ dealsOnly = false }: BrowseListingsProp
                       </div>
                     ) : null}
                     <div className="mt-2 flex items-center justify-between gap-2 sm:mt-3">
-                      <p className="min-w-0 shrink-0 whitespace-nowrap text-xs font-black leading-none text-[#0f4b8a] sm:text-sm">
-                        {formatPriceInr(getDisplayPriceValue(listing))}
-                      </p>
+                      <div className="flex min-w-0 shrink flex-wrap items-baseline gap-x-1.5 gap-y-1">
+                        <p className="min-w-0 shrink-0 whitespace-nowrap text-xs font-black leading-none text-[#0f4b8a] sm:text-sm">
+                          {formatPriceInr(displayPrice)}
+                        </p>
+                        {originalPrice ? (
+                          <p className="whitespace-nowrap text-[10px] font-semibold leading-none text-slate-400 line-through sm:text-xs">
+                            {formatPriceInr(originalPrice)}
+                          </p>
+                        ) : null}
+                      </div>
                       <div className="flex shrink-0 items-center gap-3">
                         <Link
                           to={`/listing/${listing.id}`}

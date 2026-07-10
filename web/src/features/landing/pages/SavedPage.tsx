@@ -8,6 +8,7 @@ import { readStoredWebUser } from '@/lib/web-auth-storage';
 import {
   SAVED_LISTING_IDS_KEY,
   formatPriceInr,
+  parsePositiveNumber,
   readStoredStringSet,
   writeStoredStringSet,
 } from '@/features/landing/lib';
@@ -21,6 +22,7 @@ type SavedListing = {
   category?: string;
   location?: string;
   price?: string | number;
+  offerPrice?: string | number;
   images?: string[];
   status?: string;
   isActive?: boolean;
@@ -30,6 +32,18 @@ type SavedListing = {
 type ListingsResponse = { success?: boolean; data?: SavedListing[]; results?: SavedListing[] };
 
 const FALLBACK_IMAGE = '/nearhub.png';
+
+function getSavedDisplayPrices(item: SavedListing): {
+  displayPrice: string | number | undefined;
+  originalPrice: string | number | undefined;
+} {
+  const offerPrice = parsePositiveNumber(item.offerPrice);
+  const price = parsePositiveNumber(item.price);
+  if (offerPrice && price && offerPrice < price) {
+    return { displayPrice: item.offerPrice, originalPrice: item.price };
+  }
+  return { displayPrice: item.price, originalPrice: undefined };
+}
 
 export default function SavedPage(): ReactElement {
   const location = useLocation();
@@ -89,61 +103,71 @@ export default function SavedPage(): ReactElement {
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
-            {savedListings.map((item) => (
-              <article
-                key={item.id}
-                className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm"
-              >
-                <div className="aspect-[1.22] bg-slate-100">
-                  {item.images?.[0] ? (
-                    <img
-                      src={item.images[0]}
-                      alt={item.title}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <img
-                      src={FALLBACK_IMAGE}
-                      alt="NearHub"
-                      className="h-full w-full object-contain p-5 opacity-80"
-                      loading="lazy"
-                    />
-                  )}
-                </div>
-                <div className="p-3">
-                  <h2 className="line-clamp-1 text-sm font-semibold text-slate-900">
-                    {item.title}
-                  </h2>
-                  <p className="mt-1 line-clamp-2 text-xs text-slate-600">
-                    {item.description || 'No description available'}
-                  </p>
-                  <div className="mt-2 flex items-center gap-1 text-xs text-slate-500">
-                    <MapPin size={12} /> {item.location || 'Nearby'}
+            {savedListings.map((item) => {
+              const { displayPrice, originalPrice } = getSavedDisplayPrices(item);
+              return (
+                <article
+                  key={item.id}
+                  className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm"
+                >
+                  <div className="aspect-[1.22] bg-slate-100">
+                    {item.images?.[0] ? (
+                      <img
+                        src={item.images[0]}
+                        alt={item.title}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <img
+                        src={FALLBACK_IMAGE}
+                        alt="NearHub"
+                        className="h-full w-full object-contain p-5 opacity-80"
+                        loading="lazy"
+                      />
+                    )}
                   </div>
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    <p className="whitespace-nowrap text-sm font-bold leading-none text-[#0f4b8a]">
-                      {formatPriceInr(item.price)}
+                  <div className="p-3">
+                    <h2 className="line-clamp-1 text-sm font-semibold text-slate-900">
+                      {item.title}
+                    </h2>
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-600">
+                      {item.description || 'No description available'}
                     </p>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Link
-                        to={`/listing/${item.id}`}
-                        className="text-xs font-semibold text-[#ff7b00] hover:underline"
-                      >
-                        Open
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => removeSaved(item.id)}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:underline"
-                      >
-                        <Heart size={14} /> Remove
-                      </button>
+                    <div className="mt-2 flex items-center gap-1 text-xs text-slate-500">
+                      <MapPin size={12} /> {item.location || 'Nearby'}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1">
+                        <p className="whitespace-nowrap text-sm font-bold leading-none text-[#0f4b8a]">
+                          {formatPriceInr(displayPrice)}
+                        </p>
+                        {originalPrice ? (
+                          <p className="whitespace-nowrap text-[11px] font-semibold leading-none text-slate-400 line-through">
+                            {formatPriceInr(originalPrice)}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Link
+                          to={`/listing/${item.id}`}
+                          className="text-xs font-semibold text-[#ff7b00] hover:underline"
+                        >
+                          Open
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => removeSaved(item.id)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:underline"
+                        >
+                          <Heart size={14} /> Remove
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
 
           {!listingsQuery.isLoading && savedListings.length === 0 ? (

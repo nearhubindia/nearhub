@@ -129,8 +129,25 @@ export function isDealExpired(input: DealTimingInput, nowMs: number): boolean {
 
 export function isDealUpcomingWithinWindow(input: DealTimingInput, nowMs: number): boolean {
   const window = getEffectiveDealWindow(input, nowMs);
-  if (!window || nowMs >= window.startMs) return false;
-  return window.startMs - nowMs <= DEAL_SECTION_WINDOW_MS;
+  if (!window) return false;
+
+  let upcomingStartMs = window.startMs;
+  if (nowMs >= upcomingStartMs) {
+    if (!window.isRecurring) return false;
+
+    const recurrence = String(input.dealRecurrence || 'none').toLowerCase();
+    const repeatUntilMs = parseRawDateTime(input.dealRecurrenceUntil ?? null);
+    if (!repeatUntilMs) return false;
+
+    let guard = 0;
+    while (upcomingStartMs <= nowMs && guard < 370) {
+      upcomingStartMs = addIstCycleMs(upcomingStartMs, recurrence);
+      guard += 1;
+    }
+    if (upcomingStartMs <= nowMs || upcomingStartMs > repeatUntilMs) return false;
+  }
+
+  return upcomingStartMs - nowMs <= DEAL_SECTION_WINDOW_MS;
 }
 
 export function isDealExpiredWithinWindow(input: DealTimingInput, nowMs: number): boolean {

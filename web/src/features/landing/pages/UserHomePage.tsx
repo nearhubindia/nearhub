@@ -294,7 +294,7 @@ function getDisplayPrices(
   const endAt = getDealEndMs(item, nowMs);
   if (!endAt || nowMs <= endAt) return { displayPrice: offerPrice, originalPrice: price };
   if (getPostDealPriceMode(item) !== 'discount')
-    return { displayPrice: price, originalPrice: undefined };
+    return { displayPrice: offerPrice, originalPrice: price };
 
   const afterDealPrice =
     postDealDiscountPrice && postDealDiscountPrice < price ? postDealDiscountPrice : offerPrice;
@@ -700,8 +700,8 @@ export default function UserHomePage(): ReactElement {
 
   const liveListings = listingsQuery.data?.listings ?? EMPTY_LISTINGS;
   const regularListings = useMemo(
-    () => filterActiveListings(liveListings).filter((item) => !isDeal(item) || isDealCompleted(item, nowMs)),
-    [liveListings, nowMs]
+    () => filterActiveListings(liveListings).filter((item) => !isDeal(item)),
+    [liveListings]
   );
   const dealListings = useMemo(
     () => liveListings.filter((item) => isDealAvailableForDealSections(item, nowMs)),

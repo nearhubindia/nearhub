@@ -1085,6 +1085,29 @@ export function registerListingRoutes(app: Express) {
       sanitizedUpdates.dealRecurrenceUntil = normalizeOptionalDate(
         sanitizedUpdates.dealRecurrenceUntil
       );
+      if (Object.prototype.hasOwnProperty.call(sanitizedUpdates, 'dealRecurrence')) {
+        const recurrence = String(sanitizedUpdates.dealRecurrence || 'none')
+          .trim()
+          .toLowerCase();
+        if (!['none', 'daily', 'weekly', 'monthly'].includes(recurrence)) {
+          return res.status(400).json({
+            success: false,
+            error: 'Deal recurrence must be none, daily, weekly, or monthly.',
+            code: 'INVALID_DEAL_RECURRENCE',
+          });
+        }
+        sanitizedUpdates.dealRecurrence = recurrence;
+
+        const recurrenceUntil =
+          sanitizedUpdates.dealRecurrenceUntil ?? (existingListing as any).dealRecurrenceUntil;
+        if (recurrence !== 'none' && !recurrenceUntil) {
+          return res.status(400).json({
+            success: false,
+            error: 'Recurring deals require a repeat-until date.',
+            code: 'DEAL_RECURRENCE_UNTIL_REQUIRED',
+          });
+        }
+      }
       sanitizedUpdates.dealCycleQuantity = normalizeOptionalNumber(
         sanitizedUpdates.dealCycleQuantity
       );

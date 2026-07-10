@@ -94,6 +94,24 @@ describe('Listings API - Strict Tests', () => {
     expect(Array.isArray(res.body?.data)).toBe(true);
   });
 
+  it('GET /api/listings excludes deals unless dealsOnly is requested', async () => {
+    const app = createTestApp();
+    const ownerId = randomUUID();
+    await seedUser(ownerId);
+
+    const deal = await seedGeoListing(ownerId, {
+      title: `Exclusive Deal ${randomUUID().slice(0, 8)}`,
+      location: 'Bengaluru',
+      latitude: '12.9716',
+      longitude: '77.5946',
+    });
+
+    const res = await request(app).get('/api/listings').query({ limit: 500 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.some((item: { id: string }) => item.id === deal.id)).toBe(false);
+  });
+
   it('GET /api/listings with geo filters still returns a nearby deal even when a newer far-away deal fills the page limit', async () => {
     const app = createTestApp();
     const ownerId = randomUUID();

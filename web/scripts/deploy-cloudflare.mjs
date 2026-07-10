@@ -3,6 +3,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const webRoot = path.resolve(scriptDir, '..');
+const repoRoot = path.resolve(webRoot, '..');
+
 function run(command, args) {
   const result = spawnSync(command, args, {
     cwd: webRoot,
@@ -59,9 +63,6 @@ function loadEnvFile(filePath) {
 }
 
 function hydrateDeployEnv() {
-  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-  const repoRoot = path.resolve(scriptDir, '..', '..');
-
   loadEnvFile(path.join(repoRoot, 'web', '.env.deploy'));
   loadEnvFile(path.join(repoRoot, 'web', '.env.deploy.local'));
   loadEnvFile(path.join(repoRoot, '.env'));

@@ -337,6 +337,9 @@ export async function getActiveListing(
 
   if (dealsOnly && !(includeExpiredDeals && dealsOnly)) {
     conditions.push(eq(listings.isDeal, true));
+  } else if (!dealsOnly) {
+    // Deals have dedicated feeds and must never leak into ordinary listing results.
+    conditions.push(eq(listings.isDeal, false));
   }
 
   if (category) {

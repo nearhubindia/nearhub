@@ -753,11 +753,11 @@ export function registerSubscriptionRoutes(app: Express) {
           "monthly",
         ] as const;
         type DealRecurrence = (typeof recurrenceOptions)[number];
+        const recurrenceCandidate = String(dealRecurrence || "none")
+          .trim()
+          .toLowerCase() as DealRecurrence;
         const normalizedDealRecurrence: DealRecurrence =
-          typeof dealRecurrence === "string" &&
-          recurrenceOptions.includes(dealRecurrence as DealRecurrence)
-            ? (dealRecurrence as DealRecurrence)
-            : "none";
+          recurrenceOptions.includes(recurrenceCandidate) ? recurrenceCandidate : "none";
         const normalizedDealRecurrenceUntil =
           typeof dealRecurrenceUntil === "string" && dealRecurrenceUntil.trim()
             ? new Date(dealRecurrenceUntil)

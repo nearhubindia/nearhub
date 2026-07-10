@@ -110,6 +110,7 @@ export default function SearchResultsScreen() {
 
   const filteredListings = useMemo(() => {
     let results = listings.filter((item) => {
+      if (item.isDeal) return false;
       const status = (item.status || 'active').toLowerCase();
       if (status !== 'active') return false;
       if (item.expiresAt && new Date(item.expiresAt).getTime() < Date.now()) return false;

@@ -100,6 +100,7 @@ export default function ChatScreen() {
     listing.offerPrice > 0 &&
     listing.offerPrice < listing.price;
   const displayPrice = hasValidOfferPrice ? listing.offerPrice : listing?.price;
+  const originalPrice = hasValidOfferPrice ? listing?.price : undefined;
 
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
 
@@ -216,6 +217,11 @@ export default function ChatScreen() {
           {listing && typeof displayPrice === 'number' && (
             <View style={styles.headerPrice}>
               <Text style={styles.priceText}>₹{displayPrice.toLocaleString('en-IN')}</Text>
+              {typeof originalPrice === 'number' ? (
+                <Text style={styles.headerOriginalPrice}>
+                  ₹{originalPrice.toLocaleString('en-IN')}
+                </Text>
+              ) : null}
             </View>
           )}
           {profileTargetId ? (
@@ -252,7 +258,14 @@ export default function ChatScreen() {
           ) : null}
           <Text style={styles.emptyTitle}>{listingTitle || listing?.title}</Text>
           {listing && typeof displayPrice === 'number' && (
-            <Text style={styles.emptyPrice}>₹{displayPrice.toLocaleString('en-IN')}</Text>
+            <View style={styles.emptyPriceRow}>
+              <Text style={styles.emptyPrice}>₹{displayPrice.toLocaleString('en-IN')}</Text>
+              {typeof originalPrice === 'number' ? (
+                <Text style={styles.emptyOriginalPrice}>
+                  ₹{originalPrice.toLocaleString('en-IN')}
+                </Text>
+              ) : null}
+            </View>
           )}
           <Text style={styles.emptyHint}>Send a message to the seller to get started</Text>
 
@@ -378,6 +391,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 10,
+    alignItems: 'flex-end',
   },
   profileBtn: {
     width: 36,
@@ -411,6 +425,13 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     color: Colors.primary,
   },
+  headerOriginalPrice: {
+    marginTop: 1,
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.textTertiary,
+    textDecorationLine: 'line-through',
+  },
   emptyChat: {
     alignItems: 'center',
     paddingHorizontal: 24,
@@ -433,6 +454,17 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: 'Inter_700Bold',
     color: Colors.primary,
+  },
+  emptyPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  emptyOriginalPrice: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.textTertiary,
+    textDecorationLine: 'line-through',
   },
   emptyHint: {
     fontSize: 13,

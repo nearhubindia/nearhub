@@ -3,6 +3,8 @@ export type HomeFeedListingLike = {
   status?: string | null;
   isActive?: boolean | null;
   is_active?: boolean | null;
+  isDeal?: boolean | null;
+  is_deal?: boolean | null;
   expiresAt?: string | null;
   featured?: boolean | null;
   likeCount?: number | string | null;
@@ -18,6 +20,7 @@ function normalizeStatus(value: unknown): string {
 }
 
 export function isActiveHomeListing<T extends HomeFeedListingLike>(item: T): boolean {
+  if (item.isDeal ?? item.is_deal ?? false) return false;
   const status = normalizeStatus(item.status);
   const isActive = item.isActive ?? item.is_active ?? true;
   if (!isActive || status !== 'active') return false;
