@@ -21,7 +21,7 @@ import {
   countdownPartsFromMs,
   formatCountdown,
   isDealActiveNow,
-  isDealExpiredWithinWindow,
+  isDealCompleted,
   isDealUpcomingWithinWindow,
 } from '@/lib/deal-timer';
 import { getDiscountPercent } from '@/lib/deals';
@@ -389,7 +389,7 @@ export default function DealsScreen() {
       sortedMappedDeals
         .filter((item) => {
           const source = allDealListings.find((listing) => listing.id === item.id);
-          return source ? isDealExpiredWithinWindow(source, nowMs) : false;
+          return source ? isDealCompleted(source, nowMs) : false;
         })
         .sort((a, b) => Number(b.dealEndsAt || 0) - Number(a.dealEndsAt || 0)),
     [allDealListings, sortedMappedDeals, nowMs]

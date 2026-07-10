@@ -31,7 +31,7 @@ import { useUserInterests } from '@/shared/contexts/user-interests-context';
 import { getDiscountPercent, hasValidOfferPrice } from '@/lib/deals';
 import {
   isDealActiveNow,
-  isDealExpiredWithinWindow,
+  isDealCompleted,
   isDealUpcomingWithinWindow,
 } from '@/lib/deal-timer';
 import { bookDeal, DealBookingError } from '@/lib/deal-bookings';
@@ -877,7 +877,7 @@ export default function HomeScreen() {
       mappedDeals
         .filter((item) => {
           const source = dealListingsById.get(item.id);
-          return source ? isDealExpiredWithinWindow(source, nowMs) : false;
+          return source ? isDealCompleted(source, nowMs) : false;
         })
         .sort((a, b) => Number(b.dealEndsAt || 0) - Number(a.dealEndsAt || 0))
         .slice(0, 6),

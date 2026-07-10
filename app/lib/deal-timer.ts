@@ -13,6 +13,18 @@ export type DealTimingInput = {
   dealRecurrenceUntil?: string | null;
 };
 
+export type DealCompletionInput = DealTimingInput & {
+  dealStatus?: string | null;
+  deal_status?: string | null;
+  status?: string | null;
+  dealCycleQuantity?: number | string | null;
+  deal_cycle_quantity?: number | string | null;
+  maxDealBookings?: number | string | null;
+  max_deal_bookings?: number | string | null;
+  dealBookingsUsed?: number | string | null;
+  deal_bookings_used?: number | string | null;
+};
+
 export const DEAL_SECTION_WINDOW_DAYS = 5;
 const DEAL_SECTION_WINDOW_MS = DEAL_SECTION_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
@@ -154,6 +166,37 @@ export function isDealExpiredWithinWindow(input: DealTimingInput, nowMs: number)
   const window = getEffectiveDealWindow(input, nowMs);
   if (!window || nowMs <= window.endMs) return false;
   return nowMs - window.endMs <= DEAL_SECTION_WINDOW_MS;
+}
+
+function parseCompletionNumber(value: number | string | null | undefined): number {
+  const parsed = typeof value === 'string' ? Number(value) : Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isDealStockCompleted(input: DealCompletionInput): boolean {
+  const maxSlots =
+    parseCompletionNumber(input.dealCycleQuantity ?? input.deal_cycle_quantity) ||
+    parseCompletionNumber(input.maxDealBookings ?? input.max_deal_bookings);
+  const usedSlots = parseCompletionNumber(input.dealBookingsUsed ?? input.deal_bookings_used);
+  return maxSlots > 0 && usedSlots >= maxSlots;
+}
+
+function isDealMarkedCompleted(input: DealCompletionInput): boolean {
+  const status = String(input.dealStatus ?? input.deal_status ?? input.status ?? '').toLowerCase();
+  return [
+    'completed',
+    'complete',
+    'closed',
+    'expired',
+    'sold_out',
+    'sold-out',
+    'stock_completed',
+  ].includes(status);
+}
+
+export function isDealCompleted(input: DealCompletionInput, nowMs: number): boolean {
+  const isExpired = isDealExpiredWithinWindow(input, nowMs);
+  return isExpired || isDealStockCompleted(input) || isDealMarkedCompleted(input);
 }
 
 export function countdownPartsFromMs(endAt: number | undefined, nowMs: number): CountdownPart[] {
