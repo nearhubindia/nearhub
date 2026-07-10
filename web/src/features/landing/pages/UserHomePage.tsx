@@ -699,13 +699,14 @@ export default function UserHomePage(): ReactElement {
   );
 
   const liveListings = listingsQuery.data?.listings ?? EMPTY_LISTINGS;
+  const broadDealListings = broadDealListingsQuery.data?.listings ?? EMPTY_LISTINGS;
   const regularListings = useMemo(
     () => filterActiveListings(liveListings).filter((item) => !isDeal(item)),
     [liveListings]
   );
   const dealListings = useMemo(
-    () => liveListings.filter((item) => isDealAvailableForDealSections(item, nowMs)),
-    [liveListings, nowMs]
+    () => broadDealListings.filter((item) => isDealAvailableForDealSections(item, nowMs)),
+    [broadDealListings, nowMs]
   );
 
   const upcomingDealListings = useMemo(
@@ -714,11 +715,8 @@ export default function UserHomePage(): ReactElement {
   );
 
   const broadUpcomingDealListings = useMemo(
-    () =>
-      (broadDealListingsQuery.data?.listings ?? EMPTY_LISTINGS).filter((item) =>
-        isDealUpcomingWithinWindow(item, nowMs)
-      ),
-    [broadDealListingsQuery.data, nowMs]
+    () => broadDealListings.filter((item) => isDealUpcomingWithinWindow(item, nowMs)),
+    [broadDealListings, nowMs]
   );
 
   const upcomingDeals = useMemo(
