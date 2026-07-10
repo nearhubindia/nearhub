@@ -872,6 +872,27 @@ export default function HomeScreen() {
     [dealListingsById, mappedDeals, nowMs]
   );
 
+  const broadUpcomingDealListings = useMemo(
+    () => broadDealListings.filter((item) => isDealUpcomingWithinWindow(item, nowMs)),
+    [broadDealListings, nowMs]
+  );
+
+  const broadUpcomingDealCards = useMemo(
+    () =>
+      sortDealItemsByDistance(
+        broadUpcomingDealListings.map((item) =>
+          createDealCardItem(
+            item,
+            nowMs,
+            typeof userLat === 'number' && typeof userLon === 'number'
+              ? { latitude: userLat, longitude: userLon }
+              : null
+          )
+        )
+      ),
+    [broadUpcomingDealListings, nowMs, userLat, userLon]
+  );
+
   const expiredDeals = useMemo(
     () =>
       mappedDeals
@@ -1173,13 +1194,15 @@ export default function HomeScreen() {
               <Text style={styles.sectionSubtext}>
                 {hasLocation ? 'Deals starting soon, sorted by proximity' : 'Deals starting soon'}
               </Text>
-              {upcomingDeals.length > 0 ? (
+              {upcomingDeals.length > 0 || broadUpcomingDealCards.length > 0 ? (
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.dealRailContent}
                 >
-                  {upcomingDeals.map((item) => renderDealRailCard(item))}
+                  {(upcomingDeals.length > 0 ? upcomingDeals : broadUpcomingDealCards).map((item) =>
+                    renderDealRailCard(item)
+                  )}
                 </ScrollView>
               ) : (
                 <View style={styles.dealEmptyState}>
