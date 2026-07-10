@@ -53,6 +53,8 @@ type DealListing = {
   deal_recurrence?: string;
   dealRecurrenceUntil?: string;
   deal_recurrence_until?: string;
+  dealStatus?: string;
+  deal_status?: string;
   purchaseLimitType?: string;
   purchase_limit_type?: string;
   comboItems?: string[] | string;
@@ -102,17 +104,23 @@ function isUpcomingDeal(item: DealListing, nowMs: number): boolean {
   return isDealUpcomingWithinWindow(item, nowMs);
 }
 
+function isActiveDeal(item: DealListing, nowMs: number): boolean {
+  if (!isDealListing(item)) return false;
+  const endAt = getEffectiveDealWindow(item, nowMs)?.endMs;
+  if (!endAt || nowMs > endAt) return false;
+  const startAt = getEffectiveDealWindow(item, nowMs)?.startMs;
+  return !startAt || nowMs >= startAt;
+}
+
 function normalizeDeals(items: DealListing[]): DealListing[] {
-  return items.filter((item) => {
-    const status = String(item.status || 'active').toLowerCase();
-    const active = item.isActive ?? item.is_active ?? true;
-    const visibleStatus = status === 'active' || status === 'expired';
-    return (
-      isDealListing(item) &&
-      visibleStatus &&
-      (Boolean(active) || status === 'expired')
-    );
-  });
+  return items.map((item) => ({
+    ...item,
+    isDeal: Boolean(item.isDeal ?? item.is_deal),
+    isActive: item.isActive ?? item.is_active ?? true,
+    status: String(item.status || 'active').toLowerCase(),
+    dealType: String(item.dealType || item.deal_type || '').toLowerCase(),
+    dealStatus: String(item.dealStatus || item.deal_status || '').toLowerCase(),
+  }));
 }
 
 function DealCard({
@@ -335,8 +343,23 @@ export default function DealsPage(): ReactElement {
     );
   }, [dealsQuery.data, query]);
 
-  const upcomingDeals = filteredDeals.filter((item) => isUpcomingDeal(item, nowMs));
-  const expiredDeals = filteredDeals.filter((item) => isExpiredDeal(item, nowMs));
+  const activeDeals = useMemo(
+    () =>
+      filteredDeals
+        .filter((item) => isActiveDeal(item, nowMs))
+        .sort((a, b) => Number(getEffectiveDealWindow(a, nowMs)?.endMs || 0) - Number(getEffectiveDealWindow(b, nowMs)?.endMs || 0)),
+    [filteredDeals, nowMs]
+  );
+
+  const upcomingDeals = useMemo(
+    () => filteredDeals.filter((item) => isUpcomingDeal(item, nowMs)),
+    [filteredDeals, nowMs]
+  );
+
+  const expiredDeals = useMemo(
+    () => filteredDeals.filter((item) => isExpiredDeal(item, nowMs)),
+    [filteredDeals, nowMs]
+  );
 
   const allDeals = filteredDeals;
 
@@ -367,6 +390,39 @@ export default function DealsPage(): ReactElement {
             Could not load deals right now.
           </p>
         ) : null}
+
+        <section className="mt-7">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-black">Active Deals</h2>
+              <p className="mt-1 text-sm font-semibold text-slate-500">
+                Deals live right now.
+              </p>
+            </div>
+            {activeDeals.length ? (
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">
+                {activeDeals.length} active
+              </span>
+            ) : null}
+          </div>
+          {activeDeals.length > 0 ? (
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+              {activeDeals.map((item) => (
+                <DealCard
+                  key={`active-${item.id}`}
+                  item={item}
+                  saved={savedIds.has(item.id)}
+                  onToggleSaved={toggleSaved}
+                  nowMs={nowMs}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm font-semibold text-slate-500">
+              No active deals right now.
+            </div>
+          )}
+        </section>
 
         <section className="mt-7">
           <h2 className="text-2xl font-black">All Deals</h2>
