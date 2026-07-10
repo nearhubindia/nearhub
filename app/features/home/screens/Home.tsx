@@ -886,20 +886,29 @@ export default function HomeScreen() {
               : null
           )
         )
-      ),
+    ),
     [broadUpcomingDealListings, nowMs, userLat, userLon]
   );
 
-  const expiredDeals = useMemo(
+  const broadExpiredDealListings = useMemo(
+    () => broadDealListings.filter((item) => isDealCompleted(item, nowMs)),
+    [broadDealListings, nowMs]
+  );
+
+  const broadExpiredDealCards = useMemo(
     () =>
-      mappedDeals
-        .filter((item) => {
-          const source = dealListingsById.get(item.id);
-          return source ? isDealCompleted(source, nowMs) : false;
-        })
-        .sort((a, b) => Number(b.dealEndsAt || 0) - Number(a.dealEndsAt || 0))
-        .slice(0, 6),
-    [dealListingsById, mappedDeals, nowMs]
+      sortDealItemsByDistance(
+        broadExpiredDealListings.map((item) =>
+          createDealCardItem(
+            item,
+            nowMs,
+            typeof userLat === 'number' && typeof userLon === 'number'
+              ? { latitude: userLat, longitude: userLon }
+              : null
+          )
+        )
+      ),
+    [broadExpiredDealListings, nowMs, userLat, userLon]
   );
 
   const renderDealRailCard = useCallback(
@@ -1210,7 +1219,7 @@ export default function HomeScreen() {
               )}
             </View>
 
-            {expiredDeals.length > 0 ? (
+            {broadExpiredDealCards.length > 0 ? (
               <View style={styles.dealsSection}>
                 <View style={styles.sectionHeader}>
                   <View style={styles.sectionHeaderLeft}>
@@ -1234,7 +1243,7 @@ export default function HomeScreen() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.dealRailContent}
                 >
-                  {expiredDeals.map((item) => renderDealRailCard(item))}
+                  {broadExpiredDealCards.map((item) => renderDealRailCard(item))}
                 </ScrollView>
               </View>
             ) : null}
