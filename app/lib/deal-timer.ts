@@ -101,10 +101,16 @@ export function formatDealStartMessage(startMs: number, nowMs: number): string {
 }
 
 export function formatDealCountdown(milliseconds: number): string {
-  const minutes = Math.max(1, Math.ceil(milliseconds / 60000));
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.max(1, Math.ceil(minutes / 60));
-  return `${hours} hr${hours === 1 ? '' : 's'}`;
+  const totalMinutes = Math.max(0, Math.floor(milliseconds / 60000));
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+  const seconds = Math.floor((milliseconds % 60000) / 1000);
+  const pad = (value: number) => String(value).padStart(2, '0');
+
+  return days > 0
+    ? `${pad(days)}d : ${pad(hours)}h : ${pad(minutes)}m : ${pad(seconds)}s`
+    : `${pad(hours)}h : ${pad(minutes)}m : ${pad(seconds)}s`;
 }
 
 export function formatDealStatus(input: DealTimingInput, nowMs: number): string {
