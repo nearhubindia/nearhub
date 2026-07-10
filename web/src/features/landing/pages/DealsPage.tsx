@@ -7,7 +7,6 @@ import { getApiUrl } from '@/lib/config';
 import {
   formatDealStatus,
   getEffectiveDealWindow,
-  isDealActiveNow,
   isDealExpiredWithinWindow,
   isDealUpcomingWithinWindow,
 } from '@/lib/deal-timer';
@@ -15,6 +14,7 @@ import {
   FALLBACK_LISTING_IMAGE,
   getPrimaryListingImage,
 } from '@/features/landing/lib';
+import { isDeal as isDealListing } from '@/features/landing/lib/deal-visibility';
 import {
   SAVED_LISTING_IDS_KEY,
   countdownPartsFromMs,
@@ -106,7 +106,7 @@ function normalizeDeals(items: DealListing[]): DealListing[] {
     const active = item.isActive ?? item.is_active ?? true;
     const visibleStatus = status === 'active' || status === 'expired';
     return (
-      Boolean(item.isDeal ?? item.is_deal) &&
+      isDealListing(item) &&
       visibleStatus &&
       (Boolean(active) || status === 'expired')
     );
@@ -333,11 +333,10 @@ export default function DealsPage(): ReactElement {
     );
   }, [dealsQuery.data, query]);
 
-  const activeDeals = filteredDeals.filter((item) => isDealActiveNow(item, nowMs));
   const upcomingDeals = filteredDeals.filter((item) => isUpcomingDeal(item, nowMs));
   const expiredDeals = filteredDeals.filter((item) => isExpiredDeal(item, nowMs));
 
-  const allDeals = activeDeals;
+  const allDeals = filteredDeals;
 
   return (
     <div className="min-h-screen bg-[#f7faff] text-slate-950">
