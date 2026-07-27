@@ -68,10 +68,7 @@ function ClassicTabLayout() {
               allowFontScaling={false}
               minimumFontScale={0.75}
               numberOfLines={1}
-              style={[
-                styles.tabLabel,
-                { color, marginBottom: Platform.OS === 'web' ? 6 : 0 },
-              ]}
+              style={[styles.tabLabel, { color, marginBottom: Platform.OS === 'web' ? 6 : 0 }]}
             >
               {children}
             </Text>

@@ -38,34 +38,72 @@ export function compareDisplayCapabilities(
   device: MobileDeviceMaster | undefined,
   measured: DisplayCapabilities | null
 ): DisplayAssessment {
-  if (!measured) return { status: 'unavailable', label: 'Display test unavailable', details: [], authenticity: 'unverified' };
-  if (!device) return { status: 'unavailable', label: 'OEM display profile unavailable', details: [], authenticity: 'unverified' };
+  if (!measured)
+    return {
+      status: 'unavailable',
+      label: 'Display test unavailable',
+      details: [],
+      authenticity: 'unverified',
+    };
+  if (!device)
+    return {
+      status: 'unavailable',
+      label: 'OEM display profile unavailable',
+      details: [],
+      authenticity: 'unverified',
+    };
 
   const checks: { matches: boolean; text: string }[] = [];
   const resolution = expectedResolution(device.displayResolution);
   if (resolution) {
-    const matches = measured.supportedModes.some((mode) =>
-      (mode.width === resolution[0] && mode.height === resolution[1]) ||
-      (mode.width === resolution[1] && mode.height === resolution[0])
+    const matches = measured.supportedModes.some(
+      (mode) =>
+        (mode.width === resolution[0] && mode.height === resolution[1]) ||
+        (mode.width === resolution[1] && mode.height === resolution[0])
     );
-    checks.push({ matches, text: `Resolution ${matches ? 'matches' : 'differs from'} ${resolution[0]}×${resolution[1]}` });
+    checks.push({
+      matches,
+      text: `Resolution ${matches ? 'matches' : 'differs from'} ${resolution[0]}×${resolution[1]}`,
+    });
   }
   if (device.refreshRateHz) {
-    const matches = measured.supportedModes.some((mode) => Math.abs(mode.refreshRate - device.refreshRateHz!) <= 1);
-    checks.push({ matches, text: `${device.refreshRateHz} Hz mode ${matches ? 'detected' : 'not detected'}` });
+    const matches = measured.supportedModes.some(
+      (mode) => Math.abs(mode.refreshRate - device.refreshRateHz!) <= 1
+    );
+    checks.push({
+      matches,
+      text: `${device.refreshRateHz} Hz mode ${matches ? 'detected' : 'not detected'}`,
+    });
   }
   if (typeof device.hdr === 'boolean' && measured.hdr !== null) {
     const matches = measured.hdr === device.hdr;
-    checks.push({ matches, text: `HDR ${matches ? 'matches expected profile' : 'differs from expected profile'}` });
+    checks.push({
+      matches,
+      text: `HDR ${matches ? 'matches expected profile' : 'differs from expected profile'}`,
+    });
   }
   if (typeof device.wideColorGamut === 'boolean' && measured.wideColorGamut !== null) {
     const matches = measured.wideColorGamut === device.wideColorGamut;
-    checks.push({ matches, text: `Wide colour gamut ${matches ? 'matches expected profile' : 'differs from expected profile'}` });
+    checks.push({
+      matches,
+      text: `Wide colour gamut ${matches ? 'matches expected profile' : 'differs from expected profile'}`,
+    });
   }
 
-  if (!checks.length) return { status: 'unavailable', label: 'OEM display profile incomplete', details: [], authenticity: 'unverified' };
+  if (!checks.length)
+    return {
+      status: 'unavailable',
+      label: 'OEM display profile incomplete',
+      details: [],
+      authenticity: 'unverified',
+    };
   const passed = checks.filter((check) => check.matches).length;
   const status = passed === checks.length ? 'matches' : passed === 0 ? 'mismatch' : 'partial';
-  const label = status === 'matches' ? 'Matches expected display specifications' : status === 'partial' ? 'Partially matches expected specifications' : 'Does not match expected display specifications';
+  const label =
+    status === 'matches'
+      ? 'Matches expected display specifications'
+      : status === 'partial'
+        ? 'Partially matches expected specifications'
+        : 'Does not match expected display specifications';
   return { status, label, details: checks.map((check) => check.text), authenticity: 'unverified' };
 }
