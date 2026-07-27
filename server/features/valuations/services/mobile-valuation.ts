@@ -14,6 +14,7 @@ const AI_MODEL = process.env.GEMINI_VALUATION_MODEL || 'gemini-2.5-flash';
 const VALIDITY_DAYS = 30;
 const AGE_VALUE_FLOOR = 0.12;
 const AGE_DECAY_MONTHS = 55;
+const BATTERY_REFURBISHMENT_THRESHOLD = 75;
 
 export const mobileValuationInputSchema = z.object({
   brand: z.string().trim().min(1).max(80),
@@ -26,7 +27,8 @@ export const mobileValuationInputSchema = z.object({
     .enum(['model_release', 'user_reported', 'unknown'])
     .optional()
     .default('user_reported'),
-  battery: z.coerce.number().min(1).max(100),
+  battery: z.coerce.number().min(1).max(100).optional().default(85),
+  batteryHealthType: z.enum(['measured', 'estimated', 'unavailable']).optional(),
   proposedPurchasePrice: z.coerce.number().min(0).max(500000).optional(),
   batteryReplacementCost: z.coerce.number().min(0).max(50000).optional().default(1500),
   screenCondition: z.enum(['Intact', 'Minor scratches', 'Deep scratches', 'Cracked', 'Broken']),
@@ -273,6 +275,7 @@ export function calculateMobileValuationBaseline(input: MobileValuationInput) {
     centre,
     hardwareValue,
     condition: condition.key,
+    conditionMultiplier: condition.multiplier,
     conditionScore,
     ageFactor,
     batteryMultiplier,
@@ -296,7 +299,7 @@ export function calculateAcquisitionAnalysis(
   adjustedCentre: number,
   batteryMultiplier: number
 ) {
-  const batteryReplacementRequired = input.battery < 80;
+  const batteryReplacementRequired = input.battery <= BATTERY_REFURBISHMENT_THRESHOLD;
   const batteryReplacementCost = batteryReplacementRequired
     ? Math.round(input.batteryReplacementCost)
     : 0;
@@ -431,17 +434,30 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
   const ageValidation = validateAndNormalizeMobileAge(input);
   input = ageValidation.input;
   const baseline = calculateMobileValuationBaseline(input);
-  const comparables = await getComparables(input);
+  // External market intelligence is the benchmark source. NearHub's own
+  // listings are intentionally excluded because the sample is too small.
+  const comparables: ComparableSummary = {
+    count: 0,
+    median: null,
+    minimum: null,
+    maximum: null,
+  };
   const ai = await getAiReview(input, baseline, comparables);
-  let adjustedCentre = comparables.median
-    ? baseline.centre * 0.8 + comparables.median * 0.2
-    : baseline.centre;
+  let adjustedCentre = baseline.centre;
+  let pricingBasis: 'current_market' | 'estimated_market' = 'estimated_market';
   if (ai.marketMedian) {
-    const marketWeight =
-      ai.evidenceQuality === 'high' ? 0.7 : ai.evidenceQuality === 'medium' ? 0.5 : 0.35;
-    adjustedCentre = adjustedCentre * (1 - marketWeight) + ai.marketMedian * marketWeight;
+    // A current-market benchmark already reflects age, hardware generation,
+    // support status, and demand. Apply only condition/liquidity adjustments.
+    pricingBasis = 'current_market';
+    const liquidityFactor = 0.95;
+    const batteryReserve = input.batteryHealthType === 'unavailable' ? 500 : 0;
+    adjustedCentre = Math.max(
+      0,
+      ai.marketMedian * baseline.conditionMultiplier * liquidityFactor - batteryReserve
+    );
   }
-  adjustedCentre *= 1 + ai.adjustmentPercent / 100;
+  // AI is evidence collection only. The deterministic pricing engine owns the
+  // final calculation; never apply a free-form AI adjustment directly to price.
   const acquisition = calculateAcquisitionAnalysis(
     input,
     adjustedCentre,
@@ -488,6 +504,7 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     verifiedReleaseDate: ageValidation.verifiedReleaseDate,
     condition: baseline.condition,
     battery: input.battery,
+    batteryHealthType: input.batteryHealthType || 'unavailable',
     androidVersion: input.androidVersion,
     manufacturer: input.manufacturer,
     cpuArchitecture: input.cpuArchitecture,
@@ -503,6 +520,10 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     demandFactor: baseline.demandFactor,
     low: adjustedCentre * 0.9,
     high: adjustedCentre * 1.1,
+    recommendedSellingPrice: Math.round(adjustedCentre),
+    pricingBasis,
+    estimatedMarketValueInr: Math.round(adjustedCentre),
+    recommendedCustomerPayoutInr: Math.round(adjustedCentre),
     acquisition,
     createdAt: now.toISOString(),
     validUntil: validUntil.toISOString(),

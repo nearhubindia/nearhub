@@ -26,6 +26,7 @@ import {
 } from '@/lib/mobile-rate-card';
 import { findMobileDeviceMaster } from '@/lib/mobile-device-master';
 import { getTotalStorageGb } from '@/lib/device-storage';
+import { readBatteryDiagnostics } from '@/lib/battery-diagnostics';
 import {
   compareDisplayCapabilities,
   readDisplayCapabilities,
@@ -53,6 +54,7 @@ type Report = {
   displayAssessment?: DisplayAssessment;
   condition: string;
   battery: number;
+  batteryHealthType?: 'measured' | 'estimated' | 'unavailable';
   androidVersion?: string;
   manufacturer?: string;
   cpuArchitecture?: string;
@@ -69,25 +71,11 @@ type Report = {
   demandFactor: number;
   low: number;
   high: number;
+  recommendedSellingPrice?: number;
   createdAt: string;
   validUntil: string;
   signature: string;
   modelVersion: string;
-  acquisition: {
-    decision: 'BUY' | 'NEGOTIATE' | 'REVIEW' | 'REJECT';
-    proposedPurchasePrice: number | null;
-    conservativeResaleValue: number;
-    batteryReplacementRequired: boolean;
-    batteryReplacementCost: number;
-    operatingCost: number;
-    warrantyReserve: number;
-    targetProfit: number;
-    totalLandedCost: number | null;
-    breakEvenPurchasePrice: number;
-    maximumRecommendedPurchasePrice: number;
-    projectedProfit: number | null;
-    projectedMarginPercent: number | null;
-  };
   validation: {
     status: 'ai_validated' | 'rules_fallback';
     provider: string;
@@ -158,12 +146,8 @@ async function getReportLogoSource(): Promise<string> {
 }
 
 function ReportBreakdown({ report }: { report: Report }) {
-  const decisionColor =
-    report.acquisition.decision === 'BUY'
-      ? '#166534'
-      : report.acquisition.decision === 'NEGOTIATE'
-        ? '#92400E'
-        : '#B91C1C';
+  const recommendedSellingPrice =
+    report.recommendedSellingPrice ?? Math.round((report.low + report.high) / 2);
   return (
     <View
       style={{
@@ -191,40 +175,14 @@ function ReportBreakdown({ report }: { report: Report }) {
       </Text>
       <View style={{ backgroundColor: '#EFF6FF', borderRadius: 14, padding: 16, marginTop: 18 }}>
         <Text style={{ color: '#475569', fontSize: 12, fontWeight: '800' }}>
-          ESTIMATED FAIR MARKET RANGE
+          RECOMMENDED SELLING PRICE
         </Text>
         <Text style={{ color: '#1D4ED8', fontSize: 31, fontWeight: '900', marginTop: 9 }}>
-          {money(report.low)} – {money(report.high)}
-        </Text>
-      </View>
-      <View
-        style={{
-          borderRadius: 14,
-          padding: 16,
-          marginTop: 12,
-          backgroundColor: report.acquisition.decision === 'BUY' ? '#ECFDF3' : '#FEF2F2',
-          borderWidth: 1,
-          borderColor: report.acquisition.decision === 'BUY' ? '#BBF7D0' : '#FECACA',
-        }}
-      >
-        <Text style={{ color: decisionColor, fontSize: 12, fontWeight: '900' }}>
-          ACQUISITION DECISION: {report.acquisition.decision}
-        </Text>
-        <Text style={{ color: '#0F172A', fontSize: 19, fontWeight: '900', marginTop: 7 }}>
-          Maximum safe buy price: {money(report.acquisition.maximumRecommendedPurchasePrice)}
+          {money(recommendedSellingPrice)}
         </Text>
         <Text style={{ color: '#475569', fontSize: 11, marginTop: 6 }}>
-          Proposed {money(report.acquisition.proposedPurchasePrice || 0)} • Conservative resale{' '}
-          {money(report.acquisition.conservativeResaleValue)} • Projected{' '}
-          {report.acquisition.projectedProfit !== null
-            ? `${report.acquisition.projectedProfit >= 0 ? 'profit' : 'loss'} ${money(Math.abs(report.acquisition.projectedProfit))}`
-            : 'profit unavailable'}
+          Expected selling range: {money(report.low)} – {money(report.high)}
         </Text>
-        {report.acquisition.batteryReplacementRequired ? (
-          <Text style={{ color: '#B91C1C', fontSize: 11, fontWeight: '800', marginTop: 6 }}>
-            Battery replacement required: {money(report.acquisition.batteryReplacementCost)}
-          </Text>
-        ) : null}
       </View>
       <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
         <View style={{ flex: 1 }}>
@@ -281,8 +239,7 @@ export default function AiValuator() {
   const [bodyDefect, setBodyDefect] = useState<(typeof BODY_DEFECTS)[number]>('None');
   const [age, setAge] = useState('');
   const [battery, setBattery] = useState('');
-  const [proposedPurchasePrice, setProposedPurchasePrice] = useState('');
-  const [batteryReplacementCost, setBatteryReplacementCost] = useState('1500');
+  const [batteryDiagnostic, setBatteryDiagnostic] = useState<string>('Not available');
   const [androidVersion, setAndroidVersion] = useState('');
   const [manufacturer, setManufacturer] = useState('');
   const [detected, setDetected] = useState(false);
@@ -306,16 +263,8 @@ export default function AiValuator() {
   }, []);
 
   const canEvaluate = useMemo(
-    () =>
-      Boolean(
-        detected &&
-        brand.trim() &&
-        model.trim() &&
-        Number(battery) >= 1 &&
-        Number(battery) <= 100 &&
-        Number(proposedPurchasePrice) > 0
-      ),
-    [detected, brand, model, battery, proposedPurchasePrice]
+    () => Boolean(detected && brand.trim() && model.trim()),
+    [detected, brand, model, battery]
   );
 
   const detectDevice = async () => {
@@ -346,6 +295,19 @@ export default function AiValuator() {
       memoryGb >= 12 ? 'flagship' : memoryGb >= 8 ? 'upperMid' : memoryGb >= 4 ? 'mid' : 'entry'
     );
     setCpuArchitecture(Device.supportedCpuArchitectures?.join(', ') || 'Unknown architecture');
+    const batteryInfo = await readBatteryDiagnostics();
+    if (batteryInfo) {
+      if (batteryInfo.healthPercent > 0) {
+        setBattery(String(batteryInfo.healthPercent));
+        setBatteryDiagnostic(`Measured by Android (${batteryInfo.healthPercent}%)`);
+      } else {
+        setBatteryDiagnostic(
+          batteryInfo.health === 'GOOD'
+            ? 'Android reports normal battery health; percentage not exposed'
+            : `Android reports ${batteryInfo.health.toLowerCase().replace('_', ' ')}`
+        );
+      }
+    }
     const measuredDisplay = await readDisplayCapabilities();
     const deviceMaster = findMobileDeviceMaster(detectedBrand, detectedModel);
     setDisplayAssessment(compareDisplayCapabilities(deviceMaster, measuredDisplay));
@@ -391,7 +353,7 @@ export default function AiValuator() {
       <header class="header"><img class="brand-logo" src="${escapeHtml(logoSource)}" alt="NearHub"><div class="document-title"><h1>MOBILE DEVICE<br><span class="orange">VALUATION REPORT</span></h1><p>Independent market assessment</p></div></header>
       <div class="meta"><span><strong>Report ID:</strong> ${escapeHtml(report.reportId)} &nbsp;|&nbsp; <strong>Issued:</strong> ${dateLabel(report.createdAt)}</span><span class="status">${report.validation.status === 'ai_validated' ? '✓ AI VALIDATED' : 'RULES VALIDATED'}</span></div>
       <section class="device-block"><div class="eyebrow">Device assessed</div><h2 class="device">${escapeHtml(report.brand)} ${escapeHtml(report.model)}</h2></section>
-      <section class="range"><div class="range-label">Estimated fair market range</div><div class="range-value">${money(report.low)} – ${money(report.high)}</div></section>
+      <section class="range"><div class="range-label">Recommended selling price</div><div class="range-value">${money(report.recommendedSellingPrice ?? Math.round((report.low + report.high) / 2))}</div><div style="position:relative;z-index:1;margin-top:7px;color:#bcd5ee">Expected selling range: ${money(report.low)} – ${money(report.high)}</div></section>
       <div class="summary"><div class="summary-card accent"><span class="eyebrow">Valuation confidence</span><strong>${report.confidence}%</strong></div><div class="summary-card"><span class="eyebrow">Report validity</span><strong>${MOBILE_RATE_CARD.validityDays} Days</strong></div><div class="summary-card"><span class="eyebrow">Overall assessment</span><strong>${report.score}/100</strong></div></div>
       <p class="explanation"><strong>Valuation opinion:</strong> Most transactions for a comparable device in this reported condition are expected to fall within the range above.</p><p class="disclaimer">Final value may vary following physical inspection and verification of accessories, battery health, ownership status and local demand.</p>
 
@@ -401,14 +363,14 @@ export default function AiValuator() {
         <tr><th>Processor tier</th><td>${escapeHtml(MOBILE_RATE_CARD.processor[report.processor].label)}</td><th>CPU architecture</th><td>${escapeHtml(report.cpuArchitecture || 'Unavailable')}</td></tr>
         <tr><th>Operating system</th><td>${escapeHtml(report.androidVersion || 'Unavailable')}</td><th>${report.ageBasis === 'model_release' ? 'Model age' : report.ageBasis === 'user_reported' ? 'Reported device age' : 'Device age'}</th><td>${report.ageBasis === 'unknown' ? 'Unknown / not verified' : escapeHtml(ageLabel)}</td></tr>
         <tr><th>Verified Release Date</th><td>${report.verifiedReleaseDate ? dateLabel(report.verifiedReleaseDate) : 'Not verified'}</td><th>Release verification</th><td>${report.verifiedReleaseDate ? 'Matched against the verified device model catalogue' : 'No verified model release record available'}</td></tr>
-        <tr><th>Assessed condition</th><td>${escapeHtml(conditionLabel)}</td><th>Battery health</th><td>${report.battery}%</td></tr>
+        <tr><th>Assessed condition</th><td>${escapeHtml(conditionLabel)}</td><th>Battery health</th><td>${report.batteryHealthType === 'unavailable' ? 'Not Verified' : `${report.battery}% (${report.batteryHealthType === 'measured' ? 'Measured' : 'Estimated'})`}</td></tr>
         <tr><th>Display specification check</th><td colspan="3"><strong>${escapeHtml(report.displayAssessment?.label || 'Not tested')}</strong>${report.displayAssessment?.details.length ? `<br><span class="muted">${escapeHtml(report.displayAssessment.details.join(' • '))}</span>` : ''}<br><span class="muted">OEM screen authenticity: not electronically verified.</span></td></tr>
       </tbody></table></section>
 
       <section class="section"><div class="section-heading"><span class="section-number">02</span><h2>Valuation assessment</h2></div><table class="assessment"><thead><tr><th>Assessment area</th><th>Score</th><th>What it reflects</th></tr></thead><tbody>
         <tr><td>Device performance</td><td class="score">${report.performanceScore}/100</td><td>Processor tier, RAM and storage configuration</td></tr>
         <tr><td>Physical condition</td><td class="score">${Math.round(MOBILE_RATE_CARD.condition[report.condition as MobileCondition]?.multiplier * 100 || 0)}/100</td><td>Reported screen and body condition</td></tr>
-        <tr><td>Battery</td><td class="score">${report.batteryScore}/100</td><td>User-reported battery health at assessment</td></tr>
+        <tr><td>Battery</td><td class="score">${report.batteryScore}/100</td><td>Estimated from available device diagnostics; battery replacement risk applies at 75% or below</td></tr>
         <tr><td>Software support</td><td class="score">${report.softwareSupportScore}/100</td><td>${escapeHtml(report.androidSupportStatus)}</td></tr>
         <tr><td>Market demand</td><td class="score">${report.marketValueScore}/100</td><td>${demandLabel} demand profile for this brand and configuration</td></tr>
         <tr><th>Overall device assessment</th><th class="score">${report.score}/100</th><th>Weighted assessment across the factors above</th></tr>
@@ -416,14 +378,9 @@ export default function AiValuator() {
 
       <section class="section"><div class="section-heading"><span class="section-number">03</span><h2>Current market evidence</h2></div><div class="market-grid"><div class="market-card"><span class="eyebrow">Current new price</span><strong>${report.validation.currentNewPrice ? money(report.validation.currentNewPrice) : 'Not available'}</strong></div><div class="market-card"><span class="eyebrow">Observed used market</span><strong>${report.validation.marketLow && report.validation.marketHigh ? `${money(report.validation.marketLow)} – ${money(report.validation.marketHigh)}` : report.validation.marketMedian ? money(report.validation.marketMedian) : 'Insufficient evidence'}</strong></div><div class="market-card"><span class="eyebrow">Estimated value retained</span><strong>${retainedValue === null ? 'Not available' : `${retainedValue}%`}</strong></div></div><p class="market-note">Evidence quality: ${escapeHtml(report.validation.evidenceQuality || 'none')} • Search checked: ${report.validation.searchedAt ? dateLabel(report.validation.searchedAt) : 'Not available'} • Asking prices are not confirmed sale prices.</p>${sourceList}</section>
 
-      <section class="section"><div class="section-heading"><span class="section-number">04</span><h2>Defensive acquisition analysis</h2></div><div class="notice"><strong>${escapeHtml(report.acquisition.decision)} — Maximum recommended purchase price: ${money(report.acquisition.maximumRecommendedPurchasePrice)}</strong><p>${report.acquisition.projectedProfit !== null ? `At the proposed purchase price of ${money(report.acquisition.proposedPurchasePrice || 0)}, projected ${report.acquisition.projectedProfit >= 0 ? 'profit' : 'loss'} is ${money(Math.abs(report.acquisition.projectedProfit))} (${report.acquisition.projectedMarginPercent ?? 0}%).` : 'A proposed purchase price was not supplied.'}</p></div><table><tbody>
-        <tr><th>Conservative resale value</th><td>${money(report.acquisition.conservativeResaleValue)}</td><th>Proposed purchase price</th><td>${report.acquisition.proposedPurchasePrice === null ? 'Not provided' : money(report.acquisition.proposedPurchasePrice)}</td></tr>
-        <tr><th>Battery replacement</th><td>${report.acquisition.batteryReplacementRequired ? money(report.acquisition.batteryReplacementCost) : 'Not required'}</td><th>Operating costs</th><td>${money(report.acquisition.operatingCost)}</td></tr>
-        <tr><th>Warranty reserve</th><td>${money(report.acquisition.warrantyReserve)}</td><th>Required profit</th><td>${money(report.acquisition.targetProfit)}</td></tr>
-        <tr><th>Total landed cost</th><td>${report.acquisition.totalLandedCost === null ? 'Not available' : money(report.acquisition.totalLandedCost)}</td><th>Break-even buy price</th><td>${money(report.acquisition.breakEvenPurchasePrice)}</td></tr>
-      </tbody></table><p class="market-note">The recommendation uses the conservative end of the resale range, upper refurbishment costs, operating costs, warranty reserve and required profit. A REJECT decision means the proposed deal is expected to lose money or fail NearHub's required margin.</p></section>
+      <section class="section"><div class="section-heading"><span class="section-number">04</span><h2>Selling recommendation</h2></div><div class="method"><p><strong>List near ${money(report.recommendedSellingPrice ?? Math.round((report.low + report.high) / 2))}.</strong> Based on the submitted device configuration and condition, a realistic selling outcome is expected between ${money(report.low)} and ${money(report.high)}.</p><p>The final transaction price can vary with buyer demand, physical verification, accessories and negotiation.</p></div></section>
 
-      <section class="section"><div class="section-heading"><span class="section-number">05</span><h2>Valuation methodology</h2></div><div class="method"><p>The NearHub valuation engine assesses hardware configuration, model age, reported physical condition, battery health, software support and current market demand.</p><p>${report.ageBasis === 'model_release' ? 'The displayed age is the model age calculated from its release date; this device’s purchase or activation date has not been verified.' : report.ageBasis === 'user_reported' ? 'Device age was reported by the user and has not been independently verified.' : 'Device age was unavailable and is not presented as a verified fact.'}</p><p>${escapeHtml(report.validation.rationale)} ${report.validation.comparableCount ? `${report.validation.comparableCount} current NearHub market comparables were included.` : 'No sufficiently relevant NearHub market comparables were available.'}</p><p>The fair market range is 20% wide (±10% around the validated estimate). Confidence reflects input completeness, grounded market evidence, comparable evidence and validation quality.</p></div></section>
+      <section class="section"><div class="section-heading"><span class="section-number">05</span><h2>Valuation methodology</h2></div><div class="method"><p>The NearHub valuation engine assesses hardware configuration, model age, reported physical condition, battery health, software support and current market demand.</p><p>${report.ageBasis === 'model_release' ? 'The displayed age is the model age calculated from its release date; this device’s purchase or activation date has not been verified.' : report.ageBasis === 'user_reported' ? 'Device age was reported by the user and has not been independently verified.' : 'Device age was unavailable and is not presented as a verified fact.'}</p><p>${escapeHtml(report.validation.rationale)} ${report.validation.comparableCount ? `${report.validation.comparableCount} current NearHub market comparables were included.` : 'No sufficiently relevant NearHub market comparables were available.'}</p><p>The selling range is 20% wide (±10% around the recommended price). Confidence reflects input completeness, grounded market evidence, comparable evidence and validation quality.</p></div></section>
 
       <section class="section"><div class="section-heading"><span class="section-number">06</span><h2>Verification status</h2></div><div class="notice"><strong>Physical and IMEI verification not completed</strong><p>The device has not been physically inspected. IMEI blacklist status, activation lock, internal components and submitted condition should be verified independently.</p></div></section>
 
@@ -442,21 +399,10 @@ export default function AiValuator() {
     const r = Math.max(1, Number(ram) || 1);
     const s = Math.max(16, Number(storage) || 16);
     const enteredHealth = Number(battery);
-    if (!Number.isFinite(enteredHealth) || enteredHealth < 1 || enteredHealth > 100) {
-      Alert.alert('Battery health required', 'Enter battery health as a percentage from 1 to 100.');
-      return;
-    }
-    const health = Math.round(enteredHealth);
-    const purchasePrice = Number(proposedPurchasePrice);
-    if (!Number.isFinite(purchasePrice) || purchasePrice <= 0) {
-      Alert.alert('Purchase price required', 'Enter the price proposed for acquiring this phone.');
-      return;
-    }
-    const replacementCost = Number(batteryReplacementCost);
-    if (!Number.isFinite(replacementCost) || replacementCost < 0) {
-      Alert.alert('Invalid replacement cost', 'Enter a valid battery replacement cost.');
-      return;
-    }
+    const health =
+      Number.isFinite(enteredHealth) && enteredHealth >= 1 && enteredHealth <= 100
+        ? Math.round(enteredHealth)
+        : 85;
     const deviceMaster = findMobileDeviceMaster(brand, model);
     const releaseDate = deviceMaster ? new Date(deviceMaster.releaseDate) : null;
     const reportedPurchaseAge = age.trim() ? purchaseAgeInMonths(age) : null;
@@ -499,8 +445,7 @@ export default function AiValuator() {
           ageMonths: months,
           ageSource,
           battery: health,
-          proposedPurchasePrice: purchasePrice,
-          batteryReplacementCost: replacementCost,
+          batteryHealthType: batteryDiagnostic.includes('Measured') ? 'measured' : 'unavailable',
           screenCondition,
           bodyDefect,
           androidVersion,
@@ -733,47 +678,12 @@ export default function AiValuator() {
           </View>
           <View style={styles.fieldColumn}>
             <Text style={styles.fieldLabel}>Battery health</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              placeholder="e.g. 85%"
-              value={battery}
-              onChangeText={setBattery}
-              maxLength={3}
-            />
+            <View style={styles.input}>
+              <Text style={styles.inputPlaceholder}>{battery || 'Not verified'}</Text>
+            </View>
             <Text style={styles.fieldHint}>
-              Enter health from device diagnostics; this is not the current charge.
+              {battery ? batteryDiagnostic : 'Not verified. A physical inspection is required.'}
             </Text>
-          </View>
-        </View>
-        <View style={styles.labelRow}>
-          <View style={styles.smallIcon}>
-            <Feather name="shield" size={14} color="#29416F" />
-          </View>
-          <Text style={styles.label}>Defensive acquisition pricing</Text>
-        </View>
-        <View style={styles.row}>
-          <View style={styles.fieldColumn}>
-            <Text style={styles.fieldLabel}>Proposed purchase price</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              placeholder="e.g. ₹4,000"
-              value={proposedPurchasePrice}
-              onChangeText={setProposedPurchasePrice}
-            />
-            <Text style={styles.fieldHint}>Amount NearHub would pay the seller.</Text>
-          </View>
-          <View style={styles.fieldColumn}>
-            <Text style={styles.fieldLabel}>Battery replacement cost</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              placeholder="e.g. ₹1,500"
-              value={batteryReplacementCost}
-              onChangeText={setBatteryReplacementCost}
-            />
-            <Text style={styles.fieldHint}>Applied automatically when health is below 80%.</Text>
           </View>
         </View>
         <View style={styles.tipCard}>
@@ -1024,6 +934,10 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     color: '#0F172A',
     backgroundColor: '#fff',
+  },
+  inputPlaceholder: {
+    color: '#6B7280',
+    fontSize: 16,
   },
   inputLocked: { backgroundColor: '#F1F5F9', color: '#475569' },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5, marginBottom: 9 },

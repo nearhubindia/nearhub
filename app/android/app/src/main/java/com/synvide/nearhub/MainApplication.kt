@@ -17,6 +17,7 @@ import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 import com.synvide.nearhub.installreferrer.InstallReferrerPackage
 import com.synvide.nearhub.display.DisplayCapabilitiesPackage
+import com.synvide.nearhub.battery.BatteryDiagnosticsPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -27,6 +28,7 @@ class MainApplication : Application(), ReactApplication {
             PackageList(this).packages.apply {
               add(InstallReferrerPackage())
               add(DisplayCapabilitiesPackage())
+              add(BatteryDiagnosticsPackage())
             }
 
           override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
