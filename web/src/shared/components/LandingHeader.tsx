@@ -965,7 +965,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
             {isMenuOpen ? <X size={19} /> : <Menu size={19} />}
           </button>
         </div>
-        </Container>
+      </Container>
 
       {isMenuOpen ? (
         <div

@@ -156,7 +156,9 @@ async function fetchLocationFromCoordinates(
   return payload.data;
 }
 
-async function fetchLocationFromPincode(pincodeValue: string): Promise<LocationLookupResult | null> {
+async function fetchLocationFromPincode(
+  pincodeValue: string
+): Promise<LocationLookupResult | null> {
   const response = await fetch(
     `${getApiUrl()}/api/location/pincode/${encodeURIComponent(pincodeValue)}`
   );

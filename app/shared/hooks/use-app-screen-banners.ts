@@ -3,7 +3,7 @@ import { getApiUrl } from '@/lib/query-client';
 import { getDebug } from '@/lib/config';
 import { clearPersistentCache, getPersistentCache, setPersistentCache } from '@/lib/use-cache';
 
-export type BannerScreen = 'home' | 'search' | 'profile' | 'shorts' | 'listings';
+export type BannerScreen = 'home' | 'search' | 'profile' | 'listings';
 
 export interface AppScreenBanner {
   id: string;

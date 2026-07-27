@@ -14,7 +14,7 @@ interface PhotoSlideshowProps {
 /**
  * PhotoSlideshow Component
  * Automatically cycles through multiple photos with fade transitions
- * Creates a "shorts-like" experience for photo listings
+ * Creates a swipeable experience for photo listings
  */
 export default function PhotoSlideshow({
   images,

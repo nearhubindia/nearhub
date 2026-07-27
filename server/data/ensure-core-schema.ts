@@ -137,6 +137,24 @@ async function applyCoreSchemaPatches(): Promise<void> {
   await db.execute(
     sql`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS listing_category_groups jsonb`
   );
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS mobile_valuation_reports (
+      id varchar PRIMARY KEY,
+      report_id varchar(64) NOT NULL UNIQUE,
+      user_id varchar,
+      input_data jsonb NOT NULL,
+      result_data jsonb NOT NULL,
+      model_version varchar(64) NOT NULL,
+      ai_provider varchar(32) NOT NULL,
+      ai_model varchar(80),
+      ai_validated boolean NOT NULL DEFAULT false,
+      confidence integer NOT NULL,
+      signature varchar(128) NOT NULL,
+      valid_until timestamp NOT NULL,
+      created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS mobile_valuation_reports_user_idx ON mobile_valuation_reports (user_id, created_at DESC)`);
 
   // Keep display_name useful when legacy rows only had username.
   await db.execute(sql`

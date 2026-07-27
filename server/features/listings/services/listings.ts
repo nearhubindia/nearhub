@@ -184,7 +184,8 @@ export async function createListing(
   // Production currently stores images as text[] while some environments still use JSON text.
   const imagesAsArray = coerceMediaToArray(validated.images);
   const imagesAsJson = coerceMediaToJson(validated.images);
-  const videosAsJson = coerceMediaToJson(validated.videos);
+  // Video listings are retired; keep the legacy column empty for new records.
+  const videosAsJson = '[]';
 
   // Calculate expiration if duration is provided
   const expiresAt = validated.durationDays
@@ -545,7 +546,8 @@ export async function updateListing(
   }
 
   if (hasVideosUpdate) {
-    updateValues.videos = coerceMediaToJson(normalizedUpdates.videos);
+    // Ignore legacy video payloads while preserving the schema for old records.
+    updateValues.videos = '[]';
   } else {
     delete updateValues.videos;
   }

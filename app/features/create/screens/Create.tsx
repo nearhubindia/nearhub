@@ -33,7 +33,6 @@ import {
 } from '@/shared/contexts/auth-context';
 import { Category, CATEGORIES, CONDITIONS, PriceUnit, Listing } from '@/lib/types';
 import { getApiUrl } from '@/lib/query-client';
-import { compressVideoWithProgress, getVideoFileSize } from '@/lib/video-compressor';
 import {
   getCategoryGroupsForListingType,
   getDefaultCategoryForListingType,
@@ -48,7 +47,6 @@ import {
   toPortableImageUri,
   uploadImagesToCloudflare as uploadImagesToCloudflareUtil,
 } from '@/lib/media-images';
-import { VideoRecorderModal } from '@/shared/components/VideoRecorderModal';
 import { compressImagesWithProgress, QUALITY_PRESETS } from '@/lib/image-compressor';
 import * as ImageStorage from '@/lib/image-storage';
 import * as ImageHasher from '@/lib/image-hasher';
@@ -78,6 +76,17 @@ interface UploadProgressState {
 
 const LISTING_IMAGE_CROP_ASPECT: [number, number] = [3, 4];
 const MAX_STREAMING_VIDEO_BYTES = 35 * 1024 * 1024; // 35MB hard cap for smoother playback
+
+// Legacy video paths are disabled; these local no-ops keep old unreachable handlers type-safe.
+const getVideoFileSize = async (_uri: string): Promise<number | null> => null;
+const compressVideoWithProgress = async (
+  uri: string,
+  onProgress?: (progress: number) => void,
+  _options?: unknown
+) => {
+  onProgress?.(100);
+  return { uri, originalSize: 0, compressedSize: 0 };
+};
 
 export default function CreateScreen() {
   const params = useLocalSearchParams<{ aiVideoUrl?: string }>();
@@ -118,7 +127,7 @@ export default function CreateScreen() {
     setVideoUri(aiVideoUrl);
     setVideoThumbnail(null);
     setMediaType('video');
-    setValidationMessage('AI Studio video attached. You can submit listing now.');
+    setValidationMessage('AI Valuator media attached. You can submit listing now.');
   }, [params.aiVideoUrl, videoUri]);
 
   const validateStreamingVideoSize = useCallback(async (uri: string): Promise<boolean> => {
@@ -1884,59 +1893,9 @@ export default function CreateScreen() {
       });
 
       setOverallProgress(20); // Images prepared
-      let finalVideoUrl: string | undefined = undefined;
-
-      // Upload video optionally if user provided one
-      if (videoUri) {
-        const isAlreadyRemote = /^https?:\/\//i.test(videoUri);
-        if (isAlreadyRemote) {
-          finalVideoUrl = videoUri;
-          setOverallProgress(70);
-          setValidationMessage('✅ AI Studio video attached! Creating your listing...');
-        } else {
-          setIsUploading(true);
-          setValidationMessage('📹 Uploading your video... This may take a moment.');
-
-          const fileName = `video_${Date.now()}.mp4`;
-          setUploadProgress({
-            uploadId: fileName,
-            chunksUploaded: 0,
-            totalChunks: 1,
-            progress: 10,
-            isComplete: false,
-          });
-          const uploadResult = await uploadMediaToCloudflare({
-            uri: videoUri,
-            mediaType: 'video',
-            fileName,
-            userId: user?.id || undefined,
-          });
-
-          finalVideoUrl = uploadResult.url;
-          setUploadProgress({
-            uploadId: fileName,
-            chunksUploaded: 1,
-            totalChunks: 1,
-            progress: 100,
-            isComplete: true,
-          });
-          setOverallProgress(70);
-          console.log(
-            '[Create] Video upload result:',
-            JSON.stringify({ success: !!uploadResult, videoUrl: uploadResult.url }, null, 2)
-          );
-          console.log('[Create] finalVideoUrl set to:', finalVideoUrl);
-          setIsUploading(false);
-          setValidationMessage('✅ Video uploaded! Creating your listing...');
-        }
-      } else {
-        setOverallProgress(30); // No video, skip to next stage
-      }
-
-      console.log('[Create] About to call addListing with:', {
-        finalVideoUrl,
-        videosArray: finalVideoUrl ? [finalVideoUrl] : undefined,
-      });
+      // Video uploads are disabled; listings are image-only.
+      const finalVideoUrl: string | undefined = undefined;
+      setOverallProgress(30);
 
       // Fallback location chain: deviceLocation -> userStoredLocation -> requireManualLocation
       let finalLat = latitude;
@@ -1998,7 +1957,7 @@ export default function CreateScreen() {
           category,
           images: listingImages,
           imageHashes: imageHashes.length > 0 ? imageHashes : undefined,
-          videos: finalVideoUrl ? [finalVideoUrl] : undefined, // videos array is optional
+          videos: undefined,
           sellerName: user?.name || 'Anonymous',
           sellerPhone: user?.phone || '',
           location: {
@@ -2327,10 +2286,6 @@ export default function CreateScreen() {
                   <Text style={styles.createMetaText}>{images.length} photos</Text>
                 </View>
                 <View style={styles.createMetaPill}>
-                  <Feather name="video" size={12} color={Colors.textSecondary} />
-                  <Text style={styles.createMetaText}>{videoUri ? 'Video added' : 'No video'}</Text>
-                </View>
-                <View style={styles.createMetaPill}>
                   <Feather name="shield" size={12} color={Colors.textSecondary} />
                   <Text style={styles.createMetaText}>Admin review</Text>
                 </View>
@@ -2488,8 +2443,8 @@ export default function CreateScreen() {
               )}
             </View>
 
-            {/* Step 3: Upload Video (Optional) */}
-            <View style={styles.section}>
+            {/* Video uploads are disabled while mobile evaluation replaces video features. */}
+            <View style={[styles.section, { display: 'none' }]}>
               <View style={styles.stepHeader}>
                 <View style={styles.stepBadge}>
                   <Text style={styles.stepBadgeText}>3</Text>
@@ -2498,7 +2453,7 @@ export default function CreateScreen() {
               </View>
 
               <Text style={styles.sectionHint}>
-                Upload a short video to showcase your product in the Shorts feed
+                Video uploads are no longer supported. Add product photos instead.
               </Text>
 
               {isCompressing ? (
@@ -3503,12 +3458,7 @@ export default function CreateScreen() {
             );
           })()}
 
-        <VideoRecorderModal
-          visible={showRecorder}
-          onClose={() => setShowRecorder(false)}
-          onVideoRecorded={handleRecordedVideo}
-          maxDuration={30}
-        />
+        {/* Video recorder removed. */}
       </KeyboardAvoidingView>
 
       {isSubmitting && (

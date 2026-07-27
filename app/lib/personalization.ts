@@ -1,6 +1,6 @@
 /**
  * AI-Powered Personalization Engine
- * Ranks listings and shorts based on user interests, behavior, and context
+ * Ranks listings based on user interests, behavior, and context
  *
  * Scoring factors:
  * - Category match (40 points)
@@ -286,39 +286,6 @@ export function getPersonalizedRecommendations(
 ): Array<{ listing: Listing; score: PersonalizationScore }> {
   const ranked = rankListingsByPersonalization(listings, userInterests, userLat, userLon);
   return ranked.slice(0, limit);
-}
-
-/**
- * Get personalized shorts feed
- * Prioritizes video listings with highest engagement potential
- */
-export function getPersonalizedShortsFeed(
-  listings: Listing[],
-  userInterests: UserInterests,
-  userLat?: number,
-  userLon?: number
-): Array<{ listing: Listing; score: PersonalizationScore }> {
-  // Filter only video listings
-  const videoListings = listings.filter((l) => l.videos && l.videos.length > 0);
-
-  // Rank by personalization
-  const ranked = rankListingsByPersonalization(videoListings, userInterests, userLat, userLon);
-
-  // Boost score for favorite categories
-  return ranked
-    .map((item) => {
-      if (userInterests.favoriteCategories.includes(item.listing.category)) {
-        return {
-          ...item,
-          score: {
-            ...item.score,
-            totalScore: item.score.totalScore * 1.1, // 10% boost for favorites
-          },
-        };
-      }
-      return item;
-    })
-    .sort((a, b) => b.score.totalScore - a.score.totalScore);
 }
 
 /**

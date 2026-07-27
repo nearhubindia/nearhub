@@ -9,14 +9,8 @@ import {
   getEffectiveDealWindow,
   isDealUpcomingWithinWindow,
 } from '@/lib/deal-timer';
-import {
-  FALLBACK_LISTING_IMAGE,
-  getPrimaryListingImage,
-} from '@/features/landing/lib';
-import {
-  isDeal as isDealListing,
-  isDealCompleted,
-} from '@/features/landing/lib/deal-visibility';
+import { FALLBACK_LISTING_IMAGE, getPrimaryListingImage } from '@/features/landing/lib';
+import { isDeal as isDealListing, isDealCompleted } from '@/features/landing/lib/deal-visibility';
 import {
   SAVED_LISTING_IDS_KEY,
   countdownPartsFromMs,
@@ -347,7 +341,11 @@ export default function DealsPage(): ReactElement {
     () =>
       filteredDeals
         .filter((item) => isActiveDeal(item, nowMs))
-        .sort((a, b) => Number(getEffectiveDealWindow(a, nowMs)?.endMs || 0) - Number(getEffectiveDealWindow(b, nowMs)?.endMs || 0)),
+        .sort(
+          (a, b) =>
+            Number(getEffectiveDealWindow(a, nowMs)?.endMs || 0) -
+            Number(getEffectiveDealWindow(b, nowMs)?.endMs || 0)
+        ),
     [filteredDeals, nowMs]
   );
 
@@ -395,9 +393,7 @@ export default function DealsPage(): ReactElement {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-2xl font-black">Active Deals</h2>
-              <p className="mt-1 text-sm font-semibold text-slate-500">
-                Deals live right now.
-              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-500">Deals live right now.</p>
             </div>
             {activeDeals.length ? (
               <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">

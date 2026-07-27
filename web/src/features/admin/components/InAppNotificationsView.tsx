@@ -603,9 +603,7 @@ export default function InAppNotificationsView() {
 
             {/* Banner Image */}
             <div className="mb-4">
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Banner Image
-              </label>
+              <label className="mb-2 block text-sm font-medium text-slate-700">Banner Image</label>
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50">

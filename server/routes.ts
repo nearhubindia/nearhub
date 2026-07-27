@@ -28,8 +28,6 @@ import { registerDealRoutes } from './features/listings/routes/deals';
 // Media feature routes
 import { registerMediaCleanupRoutes } from './features/media/routes/media-cleanup';
 import { registerCloudflareMediaRoutes } from './features/media/routes/cloudflare-media';
-import { registerAIVoiceoverRoutes } from './features/media/routes/ai-voiceover';
-import { registerVideoUploadRoutes } from './features/media/routes/video-upload';
 // Payments feature routes
 import { registerDynamicPricingRoutes } from './features/payments/routes/dynamic-pricing';
 // Search feature routes
@@ -53,6 +51,7 @@ import { registerMessageRoutes } from './features/messages/routes/messages';
 // Worker management routes
 import { registerWorkerRoutes } from './features/workers/routes/workers';
 import { registerApiDocsRoutes } from './shared/routes/api-docs';
+import { registerMobileValuationRoutes } from './features/valuations/routes/mobile-valuations';
 import { SERVER_CONFIG } from './lib/config';
 import {
   getGoogleGenAIAuthMode,
@@ -342,6 +341,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerApiDocsRoutes(app);
   registerAuthRoutes(app);
   registerAIRoutes(app);
+  registerMobileValuationRoutes(app);
   registerContactRoutes(app);
   registerAdminRoutes(app);
   registerAdminUsersRoutes(app);
@@ -365,10 +365,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Feature-domain routes
   registerListingExpirationRoutes(app);
-  registerVideoUploadRoutes(app);
   registerMediaCleanupRoutes(app);
   registerCloudflareMediaRoutes(app);
-  registerAIVoiceoverRoutes(app);
   registerDynamicPricingRoutes(app);
   registerUserRoutes(app);
   registerGeoSearchRoutes(app);

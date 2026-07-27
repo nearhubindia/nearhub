@@ -12,3 +12,12 @@
 -keep class com.facebook.react.turbomodule.** { *; }
 
 # Add any project specific keep options here:
+
+# expo-print references optional Expo Modules type metadata that is not
+# packaged in this SDK combination. These references are not used at runtime.
+-dontwarn expo.modules.kotlin.types.AnyTypeCache
+-dontwarn expo.modules.kotlin.types.OptimizedRecord
+-dontwarn expo.modules.kotlin.types.descriptors.RawTypeDescriptor
+-dontwarn expo.modules.kotlin.types.descriptors.TypeDescriptor
+-dontwarn expo.modules.kotlin.types.descriptors.TypeDescriptorKt
+-dontwarn expo.modules.kotlin.types.descriptors.TypeDescriptorOfKt

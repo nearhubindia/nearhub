@@ -42,7 +42,6 @@ const FooterPage = lazy(() => import('./features/landing/pages/FooterPage'));
 const CompliancePage = lazy(() => import('./features/landing/pages/CompliancePage'));
 const ListingDetailsPage = lazy(() => import('./features/landing/pages/ListingDetailsPage'));
 const OrderSummaryPage = lazy(() => import('./features/landing/pages/OrderSummaryPage'));
-const ShortsDeepLink = lazy(() => import('./features/landing/pages/ShortsDeepLink'));
 const NotFound = lazy(() => import('./features/landing/pages/NotFound'));
 const EditListingPage = lazy(() => import('./features/landing/pages/EditListingPage'));
 
@@ -287,8 +286,6 @@ function App() {
               <Route path="/delete-account" element={<CompliancePage pageKey="delete-account" />} />
               <Route path="/listing/:id" element={<ListingDetailsPage />} />
               <Route path="/order-summary/:id" element={<OrderSummaryPage />} />
-              <Route path="/shorts/:id" element={<ShortsDeepLink />} />
-              <Route path="/short/:id" element={<ShortsDeepLink />} />
               <Route path="/footer/:pageKey" element={<FooterPage />} />
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route

@@ -18,10 +18,7 @@ import {
   useCoordinateLocationAutofill,
   validateAdminListingDetails,
 } from '@/features/admin/hooks/useAdminListingFormHelpers';
-import {
-  uploadListingImages,
-  uploadListingVideos,
-} from '@/features/admin/utils/listing-media-upload';
+import { uploadListingImages } from '@/features/admin/utils/listing-media-upload';
 
 function toIsoFromLocal(value: string): string | undefined {
   if (!value) return undefined;
@@ -112,42 +109,10 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
     }
   };
 
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-
-    setMediaError('');
-    setIsUploadingMedia(true);
-    try {
-      const uploadedUrls = await uploadListingVideos(files);
-
-      setFormData((prev) => ({
-        ...prev,
-        videos: [...(prev.videos || []), ...uploadedUrls],
-      }));
-    } catch (error) {
-      console.error('Failed to upload video(s):', error);
-      setMediaError(
-        error instanceof Error && error.message.includes('MP4')
-          ? 'Only MP4 videos are supported. Please upload MP4 files.'
-          : 'Failed to upload video(s). Please try again.'
-      );
-    } finally {
-      setIsUploadingMedia(false);
-      e.target.value = '';
-    }
-  };
-
   const removeImage = (index: number): void => {
     const newImages = [...(formData.images || [])];
     newImages.splice(index, 1);
     setFormData({ ...formData, images: newImages });
-  };
-
-  const removeVideo = (index: number): void => {
-    const newVideos = [...(formData.videos || [])];
-    newVideos.splice(index, 1);
-    setFormData({ ...formData, videos: newVideos });
   };
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
@@ -223,14 +188,9 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
         contactPhone: String(formData.contactPhone || '').trim(),
         userId: sellerLookup,
         images: formData.images,
-        videos: formData.videos,
+        videos: undefined,
         featured: Boolean(formData.featured),
-        listingType:
-          formData.videos.length > 0 && formData.images.length === 0
-            ? 'video'
-            : formData.videos.length > 0
-              ? 'mixed'
-              : 'image',
+        listingType: 'image',
         isDeal: formData.isDeal,
       };
 
@@ -450,51 +410,6 @@ export default function CreateListingModal({ onClose }: CreateListingModalProps)
                   <button
                     type="button"
                     onClick={() => removeImage(index)}
-                    className="absolute right-1 top-1 rounded-full bg-rose-500 p-1 text-white opacity-0 transition group-hover:opacity-100"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <label className={labelClass}>Videos</label>
-          <div className="rounded-xl border-2 border-dashed border-slate-300 p-5 transition hover:border-cyan-400 hover:bg-cyan-50/40">
-            <input
-              type="file"
-              accept="video/*"
-              multiple
-              onChange={handleVideoUpload}
-              className="hidden"
-              id="video-upload"
-            />
-            <label
-              htmlFor="video-upload"
-              className="flex cursor-pointer flex-col items-center justify-center"
-            >
-              <Plus className="mb-2 text-slate-400" size={30} />
-              <p className="text-center text-sm text-slate-600">
-                Click to upload videos
-                <span className="mt-1 block text-xs text-slate-500">Supports: MP4 only</span>
-              </p>
-            </label>
-          </div>
-
-          {formData.videos && formData.videos.length > 0 && (
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {formData.videos.map((video: string, index: number) => (
-                <div key={index} className="group relative">
-                  <video
-                    src={video}
-                    className="h-28 w-full rounded-lg border-2 border-slate-200 bg-slate-100 object-cover"
-                    controls
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeVideo(index)}
                     className="absolute right-1 top-1 rounded-full bg-rose-500 p-1 text-white opacity-0 transition group-hover:opacity-100"
                   >
                     <X size={16} />

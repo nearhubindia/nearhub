@@ -80,15 +80,6 @@ function ClassicTabLayout() {
           }}
         />
         <Tabs.Screen
-          name="shorts"
-          options={{
-            title: 'Shorts',
-            tabBarIcon: ({ color }) => (
-              <Feather size={responsiveModerateScale(21)} name="video" color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
           name="create"
           options={{
             title: 'Post',
@@ -98,11 +89,11 @@ function ClassicTabLayout() {
           }}
         />
         <Tabs.Screen
-          name="ai-studio"
+          name="ai-valuator"
           options={{
-            title: 'AI Studio',
+            title: 'AI Valuator',
             tabBarIcon: ({ color }) => (
-              <Feather size={responsiveModerateScale(21)} name="mic" color={color} />
+              <Feather size={responsiveModerateScale(21)} name="clipboard" color={color} />
             ),
           }}
         />

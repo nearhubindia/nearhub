@@ -187,7 +187,7 @@ export function ComboDealCard({
                   ).map((part) => (
                     <div
                       key={part.label}
-                    className="grid h-[38px] place-items-center rounded-[5px] bg-slate-50 text-center text-[#dc1633] ring-1 ring-slate-100"
+                      className="grid h-[38px] place-items-center rounded-[5px] bg-slate-50 text-center text-[#dc1633] ring-1 ring-slate-100"
                     >
                       <span className="block text-[12px] font-black leading-none">
                         {part.value}
@@ -200,7 +200,7 @@ export function ComboDealCard({
                 </div>
                 <Link
                   to={`/listing/${encodeURIComponent(item.id)}`}
-                className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-[5px] bg-[#0759e6] px-3 text-sm font-black text-white transition hover:bg-[#0448bd]"
+                  className="mt-3 inline-flex h-9 w-full items-center justify-center rounded-[5px] bg-[#0759e6] px-3 text-sm font-black text-white transition hover:bg-[#0448bd]"
                 >
                   {ctaLabel}
                 </Link>

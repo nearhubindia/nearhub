@@ -33,7 +33,7 @@ const footerPageConfigs: Record<string, FooterPageConfig> = {
       {
         heading: 'Listing Details + Conversion Module',
         points: [
-          'Detail pages combine photos, video shorts, pricing, and trust signals in one view.',
+          'Detail pages combine photos, pricing, and trust signals in one view.',
           'Call and chat actions are placed for one-tap response from interested buyers.',
           'Saved listings and history modules help users return and convert faster.',
         ],
@@ -57,7 +57,7 @@ const footerPageConfigs: Record<string, FooterPageConfig> = {
         heading: 'Create Listing Module',
         points: [
           'Category-smart form flow reduces errors and speeds up listing completion.',
-          'Supports image sets and video shorts for higher response-quality leads.',
+          'Supports image sets for higher response-quality leads.',
           'Price, condition, and location inputs are structured for better discovery ranking.',
         ],
       },

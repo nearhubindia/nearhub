@@ -240,8 +240,7 @@ export default function EditListingModal({ listing, onClose }: EditListingModalP
               new Date(dealEndAt).getTime())
         ) {
           setFormErrors({
-            dealRecurrenceUntil:
-              'Repeat until date must be after the first deal window',
+            dealRecurrenceUntil: 'Repeat until date must be after the first deal window',
           });
           return;
         }

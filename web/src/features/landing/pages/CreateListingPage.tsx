@@ -758,7 +758,10 @@ export default function CreateListingPage(): ReactElement {
         );
         const sourceLatitude = parseFiniteCoordinate(source.latitude);
         const sourceLongitude = parseFiniteCoordinate(source.longitude);
-        if (shouldReplaceSource || (sourceLatitude !== undefined && sourceLongitude !== undefined)) {
+        if (
+          shouldReplaceSource ||
+          (sourceLatitude !== undefined && sourceLongitude !== undefined)
+        ) {
           setListingLatitude(sourceLatitude);
           setListingLongitude(sourceLongitude);
         }

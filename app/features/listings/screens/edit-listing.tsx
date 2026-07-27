@@ -36,7 +36,6 @@ import {
 import { useListingTaxonomy } from '@/lib/use-listing-taxonomy';
 import UploadProgressBar from '@/shared/components/UploadProgressBar';
 import { deleteCloudflareMedia, uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
-import { VideoRecorderModal } from '@/shared/components/VideoRecorderModal';
 import RichTextEditor from '@/shared/components/RichTextEditor';
 import { getApiUrl } from '@/lib/query-client';
 import {
@@ -1847,12 +1846,7 @@ export default function EditListingScreen() {
         </Pressable>
       </View>
 
-      <VideoRecorderModal
-        visible={showRecorder}
-        onClose={() => setShowRecorder(false)}
-        onVideoRecorded={handleRecordedVideo}
-        maxDuration={30}
-      />
+      {/* Video recorder removed. */}
 
       {isSubmitting && (
         <View style={styles.submitOverlay}>

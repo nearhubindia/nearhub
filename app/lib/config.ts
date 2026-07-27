@@ -184,14 +184,6 @@ export function getInfiniteScrollThreshold(): number {
   return parseInt(process.env.EXPO_PUBLIC_INFINITE_SCROLL_THRESHOLD || '500', 10);
 }
 
-export function getShortsSwipeHapticsEnabled(): boolean {
-  const raw = process.env.EXPO_PUBLIC_SHORTS_SWIPE_HAPTICS;
-  if (typeof raw === 'string') {
-    return raw === 'true';
-  }
-  return false;
-}
-
 export function logDebug(message: string, data?: any): void {
   if (getDebug()) {
     console.log(`[NearHub] ${message}`, data || '');

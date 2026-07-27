@@ -4,7 +4,7 @@
  *
  * Tracks:
  * - View counts per category
- * - Time spent on listings/shorts
+ * - Time spent on listings
  * - Saved item patterns
  * - Search query patterns
  * - Interaction history

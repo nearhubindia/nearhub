@@ -117,7 +117,8 @@ function getDisplayPrices(listing: Listing): {
     return { displayPrice: listing.offerPrice, originalPrice: listing.price };
   }
   return {
-    displayPrice: postDealDiscount && postDealDiscount < base ? postDealDiscount : listing.offerPrice,
+    displayPrice:
+      postDealDiscount && postDealDiscount < base ? postDealDiscount : listing.offerPrice,
     originalPrice: listing.price,
   };
 }

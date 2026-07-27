@@ -521,12 +521,6 @@ export default function ListingDetailScreen() {
             videos={listing.videos}
             height={width * 1.3}
             isFocused={isFocused}
-            onVideoEnlargePress={() =>
-              router.replace({
-                pathname: '/(tabs)/shorts',
-                params: { listingId: listing.id },
-              })
-            }
           />
 
           <Pressable

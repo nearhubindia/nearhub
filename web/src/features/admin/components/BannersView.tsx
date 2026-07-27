@@ -21,7 +21,7 @@ interface BannerFormState {
   isActive: boolean;
 }
 
-const SCREEN_OPTIONS: BannerScreen[] = ['home', 'search', 'profile', 'shorts', 'listings'];
+const SCREEN_OPTIONS: BannerScreen[] = ['home', 'search', 'profile', 'listings'];
 
 const DEFAULT_FORM_STATE: BannerFormState = {
   title: '',

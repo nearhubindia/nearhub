@@ -142,7 +142,7 @@ export interface AdminGrantSubscriptionData {
 export interface AppScreenBanner {
   id: string;
   title: string;
-  screen: 'home' | 'search' | 'profile' | 'shorts' | 'listings';
+  screen: 'home' | 'search' | 'profile' | 'listings';
   imageUrl: string;
   sortOrder: number;
   isActive: boolean;

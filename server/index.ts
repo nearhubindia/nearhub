@@ -29,7 +29,6 @@ import {
 import { runInactiveUserCleanupJob } from './features/users/workers/inactive-user-cleanup';
 import { runDataRetentionCleanupJob } from './features/users/workers/data-retention-cleanup';
 import { ensureCoreSchema } from './data/ensure-core-schema';
-import { processAIVoiceoverQueue } from './features/media/workers/ai-voiceover';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -390,14 +389,6 @@ function configureExpoAndLanding(app: express.Application) {
   app.use('/assets', express.static(path.resolve(process.cwd(), 'assets')));
   app.use(express.static(path.resolve(process.cwd(), 'static-build')));
 
-  // Serve uploaded videos directory (used by chunked uploads)
-  const uploadDir = process.env.UPLOAD_DIR || '/tmp/video-uploads';
-  try {
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-    app.use('/videos', express.static(path.resolve(uploadDir)));
-  } catch (err) {
-    console.warn('Could not create or serve upload directory:', err);
-  }
 
   debugServer('Expo routing: Checking expo-platform header on / and /manifest');
 }
@@ -548,14 +539,6 @@ function initializeBackgroundWorkers(): void {
     { enabled: true, maxRetries: 5 }
   );
 
-  taskScheduler.register(
-    'ai-voiceover',
-    async () => {
-      await processAIVoiceoverQueue(2);
-    },
-    20 * 1000,
-    { enabled: true, maxRetries: 5 }
-  );
 
   // Reminder notifications - runs every 6 hours to keep renewal/expiry nudges timely
   taskScheduler.register(
@@ -594,7 +577,6 @@ function initializeBackgroundWorkers(): void {
   debugWorkers('subscription-expiration: Every 1 hour');
   debugWorkers('listing-expiration: Every 30 minutes');
   debugWorkers('listing-moderation: Every 15 seconds');
-  debugWorkers('ai-voiceover: Every 20 seconds');
   debugWorkers('push-reminders: Every 6 hours');
   debugWorkers('inactive-user-cleanup: Every 24 hours (disabled by default)');
   debugWorkers('data-retention-cleanup: Every 24 hours (disabled by default)');

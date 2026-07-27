@@ -886,7 +886,7 @@ export default function HomeScreen() {
               : null
           )
         )
-    ),
+      ),
     [broadUpcomingDealListings, nowMs, userLat, userLon]
   );
 

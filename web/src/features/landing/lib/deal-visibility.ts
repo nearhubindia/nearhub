@@ -47,7 +47,9 @@ function isDealMarkedCompleted(input: DealVisibilityListingLike): boolean {
 
 export function isDealCompleted(input: DealVisibilityListingLike, nowMs: number): boolean {
   return (
-    isDealExpiredWithinWindow(input, nowMs) || isDealStockCompleted(input) || isDealMarkedCompleted(input)
+    isDealExpiredWithinWindow(input, nowMs) ||
+    isDealStockCompleted(input) ||
+    isDealMarkedCompleted(input)
   );
 }
 

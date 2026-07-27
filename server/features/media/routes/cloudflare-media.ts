@@ -16,6 +16,13 @@ export function registerCloudflareMediaRoutes(app: Express) {
       const fileSizeBytes = Number(req.body?.fileSizeBytes || 0);
       const userId = asString(req.body?.userId).trim() || undefined;
 
+      if (mediaType === 'video') {
+        return res.status(410).json({
+          success: false,
+          error: 'Video uploads are no longer supported. Please upload images only.',
+        });
+      }
+
       if (!mediaType || !contentType || !fileSizeBytes) {
         return res.status(400).json({
           success: false,

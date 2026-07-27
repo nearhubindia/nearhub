@@ -266,7 +266,9 @@ function isDealMarkedCompleted(item: Listing): boolean {
 function isDealCompleted(item: Listing, nowMs: number): boolean {
   return (
     isDeal(item) &&
-    (isDealExpiredWithinWindow(item, nowMs) || isDealStockCompleted(item) || isDealMarkedCompleted(item))
+    (isDealExpiredWithinWindow(item, nowMs) ||
+      isDealStockCompleted(item) ||
+      isDealMarkedCompleted(item))
   );
 }
 
@@ -301,10 +303,7 @@ function getDisplayPrices(
   return { displayPrice: afterDealPrice, originalPrice: price };
 }
 
-function mapListing(
-  item: Listing,
-  nowMs: number
-): ProductCardData {
+function mapListing(item: Listing, nowMs: number): ProductCardData {
   const { displayPrice, originalPrice } = getDisplayPrices(item, nowMs);
   const images = getListingImages(item);
   const locationLabel = getHomeListingLocationLabel(item);
@@ -330,7 +329,7 @@ function mapListing(
 
 function EmptyState({ message, to }: { message: string; to?: string }): ReactElement {
   return (
-      <div className="rounded-[5px] border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
+    <div className="rounded-[5px] border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
       <p className="text-sm font-normal text-slate-600">{message}</p>
       {to ? (
         <Link
@@ -414,7 +413,7 @@ function ProductCard({
             </span>
           ) : null}
           {showCountdown && dealTag ? (
-              <span className="absolute left-0 top-0 z-10 inline-flex min-w-[4rem] items-center justify-center rounded-br-[5px] bg-red-600 px-2.5 py-1 text-[10px] font-black leading-none text-white shadow-[6px_0_0_#d8c4b6] md:left-2 md:top-2 md:min-w-[4.75rem] md:rounded-[5px] md:px-3 md:py-1 md:text-[10px] md:shadow-sm">
+            <span className="absolute left-0 top-0 z-10 inline-flex min-w-[4rem] items-center justify-center rounded-br-[5px] bg-red-600 px-2.5 py-1 text-[10px] font-black leading-none text-white shadow-[6px_0_0_#d8c4b6] md:left-2 md:top-2 md:min-w-[4.75rem] md:rounded-[5px] md:px-3 md:py-1 md:text-[10px] md:shadow-sm">
               {dealTag}
             </span>
           ) : null}
@@ -932,10 +931,10 @@ export default function UserHomePage(): ReactElement {
                   key={category.label}
                   type="button"
                   onClick={() => setActiveCategory(category.label)}
-                className={`h-10 shrink-0 rounded-[5px] border px-5 text-sm font-medium transition md:h-auto md:px-3 md:py-1.5 md:text-xs md:font-normal ${
-                  activeCategory === category.label
-                    ? 'border-[#0759e6] bg-blue-50 text-[#0759e6]'
-                    : 'border-slate-200 bg-white text-slate-500 hover:border-[#0759e6]'
+                  className={`h-10 shrink-0 rounded-[5px] border px-5 text-sm font-medium transition md:h-auto md:px-3 md:py-1.5 md:text-xs md:font-normal ${
+                    activeCategory === category.label
+                      ? 'border-[#0759e6] bg-blue-50 text-[#0759e6]'
+                      : 'border-slate-200 bg-white text-slate-500 hover:border-[#0759e6]'
                   }`}
                 >
                   {category.label}
