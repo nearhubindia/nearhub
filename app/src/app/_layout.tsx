@@ -3,7 +3,15 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack, usePathname } from 'expo-router';
 import React, { useEffect, useCallback } from 'react';
 import Constants from 'expo-constants';
-import { InteractionManager, LogBox, Platform, Pressable, Text, View } from 'react-native';
+import {
+  InteractionManager,
+  LogBox,
+  Platform,
+  Pressable,
+  StatusBar,
+  Text,
+  View,
+} from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
 import * as NavigationBar from 'expo-navigation-bar';
@@ -540,6 +548,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <StatusBar barStyle="light-content" backgroundColor="#0B3470" translucent={false} />
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <GestureWrapper style={{ flex: 1 }}>

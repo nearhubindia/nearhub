@@ -35,8 +35,8 @@ def releaseStorePassword = envOrProp("ANDROID_KEYSTORE_PASSWORD", releaseCredent
 def releaseKeyAlias = envOrProp("ANDROID_KEY_ALIAS", releaseCredentials?.keyAlias?.toString())
 def releaseKeyPassword = envOrProp("ANDROID_KEY_PASSWORD", releaseCredentials?.keyPassword?.toString())
 def allowDebugReleaseSigning = envOrProp("ALLOW_DEBUG_RELEASE_SIGNING", "false").toBoolean()
-def configuredVersionCode = envOrProp("VERSION_CODE", "67").toInteger()
-def configuredVersionName = envOrProp("VERSION_NAME", "1.0.0")
+def configuredVersionCode = envOrProp("VERSION_CODE", "68").toInteger()
+def configuredVersionName = envOrProp("VERSION_NAME", "1.3.16")
 def configuredMinSdkVersion = envOrProp("MIN_SDK_VERSION", rootProject.ext.minSdkVersion.toString()).toInteger()
 
 /**

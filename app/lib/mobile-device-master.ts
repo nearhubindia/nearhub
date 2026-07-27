@@ -1,5 +1,6 @@
 export type MobileDeviceMaster = {
   brand: string;
+  brandAliases?: string[];
   model: string;
   modelNumber?: string;
   codename?: string;
@@ -20,6 +21,8 @@ export type MobileDeviceMaster = {
   display?: string;
   displayResolution?: string;
   refreshRateHz?: number;
+  hdr?: boolean;
+  wideColorGamut?: boolean;
   fingerprintSensor?: boolean;
   faceUnlock?: boolean;
   nfc?: boolean;
@@ -33,6 +36,27 @@ export type MobileDeviceMaster = {
 
 // Immutable model metadata. Expand this catalog as supported devices are added.
 export const MOBILE_DEVICE_MASTER: MobileDeviceMaster[] = [
+  {
+    brand: 'Xiaomi',
+    brandAliases: ['Redmi', 'POCO'],
+    model: 'Redmi 13C',
+    modelNumber: '23124RN87C',
+    aliases: ['23124RN87C', 'Redmi 13C', 'POCO C65'],
+    announcedDate: '2023-11-10',
+    releaseDate: '2023-11-10',
+    discontinued: false,
+    launchAndroid: '13',
+    chipset: 'MediaTek Helio G85',
+    ramOptionsGb: [4, 6, 8],
+    storageOptionsGb: [128, 256],
+    batteryCapacityMah: 5000,
+    display: '6.74-inch IPS LCD',
+    displayResolution: '1600 × 720',
+    refreshRateHz: 90,
+    hdr: false,
+    wideColorGamut: false,
+    manufacturerSupportEnded: false,
+  },
   {
     brand: 'LG',
     model: 'Nexus 5',
@@ -78,8 +102,10 @@ export function findMobileDeviceMaster(
   model: string
 ): MobileDeviceMaster | undefined {
   return MOBILE_DEVICE_MASTER.find((device) => {
-    const brandMatches = normalize(device.brand) === normalize(brand);
-    const modelCandidates = [device.model, ...(device.aliases || [])].map(normalize);
-    return brandMatches && modelCandidates.includes(normalize(model));
+    const brandCandidates = [device.brand, ...(device.brandAliases || [])].map(normalize);
+    const modelCandidates = [device.model, device.modelNumber || '', ...(device.aliases || [])]
+      .filter(Boolean)
+      .map(normalize);
+    return brandCandidates.includes(normalize(brand)) && modelCandidates.includes(normalize(model));
   });
 }

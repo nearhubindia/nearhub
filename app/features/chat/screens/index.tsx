@@ -144,7 +144,10 @@ export default function MessagesScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]}>
+    <SafeAreaView
+      edges={['left', 'right', 'bottom']}
+      style={[styles.container, { backgroundColor: Colors.background }]}
+    >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top || webTopInset }]}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>

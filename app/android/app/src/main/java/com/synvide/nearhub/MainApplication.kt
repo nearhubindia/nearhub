@@ -16,6 +16,7 @@ import com.facebook.react.defaults.DefaultReactNativeHost
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 import com.synvide.nearhub.installreferrer.InstallReferrerPackage
+import com.synvide.nearhub.display.DisplayCapabilitiesPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -25,6 +26,7 @@ class MainApplication : Application(), ReactApplication {
         override fun getPackages(): List<ReactPackage> =
             PackageList(this).packages.apply {
               add(InstallReferrerPackage())
+              add(DisplayCapabilitiesPackage())
             }
 
           override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"

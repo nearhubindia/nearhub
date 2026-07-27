@@ -13,7 +13,6 @@ import {
   BackHandler,
   ActivityIndicator,
   Alert,
-  StatusBar,
   Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -688,8 +687,6 @@ export default function HomeScreen() {
     [isAuthenticated, user?.id, user?.phone]
   );
 
-  const webTopInset = Platform.OS === 'web' ? 67 : 0;
-  const statusStripHeight = Platform.OS === 'web' ? webTopInset : Math.max(insets.top, 12);
   const tabAwareBottomPadding = getTabOverlayContentPadding(insets.bottom, 20);
   const alignedResultCardWidth = useMemo(
     () => (SCREEN_WIDTH - HOME_HORIZONTAL_INSET * 2 - HOME_RAIL_GAP * 3) / 4,
@@ -1008,8 +1005,6 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <View pointerEvents="none" style={[styles.topEdgeCover, { height: statusStripHeight + 2 }]} />
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" translucent={false} />
       <FlatList
         data={listingGridData}
         renderItem={renderItem}
@@ -1034,7 +1029,6 @@ export default function HomeScreen() {
         ListHeaderComponent={
           <>
             <View style={styles.homeHeader}>
-              <View style={[styles.statusBarTopStrip, { height: statusStripHeight }]} />
               <LinearGradient
                 colors={['#E9F4FF', '#F7FBFF', '#FFFFFF']}
                 start={{ x: 0, y: 0 }}
@@ -1565,15 +1559,6 @@ const styles = createResponsiveStyles({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  topEdgeCover: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#0F172A',
-    zIndex: 200,
-    elevation: 200,
-  },
   header: {
     backgroundColor: Colors.surface,
     paddingBottom: 12,
@@ -1624,9 +1609,6 @@ const styles = createResponsiveStyles({
   },
   homeHeaderGradient: {
     paddingBottom: 8,
-  },
-  statusBarTopStrip: {
-    backgroundColor: '#0F172A',
   },
   homeHeaderTopRow: {
     flexDirection: 'row',

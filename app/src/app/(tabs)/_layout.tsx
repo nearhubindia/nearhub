@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { BlurView } from 'expo-blur';
-import { Platform, Pressable, StyleSheet, useColorScheme } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, useColorScheme } from 'react-native';
 import React from 'react';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -59,9 +59,23 @@ function ClassicTabLayout() {
             ) : null,
           tabBarLabelStyle: {
             fontFamily: 'Inter_500Medium',
-            fontSize: responsiveFont(11),
+            fontSize: responsiveFont(10),
             marginBottom: Platform.OS === 'web' ? 6 : 0,
           },
+          tabBarLabel: ({ color, children }) => (
+            <Text
+              adjustsFontSizeToFit
+              allowFontScaling={false}
+              minimumFontScale={0.75}
+              numberOfLines={1}
+              style={[
+                styles.tabLabel,
+                { color, marginBottom: Platform.OS === 'web' ? 6 : 0 },
+              ]}
+            >
+              {children}
+            </Text>
+          ),
           tabBarIconStyle: {
             marginBottom: Platform.OS === 'web' ? 2 : 0,
           },
@@ -151,3 +165,14 @@ function ClassicTabLayout() {
 export default function TabLayout() {
   return <ClassicTabLayout />;
 }
+
+const styles = StyleSheet.create({
+  tabLabel: {
+    width: '100%',
+    paddingHorizontal: 2,
+    textAlign: 'center',
+    fontFamily: 'Inter_500Medium',
+    fontSize: responsiveFont(10),
+    lineHeight: responsiveFont(13),
+  },
+});

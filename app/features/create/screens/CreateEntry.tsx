@@ -55,9 +55,8 @@ export default function CreateEntryScreen() {
               Post a product, service, job, or wanted listing from scratch.
             </Text>
           </View>
-          <View style={styles.optionFooter}>
-            <Text style={styles.optionFooterText}>Fresh posting flow</Text>
-            <Feather name="arrow-up-right" size={16} color={Colors.primary} />
+          <View style={[styles.optionFooter, styles.listingCta]}>
+            <Text style={styles.optionFooterText}>Create Listing</Text>
           </View>
         </Pressable>
 
@@ -79,16 +78,8 @@ export default function CreateEntryScreen() {
               Upgrade one listing into a deal, or select two listings to build a combo deal.
             </Text>
           </View>
-          <View style={styles.dealLogicInline}>
-            <Feather name="info" size={14} color="#0B5B43" />
-            <Text style={styles.dealLogicInlineText}>
-              Deal logic: promos sit on top of existing listings. Combo deals use one primary
-              listing plus one more item.
-            </Text>
-          </View>
-          <View style={styles.optionFooter}>
-            <Text style={styles.optionFooterText}>Promotion flow</Text>
-            <Feather name="arrow-up-right" size={16} color="#0B5B43" />
+          <View style={[styles.optionFooter, styles.dealCta]}>
+            <Text style={styles.optionFooterText}>Create Deal</Text>
           </View>
         </Pressable>
       </ScrollView>
@@ -121,12 +112,12 @@ const styles = createResponsiveStyles({
   },
   content: {
     flexGrow: 1,
-    paddingHorizontal: 18,
-    gap: 16,
+    paddingHorizontal: 10,
+    gap: 12,
   },
   heroCard: {
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: 14,
+    padding: 16,
     gap: 10,
     overflow: 'hidden',
     shadowColor: '#0F172A',
@@ -148,13 +139,13 @@ const styles = createResponsiveStyles({
   heroBadgeText: {
     color: '#FFFFFF',
     fontSize: 11,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
   },
   heroTitle: {
     color: '#FFFFFF',
     fontSize: 24,
     lineHeight: 30,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
   },
   heroSubtitle: {
     color: 'rgba(255,255,255,0.82)',
@@ -163,12 +154,12 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_400Regular',
   },
   optionCard: {
-    borderRadius: 22,
+    borderRadius: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    padding: 18,
-    gap: 14,
+    padding: 14,
+    gap: 12,
   },
   dealOptionCard: {
     borderColor: '#BBF7D0',
@@ -186,7 +177,7 @@ const styles = createResponsiveStyles({
   optionIconWrap: {
     width: 52,
     height: 52,
-    borderRadius: 18,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#E2E8F0',
@@ -206,7 +197,7 @@ const styles = createResponsiveStyles({
   optionTagText: {
     color: '#4338CA',
     fontSize: 11,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
   },
   dealOptionTagText: {
     color: '#047857',
@@ -217,7 +208,7 @@ const styles = createResponsiveStyles({
   optionTitle: {
     color: '#0F172A',
     fontSize: 17,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
   },
   optionCopy: {
     color: '#475569',
@@ -226,34 +217,26 @@ const styles = createResponsiveStyles({
     fontFamily: 'Inter_400Regular',
   },
   optionFooter: {
+    width: '64%',
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    paddingTop: 14,
+    justifyContent: 'center',
+    minHeight: 46,
+    borderRadius: 10,
+    marginTop: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   optionFooterText: {
-    color: Colors.textSecondary,
-    fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  dealLogicInline: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    borderRadius: 16,
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  dealLogicInlineText: {
-    flex: 1,
-    color: '#166534',
-    fontSize: 12,
-    lineHeight: 18,
+    color: '#FFFFFF',
+    fontSize: 14,
     fontFamily: 'Inter_400Regular',
+  },
+  listingCta: {
+    backgroundColor: '#0759E6',
+  },
+  dealCta: {
+    backgroundColor: '#0B8A61',
   },
 });

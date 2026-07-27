@@ -311,8 +311,6 @@ export default function CreateScreen() {
     showConditionField ? Boolean(condition) : true,
     description.trim().length > 0,
   ].filter(Boolean).length;
-  const completionPercentage = Math.round((completedSteps / totalSteps) * 100);
-  const descriptionStepNumber = showConditionField ? 9 : 8;
 
   const subscriptionStats = useMemo(() => {
     let totalUsed = 0;
@@ -2241,7 +2239,7 @@ export default function CreateScreen() {
         >
           <View style={styles.content}>
             <LinearGradient
-              colors={['#0F172A', '#0759E6']}
+              colors={['#0B3470', '#0759E6']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.createHero}
@@ -2260,44 +2258,9 @@ export default function CreateScreen() {
               </Text>
             </LinearGradient>
 
-            <View style={styles.createSummaryCard}>
-              <Text style={styles.createSummarySubtitle}>
-                Move through the steps below to add media, pricing, location, and the right category
-                details.
-              </Text>
-
-              <View style={styles.heroProgressRow}>
-                <View style={styles.heroProgressTrack}>
-                  <View
-                    style={[
-                      styles.heroProgressFill,
-                      { width: `${Math.max(completionPercentage, 8)}%` },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.heroProgressText}>
-                  {completedSteps}/{totalSteps} steps
-                </Text>
-              </View>
-
-              <View style={styles.heroMetaRow}>
-                <View style={styles.createMetaPill}>
-                  <Feather name="image" size={12} color={Colors.textSecondary} />
-                  <Text style={styles.createMetaText}>{images.length} photos</Text>
-                </View>
-                <View style={styles.createMetaPill}>
-                  <Feather name="shield" size={12} color={Colors.textSecondary} />
-                  <Text style={styles.createMetaText}>Admin review</Text>
-                </View>
-              </View>
-            </View>
-
             {/* Step 1: Listing Type */}
             <View style={styles.section}>
               <View style={styles.stepHeader}>
-                <View style={styles.stepBadge}>
-                  <Text style={styles.stepBadgeText}>1</Text>
-                </View>
                 <Text style={styles.sectionLabel}>What are you posting?</Text>
               </View>
               <View style={styles.typeGrid}>
@@ -2361,9 +2324,6 @@ export default function CreateScreen() {
             {/* Step 2: Upload Photos */}
             <View style={styles.section}>
               <View style={styles.stepHeader}>
-                <View style={styles.stepBadge}>
-                  <Text style={styles.stepBadgeText}>2</Text>
-                </View>
                 <Text style={styles.sectionLabel}>
                   Upload Photos {listingType === 'job' ? '(Optional)' : ''}
                 </Text>
@@ -2374,11 +2334,11 @@ export default function CreateScreen() {
                 contentContainerStyle={styles.imageRow}
               >
                 <Pressable style={styles.addImageButton} onPress={() => pickImage(false)}>
-                  <Feather name="image" size={20} color="#fff" />
+                  <Feather name="image" size={17} color="#fff" />
                   <Text style={styles.addImageText}>Gallery</Text>
                 </Pressable>
                 <Pressable style={styles.addImageButton} onPress={() => pickImage(true)}>
-                  <Feather name="camera" size={20} color="#fff" />
+                  <Feather name="camera" size={17} color="#fff" />
                   <Text style={styles.addImageText}>Camera</Text>
                 </Pressable>
                 {images.map((uri, index) => (
@@ -2446,9 +2406,6 @@ export default function CreateScreen() {
             {/* Video uploads are disabled while mobile evaluation replaces video features. */}
             <View style={[styles.section, { display: 'none' }]}>
               <View style={styles.stepHeader}>
-                <View style={styles.stepBadge}>
-                  <Text style={styles.stepBadgeText}>3</Text>
-                </View>
                 <Text style={styles.sectionLabel}>Add Video (Optional)</Text>
               </View>
 
@@ -2526,9 +2483,6 @@ export default function CreateScreen() {
             {/* Step 4: Title */}
             <View style={styles.section}>
               <View style={styles.stepHeader}>
-                <View style={styles.stepBadge}>
-                  <Text style={styles.stepBadgeText}>4</Text>
-                </View>
                 <Text style={styles.sectionLabel}>Title</Text>
               </View>
               <TextInput
@@ -2550,9 +2504,6 @@ export default function CreateScreen() {
             {/* Step 5: Price */}
             <View style={styles.section}>
               <View style={styles.stepHeader}>
-                <View style={styles.stepBadge}>
-                  <Text style={styles.stepBadgeText}>5</Text>
-                </View>
                 <Text style={styles.sectionLabel}>
                   {listingType === 'job'
                     ? 'Salary'
@@ -2650,9 +2601,6 @@ export default function CreateScreen() {
 
             <View style={styles.section}>
               <View style={styles.stepHeader}>
-                <View style={styles.stepBadge}>
-                  <Text style={styles.stepBadgeText}>6</Text>
-                </View>
                 <Text style={styles.sectionLabel}>Category</Text>
               </View>
               <Text style={styles.formSubLabel}>Main Category</Text>
@@ -2689,9 +2637,6 @@ export default function CreateScreen() {
             {/* Location Section */}
             <View style={styles.section}>
               <View style={styles.stepHeader}>
-                <View style={styles.stepBadge}>
-                  <Text style={styles.stepBadgeText}>7</Text>
-                </View>
                 <Text style={styles.sectionLabel}>Where do you want to Post?</Text>
               </View>
               {locationCity || (latitude !== null && longitude !== null) ? (
@@ -2796,9 +2741,6 @@ export default function CreateScreen() {
             {showConditionField && (
               <View style={styles.section}>
                 <View style={styles.stepHeader}>
-                  <View style={styles.stepBadge}>
-                    <Text style={styles.stepBadgeText}>8</Text>
-                  </View>
                   <Text style={styles.sectionLabel}>Condition</Text>
                 </View>
                 <View style={styles.chipRow}>
@@ -2821,9 +2763,6 @@ export default function CreateScreen() {
 
             <View style={styles.section}>
               <View style={styles.stepHeader}>
-                <View style={styles.stepBadge}>
-                  <Text style={styles.stepBadgeText}>{descriptionStepNumber}</Text>
-                </View>
                 <Text style={styles.sectionLabel}>Description</Text>
               </View>
               <RichTextEditor
@@ -3194,7 +3133,7 @@ export default function CreateScreen() {
                         justifyContent: 'space-between',
                       }}
                     >
-                      <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.text }}>
+                      <Text style={{ fontSize: 16, fontWeight: '400', color: Colors.text }}>
                         Choose Subscription
                       </Text>
                       <Pressable
@@ -3304,7 +3243,7 @@ export default function CreateScreen() {
                             <View style={{ flex: 1 }}>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                 <Text
-                                  style={{ fontSize: 14, fontWeight: '700', color: Colors.text }}
+                                  style={{ fontSize: 14, fontWeight: '400', color: Colors.text }}
                                 >
                                   {group.tierName}
                                 </Text>
@@ -3318,7 +3257,7 @@ export default function CreateScreen() {
                                     }}
                                   >
                                     <Text
-                                      style={{ fontSize: 11, fontWeight: '700', color: '#fff' }}
+                                      style={{ fontSize: 11, fontWeight: '400', color: '#fff' }}
                                     >
                                       ×{group.count}
                                     </Text>
@@ -3342,7 +3281,7 @@ export default function CreateScreen() {
                                   borderRadius: 6,
                                 }}
                               >
-                                <Text style={{ fontSize: 11, fontWeight: '600', color: '#F57C00' }}>
+                                <Text style={{ fontSize: 11, fontWeight: '400', color: '#F57C00' }}>
                                   FULL
                                 </Text>
                               </View>
@@ -3361,7 +3300,7 @@ export default function CreateScreen() {
                           >
                             <View style={{ flex: 1, alignItems: 'center' }}>
                               <Text
-                                style={{ fontSize: 14, fontWeight: '700', color: Colors.primary }}
+                                style={{ fontSize: 14, fontWeight: '400', color: Colors.primary }}
                               >
                                 {group.totalUsed}
                               </Text>
@@ -3372,7 +3311,7 @@ export default function CreateScreen() {
                             <View style={{ width: 1, backgroundColor: Colors.border }} />
                             <View style={{ flex: 1, alignItems: 'center' }}>
                               <Text
-                                style={{ fontSize: 14, fontWeight: '700', color: Colors.success }}
+                                style={{ fontSize: 14, fontWeight: '400', color: Colors.success }}
                               >
                                 {group.totalAvailable === -1 ? '\u221e' : group.totalAvailable}
                               </Text>
@@ -3382,7 +3321,7 @@ export default function CreateScreen() {
                             </View>
                             <View style={{ width: 1, backgroundColor: Colors.border }} />
                             <View style={{ flex: 1, alignItems: 'center' }}>
-                              <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.text }}>
+                              <Text style={{ fontSize: 14, fontWeight: '400', color: Colors.text }}>
                                 {group.totalLimit === -1 ? '\u221e' : group.totalLimit}
                               </Text>
                               <Text style={{ fontSize: 10, color: Colors.textSecondary }}>
@@ -3447,7 +3386,7 @@ export default function CreateScreen() {
                     >
                       <Feather name="plus-circle" size={16} color="#fff" />
                       <Text
-                        style={{ color: '#fff', fontSize: 14, fontWeight: '700', marginLeft: 8 }}
+                        style={{ color: '#fff', fontSize: 14, fontWeight: '400', marginLeft: 8 }}
                       >
                         Buy More Subscriptions
                       </Text>
@@ -3703,7 +3642,7 @@ const styles = createResponsiveStyles({
   },
   subscriptionTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: Colors.text,
     marginLeft: 8,
   },
@@ -3727,7 +3666,7 @@ const styles = createResponsiveStyles({
   },
   planSelectorName: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: Colors.text,
   },
   planSelectorNameActive: {
@@ -3752,7 +3691,7 @@ const styles = createResponsiveStyles({
     padding: 14,
     borderWidth: 1,
     borderColor: Colors.border,
-    shadowColor: '#000',
+    shadowColor: '#0B3470',
     shadowOpacity: 0.06,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 6 },
@@ -3763,7 +3702,7 @@ const styles = createResponsiveStyles({
   },
   pricingTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '400',
     color: Colors.text,
   },
   pricingSub: {
@@ -3800,7 +3739,7 @@ const styles = createResponsiveStyles({
   dealToggleTitle: {
     fontSize: 15,
     color: Colors.text,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
   },
   dealToggleSubtitle: {
     fontSize: 12,
@@ -3821,7 +3760,7 @@ const styles = createResponsiveStyles({
   },
   dealTogglePillText: {
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
   },
   dealTogglePillTextActive: {
@@ -3856,7 +3795,7 @@ const styles = createResponsiveStyles({
   dealVoucherTitle: {
     fontSize: 14,
     color: Colors.text,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
   },
   dealVoucherSubtitle: {
     marginTop: 4,
@@ -3898,7 +3837,7 @@ const styles = createResponsiveStyles({
   },
   locationHeaderTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '400',
     color: Colors.text,
   },
   locationPageContent: {
@@ -3908,34 +3847,25 @@ const styles = createResponsiveStyles({
   },
   locationFallbackLabel: {
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
     marginBottom: 8,
   },
   content: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 2,
     width: '100%',
     maxWidth: 920,
     alignSelf: 'center',
   },
   scrollContent: {
-    paddingHorizontal: 18,
-  },
-  createSummaryCard: {
-    marginBottom: 14,
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingHorizontal: 8,
   },
   createHero: {
     marginBottom: 16,
     borderRadius: 24,
     overflow: 'hidden',
     padding: 20,
-    shadowColor: '#0F172A',
+    shadowColor: '#0B3470',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.16,
     shadowRadius: 24,
@@ -3958,14 +3888,14 @@ const styles = createResponsiveStyles({
   createHeroPillText: {
     color: '#FFFFFF',
     fontSize: 11,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
   },
   createHeroTitle: {
     marginTop: 18,
     color: '#FFFFFF',
     fontSize: 28,
     lineHeight: 32,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
   },
   createHeroSubtitle: {
     marginTop: 8,
@@ -3973,58 +3903,6 @@ const styles = createResponsiveStyles({
     fontSize: 14,
     lineHeight: 21,
     fontFamily: 'Inter_400Regular',
-  },
-  createSummarySubtitle: {
-    marginTop: 14,
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    color: Colors.textSecondary,
-    lineHeight: 19,
-  },
-  heroProgressRow: {
-    marginTop: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  heroProgressTrack: {
-    flex: 1,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: '#E2E8F0',
-    overflow: 'hidden',
-  },
-  heroProgressFill: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: Colors.primary,
-  },
-  heroProgressText: {
-    fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
-    color: Colors.textSecondary,
-  },
-  heroMetaRow: {
-    marginTop: 14,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  createMetaPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  createMetaText: {
-    fontSize: 11,
-    fontFamily: 'Inter_500Medium',
-    color: Colors.textSecondary,
   },
   typeGrid: {
     flexDirection: 'row',
@@ -4044,9 +3922,9 @@ const styles = createResponsiveStyles({
     borderColor: '#D7E1EE',
   },
   typeButtonActive: {
-    backgroundColor: '#0F172A',
-    borderColor: '#0F172A',
-    shadowColor: '#0F172A',
+    backgroundColor: '#0B3470',
+    borderColor: '#0B3470',
+    shadowColor: '#0B3470',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.22,
     shadowRadius: 14,
@@ -4054,7 +3932,7 @@ const styles = createResponsiveStyles({
   },
   typeText: {
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
   },
   typeTextActive: {
@@ -4078,7 +3956,7 @@ const styles = createResponsiveStyles({
     borderWidth: 2,
     borderColor: 'rgba(10, 102, 194, 0.25)',
     minHeight: 88,
-    shadowColor: '#000',
+    shadowColor: '#0B3470',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
@@ -4110,7 +3988,7 @@ const styles = createResponsiveStyles({
   },
   mediaText: {
     fontSize: 12,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
     textAlign: 'center',
   },
@@ -4124,7 +4002,7 @@ const styles = createResponsiveStyles({
     borderWidth: 1,
     borderColor: '#E2E8F0',
     padding: 10,
-    shadowColor: '#0F172A',
+    shadowColor: '#0B3470',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.06,
     shadowRadius: 16,
@@ -4132,13 +4010,13 @@ const styles = createResponsiveStyles({
   },
   sectionLabel: {
     fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#0F172A',
+    fontFamily: 'Inter_400Regular',
+    color: '#0B3470',
     marginBottom: 2,
   },
   formSubLabel: {
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: '#64748B',
     marginBottom: 8,
     marginTop: 8,
@@ -4178,7 +4056,7 @@ const styles = createResponsiveStyles({
   },
   aiButtonText: {
     fontSize: 10,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#fff',
   },
   aiToolCard: {
@@ -4203,7 +4081,7 @@ const styles = createResponsiveStyles({
   },
   aiToolTitle: {
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
   },
   aiSmallButton: {
@@ -4217,7 +4095,7 @@ const styles = createResponsiveStyles({
   },
   aiSmallButtonText: {
     fontSize: 10,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#fff',
   },
   keywordsRow: {
@@ -4233,7 +4111,7 @@ const styles = createResponsiveStyles({
   },
   keywordText: {
     fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#fff',
   },
   priceTagContainer: {
@@ -4248,12 +4126,12 @@ const styles = createResponsiveStyles({
   },
   suggestedPriceLabel: {
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
   },
   suggestedPrice: {
     fontSize: 16,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.primary,
     flex: 1,
   },
@@ -4265,7 +4143,7 @@ const styles = createResponsiveStyles({
   },
   usePriceText: {
     fontSize: 10,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#fff',
   },
   scoreContainer: {
@@ -4293,10 +4171,10 @@ const styles = createResponsiveStyles({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0B3470',
     borderWidth: 1,
     borderColor: '#1E293B',
-    shadowColor: '#0F172A',
+    shadowColor: '#0B3470',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,
     shadowRadius: 14,
@@ -4304,12 +4182,12 @@ const styles = createResponsiveStyles({
   },
   addVideoText: {
     fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.primary,
   },
   addVideoDuration: {
     fontSize: 11,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: '#94A3B8',
   },
   videoSelected: {
@@ -4339,13 +4217,13 @@ const styles = createResponsiveStyles({
   },
   videoProcessingTitle: {
     fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.success,
     textAlign: 'center',
   },
   videoProcessingPercent: {
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: '#64748B',
     textAlign: 'center',
   },
@@ -4369,7 +4247,7 @@ const styles = createResponsiveStyles({
     paddingVertical: 12,
     fontSize: 15,
     fontFamily: 'Inter_400Regular',
-    color: '#0F172A',
+    color: '#0B3470',
     borderWidth: 1,
     borderColor: '#D5E2F0',
   },
@@ -4389,14 +4267,14 @@ const styles = createResponsiveStyles({
   },
   currency: {
     fontSize: 22,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
     marginRight: 6,
   },
   priceField: {
     flex: 1,
     fontSize: 22,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
     borderWidth: 0,
     paddingHorizontal: 0,
   },
@@ -4405,7 +4283,7 @@ const styles = createResponsiveStyles({
   },
   unitInlineLabel: {
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
     marginBottom: 8,
   },
@@ -4423,22 +4301,22 @@ const styles = createResponsiveStyles({
     borderColor: '#D5E2F0',
   },
   unitChipSelected: {
-    backgroundColor: '#0F172A',
-    borderColor: '#0F172A',
+    backgroundColor: '#0B3470',
+    borderColor: '#0B3470',
   },
   unitChipText: {
     fontSize: 13,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
     // whiteSpace is web-only; removed for RN compatibility
   },
   unitChipTextSelected: {
     color: '#FFFFFF',
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
   },
   offerPriceLabel: {
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
     marginBottom: 4,
   },
@@ -4466,7 +4344,7 @@ const styles = createResponsiveStyles({
   offerPriceFeedbackText: {
     color: Colors.success,
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
   },
   offerPriceFeedbackTextInvalid: {
     color: Colors.error,
@@ -4476,17 +4354,17 @@ const styles = createResponsiveStyles({
     paddingVertical: 2,
   },
   addImageButton: {
-    width: 88,
-    height: 88,
-    borderRadius: 16,
+    width: 68,
+    height: 68,
+    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: '#1E293B',
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#0F172A',
-    shadowColor: '#0F172A',
+    gap: 4,
+    backgroundColor: '#0B3470',
+    shadowColor: '#0B3470',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.16,
     shadowRadius: 12,
@@ -4494,7 +4372,7 @@ const styles = createResponsiveStyles({
   },
   addImageText: {
     fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#fff',
   },
   imageThumb: {
@@ -4535,7 +4413,7 @@ const styles = createResponsiveStyles({
   },
   aiVerifiedOverlayText: {
     fontSize: 9,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#FFFFFF',
   },
   videoPlayOverlay: {
@@ -4559,7 +4437,7 @@ const styles = createResponsiveStyles({
   },
   validationText: {
     fontSize: 13,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.primary,
   },
   aiVerifiedBadge: {
@@ -4577,7 +4455,7 @@ const styles = createResponsiveStyles({
   },
   aiVerifiedText: {
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#10B981',
   },
   validationError: {
@@ -4588,7 +4466,7 @@ const styles = createResponsiveStyles({
   },
   validationErrorText: {
     fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.error,
   },
   validationReason: {
@@ -4618,7 +4496,7 @@ const styles = createResponsiveStyles({
   },
   compressionText: {
     fontSize: 13,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.primary,
   },
   deduplicationBanner: {
@@ -4633,7 +4511,7 @@ const styles = createResponsiveStyles({
   },
   deduplicationText: {
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.success,
     flex: 1,
   },
@@ -4651,12 +4529,12 @@ const styles = createResponsiveStyles({
     borderColor: '#D5E2F0',
   },
   chipActive: {
-    backgroundColor: '#0F172A',
-    borderColor: '#0F172A',
+    backgroundColor: '#0B3470',
+    borderColor: '#0B3470',
   },
   chipText: {
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
   },
   chipTextActive: {
@@ -4685,8 +4563,8 @@ const styles = createResponsiveStyles({
   },
   subscriptionBannerTitle: {
     fontSize: 13,
-    fontFamily: 'Inter_700Bold',
-    color: '#0F172A',
+    fontFamily: 'Inter_400Regular',
+    color: '#0B3470',
     marginBottom: 1,
   },
   subscriptionBannerSubtext: {
@@ -4701,7 +4579,7 @@ const styles = createResponsiveStyles({
   subscriptionLoadingText: {
     color: Colors.textSecondary,
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     marginTop: 6,
   },
   subscriptionCard: {
@@ -4730,13 +4608,13 @@ const styles = createResponsiveStyles({
   },
   subscriptionCardTitle: {
     fontSize: 13,
-    fontFamily: 'Inter_700Bold',
-    color: '#0F172A',
+    fontFamily: 'Inter_400Regular',
+    color: '#0B3470',
   },
   subscriptionCardSubtitle: {
     marginTop: 2,
     fontSize: 11,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: '#64748B',
   },
   subscriptionSelectButton: {
@@ -4748,7 +4626,7 @@ const styles = createResponsiveStyles({
   subscriptionSelectButtonText: {
     color: '#fff',
     fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
   },
   subscriptionStatsGrid: {
     flexDirection: 'row',
@@ -4770,19 +4648,19 @@ const styles = createResponsiveStyles({
   },
   subscriptionStatValue: {
     fontSize: 17,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
     color: '#0369A1',
   },
   subscriptionStatValueSuccess: {
     color: '#0F766E',
   },
   subscriptionStatValueDark: {
-    color: '#0F172A',
+    color: '#0B3470',
   },
   subscriptionStatLabel: {
     marginTop: 2,
     fontSize: 10,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: '#64748B',
   },
   subscriptionHintBanner: {
@@ -4798,7 +4676,7 @@ const styles = createResponsiveStyles({
   subscriptionHintText: {
     flex: 1,
     fontSize: 10,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: '#0369A1',
   },
   subscriptionWarningRow: {
@@ -4815,7 +4693,7 @@ const styles = createResponsiveStyles({
   subscriptionWarningText: {
     color: '#C2410C',
     fontSize: 11,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     flex: 1,
   },
   subscriptionWarningButton: {
@@ -4827,7 +4705,7 @@ const styles = createResponsiveStyles({
   subscriptionWarningButtonText: {
     color: '#fff',
     fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
   },
   noSubscriptionCard: {
     backgroundColor: '#FFFBEB',
@@ -4859,8 +4737,8 @@ const styles = createResponsiveStyles({
   },
   noSubscriptionTitle: {
     fontSize: 13,
-    fontFamily: 'Inter_700Bold',
-    color: '#0F172A',
+    fontFamily: 'Inter_400Regular',
+    color: '#0B3470',
   },
   noSubscriptionSubtitle: {
     fontSize: 10,
@@ -4876,7 +4754,7 @@ const styles = createResponsiveStyles({
   },
   noSubscriptionActionPillText: {
     fontSize: 10,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
     color: '#FFFFFF',
   },
   noSubscriptionStatsRow: {
@@ -4894,13 +4772,13 @@ const styles = createResponsiveStyles({
   },
   noSubscriptionStatValue: {
     fontSize: 15,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
     color: '#B45309',
   },
   noSubscriptionStatLabel: {
     marginTop: 1,
     fontSize: 10,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: '#92400E',
   },
   noSubscriptionStatDivider: {
@@ -4926,8 +4804,8 @@ const styles = createResponsiveStyles({
   },
   noSubscriptionFeatureText: {
     fontSize: 11,
-    fontFamily: 'Inter_500Medium',
-    color: '#0F172A',
+    fontFamily: 'Inter_400Regular',
+    color: '#0B3470',
   },
   noSubscriptionFooter: {
     marginTop: 6,
@@ -4937,7 +4815,7 @@ const styles = createResponsiveStyles({
   },
   noSubscriptionFooterText: {
     fontSize: 10,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: '#475569',
   },
   submitButton: {
@@ -4966,7 +4844,7 @@ const styles = createResponsiveStyles({
   },
   submitText: {
     fontSize: 15,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
     color: '#fff',
   },
   publishPanel: {
@@ -4990,12 +4868,12 @@ const styles = createResponsiveStyles({
   },
   publishPanelTitle: {
     fontSize: 14,
-    fontFamily: 'Inter_700Bold',
-    color: '#0F172A',
+    fontFamily: 'Inter_400Regular',
+    color: '#0B3470',
   },
   publishPanelCount: {
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#0369A1',
     backgroundColor: '#E0F2FE',
     paddingHorizontal: 8,
@@ -5024,7 +4902,7 @@ const styles = createResponsiveStyles({
   publishWarningText: {
     flex: 1,
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#92400E',
     lineHeight: 16,
   },
@@ -5046,7 +4924,7 @@ const styles = createResponsiveStyles({
   },
   authTitle: {
     fontSize: 22,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
     marginBottom: 10,
     textAlign: 'center',
@@ -5078,7 +4956,7 @@ const styles = createResponsiveStyles({
   },
   authButtonText: {
     fontSize: 15,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
     color: '#fff',
   },
   userInfoCard: {
@@ -5104,8 +4982,8 @@ const styles = createResponsiveStyles({
   },
   userName: {
     fontSize: 14,
-    fontFamily: 'Inter_700Bold',
-    color: '#0F172A',
+    fontFamily: 'Inter_400Regular',
+    color: '#0B3470',
   },
   userPhone: {
     fontSize: 12,
@@ -5130,7 +5008,7 @@ const styles = createResponsiveStyles({
   },
   durationLabel: {
     fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
   },
   durationPrice: {
@@ -5161,26 +5039,7 @@ const styles = createResponsiveStyles({
   stepHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
     marginBottom: 8,
-  },
-  stepBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#0F172A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  stepBadgeText: {
-    fontSize: 12,
-    fontFamily: 'Inter_700Bold',
-    color: '#fff',
   },
   pricingInfoBanner: {
     flexDirection: 'row',
@@ -5196,7 +5055,7 @@ const styles = createResponsiveStyles({
   pricingInfoText: {
     flex: 1,
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
     lineHeight: 16,
   },
@@ -5209,7 +5068,7 @@ const styles = createResponsiveStyles({
   },
   mediaSubtext: {
     fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.primary,
     marginTop: 2,
   },
@@ -5231,7 +5090,7 @@ const styles = createResponsiveStyles({
   },
   faqTitle: {
     fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
   },
   faqContent: {
@@ -5244,7 +5103,7 @@ const styles = createResponsiveStyles({
   },
   faqQuestion: {
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
     marginBottom: 4,
   },
@@ -5271,7 +5130,7 @@ const styles = createResponsiveStyles({
   selectLocationText: {
     flex: 1,
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#0369A1',
     textAlign: 'center',
   },
@@ -5297,12 +5156,12 @@ const styles = createResponsiveStyles({
   },
   locationName: {
     fontSize: 14,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
     color: '#047857',
   },
   locationPincode: {
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: '#334155',
     marginTop: 2,
   },
@@ -5320,7 +5179,7 @@ const styles = createResponsiveStyles({
   },
   changeLocationText: {
     fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#065F46',
   },
 
@@ -5342,7 +5201,7 @@ const styles = createResponsiveStyles({
   },
   locationManualTitle: {
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
   },
   locationManualHeader: {
@@ -5373,7 +5232,7 @@ const styles = createResponsiveStyles({
   },
   locationManualLabel: {
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
   },
   locationManualInput: {
@@ -5385,22 +5244,22 @@ const styles = createResponsiveStyles({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
   },
   locationResolveHint: {
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.primary,
   },
   locationResolveError: {
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.error,
   },
   mapResolveSuccess: {
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.success,
   },
   mapLinkCard: {
@@ -5415,7 +5274,7 @@ const styles = createResponsiveStyles({
   },
   mapLinkTitle: {
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
   },
   mapActionButton: {
@@ -5429,7 +5288,7 @@ const styles = createResponsiveStyles({
   },
   mapActionButtonText: {
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#FFFFFF',
   },
   mapLinkInput: {
@@ -5458,7 +5317,7 @@ const styles = createResponsiveStyles({
   },
   mapApplyButtonText: {
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.primary,
   },
   pincodeSearchContainer: {
@@ -5478,7 +5337,7 @@ const styles = createResponsiveStyles({
   pincodeSearchInput: {
     flex: 1,
     fontSize: 15,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
     minHeight: 44,
     paddingVertical: 0,
@@ -5504,7 +5363,7 @@ const styles = createResponsiveStyles({
   },
   searchPincodeButtonText: {
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#fff',
   },
   errorBanner: {
@@ -5522,7 +5381,7 @@ const styles = createResponsiveStyles({
   errorText: {
     flex: 1,
     fontSize: 13,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.error,
   },
   locationSuggestionsCard: {
@@ -5544,7 +5403,7 @@ const styles = createResponsiveStyles({
   },
   locationSearchLoadingText: {
     fontSize: 12,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
   },
   locationSearchEmptyState: {
@@ -5553,12 +5412,12 @@ const styles = createResponsiveStyles({
   },
   locationSearchEmptyStateText: {
     fontSize: 13,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: Colors.textSecondary,
   },
   locationSuggestionsTitle: {
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
     paddingHorizontal: 14,
     paddingTop: 12,
@@ -5579,7 +5438,7 @@ const styles = createResponsiveStyles({
   },
   locationSuggestionName: {
     fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.text,
   },
   locationSuggestionMeta: {
@@ -5590,7 +5449,7 @@ const styles = createResponsiveStyles({
   },
   locationSuggestionPincode: {
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: Colors.primary,
   },
   submitOverlay: {
@@ -5622,14 +5481,14 @@ const styles = createResponsiveStyles({
   },
   submitProgressText: {
     fontSize: 44,
-    fontFamily: 'Inter_800ExtraBold',
+    fontFamily: 'Inter_400Regular',
     color: '#FFFFFF',
     lineHeight: 48,
   },
   submitProgressSubtext: {
     marginTop: 2,
     fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: 'rgba(255,255,255,0.82)',
     letterSpacing: 0.4,
   },
@@ -5637,7 +5496,7 @@ const styles = createResponsiveStyles({
     marginTop: 20,
     textAlign: 'center',
     fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_400Regular',
     color: '#F8FAFC',
     lineHeight: 22,
     paddingHorizontal: 8,
@@ -5687,19 +5546,19 @@ const styles = createResponsiveStyles({
   },
   validationTitle: {
     fontSize: 15,
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'Inter_400Regular',
     color: '#0C4A6E',
     flex: 1,
   },
   percentageText: {
     fontSize: 20,
-    fontFamily: 'Inter_800ExtraBold',
+    fontFamily: 'Inter_400Regular',
     color: '#0369A1',
     marginLeft: 12,
   },
   validationMessage: {
     fontSize: 13,
-    fontFamily: 'Inter_500Medium',
+    fontFamily: 'Inter_400Regular',
     color: '#075985',
     lineHeight: 18,
   },

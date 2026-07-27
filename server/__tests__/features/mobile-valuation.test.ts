@@ -1,6 +1,7 @@
 import {
   calculateMobileValuationBaseline,
   mobileValuationInputSchema,
+  validateAndNormalizeMobileAge,
 } from '../../features/valuations/services/mobile-valuation';
 
 const validInput = {
@@ -10,6 +11,7 @@ const validInput = {
   storage: 128,
   processor: 'flagship' as const,
   ageMonths: 24,
+  ageSource: 'user_reported' as const,
   battery: 88,
   screenCondition: 'Intact' as const,
   bodyDefect: 'None' as const,
@@ -43,5 +45,33 @@ describe('mobile valuation engine', () => {
 
     expect(recent.centre).toBeGreaterThan(older.centre);
     expect(recent.batteryScore).toBeGreaterThan(older.batteryScore);
+  });
+
+  it('does not value a 32-month model like an 11-year-old model', () => {
+    const modelFrom2023 = calculateMobileValuationBaseline({ ...validInput, ageMonths: 32 });
+    const elevenYearsOld = calculateMobileValuationBaseline({ ...validInput, ageMonths: 132 });
+
+    expect(modelFrom2023.ageFactor).toBeCloseTo(0.559, 2);
+    expect(elevenYearsOld.ageFactor).toBeCloseTo(0.12, 2);
+    expect(modelFrom2023.centre).toBeGreaterThan(elevenYearsOld.centre * 4);
+  });
+
+  it('replaces an impossible age with the known model release age', () => {
+    const result = validateAndNormalizeMobileAge(
+      { ...validInput, brand: 'Redmi', model: '23124RN87C', ageMonths: 132 },
+      new Date('2026-07-27T00:00:00Z')
+    );
+
+    expect(result.input.ageMonths).toBe(32);
+    expect(result.ageBasis).toBe('model_release');
+    expect(result.flags[0]).toContain('132 months');
+  });
+
+  it('does not present an unknown age as a verified device age', () => {
+    const result = validateAndNormalizeMobileAge({ ...validInput, ageMonths: 0, ageSource: 'unknown' });
+
+    expect(result.input.ageMonths).toBe(24);
+    expect(result.ageBasis).toBe('unknown');
+    expect(result.flags).toHaveLength(1);
   });
 });
