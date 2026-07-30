@@ -507,7 +507,7 @@ export async function getAiReview(
         const observations = Array.isArray(evidence?.observations)
           ? evidence.observations.map((item: any) => price(item?.priceInr)).filter(Boolean)
           : [];
-        if (sources.length >= 1 && observations.length >= 1) {
+        if (observations.length >= 1) {
           marketMedian = price(evidence.marketMedianInr) || median(observations);
           marketLow = price(evidence.marketLowInr) || Math.min(...observations);
           marketHigh = price(evidence.marketHighInr) || Math.max(...observations);
@@ -521,7 +521,7 @@ export async function getAiReview(
       : 'low';
     const evidenceQuality =
       sources.length < 1 ? 'low' : (requestedQuality as 'low' | 'medium' | 'high');
-    if (sources.length < 1) {
+    if (sources.length < 1 && !marketMedian) {
       marketMedian = null;
       marketLow = null;
       marketHigh = null;
