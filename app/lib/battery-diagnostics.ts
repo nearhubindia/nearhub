@@ -21,8 +21,6 @@ export type BatteryDiagnostics = {
   temperatureC: number;
   voltageMv: number;
   batteryCycleCount: number;
-  usageAccessGranted: boolean;
-  usageHoursLast30Days: number;
 };
 
 export async function readBatteryDiagnostics(): Promise<BatteryDiagnostics | null> {
@@ -30,7 +28,6 @@ export async function readBatteryDiagnostics(): Promise<BatteryDiagnostics | nul
   const module = NativeModules.NearHubBatteryDiagnostics as
     | {
         read: () => Promise<BatteryDiagnostics>;
-        openUsageAccessSettings?: () => Promise<boolean>;
       }
     | undefined;
   if (!module?.read) return null;
@@ -38,17 +35,5 @@ export async function readBatteryDiagnostics(): Promise<BatteryDiagnostics | nul
     return await module.read();
   } catch {
     return null;
-  }
-}
-
-export async function openUsageAccessSettings(): Promise<boolean> {
-  const module = NativeModules.NearHubBatteryDiagnostics as
-    | { openUsageAccessSettings?: () => Promise<boolean> }
-    | undefined;
-  if (!module?.openUsageAccessSettings) return false;
-  try {
-    return await module.openUsageAccessSettings();
-  } catch {
-    return false;
   }
 }

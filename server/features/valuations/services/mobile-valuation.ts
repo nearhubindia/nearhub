@@ -64,7 +64,6 @@ export const mobileValuationInputSchema = z.object({
   manufacturer: z.string().trim().max(80).optional().default(''),
   cpuArchitecture: z.string().trim().max(160).optional().default(''),
   detectedStorage: z.coerce.number().int().min(1).max(4096).optional(),
-  usageHoursLast30Days: z.coerce.number().min(0).max(744).optional(),
   batteryCycleCount: z.coerce.number().int().min(0).max(5000).optional(),
 });
 
@@ -132,9 +131,6 @@ export function validateAndNormalizeMobileAge(
   const fiveYearsAgo = new Date(now);
   fiveYearsAgo.setUTCFullYear(fiveYearsAgo.getUTCFullYear() - 5);
   const diagnosticFlags = [
-    input.usageHoursLast30Days !== undefined
-      ? `Android reported ${Math.round(input.usageHoursLast30Days * 10) / 10} active usage hours in the last 30 days.`
-      : null,
     input.batteryCycleCount !== undefined
       ? `Android reported ${input.batteryCycleCount} battery cycles.`
       : null,
@@ -270,15 +266,7 @@ function normalizeUsedMarketEvidence(review: AiReview, input: MobileValuationInp
 }
 
 function usageWearMultiplier(input: MobileValuationInput): number {
-  const usage = input.usageHoursLast30Days === undefined
-    ? 1
-    : input.usageHoursLast30Days <= 60
-      ? 1.02
-      : input.usageHoursLast30Days <= 180
-        ? 1
-        : input.usageHoursLast30Days <= 360
-          ? 0.97
-          : 0.93;
+  const usage = 1;
   const cycles = input.batteryCycleCount === undefined
     ? 1
     : input.batteryCycleCount <= 300
@@ -891,7 +879,6 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     detectedStorage: input.detectedStorage,
     purchaseDate: input.purchaseDate,
     ownershipAgeMonths: input.purchaseDate ? monthsSince(input.purchaseDate, now) : undefined,
-    usageHoursLast30Days: input.usageHoursLast30Days,
     batteryCycleCount: input.batteryCycleCount,
     score: baseline.score,
     deviceQualityScore: quality.qualityScore,

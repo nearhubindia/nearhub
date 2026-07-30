@@ -26,7 +26,7 @@ import {
 } from '@/lib/mobile-rate-card';
 import { findMobileDeviceMaster } from '@/lib/mobile-device-master';
 import { getTotalStorageGb } from '@/lib/device-storage';
-import { openUsageAccessSettings, readBatteryDiagnostics } from '@/lib/battery-diagnostics';
+import { readBatteryDiagnostics } from '@/lib/battery-diagnostics';
 import {
   compareDisplayCapabilities,
   readDisplayCapabilities,
@@ -67,7 +67,6 @@ type Report = {
   batteryHealthType?: 'measured' | 'estimated' | 'unavailable';
   purchaseDate?: string;
   ownershipAgeMonths?: number;
-  usageHoursLast30Days?: number;
   batteryCycleCount?: number;
   androidVersion?: string;
   networkType?: string;
@@ -279,9 +278,7 @@ export default function AiValuator() {
   const [age, setAge] = useState('');
   const [battery, setBattery] = useState('');
   const [batteryDiagnostic, setBatteryDiagnostic] = useState<string>('Not available');
-  const [usageHoursLast30Days, setUsageHoursLast30Days] = useState<number | null>(null);
   const [batteryCycleCount, setBatteryCycleCount] = useState<number | null>(null);
-  const [usageAccessGranted, setUsageAccessGranted] = useState(false);
   const [androidVersion, setAndroidVersion] = useState('');
   const [networkType, setNetworkType] = useState('UNKNOWN');
   const [androidApiLevel, setAndroidApiLevel] = useState<number | null>(null);
@@ -377,10 +374,6 @@ export default function AiValuator() {
       setNfcAvailable(batteryInfo.nfcAvailable);
       setActiveSimCount(batteryInfo.activeSimCount >= 0 ? batteryInfo.activeSimCount : null);
       setESimSupported(batteryInfo.eSimSupported);
-      setUsageAccessGranted(batteryInfo.usageAccessGranted);
-      setUsageHoursLast30Days(
-        batteryInfo.usageHoursLast30Days >= 0 ? Math.round(batteryInfo.usageHoursLast30Days * 10) / 10 : null
-      );
     }
     const measuredDisplay = await readDisplayCapabilities();
     const deviceMaster = findMobileDeviceMaster(detectedBrand, detectedModel);
@@ -546,7 +539,6 @@ export default function AiValuator() {
           manufacturer,
           cpuArchitecture,
           detectedStorage: detectedStorage || undefined,
-          usageHoursLast30Days: usageHoursLast30Days ?? undefined,
           batteryCycleCount: batteryCycleCount ?? undefined,
         }),
       });
@@ -784,21 +776,6 @@ export default function AiValuator() {
         </View>
         {detected ? (
           <View style={styles.row}>
-            <View style={styles.fieldColumn}>
-              <Text style={styles.fieldLabel}>App activity (last 30 days)</Text>
-              <View style={styles.input}>
-                <Text style={styles.inputPlaceholder}>
-                  {usageHoursLast30Days === null ? 'Not available' : `${usageHoursLast30Days} hours`}
-                </Text>
-              </View>
-              {!usageAccessGranted ? (
-                <Pressable onPress={() => void openUsageAccessSettings()}>
-                  <Text style={styles.fieldHint}>Enable Android usage access</Text>
-                </Pressable>
-              ) : (
-                <Text style={styles.fieldHint}>Foreground app time; not lifetime screen-on time</Text>
-              )}
-            </View>
             <View style={styles.fieldColumn}>
               <Text style={styles.fieldLabel}>Battery cycles</Text>
               <View style={styles.input}>
