@@ -82,6 +82,16 @@ type Report = {
   marketplaceAverage?: number;
   expectedSellingRange7Days?: { low: number; high: number };
   expectedSellingRange30Days?: { low: number; high: number };
+  deviceQualityScore?: number;
+  qualityComponents?: {
+    battery: number;
+    cosmetics: number;
+    hardwareTests: number;
+    age: number;
+    marketDemand: number;
+    softwareSupport: number;
+    accessories: number;
+  };
   manufacturer?: string;
   cpuArchitecture?: string;
   detectedStorage?: number;
@@ -198,6 +208,9 @@ function ReportBreakdown({ report }: { report: Report }) {
       </Text>
       <Text style={{ color: '#0F172A', fontSize: 21, fontWeight: '900', marginTop: 22 }}>
         {report.brand} {report.model}
+      </Text>
+      <Text style={{ color: '#475569', fontSize: 12, marginTop: 6 }}>
+        Device quality score: {report.deviceQualityScore ?? report.score}/100
       </Text>
       <View style={{ backgroundColor: '#EFF6FF', borderRadius: 14, padding: 16, marginTop: 18 }}>
         <Text style={{ color: '#475569', fontSize: 12, fontWeight: '800' }}>

@@ -47,6 +47,8 @@ export const mobileValuationInputSchema = z.object({
   accessoriesAvailable: z.array(z.string().trim().max(80)).max(20).optional(),
   originalBillAvailable: z.boolean().optional(),
   boxAvailable: z.boolean().optional(),
+  functionalTestScore: z.coerce.number().int().min(0).max(100).optional(),
+  warrantyMonthsRemaining: z.coerce.number().int().min(0).max(120).optional(),
   manufacturer: z.string().trim().max(80).optional().default(''),
   cpuArchitecture: z.string().trim().max(160).optional().default(''),
   detectedStorage: z.coerce.number().int().min(1).max(4096).optional(),
@@ -275,6 +277,34 @@ function usageWearMultiplier(input: MobileValuationInput): number {
           ? 0.93
           : 0.88;
   return usage * cycles;
+}
+
+function calculateDeviceQuality(input: MobileValuationInput, baseline: ReturnType<typeof calculateMobileValuationBaseline>) {
+  const hardwareTests = input.functionalTestScore ?? 70;
+  const accessories = input.accessoriesAvailable?.length
+    ? Math.min(100, 55 + input.accessoriesAvailable.length * 10 + (input.originalBillAvailable ? 10 : 0) + (input.boxAvailable ? 10 : 0))
+    : input.originalBillAvailable || input.boxAvailable ? 70 : 50;
+  const age = Math.max(10, 100 - input.ageMonths * 0.7);
+  const demand = Math.min(100, Math.max(1, baseline.demandFactor * 85));
+  const qualityScore = Math.round(
+    baseline.batteryScore * 0.2 +
+      baseline.conditionScore * 0.2 +
+      hardwareTests * 0.2 +
+      age * 0.15 +
+      demand * 0.1 +
+      baseline.softwareSupportScore * 0.1 +
+      accessories * 0.05
+  );
+  return {
+    qualityScore,
+    battery: baseline.batteryScore,
+    cosmetics: baseline.conditionScore,
+    hardwareTests,
+    age: Math.round(age),
+    marketDemand: Math.round(demand),
+    softwareSupport: baseline.softwareSupportScore,
+    accessories: Math.round(accessories),
+  };
 }
 
 function median(values: number[]): number | null {
@@ -757,6 +787,7 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     };
   }
   let adjustedCentre = baseline.centre;
+  const quality = calculateDeviceQuality(input, baseline);
   let pricingBasis: 'current_market' | 'estimated_market' = 'estimated_market';
   if (ai.marketMedian) {
     // A current-market benchmark already reflects age, hardware generation,
@@ -764,10 +795,12 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     pricingBasis = 'current_market';
     const liquidityFactor = 0.95;
     const batteryReserve = input.batteryHealthType === 'unavailable' ? 500 : 0;
-      adjustedCentre = Math.max(
+    adjustedCentre = Math.max(
       0,
-      ai.marketMedian * baseline.conditionMultiplier * usageWearMultiplier(input) * liquidityFactor - batteryReserve
+      ai.marketMedian * (quality.qualityScore / 100) * usageWearMultiplier(input) * liquidityFactor - batteryReserve
     );
+  } else {
+    adjustedCentre = Math.max(0, adjustedCentre * (quality.qualityScore / 100));
   }
   // AI is evidence collection only. The deterministic pricing engine owns the
   // final calculation; never apply a free-form AI adjustment directly to price.
@@ -834,6 +867,8 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     accessoriesAvailable: input.accessoriesAvailable,
     originalBillAvailable: input.originalBillAvailable,
     boxAvailable: input.boxAvailable,
+    functionalTestScore: input.functionalTestScore,
+    warrantyMonthsRemaining: input.warrantyMonthsRemaining,
     manufacturer: input.manufacturer,
     cpuArchitecture: input.cpuArchitecture,
     detectedStorage: input.detectedStorage,
@@ -842,6 +877,8 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     usageHoursLast30Days: input.usageHoursLast30Days,
     batteryCycleCount: input.batteryCycleCount,
     score: baseline.score,
+    deviceQualityScore: quality.qualityScore,
+    qualityComponents: quality,
     confidence,
     marketValueScore: baseline.marketValueScore,
     usabilityScore: baseline.usabilityScore,
