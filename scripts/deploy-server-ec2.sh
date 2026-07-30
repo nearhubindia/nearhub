@@ -177,9 +177,9 @@ fi
 if [ -f "$APP_DIR/$COMPOSE_FILE_NAME" ]; then
   sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" down || true
 fi
-rm -rf "$APP_DIR"
-mkdir -p "$APP_DIR"
-cp -a "\$DEPLOY_DIR/." "$APP_DIR/"
+sudo rm -rf "$APP_DIR"
+sudo mkdir -p "$APP_DIR"
+sudo cp -a "\$DEPLOY_DIR/." "$APP_DIR/"
 rm -rf "\$DEPLOY_DIR"
 
 sudo env GIT_COMMIT="\$GIT_COMMIT" BUILD_TIME="\$BUILD_TIME" IMAGE_TAG="\$IMAGE_TAG" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" build server
