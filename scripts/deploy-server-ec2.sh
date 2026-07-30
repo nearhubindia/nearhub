@@ -170,10 +170,10 @@ if [ ! -f "\$RELEASE_DIR/$DISK_CLEANUP_SERVICE_NAME" ] || [ ! -f "\$RELEASE_DIR/
   exit 1
 fi
 
-sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" build server
-sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d redis
-sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" run --rm --no-deps server npm run db:migrate
-sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d --force-recreate --remove-orphans server
+sudo env GIT_COMMIT="$GIT_COMMIT" BUILD_TIME="$BUILD_TIME" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" build server
+sudo env GIT_COMMIT="$GIT_COMMIT" BUILD_TIME="$BUILD_TIME" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d redis
+sudo env GIT_COMMIT="$GIT_COMMIT" BUILD_TIME="$BUILD_TIME" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" run --rm --no-deps server npm run db:migrate
+sudo env GIT_COMMIT="$GIT_COMMIT" BUILD_TIME="$BUILD_TIME" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d --force-recreate --remove-orphans server
 
 rm -rf "$APP_DIR/current"
 ln -sfn "\$RELEASE_DIR" "$APP_DIR/current"
