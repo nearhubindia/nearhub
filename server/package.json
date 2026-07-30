@@ -62,7 +62,7 @@
     "expo-server-sdk": "^6.0.0",
     "express": "^5.0.1",
     "express-rate-limit": "^8.2.1",
-    "firebase-admin": "^13.10.0",
+    "firebase-admin": "^14.2.0",
     "http-proxy-middleware": "^3.0.5",
     "jsonwebtoken": "^9.0.3",
     "p-limit": "^7.3.0",
@@ -98,7 +98,11 @@
   },
   "overrides": {
     "esbuild": "^0.28.0",
-    "test-exclude": "^7.0.1"
+    "test-exclude": "^7.0.1",
+    "gaxios": "^7.3.0",
+    "uuid": "^11.1.1",
+    "teeny-request": "^10.1.4",
+    "rimraf": "^6.0.1"
   },
   "private": true
 }
