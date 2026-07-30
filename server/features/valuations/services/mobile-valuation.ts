@@ -20,6 +20,7 @@ export const mobileValuationInputSchema = z.object({
   brand: z.string().trim().min(1).max(80),
   model: z.string().trim().min(1).max(120),
   buildModel: z.string().trim().max(120).optional(),
+  purchaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   ram: z.coerce.number().int().min(1).max(32),
   storage: z.coerce.number().int().min(8).max(2048),
   processor: z.enum(['entry', 'mid', 'upperMid', 'flagship']),
@@ -38,6 +39,8 @@ export const mobileValuationInputSchema = z.object({
   manufacturer: z.string().trim().max(80).optional().default(''),
   cpuArchitecture: z.string().trim().max(160).optional().default(''),
   detectedStorage: z.coerce.number().int().min(1).max(4096).optional(),
+  usageHoursLast30Days: z.coerce.number().min(0).max(744).optional(),
+  batteryCycleCount: z.coerce.number().int().min(0).max(5000).optional(),
 });
 
 export type MobileValuationInput = z.infer<typeof mobileValuationInputSchema>;
@@ -103,6 +106,26 @@ export function validateAndNormalizeMobileAge(
   const model = normalizeDeviceText(input.model);
   const fiveYearsAgo = new Date(now);
   fiveYearsAgo.setUTCFullYear(fiveYearsAgo.getUTCFullYear() - 5);
+  const diagnosticFlags = [
+    input.usageHoursLast30Days !== undefined
+      ? `Android reported ${Math.round(input.usageHoursLast30Days * 10) / 10} active usage hours in the last 30 days.`
+      : null,
+    input.batteryCycleCount !== undefined
+      ? `Android reported ${input.batteryCycleCount} battery cycles.`
+      : null,
+  ].filter((flag): flag is string => Boolean(flag));
+  if (input.purchaseDate) {
+    const purchase = new Date(`${input.purchaseDate}T00:00:00Z`);
+    if (!Number.isNaN(purchase.getTime()) && purchase <= now) {
+      const purchaseAge = monthsSince(input.purchaseDate, now);
+      return {
+        input: { ...input, ageMonths: purchaseAge, ageSource: 'user_reported' },
+        ageBasis: 'user_reported',
+        verifiedReleaseDate: null,
+        flags: ['Purchase date was used as the primary device-age evidence.', ...diagnosticFlags],
+      };
+    }
+  }
   const knownModel = MODEL_RELEASES.find(
     (candidate) =>
       new Date(`${candidate.releaseDate}T00:00:00Z`) >= fiveYearsAgo &&
@@ -120,7 +143,7 @@ export function validateAndNormalizeMobileAge(
       input: { ...input, ageMonths: modelAge, ageSource: 'model_release' },
       ageBasis: 'model_release',
       verifiedReleaseDate: knownModel.releaseDate,
-      flags,
+      flags: [...flags, ...diagnosticFlags],
     };
   }
   if (input.ageSource === 'unknown') {
@@ -129,14 +152,17 @@ export function validateAndNormalizeMobileAge(
       input: { ...input, ageMonths: 24 },
       ageBasis: 'unknown',
       verifiedReleaseDate: null,
-      flags: ['Device age is unknown; a neutral age assumption was used for valuation only.'],
+      flags: [
+        'Device age is unknown; a neutral age assumption was used for valuation only.',
+        ...diagnosticFlags,
+      ],
     };
   }
   return {
     input: { ...input, ageSource: 'user_reported' },
     ageBasis: 'user_reported',
     verifiedReleaseDate: null,
-    flags: [],
+    flags: diagnosticFlags,
   };
 }
 
@@ -756,6 +782,9 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     manufacturer: input.manufacturer,
     cpuArchitecture: input.cpuArchitecture,
     detectedStorage: input.detectedStorage,
+    purchaseDate: input.purchaseDate,
+    usageHoursLast30Days: input.usageHoursLast30Days,
+    batteryCycleCount: input.batteryCycleCount,
     score: baseline.score,
     confidence,
     marketValueScore: baseline.marketValueScore,

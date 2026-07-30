@@ -71,6 +71,24 @@ describe('mobile valuation engine', () => {
     expect(result.flags[0]).toContain('132 months');
   });
 
+  it('uses a supplied purchase date before the model release date', () => {
+    const result = validateAndNormalizeMobileAge(
+      {
+        ...validInput,
+        brand: 'OnePlus',
+        model: 'Nord CE 3 Lite 5G',
+        purchaseDate: '2025-01-01',
+        ageMonths: 0,
+        ageSource: 'model_release',
+      },
+      new Date('2026-07-27T00:00:00Z')
+    );
+
+    expect(result.input.ageMonths).toBe(18);
+    expect(result.ageBasis).toBe('user_reported');
+    expect(result.verifiedReleaseDate).toBeNull();
+  });
+
   it('does not present an unknown age as a verified device age', () => {
     const result = validateAndNormalizeMobileAge({
       ...validInput,

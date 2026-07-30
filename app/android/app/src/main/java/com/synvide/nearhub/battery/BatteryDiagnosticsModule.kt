@@ -4,6 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import android.os.Build
+import android.provider.Settings
+import android.net.Uri
+import android.app.AppOpsManager
+import android.app.usage.UsageStatsManager
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -37,9 +42,44 @@ class BatteryDiagnosticsModule(reactContext: ReactApplicationContext) : ReactCon
       result.putInt("voltageMv", intent.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1))
       val capacity = intent.getIntExtra("capacity", -1)
       result.putInt("healthPercent", if (capacity in 1..100) capacity else -1)
+      result.putInt(
+        "batteryCycleCount",
+        if (Build.VERSION.SDK_INT >= 34) intent.getIntExtra("android.os.extra.CYCLE_COUNT", -1) else -1
+      )
+      val usageManager = reactApplicationContext.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+      val appOps = reactApplicationContext.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+      val usageAllowed = appOps.checkOpNoThrow(
+        AppOpsManager.OPSTR_GET_USAGE_STATS,
+        android.os.Process.myUid(),
+        reactApplicationContext.packageName
+      ) == AppOpsManager.MODE_ALLOWED
+      result.putBoolean("usageAccessGranted", usageAllowed)
+      if (usageAllowed) {
+        val end = System.currentTimeMillis()
+        val start = end - 30L * 24L * 60L * 60L * 1000L
+        val usageHours = usageManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end)
+          .sumOf { it.totalTimeInForeground.toDouble() } / (60L * 60L * 1000L)
+        result.putDouble("usageHoursLast30Days", usageHours.coerceIn(0.0, 744.0))
+      } else {
+        result.putDouble("usageHoursLast30Days", -1.0)
+      }
       promise.resolve(result)
     } catch (error: Exception) {
       promise.reject("E_BATTERY_READ_FAILED", "Failed to read battery diagnostics", error)
+    }
+  }
+
+  @ReactMethod
+  fun openUsageAccessSettings(promise: Promise) {
+    try {
+      val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+        data = Uri.parse("package:${reactApplicationContext.packageName}")
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+      reactApplicationContext.startActivity(intent)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      promise.reject("E_USAGE_SETTINGS_FAILED", "Unable to open usage access settings", error)
     }
   }
 }

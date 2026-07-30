@@ -26,7 +26,7 @@ import {
 } from '@/lib/mobile-rate-card';
 import { findMobileDeviceMaster } from '@/lib/mobile-device-master';
 import { getTotalStorageGb } from '@/lib/device-storage';
-import { readBatteryDiagnostics } from '@/lib/battery-diagnostics';
+import { openUsageAccessSettings, readBatteryDiagnostics } from '@/lib/battery-diagnostics';
 import {
   compareDisplayCapabilities,
   readDisplayCapabilities,
@@ -65,6 +65,9 @@ type Report = {
   condition: string;
   battery: number;
   batteryHealthType?: 'measured' | 'estimated' | 'unavailable';
+  purchaseDate?: string;
+  usageHoursLast30Days?: number;
+  batteryCycleCount?: number;
   androidVersion?: string;
   manufacturer?: string;
   cpuArchitecture?: string;
@@ -251,6 +254,9 @@ export default function AiValuator() {
   const [age, setAge] = useState('');
   const [battery, setBattery] = useState('');
   const [batteryDiagnostic, setBatteryDiagnostic] = useState<string>('Not available');
+  const [usageHoursLast30Days, setUsageHoursLast30Days] = useState<number | null>(null);
+  const [batteryCycleCount, setBatteryCycleCount] = useState<number | null>(null);
+  const [usageAccessGranted, setUsageAccessGranted] = useState(false);
   const [androidVersion, setAndroidVersion] = useState('');
   const [manufacturer, setManufacturer] = useState('');
   const [detected, setDetected] = useState(false);
@@ -322,6 +328,11 @@ export default function AiValuator() {
             : `Android reports ${batteryInfo.health.toLowerCase().replace('_', ' ')}`
         );
       }
+      setBatteryCycleCount(batteryInfo.batteryCycleCount > 0 ? batteryInfo.batteryCycleCount : null);
+      setUsageAccessGranted(batteryInfo.usageAccessGranted);
+      setUsageHoursLast30Days(
+        batteryInfo.usageHoursLast30Days >= 0 ? Math.round(batteryInfo.usageHoursLast30Days * 10) / 10 : null
+      );
     }
     const measuredDisplay = await readDisplayCapabilities();
     const deviceMaster = findMobileDeviceMaster(detectedBrand, detectedModel);
@@ -421,6 +432,11 @@ export default function AiValuator() {
     const deviceMaster = findMobileDeviceMaster(brand, model);
     const releaseDate = deviceMaster ? new Date(deviceMaster.releaseDate) : null;
     const reportedPurchaseAge = age.trim() ? purchaseAgeInMonths(age) : null;
+    const purchaseMatch = age.match(/^(\d{2})\/(\d{2}|\d{4})$/);
+    const purchaseDate =
+      purchaseMatch && reportedPurchaseAge !== null
+        ? `${purchaseMatch[2].length === 2 ? `20${purchaseMatch[2]}` : purchaseMatch[2]}-${purchaseMatch[1]}-01`
+        : undefined;
     if (!deviceMaster && age.trim() && reportedPurchaseAge === null) {
       Alert.alert(
         'Invalid purchase date',
@@ -429,15 +445,16 @@ export default function AiValuator() {
       return;
     }
     const months =
-      releaseDate && !Number.isNaN(releaseDate.getTime())
+      reportedPurchaseAge ??
+      (releaseDate && !Number.isNaN(releaseDate.getTime())
         ? Math.max(
             0,
             (new Date().getFullYear() - releaseDate.getFullYear()) * 12 +
               new Date().getMonth() -
               releaseDate.getMonth()
           )
-        : (reportedPurchaseAge ?? 0);
-    const ageSource = deviceMaster ? 'model_release' : age.trim() ? 'user_reported' : 'unknown';
+        : 0);
+    const ageSource = reportedPurchaseAge !== null ? 'user_reported' : deviceMaster ? 'model_release' : 'unknown';
     setIsEvaluating(true);
     setEvaluationProgress(5);
     const progressTimer = setInterval(() => {
@@ -455,6 +472,7 @@ export default function AiValuator() {
           brand: brand.trim(),
           model: model.trim(),
           buildModel: buildModel.trim(),
+          purchaseDate,
           ram: r,
           storage: s,
           processor,
@@ -468,6 +486,8 @@ export default function AiValuator() {
           manufacturer,
           cpuArchitecture,
           detectedStorage: detectedStorage || undefined,
+          usageHoursLast30Days: usageHoursLast30Days ?? undefined,
+          batteryCycleCount: batteryCycleCount ?? undefined,
         }),
       });
       const body = await response.json();
@@ -702,6 +722,32 @@ export default function AiValuator() {
             </Text>
           </View>
         </View>
+        {detected ? (
+          <View style={styles.row}>
+            <View style={styles.fieldColumn}>
+              <Text style={styles.fieldLabel}>Usage (last 30 days)</Text>
+              <View style={styles.input}>
+                <Text style={styles.inputPlaceholder}>
+                  {usageHoursLast30Days === null ? 'Not available' : `${usageHoursLast30Days} hours`}
+                </Text>
+              </View>
+              {!usageAccessGranted ? (
+                <Pressable onPress={() => void openUsageAccessSettings()}>
+                  <Text style={styles.fieldHint}>Enable Android usage access</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            <View style={styles.fieldColumn}>
+              <Text style={styles.fieldLabel}>Battery cycles</Text>
+              <View style={styles.input}>
+                <Text style={styles.inputPlaceholder}>
+                  {batteryCycleCount === null ? 'Not available' : String(batteryCycleCount)}
+                </Text>
+              </View>
+              <Text style={styles.fieldHint}>Reported by Android when supported</Text>
+            </View>
+          </View>
+        ) : null}
         <View style={styles.tipCard}>
           <Feather name="star" size={20} color="#3155D9" />
           <View style={styles.tipCopy}>
