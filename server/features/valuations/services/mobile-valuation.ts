@@ -190,6 +190,22 @@ function median(values: number[]): number | null {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
+function extractGroundedSources(response: unknown): MarketSource[] {
+  const chunks = (response as any)?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+  return chunks
+    .map((chunk: any) => chunk?.web)
+    .filter((web: any) => web?.uri && web?.title)
+    .map((web: any) => ({
+      title: String(web.title).slice(0, 120),
+      uri: String(web.uri).slice(0, 1000),
+    }))
+    .filter(
+      (source: MarketSource, index: number, all: MarketSource[]) =>
+        all.findIndex((item) => item.uri === source.uri) === index
+    )
+    .slice(0, 6);
+}
+
 async function getComparables(input: MobileValuationInput): Promise<ComparableSummary> {
   const terms = [input.brand, input.model].map((value) => `%${value.replace(/[%_]/g, '')}%`);
   try {
@@ -449,31 +465,67 @@ export async function getAiReview(
         parsed.releaseDate ||= identity.releaseDate;
       }
     }
-    const chunks = (response as any).candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const sources = chunks
-      .map((chunk: any) => chunk?.web)
-      .filter((web: any) => web?.uri && web?.title)
-      .map((web: any) => ({
-        title: String(web.title).slice(0, 120),
-        uri: String(web.uri).slice(0, 1000),
-      }))
-      .filter(
-        (source: MarketSource, index: number, all: MarketSource[]) =>
-          all.findIndex((item) => item.uri === source.uri) === index
-      )
-      .slice(0, 6);
+    let sources = extractGroundedSources(response);
     const price = (value: unknown) => {
       const parsedPrice = Number(value);
       return Number.isFinite(parsedPrice) && parsedPrice >= 100 && parsedPrice <= 500000
         ? Math.round(parsedPrice)
         : null;
     };
+    let marketMedian = price(parsed.marketMedianInr);
+    let marketLow = price(parsed.marketLowInr);
+    let marketHigh = price(parsed.marketHighInr);
+
+    // Gemini sometimes finds used listings but only describes them in its
+    // rationale. Make a focused second pass that requires structured used
+    // observation before rendering or storing market prices.
+    if (!marketMedian || sources.length < 1) {
+      try {
+        const evidenceResponse = await withTimeout(
+          callGeminiWithRetry(
+            'Gemini used-market evidence extraction',
+            () =>
+              ai.models.generateContent({
+                model: AI_MODEL,
+                contents: [{
+                  role: 'user',
+                  parts: [{
+                text: `Find a current Indian used or refurbished asking price for this exact phone and configuration from one reputable source. Do not substitute another RAM/storage variant. Return ONLY valid JSON: {"observations":[{"priceInr":0,"sourceHint":"short source name"}],"marketMedianInr":0,"marketLowInr":0,"marketHighInr":0}. Include only a real asking price from the search results. Never put prices only in prose. Device: ${JSON.stringify({ brand: parsed.resolvedBrand || input.brand, model: parsed.resolvedModel || input.model, buildModel: input.buildModel, ram: input.ram, storage: input.storage })}`,
+                  }],
+                }],
+                config: { tools: [{ googleSearch: {} }] },
+              }),
+            { attempts: 2 }
+          ),
+          45000,
+          'Gemini used-market evidence extraction'
+        );
+        const evidenceMatch = extractTextFromGeminiResponse(evidenceResponse).match(/\{[\s\S]*\}/);
+        const evidence = evidenceMatch ? JSON.parse(evidenceMatch[0]) : null;
+        const evidenceSources = extractGroundedSources(evidenceResponse);
+        if (evidenceSources.length > sources.length) sources = evidenceSources;
+        const observations = Array.isArray(evidence?.observations)
+          ? evidence.observations.map((item: any) => price(item?.priceInr)).filter(Boolean)
+          : [];
+        if (sources.length >= 1 && observations.length >= 1) {
+          marketMedian = price(evidence.marketMedianInr) || median(observations);
+          marketLow = price(evidence.marketLowInr) || Math.min(...observations);
+          marketHigh = price(evidence.marketHighInr) || Math.max(...observations);
+        }
+      } catch (error) {
+        console.warn('[MobileValuation] Used-market evidence extraction failed:', error);
+      }
+    }
     const requestedQuality = ['low', 'medium', 'high'].includes(parsed.evidenceQuality)
       ? parsed.evidenceQuality
       : 'low';
     const evidenceQuality =
-      sources.length < 2 ? 'low' : (requestedQuality as 'low' | 'medium' | 'high');
-    const marketMedian = sources.length >= 2 ? price(parsed.marketMedianInr) : null;
+      sources.length < 1 ? 'low' : (requestedQuality as 'low' | 'medium' | 'high');
+    if (sources.length < 1) {
+      marketMedian = null;
+      marketLow = null;
+      marketHigh = null;
+    }
     return {
       used: true,
       adjustmentPercent: Math.max(-5, Math.min(5, Number(parsed.adjustmentPercent) || 0)),
@@ -485,8 +537,8 @@ export async function getAiReview(
       resolvedModel: parsed.resolvedModel ? String(parsed.resolvedModel).slice(0, 120) : null,
       releaseDate: /^\d{4}-\d{2}-\d{2}$/.test(String(parsed.releaseDate || '')) ? parsed.releaseDate : null,
       marketMedian,
-      marketLow: marketMedian ? price(parsed.marketLowInr) : null,
-      marketHigh: marketMedian ? price(parsed.marketHighInr) : null,
+      marketLow: marketMedian ? marketLow : null,
+      marketHigh: marketMedian ? marketHigh : null,
       currentNewPrice: price(parsed.currentNewPriceInr),
       evidenceQuality,
       sources,
