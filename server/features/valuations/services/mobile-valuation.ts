@@ -183,6 +183,41 @@ const unavailableAiReview = (flag: string, rationale: string): AiReview => ({
   sources: [],
 });
 
+function normalizeUsedMarketEvidence(review: AiReview, input: MobileValuationInput): AiReview {
+  if (!review.currentNewPrice || !review.marketMedian) return review;
+
+  const ageMonths = review.releaseDate
+    ? monthsSince(review.releaseDate, new Date())
+    : input.ageMonths;
+  const maximumRatio =
+    ageMonths < 12 ? 0.8 : ageMonths < 24 ? 0.7 : ageMonths < 36 ? 0.6 : ageMonths < 48 ? 0.5 : 0.4;
+  const ceiling = Math.round(review.currentNewPrice * maximumRatio);
+  const marketMedian = Math.min(review.marketMedian, ceiling);
+  const marketLow = review.marketLow === null ? null : Math.min(review.marketLow, marketMedian);
+  const marketHigh = review.marketHigh === null
+    ? null
+    : Math.max(marketMedian, Math.min(review.marketHigh, ceiling));
+
+  if (
+    marketMedian === review.marketMedian &&
+    marketLow === review.marketLow &&
+    marketHigh === review.marketHigh
+  ) {
+    return review;
+  }
+
+  return {
+    ...review,
+    marketMedian,
+    marketLow,
+    marketHigh,
+    flags: [
+      ...review.flags,
+      `Used-market values capped at ${maximumRatio * 100}% of current-new price for device age (${ageMonths} months).`,
+    ].slice(0, 5),
+  };
+}
+
 function median(values: number[]): number | null {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -632,7 +667,10 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     minimum: null,
     maximum: null,
   };
-  const ai = (await getFreshAiKnowledge(input)) || (await getAiReview(input, baseline, comparables));
+  const ai = normalizeUsedMarketEvidence(
+    (await getFreshAiKnowledge(input)) || (await getAiReview(input, baseline, comparables)),
+    input
+  );
   if (ai.model !== 'stored-gemini-result') await storeAiKnowledge(input, ai);
   if (ai.releaseDate) {
     const resolvedAge = monthsSince(ai.releaseDate, new Date());
