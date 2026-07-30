@@ -122,7 +122,7 @@ export function validateAndNormalizeMobileAge(
         input: { ...input, ageMonths: purchaseAge, ageSource: 'user_reported' },
         ageBasis: 'user_reported',
         verifiedReleaseDate: null,
-        flags: ['Purchase date was used as the primary device-age evidence.', ...diagnosticFlags],
+        flags: ['Purchase date was captured as ownership evidence; model age drives depreciation.', ...diagnosticFlags],
       };
     }
   }
@@ -212,13 +212,11 @@ const unavailableAiReview = (flag: string, rationale: string): AiReview => ({
 function normalizeUsedMarketEvidence(review: AiReview, input: MobileValuationInput): AiReview {
   if (!review.currentNewPrice || !review.marketMedian) return review;
 
-  // Purchase/activation evidence is the primary age signal. Gemini's release
-  // date is only a fallback when the user did not provide device-age evidence.
-  const ageMonths = input.ageSource === 'user_reported' || input.purchaseDate
-    ? input.ageMonths
-    : review.releaseDate
-      ? monthsSince(review.releaseDate, new Date())
-      : input.ageMonths;
+  // Market depreciation follows the model's release age. Purchase date is
+  // ownership evidence and must not make an older model appear newer.
+  const ageMonths = review.releaseDate
+    ? monthsSince(review.releaseDate, new Date())
+    : input.ageMonths;
   const maximumRatio =
     ageMonths < 12 ? 0.8 : ageMonths < 24 ? 0.7 : ageMonths < 36 ? 0.6 : ageMonths < 48 ? 0.5 : 0.4;
   const ceiling = Math.round(review.currentNewPrice * maximumRatio);
@@ -702,7 +700,7 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     input
   );
   if (ai.model !== 'stored-gemini-result') await storeAiKnowledge(input, ai);
-  if (ai.releaseDate && !input.purchaseDate) {
+  if (ai.releaseDate) {
     const resolvedAge = monthsSince(ai.releaseDate, new Date());
     input = {
       ...input,
@@ -715,7 +713,12 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
       input,
       ageBasis: 'model_release',
       verifiedReleaseDate: ai.releaseDate,
-      flags: ageValidation.flags,
+      flags: [
+        ...ageValidation.flags,
+        ...(input.purchaseDate
+          ? ['Purchase date is retained as ownership evidence; model release age drives depreciation.']
+          : []),
+      ],
     };
     baseline = calculateMobileValuationBaseline(input);
   }
@@ -787,6 +790,7 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     cpuArchitecture: input.cpuArchitecture,
     detectedStorage: input.detectedStorage,
     purchaseDate: input.purchaseDate,
+    ownershipAgeMonths: input.purchaseDate ? monthsSince(input.purchaseDate, now) : undefined,
     usageHoursLast30Days: input.usageHoursLast30Days,
     batteryCycleCount: input.batteryCycleCount,
     score: baseline.score,

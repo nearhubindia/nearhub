@@ -66,6 +66,7 @@ type Report = {
   battery: number;
   batteryHealthType?: 'measured' | 'estimated' | 'unavailable';
   purchaseDate?: string;
+  ownershipAgeMonths?: number;
   usageHoursLast30Days?: number;
   batteryCycleCount?: number;
   androidVersion?: string;
@@ -387,7 +388,7 @@ export default function AiValuator() {
         <tr><th>Manufacturer</th><td>${escapeHtml(report.manufacturer || report.brand)}</td><th>Model</th><td>${escapeHtml(report.model)}</td></tr>
         <tr><th>RAM</th><td>${report.ram} GB</td><th>Total Storage</th><td>${report.storage} GB</td></tr>
         <tr><th>Processor tier</th><td>${escapeHtml(MOBILE_RATE_CARD.processor[report.processor].label)}</td><th>CPU architecture</th><td>${escapeHtml(report.cpuArchitecture || 'Unavailable')}</td></tr>
-        <tr><th>Operating system</th><td>${escapeHtml(report.androidVersion || 'Unavailable')}</td><th>${report.ageBasis === 'model_release' ? 'Model age' : report.ageBasis === 'user_reported' ? 'Reported device age' : 'Device age'}</th><td>${report.ageBasis === 'unknown' ? 'Unknown / not verified' : escapeHtml(ageLabel)}</td></tr>
+        <tr><th>Operating system</th><td>${escapeHtml(report.androidVersion || 'Unavailable')}</td><th>${report.ageBasis === 'model_release' ? 'Model age' : report.ageBasis === 'user_reported' ? 'Reported device age' : 'Device age'}</th><td>${report.ageBasis === 'unknown' ? 'Unknown / not verified' : escapeHtml(ageLabel)}${report.ownershipAgeMonths !== undefined ? ` (${report.ownershipAgeMonths} months owned)` : ''}</td></tr>
         <tr><th>Verified Release Date</th><td>${report.verifiedReleaseDate ? dateLabel(report.verifiedReleaseDate) : 'Not verified'}</td><th>Release verification</th><td>${report.verifiedReleaseDate ? 'Matched against the verified device model catalogue' : 'No verified model release record available'}</td></tr>
         <tr><th>Assessed condition</th><td>${escapeHtml(conditionLabel)}</td><th>Battery health</th><td>${report.batteryHealthType === 'unavailable' ? 'Not Verified' : `${report.battery}% (${report.batteryHealthType === 'measured' ? 'Measured' : 'Estimated'})`}</td></tr>
         <tr><th>Display specification check</th><td colspan="3"><strong>${escapeHtml(report.displayAssessment?.label || 'Not tested')}</strong>${report.displayAssessment?.details.length ? `<br><span class="muted">${escapeHtml(report.displayAssessment.details.join(' • '))}</span>` : ''}<br><span class="muted">OEM screen authenticity: not electronically verified.</span></td></tr>
