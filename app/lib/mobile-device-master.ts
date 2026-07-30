@@ -106,7 +106,7 @@ export const MOBILE_DEVICE_MASTER: MobileDeviceMaster[] = [
   ].map(([model, releaseDate]) => ({
     brand: 'OnePlus',
     model,
-    aliases: [model],
+    aliases: [model, ...(model === 'OnePlus 13R' ? ['CPH2645', 'CPH2647', 'CPH2691'] : [])],
     announcedDate: releaseDate,
     releaseDate,
     discontinued: false,

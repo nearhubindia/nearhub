@@ -63,6 +63,7 @@ const MODEL_RELEASES = [
     ['oneplus 11r', '2023-02-07'], ['oneplus 12', '2024-01-30'],
     ['oneplus 12r', '2024-02-06'], ['oneplus 13', '2025-01-10'],
     ['oneplus 13r', '2025-01-10'], ['oneplus nord', '2020-08-04'],
+    ['cph2645', '2025-01-10'], ['cph2647', '2025-01-10'], ['cph2691', '2025-01-10'],
     ['oneplus nord 2', '2021-07-28'], ['oneplus nord 2t', '2022-07-05'],
     ['oneplus nord ce', '2021-06-16'], ['oneplus nord ce 2', '2022-04-22'],
     ['oneplus nord ce 3', '2023-08-04'], ['oneplus nord ce 3 lite', '2023-04-04'],
@@ -417,6 +418,36 @@ export async function getAiReview(
     const match = extractTextFromGeminiResponse(response).match(/\{[\s\S]*\}/);
     const parsed = match ? JSON.parse(match[0]) : null;
     if (!parsed) throw new Error('AI response did not contain JSON');
+    if (!parsed.resolvedModel || !/^\d{4}-\d{2}-\d{2}$/.test(String(parsed.releaseDate || ''))) {
+      // Gemini may return market evidence while omitting identity fields. Ask
+      // once more with a deliberately narrow schema before using unknown age.
+      const identityResponse = await withTimeout(
+        callGeminiWithRetry(
+          'Gemini device identity resolution',
+          () =>
+            ai.models.generateContent({
+              model: AI_MODEL,
+              contents: [{
+                role: 'user',
+                parts: [{
+                  text: `Identify this exact phone from its manufacturer, readable model and Android build model. Use reliable web sources if needed. Return ONLY valid JSON: {"resolvedBrand":"string|null","resolvedModel":"string|null","releaseDate":"YYYY-MM-DD|null"}. Never guess a release date. Device: ${JSON.stringify({ brand: input.brand, model: input.model, buildModel: input.buildModel, manufacturer: input.manufacturer })}`,
+                }],
+              }],
+              config: { tools: [{ googleSearch: {} }] },
+            }),
+          { attempts: 2 }
+        ),
+        30000,
+        'Gemini device identity resolution'
+      );
+      const identityMatch = extractTextFromGeminiResponse(identityResponse).match(/\{[\s\S]*\}/);
+      const identity = identityMatch ? JSON.parse(identityMatch[0]) : null;
+      if (identity) {
+        parsed.resolvedBrand ||= identity.resolvedBrand;
+        parsed.resolvedModel ||= identity.resolvedModel;
+        parsed.releaseDate ||= identity.releaseDate;
+      }
+    }
     const chunks = (response as any).candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const sources = chunks
       .map((chunk: any) => chunk?.web)
