@@ -64,6 +64,7 @@ const MODEL_RELEASES = [
     ['oneplus 12r', '2024-02-06'], ['oneplus 13', '2025-01-10'],
     ['oneplus 13r', '2025-01-10'], ['oneplus nord', '2020-08-04'],
     ['cph2645', '2025-01-10'], ['cph2647', '2025-01-10'], ['cph2691', '2025-01-10'],
+    ['cph2465', '2023-04-04'], ['cph2467', '2023-04-04'],
     ['oneplus nord 2', '2021-07-28'], ['oneplus nord 2t', '2022-07-05'],
     ['oneplus nord ce', '2021-06-16'], ['oneplus nord ce 2', '2022-04-22'],
     ['oneplus nord ce 3', '2023-08-04'], ['oneplus nord ce 3 lite', '2023-04-04'],
