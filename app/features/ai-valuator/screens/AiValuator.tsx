@@ -41,12 +41,14 @@ const PROGRESS_RING_RADIUS = 54;
 const PROGRESS_RING_STROKE = 10;
 const PROGRESS_RING_CIRCUMFERENCE = 2 * Math.PI * PROGRESS_RING_RADIUS;
 
-// Android reports memory available to the OS, which can be below the RAM
-// capacity printed on the retail box because hardware/system memory is reserved.
+// Android memory values can include small OEM/runtime differences from the
+// advertised tier. Choose the nearest tier instead of rounding upward.
 const normalizeDetectedRamGb = (totalMemoryBytes: number): number => {
   const reportedGb = totalMemoryBytes / 1024 / 1024 / 1024;
   const marketedTiers = [2, 3, 4, 6, 8, 12, 16, 18, 24, 32];
-  return marketedTiers.find((tier) => tier >= reportedGb) || Math.ceil(reportedGb);
+  return marketedTiers.reduce((nearest, tier) =>
+    Math.abs(tier - reportedGb) < Math.abs(nearest - reportedGb) ? tier : nearest
+  );
 };
 
 type Report = {
