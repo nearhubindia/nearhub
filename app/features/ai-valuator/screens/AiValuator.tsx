@@ -73,6 +73,10 @@ type Report = {
   networkType?: string;
   androidApiLevel?: number;
   securityPatch?: string;
+  buildFingerprint?: string;
+  deviceCodeName?: string;
+  productName?: string;
+  hardware?: string;
   chargingStatus?: string;
   nfcAvailable?: boolean;
   activeSimCount?: number;
@@ -282,6 +286,10 @@ export default function AiValuator() {
   const [networkType, setNetworkType] = useState('UNKNOWN');
   const [androidApiLevel, setAndroidApiLevel] = useState<number | null>(null);
   const [securityPatch, setSecurityPatch] = useState('');
+  const [buildFingerprint, setBuildFingerprint] = useState('');
+  const [deviceCodeName, setDeviceCodeName] = useState('');
+  const [productName, setProductName] = useState('');
+  const [hardware, setHardware] = useState('');
   const [chargingStatus, setChargingStatus] = useState('NOT_CHARGING');
   const [nfcAvailable, setNfcAvailable] = useState<boolean | null>(null);
   const [activeSimCount, setActiveSimCount] = useState<number | null>(null);
@@ -361,6 +369,10 @@ export default function AiValuator() {
       setNetworkType(batteryInfo.networkType || 'UNKNOWN');
       setAndroidApiLevel(batteryInfo.androidApiLevel > 0 ? batteryInfo.androidApiLevel : null);
       setSecurityPatch(batteryInfo.securityPatch || '');
+      setBuildFingerprint(batteryInfo.buildFingerprint || '');
+      setDeviceCodeName(batteryInfo.deviceCodeName || '');
+      setProductName(batteryInfo.productName || '');
+      setHardware(batteryInfo.hardware || '');
       setChargingStatus(batteryInfo.chargingStatus || 'NOT_CHARGING');
       setNfcAvailable(batteryInfo.nfcAvailable);
       setActiveSimCount(batteryInfo.activeSimCount >= 0 ? batteryInfo.activeSimCount : null);
@@ -522,6 +534,11 @@ export default function AiValuator() {
           networkType,
           androidApiLevel: androidApiLevel ?? undefined,
           securityPatch: securityPatch || undefined,
+          buildFingerprint: buildFingerprint || undefined,
+          deviceCodeName: deviceCodeName || undefined,
+          productName: productName || undefined,
+          hardware: hardware || undefined,
+          displayAssessment: displayAssessment || undefined,
           chargingStatus,
           nfcAvailable: nfcAvailable ?? undefined,
           activeSimCount: activeSimCount ?? undefined,
