@@ -84,6 +84,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  app.get('/api/version', (_req, res) => {
+    res.json({
+      commit: process.env.GIT_COMMIT || 'unknown',
+      buildTime: process.env.BUILD_TIME || 'unknown',
+      environment: process.env.NODE_ENV || 'unknown',
+    });
+  });
+
   app.get('/api/health/ai', async (req, res) => {
     const deepCheck =
       String(req.query.deep || '')

@@ -15,6 +15,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     restart: unless-stopped
     depends_on:
       redis:

@@ -158,6 +158,9 @@ if [ ! -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" ] || [ ! -f "\$RELEASE_DIR/$DOCKERF
   echo "Production Docker files are missing from the release artifact" >&2
   exit 1
 fi
+
+export GIT_COMMIT="\$(sed -n 's/^commit_sha=//p' "\$RELEASE_DIR/DEPLOYMENT_MANIFEST")"
+export BUILD_TIME="\$(sed -n 's/^built_at_utc=//p' "\$RELEASE_DIR/DEPLOYMENT_MANIFEST")"
 if [ ! -f "\$RELEASE_DIR/$SYSTEMD_UNIT_NAME" ]; then
   echo "Systemd unit is missing from the release artifact" >&2
   exit 1
@@ -170,7 +173,7 @@ fi
 sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" build server
 sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d redis
 sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" run --rm --no-deps server npm run db:migrate
-sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d server
+sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d --force-recreate --remove-orphans server
 
 rm -rf "$APP_DIR/current"
 ln -sfn "\$RELEASE_DIR" "$APP_DIR/current"
@@ -184,6 +187,8 @@ sudo systemctl enable --now $DISK_CLEANUP_TIMER_NAME
 
 sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" ps
 curl -fsS http://127.0.0.1:5000/api/health
+version_response="\$(curl -fsS http://127.0.0.1:5000/api/version)"
+echo "Deployed version: \$version_response"
 
 current_release="\$(readlink -f "$APP_DIR/current")"
 previous_release="\$(ls -1dt "$APP_DIR/releases"/* 2>/dev/null | grep -vx "\$current_release" | head -n 1 || true)"
