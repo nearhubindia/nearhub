@@ -108,7 +108,7 @@ npm ci
 npm run type-check
 npm run build
 
-cp package.json package-lock.json "$RELEASE_DIR/"
+cp package.json package-lock.json .npmrc "$RELEASE_DIR/"
 cp -R dist migrations scripts "$RELEASE_DIR/"
 cp drizzle.config.js "$RELEASE_DIR/"
 cp "$DOCKERFILE_NAME" "$RELEASE_DIR/"
