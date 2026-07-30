@@ -698,7 +698,7 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     input
   );
   if (ai.model !== 'stored-gemini-result') await storeAiKnowledge(input, ai);
-  if (ai.releaseDate) {
+  if (ai.releaseDate && !input.purchaseDate) {
     const resolvedAge = monthsSince(ai.releaseDate, new Date());
     input = {
       ...input,
