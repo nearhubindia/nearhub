@@ -122,7 +122,7 @@ export function validateAndNormalizeMobileAge(
         input: { ...input, ageMonths: purchaseAge, ageSource: 'user_reported' },
         ageBasis: 'user_reported',
         verifiedReleaseDate: null,
-        flags: ['Purchase date was captured as ownership evidence; model age drives depreciation.', ...diagnosticFlags],
+        flags: ['Purchase date was captured as ownership age; usage and condition drive unit wear.', ...diagnosticFlags],
       };
     }
   }
@@ -212,11 +212,9 @@ const unavailableAiReview = (flag: string, rationale: string): AiReview => ({
 function normalizeUsedMarketEvidence(review: AiReview, input: MobileValuationInput): AiReview {
   if (!review.currentNewPrice || !review.marketMedian) return review;
 
-  // Market depreciation follows the model's release age. Purchase date is
-  // ownership evidence and must not make an older model appear newer.
-  const ageMonths = review.releaseDate
-    ? monthsSince(review.releaseDate, new Date())
-    : input.ageMonths;
+  // Use the customer's ownership age when available. Release date identifies
+  // the model, but does not prove how long this particular unit was used.
+  const ageMonths = input.ageMonths;
   const maximumRatio =
     ageMonths < 12 ? 0.8 : ageMonths < 24 ? 0.7 : ageMonths < 36 ? 0.6 : ageMonths < 48 ? 0.5 : 0.4;
   const ceiling = Math.round(review.currentNewPrice * maximumRatio);
@@ -244,6 +242,28 @@ function normalizeUsedMarketEvidence(review: AiReview, input: MobileValuationInp
       `Used-market values capped at ${maximumRatio * 100}% of current-new price for device age (${ageMonths} months).`,
     ].slice(0, 5),
   };
+}
+
+function usageWearMultiplier(input: MobileValuationInput): number {
+  const usage = input.usageHoursLast30Days === undefined
+    ? 1
+    : input.usageHoursLast30Days <= 60
+      ? 1.02
+      : input.usageHoursLast30Days <= 180
+        ? 1
+        : input.usageHoursLast30Days <= 360
+          ? 0.97
+          : 0.93;
+  const cycles = input.batteryCycleCount === undefined
+    ? 1
+    : input.batteryCycleCount <= 300
+      ? 1
+      : input.batteryCycleCount <= 600
+        ? 0.97
+        : input.batteryCycleCount <= 1000
+          ? 0.93
+          : 0.88;
+  return usage * cycles;
 }
 
 function median(values: number[]): number | null {
@@ -353,6 +373,7 @@ export function calculateMobileValuationBaseline(input: MobileValuationInput) {
     condition.multiplier *
     ageFactor *
     batteryMultiplier *
+    usageWearMultiplier(input) *
     software.multiplier *
     demandFactor;
   const performanceScore = Math.min(
@@ -700,7 +721,7 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     input
   );
   if (ai.model !== 'stored-gemini-result') await storeAiKnowledge(input, ai);
-  if (ai.releaseDate) {
+  if (ai.releaseDate && !input.purchaseDate) {
     const resolvedAge = monthsSince(ai.releaseDate, new Date());
     input = {
       ...input,
@@ -715,12 +736,14 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
       verifiedReleaseDate: ai.releaseDate,
       flags: [
         ...ageValidation.flags,
-        ...(input.purchaseDate
-          ? ['Purchase date is retained as ownership evidence; model release age drives depreciation.']
-          : []),
       ],
     };
     baseline = calculateMobileValuationBaseline(input);
+  } else if (ai.releaseDate) {
+    ageValidation = {
+      ...ageValidation,
+      verifiedReleaseDate: ai.releaseDate,
+    };
   }
   let adjustedCentre = baseline.centre;
   let pricingBasis: 'current_market' | 'estimated_market' = 'estimated_market';
@@ -730,9 +753,9 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     pricingBasis = 'current_market';
     const liquidityFactor = 0.95;
     const batteryReserve = input.batteryHealthType === 'unavailable' ? 500 : 0;
-    adjustedCentre = Math.max(
+      adjustedCentre = Math.max(
       0,
-      ai.marketMedian * baseline.conditionMultiplier * liquidityFactor - batteryReserve
+      ai.marketMedian * baseline.conditionMultiplier * usageWearMultiplier(input) * liquidityFactor - batteryReserve
     );
   }
   // AI is evidence collection only. The deterministic pricing engine owns the
