@@ -29,8 +29,10 @@ export const mobileValuationInputSchema = z.object({
     .enum(['model_release', 'user_reported', 'unknown'])
     .optional()
     .default('user_reported'),
-  battery: z.coerce.number().min(1).max(100).optional().default(85),
+  battery: z.coerce.number().min(1).max(100).optional(),
   batteryHealthType: z.enum(['measured', 'estimated', 'unavailable']).optional(),
+  batteryTemperatureC: z.coerce.number().min(-40).max(100).optional(),
+  batteryDeclaration: z.enum(['normal', 'replaced', 'drains_quickly']).optional(),
   proposedPurchasePrice: z.coerce.number().min(0).max(500000).optional(),
   batteryReplacementCost: z.coerce.number().min(0).max(50000).optional().default(1500),
   screenCondition: z.enum(['Intact', 'Minor scratches', 'Deep scratches', 'Cracked', 'Broken']),
@@ -307,6 +309,23 @@ function calculateDeviceQuality(input: MobileValuationInput, baseline: ReturnTyp
   };
 }
 
+function deriveBatteryEvidence(input: MobileValuationInput) {
+  if (input.battery !== undefined && input.batteryHealthType !== 'unavailable') {
+    return { score: Math.round(input.battery), multiplier: input.battery >= 95 ? 1 : input.battery >= 80 ? 0.95 : input.battery >= 60 ? 0.88 : input.battery >= 40 ? 0.78 : 0.65, source: input.batteryHealthType === 'measured' ? 'oem_health' : 'reported_health' };
+  }
+  if (input.batteryCycleCount !== undefined) {
+    const score = input.batteryCycleCount <= 300 ? 95 : input.batteryCycleCount <= 600 ? 85 : input.batteryCycleCount <= 1000 ? 70 : 55;
+    return { score, multiplier: score >= 95 ? 1 : score >= 85 ? 0.95 : score >= 70 ? 0.88 : 0.78, source: 'cycle_count' };
+  }
+  if (input.batteryTemperatureC !== undefined && input.batteryTemperatureC >= 15 && input.batteryTemperatureC <= 38) {
+    return { score: 85, multiplier: 0.95, source: 'temperature' };
+  }
+  if (input.batteryDeclaration === 'replaced' || input.batteryDeclaration === 'normal') {
+    return { score: input.batteryDeclaration === 'replaced' ? 90 : 80, multiplier: input.batteryDeclaration === 'replaced' ? 0.98 : 0.95, source: 'user_declaration' };
+  }
+  return { score: 75, multiplier: 0.92, source: 'unavailable' };
+}
+
 function median(values: number[]): number | null {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -384,16 +403,8 @@ export function calculateMobileValuationBaseline(input: MobileValuationInput) {
             : androidMajor > 0
               ? { status: 'End of Life (EOL)', multiplier: 0.55, score: 5 }
               : { status: 'Unknown', multiplier: 0.85, score: 50 };
-  const batteryMultiplier =
-    input.battery >= 95
-      ? 1
-      : input.battery >= 80
-        ? 0.95
-        : input.battery >= 60
-          ? 0.88
-          : input.battery >= 40
-            ? 0.78
-            : 0.65;
+  const batteryEvidence = deriveBatteryEvidence(input);
+  const batteryMultiplier = batteryEvidence.multiplier;
   // Gradual depreciation keeps a three-year-old phone materially distinct from
   // an obsolete device. The previous linear curve hit its floor after 29 months.
   const ageFactor = Math.max(AGE_VALUE_FLOOR, Math.exp(-input.ageMonths / AGE_DECAY_MONTHS));
@@ -443,7 +454,7 @@ export function calculateMobileValuationBaseline(input: MobileValuationInput) {
       Math.round(
         marketValueScore * 0.15 +
           performanceScore * 0.25 +
-          input.battery * 0.15 +
+          batteryEvidence.score * 0.15 +
           software.score * 0.25 +
           conditionScore * 0.2
       )
@@ -461,10 +472,10 @@ export function calculateMobileValuationBaseline(input: MobileValuationInput) {
     androidSupportStatus: software.status,
     softwareSupportScore: software.score,
     performanceScore,
-    batteryScore: Math.round(input.battery),
+    batteryScore: batteryEvidence.score,
     marketValueScore,
     usabilityScore: Math.round(
-      software.score * 0.55 + input.battery * 0.25 + performanceScore * 0.2
+      software.score * 0.55 + batteryEvidence.score * 0.25 + performanceScore * 0.2
     ),
     score,
   };
@@ -477,7 +488,10 @@ export function calculateAcquisitionAnalysis(
   adjustedCentre: number,
   batteryMultiplier: number
 ) {
-  const batteryReplacementRequired = input.battery <= BATTERY_REFURBISHMENT_THRESHOLD;
+  const batteryReplacementRequired =
+    input.batteryHealthType !== 'unavailable' &&
+    input.battery !== undefined &&
+    input.battery <= BATTERY_REFURBISHMENT_THRESHOLD;
   const batteryReplacementCost = batteryReplacementRequired
     ? Math.round(input.batteryReplacementCost)
     : 0;
@@ -855,6 +869,9 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     condition: baseline.condition,
     battery: input.battery,
     batteryHealthType: input.batteryHealthType || 'unavailable',
+    batteryEvidenceSource: deriveBatteryEvidence(input).source,
+    batteryTemperatureC: input.batteryTemperatureC,
+    batteryDeclaration: input.batteryDeclaration,
     androidVersion: input.androidVersion,
     networkType: input.networkType || 'UNKNOWN',
     androidApiLevel: input.androidApiLevel,

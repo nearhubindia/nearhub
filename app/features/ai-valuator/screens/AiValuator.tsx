@@ -63,11 +63,12 @@ type Report = {
   verifiedReleaseDate?: string | null;
   displayAssessment?: DisplayAssessment;
   condition: string;
-  battery: number;
+  battery?: number;
   batteryHealthType?: 'measured' | 'estimated' | 'unavailable';
   purchaseDate?: string;
   ownershipAgeMonths?: number;
   batteryCycleCount?: number;
+  batteryTemperatureC?: number;
   androidVersion?: string;
   networkType?: string;
   androidApiLevel?: number;
@@ -279,6 +280,7 @@ export default function AiValuator() {
   const [battery, setBattery] = useState('');
   const [batteryDiagnostic, setBatteryDiagnostic] = useState<string>('Not available');
   const [batteryCycleCount, setBatteryCycleCount] = useState<number | null>(null);
+  const [batteryTemperatureC, setBatteryTemperatureC] = useState<number | null>(null);
   const [androidVersion, setAndroidVersion] = useState('');
   const [networkType, setNetworkType] = useState('UNKNOWN');
   const [androidApiLevel, setAndroidApiLevel] = useState<number | null>(null);
@@ -363,6 +365,7 @@ export default function AiValuator() {
         );
       }
       setBatteryCycleCount(batteryInfo.batteryCycleCount > 0 ? batteryInfo.batteryCycleCount : null);
+      setBatteryTemperatureC(batteryInfo.temperatureC >= -40 ? batteryInfo.temperatureC : null);
       setNetworkType(batteryInfo.networkType || 'UNKNOWN');
       setAndroidApiLevel(batteryInfo.androidApiLevel > 0 ? batteryInfo.androidApiLevel : null);
       setSecurityPatch(batteryInfo.securityPatch || '');
@@ -469,7 +472,7 @@ export default function AiValuator() {
     const health =
       Number.isFinite(enteredHealth) && enteredHealth >= 1 && enteredHealth <= 100
         ? Math.round(enteredHealth)
-        : 85;
+        : undefined;
     const deviceMaster = findMobileDeviceMaster(brand, model);
     const releaseDate = deviceMaster ? new Date(deviceMaster.releaseDate) : null;
     const reportedPurchaseAge = age.trim() ? purchaseAgeInMonths(age) : null;
@@ -521,6 +524,7 @@ export default function AiValuator() {
           ageSource,
           battery: health,
           batteryHealthType: batteryDiagnostic.includes('Measured') ? 'measured' : 'unavailable',
+          batteryTemperatureC: batteryTemperatureC ?? undefined,
           screenCondition,
           bodyDefect,
           androidVersion,
