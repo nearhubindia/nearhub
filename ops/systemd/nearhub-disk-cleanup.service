@@ -5,5 +5,5 @@ After=network-online.target docker.service
 
 [Service]
 Type=oneshot
-WorkingDirectory=/opt/nearhub-server/current
-ExecStart=/opt/nearhub-server/current/scripts/disk-cleanup.sh
+WorkingDirectory=/opt/nearhub-server
+ExecStart=/opt/nearhub-server/scripts/disk-cleanup.sh

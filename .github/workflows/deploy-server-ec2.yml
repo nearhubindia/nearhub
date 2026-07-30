@@ -135,40 +135,25 @@ jobs:
             SYSTEMD_UNIT_NAME="${{ secrets.AWS_SYSTEMD_UNIT_NAME || 'nearhub-stack.service' }}"
             EXPECTED_COMMIT_SHA="${{ github.sha }}"
 
-            mkdir -p "$APP_DIR/releases" "$APP_DIR/shared"
-            PREVIOUS_RELEASE="$(readlink -f "$APP_DIR/current" 2>/dev/null || true)"
-            RELEASE_DIR="$APP_DIR/releases/$(date +%Y%m%d%H%M%S)"
-            mkdir -p "$RELEASE_DIR"
-
-            rollback() {
-              if [ -n "${PREVIOUS_RELEASE:-}" ] && [ -d "$PREVIOUS_RELEASE" ]; then
-                echo "[WARN] Rolling back current release to $PREVIOUS_RELEASE"
-                ln -sfn "$PREVIOUS_RELEASE" "$APP_DIR/current"
-                sudo install -m 644 "$PREVIOUS_RELEASE/$SYSTEMD_UNIT_NAME" "/etc/systemd/system/$SYSTEMD_UNIT_NAME"
-                sudo systemctl daemon-reload
-                sudo systemctl enable --now "$SYSTEMD_UNIT_NAME"
-              fi
-            }
-
-            trap 'rollback' ERR
-
-            tar -xzf /tmp/server-release.tgz -C "$RELEASE_DIR"
+            DEPLOY_DIR="/tmp/nearhub-server-deploy.$$"
+            mkdir -p "$DEPLOY_DIR"
+            tar -xzf /tmp/server-release.tgz -C "$DEPLOY_DIR"
             rm -f /tmp/server-release.tgz
 
-            if [ -d "$RELEASE_DIR/.git" ] || [ -f "$RELEASE_DIR/.git" ]; then
+            if [ -d "$DEPLOY_DIR/.git" ] || [ -f "$DEPLOY_DIR/.git" ]; then
               echo "[ERROR] Artifact contains .git metadata. Refusing deploy."
               exit 1
             fi
 
-            if [ ! -f "$RELEASE_DIR/DEPLOYMENT_MANIFEST" ]; then
+            if [ ! -f "$DEPLOY_DIR/DEPLOYMENT_MANIFEST" ]; then
               echo "[ERROR] DEPLOYMENT_MANIFEST missing. Refusing deploy."
               exit 1
             fi
 
             echo "[INFO] Deploy manifest:"
-            cat "$RELEASE_DIR/DEPLOYMENT_MANIFEST"
+            cat "$DEPLOY_DIR/DEPLOYMENT_MANIFEST"
 
-            RELEASE_COMMIT_SHA="$(grep '^commit_sha=' "$RELEASE_DIR/DEPLOYMENT_MANIFEST" | cut -d= -f2-)"
+            RELEASE_COMMIT_SHA="$(grep '^commit_sha=' "$DEPLOY_DIR/DEPLOYMENT_MANIFEST" | cut -d= -f2-)"
             if [ -z "$RELEASE_COMMIT_SHA" ]; then
               echo "[ERROR] commit_sha missing from DEPLOYMENT_MANIFEST."
               exit 1
@@ -179,7 +164,7 @@ jobs:
             fi
 
             if [ -f "$ENV_FILE" ]; then
-              ln -sfn "$ENV_FILE" "$RELEASE_DIR/.env"
+              ln -sfn "$ENV_FILE" "$DEPLOY_DIR/.env"
             else
               echo "[WARN] Missing $ENV_FILE. Runtime may fail without DATABASE_URL."
             fi
@@ -194,19 +179,28 @@ jobs:
               exit 1
             fi
 
-            if [ ! -f "$RELEASE_DIR/$COMPOSE_FILE_NAME" ] || [ ! -f "$RELEASE_DIR/$DOCKERFILE_NAME" ]; then
+            if [ ! -f "$DEPLOY_DIR/$COMPOSE_FILE_NAME" ] || [ ! -f "$DEPLOY_DIR/$DOCKERFILE_NAME" ]; then
               echo "[ERROR] Production Docker files are missing from the release artifact."
               exit 1
             fi
-            if [ ! -f "$RELEASE_DIR/$SYSTEMD_UNIT_NAME" ]; then
+            if [ ! -f "$DEPLOY_DIR/$SYSTEMD_UNIT_NAME" ]; then
               echo "[ERROR] Systemd unit is missing from the release artifact."
               exit 1
             fi
 
-            sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$RELEASE_DIR/$COMPOSE_FILE_NAME" build server
-            sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d redis
-            sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$RELEASE_DIR/$COMPOSE_FILE_NAME" run --rm --no-deps server npm run db:migrate
-            sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d server
+            export IMAGE_TAG="$EXPECTED_COMMIT_SHA"
+            if [ -f "$APP_DIR/$COMPOSE_FILE_NAME" ]; then
+              sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" down || true
+            fi
+            rm -rf "$APP_DIR"
+            mkdir -p "$APP_DIR"
+            cp -a "$DEPLOY_DIR/." "$APP_DIR/"
+            rm -rf "$DEPLOY_DIR"
+
+            sudo env GIT_COMMIT="$EXPECTED_COMMIT_SHA" BUILD_TIME="$(grep '^built_at_utc=' "$APP_DIR/DEPLOYMENT_MANIFEST" | cut -d= -f2-)" IMAGE_TAG="$IMAGE_TAG" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" build server
+            sudo env GIT_COMMIT="$EXPECTED_COMMIT_SHA" BUILD_TIME="$(grep '^built_at_utc=' "$APP_DIR/DEPLOYMENT_MANIFEST" | cut -d= -f2-)" IMAGE_TAG="$IMAGE_TAG" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" up -d redis
+            sudo env GIT_COMMIT="$EXPECTED_COMMIT_SHA" BUILD_TIME="$(grep '^built_at_utc=' "$APP_DIR/DEPLOYMENT_MANIFEST" | cut -d= -f2-)" IMAGE_TAG="$IMAGE_TAG" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" run --rm --no-deps server npm run db:migrate
+            sudo env GIT_COMMIT="$EXPECTED_COMMIT_SHA" BUILD_TIME="$(grep '^built_at_utc=' "$APP_DIR/DEPLOYMENT_MANIFEST" | cut -d= -f2-)" IMAGE_TAG="$IMAGE_TAG" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" up -d --force-recreate --remove-orphans server
 
             HEALTH_OK="false"
             for attempt in $(seq 1 18); do
@@ -222,25 +216,16 @@ jobs:
               exit 1
             fi
 
-            ln -sfn "$RELEASE_DIR" "$APP_DIR/current"
-
-            sudo install -m 644 "$RELEASE_DIR/$SYSTEMD_UNIT_NAME" "/etc/systemd/system/$SYSTEMD_UNIT_NAME"
+            sudo install -m 644 "$APP_DIR/$SYSTEMD_UNIT_NAME" "/etc/systemd/system/$SYSTEMD_UNIT_NAME"
             sudo systemctl daemon-reload
             sudo systemctl enable --now "$SYSTEMD_UNIT_NAME"
 
-            CURRENT_RELEASE="$(readlink -f "$APP_DIR/current")"
-            if [ "$CURRENT_RELEASE" != "$RELEASE_DIR" ]; then
-              echo "[ERROR] Current release symlink did not update correctly."
-              exit 1
-            fi
-
-            CURRENT_COMMIT_SHA="$(grep '^commit_sha=' "$APP_DIR/current/DEPLOYMENT_MANIFEST" | cut -d= -f2-)"
+            CURRENT_COMMIT_SHA="$(grep '^commit_sha=' "$APP_DIR/DEPLOYMENT_MANIFEST" | cut -d= -f2-)"
             if [ "$CURRENT_COMMIT_SHA" != "$EXPECTED_COMMIT_SHA" ]; then
-              echo "[ERROR] Current release manifest commit SHA ($CURRENT_COMMIT_SHA) does not match expected workflow SHA ($EXPECTED_COMMIT_SHA)."
+              echo "[ERROR] Deployed manifest commit SHA ($CURRENT_COMMIT_SHA) does not match expected workflow SHA ($EXPECTED_COMMIT_SHA)."
               exit 1
             fi
 
-            trap - ERR
-
-            sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$RELEASE_DIR/$COMPOSE_FILE_NAME" ps
+            sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" ps
+            curl -fsS http://127.0.0.1:5000/api/version
             cat /tmp/nearhub-healthcheck.json

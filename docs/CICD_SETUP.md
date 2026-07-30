@@ -37,10 +37,10 @@ Set these in `GitHub -> Settings -> Secrets and variables -> Actions`.
 
 On EC2:
 
-1. Create app directory and permissions:
+1. Create the fixed app directory and permissions:
 
 ```bash
-sudo mkdir -p /opt/nearhub-server/releases
+sudo mkdir -p /opt/nearhub-server
 sudo chown -R $USER:$USER /opt/nearhub-server
 ```
 
@@ -69,16 +69,16 @@ sudo chmod 640 /etc/nearhub/server.env
 - CI builds server artifact (`dist + package.json + migrations + Docker Compose files`).
 - Artifact is copied to EC2 via SCP.
 - EC2 deploy step:
-  - extracts into new timestamped release
+  - extracts into the fixed `/opt/nearhub-server` directory
   - validates `DEPLOYMENT_MANIFEST`
-  - refuses deploy if `.git` metadata is present in release
-  - links `release/.env` from `/etc/nearhub/server.env`
-  - builds the production Docker image from the release artifact
+  - refuses deploy if `.git` metadata is present in the artifact
+  - links `.env` from `/etc/nearhub/server.env`
+  - builds the production Docker image tagged with the full commit SHA
   - starts Redis and the server with `docker compose`
   - runs `npm run db:migrate` inside the server container
-  - switches `current` symlink
+  - recreates the server container from that exact image tag
   - installs and enables `nearhub-stack.service` so the stack comes back after reboot
-  - installs and enables `nearhub-disk-cleanup.timer` for daily safe cleanup of old releases, Docker cruft, apt cache, and journal logs
+  - installs and enables `nearhub-disk-cleanup.timer` for daily Docker cruft, apt cache, and journal cleanup
   - validates the `/api/health` endpoint
 
 No `git pull` is done on EC2.

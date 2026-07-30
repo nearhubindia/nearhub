@@ -132,13 +132,12 @@ scp -i "$EC2_KEY_PATH" -P "$EC2_PORT" -o StrictHostKeyChecking=no \
 
 ssh -i "$EC2_KEY_PATH" -p "$EC2_PORT" -o StrictHostKeyChecking=no "$EC2_USER@$EC2_HOST" <<EOF
 set -euo pipefail
-mkdir -p "$APP_DIR/releases" "$APP_DIR/shared"
-RELEASE_DIR="$APP_DIR/releases/\$(date +%Y%m%d%H%M%S)"
-mkdir -p "\$RELEASE_DIR"
-tar -xzf /tmp/server-release.tgz -C "\$RELEASE_DIR"
+DEPLOY_DIR="/tmp/nearhub-server-deploy.\$\$"
+mkdir -p "\$DEPLOY_DIR"
+tar -xzf /tmp/server-release.tgz -C "\$DEPLOY_DIR"
 rm -f /tmp/server-release.tgz
 if [ -f "$ENV_FILE" ]; then
-  ln -sfn "$ENV_FILE" "\$RELEASE_DIR/.env"
+  ln -sfn "$ENV_FILE" "\$DEPLOY_DIR/.env"
 else
   echo "Missing required env file: $ENV_FILE" >&2
   exit 1
@@ -154,51 +153,51 @@ if ! command -v docker-compose >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ ! -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" ] || [ ! -f "\$RELEASE_DIR/$DOCKERFILE_NAME" ]; then
+if [ ! -f "\$DEPLOY_DIR/$COMPOSE_FILE_NAME" ] || [ ! -f "\$DEPLOY_DIR/$DOCKERFILE_NAME" ]; then
   echo "Production Docker files are missing from the release artifact" >&2
   exit 1
 fi
 
-export GIT_COMMIT="\$(sed -n 's/^commit_sha=//p' "\$RELEASE_DIR/DEPLOYMENT_MANIFEST")"
-export BUILD_TIME="\$(sed -n 's/^built_at_utc=//p' "\$RELEASE_DIR/DEPLOYMENT_MANIFEST")"
-if [ ! -f "\$RELEASE_DIR/$SYSTEMD_UNIT_NAME" ]; then
+export GIT_COMMIT="\$(sed -n 's/^commit_sha=//p' "\$DEPLOY_DIR/DEPLOYMENT_MANIFEST")"
+export BUILD_TIME="\$(sed -n 's/^built_at_utc=//p' "\$DEPLOY_DIR/DEPLOYMENT_MANIFEST")"
+export IMAGE_TAG="\$GIT_COMMIT"
+if [ -z "\$GIT_COMMIT" ] || [ "\$GIT_COMMIT" = unknown ]; then
+  echo "Missing commit SHA in deployment manifest" >&2
+  exit 1
+fi
+if [ ! -f "\$DEPLOY_DIR/$SYSTEMD_UNIT_NAME" ]; then
   echo "Systemd unit is missing from the release artifact" >&2
   exit 1
 fi
-if [ ! -f "\$RELEASE_DIR/$DISK_CLEANUP_SERVICE_NAME" ] || [ ! -f "\$RELEASE_DIR/$DISK_CLEANUP_TIMER_NAME" ]; then
+if [ ! -f "\$DEPLOY_DIR/$DISK_CLEANUP_SERVICE_NAME" ] || [ ! -f "\$DEPLOY_DIR/$DISK_CLEANUP_TIMER_NAME" ]; then
   echo "Disk cleanup systemd units are missing from the release artifact" >&2
   exit 1
 fi
 
-sudo env GIT_COMMIT="$GIT_COMMIT" BUILD_TIME="$BUILD_TIME" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" build server
-sudo env GIT_COMMIT="$GIT_COMMIT" BUILD_TIME="$BUILD_TIME" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d redis
-sudo env GIT_COMMIT="$GIT_COMMIT" BUILD_TIME="$BUILD_TIME" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" run --rm --no-deps server npm run db:migrate
-sudo env GIT_COMMIT="$GIT_COMMIT" BUILD_TIME="$BUILD_TIME" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" up -d --force-recreate --remove-orphans server
+if [ -f "$APP_DIR/$COMPOSE_FILE_NAME" ]; then
+  sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" down || true
+fi
+rm -rf "$APP_DIR"
+mkdir -p "$APP_DIR"
+cp -a "\$DEPLOY_DIR/." "$APP_DIR/"
+rm -rf "\$DEPLOY_DIR"
 
-rm -rf "$APP_DIR/current"
-ln -sfn "\$RELEASE_DIR" "$APP_DIR/current"
+sudo env GIT_COMMIT="\$GIT_COMMIT" BUILD_TIME="\$BUILD_TIME" IMAGE_TAG="\$IMAGE_TAG" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" build server
+sudo env GIT_COMMIT="\$GIT_COMMIT" BUILD_TIME="\$BUILD_TIME" IMAGE_TAG="\$IMAGE_TAG" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" up -d redis
+sudo env GIT_COMMIT="\$GIT_COMMIT" BUILD_TIME="\$BUILD_TIME" IMAGE_TAG="\$IMAGE_TAG" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" run --rm --no-deps server npm run db:migrate
+sudo env GIT_COMMIT="\$GIT_COMMIT" BUILD_TIME="\$BUILD_TIME" IMAGE_TAG="\$IMAGE_TAG" docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" up -d --force-recreate --remove-orphans server
 
-sudo install -m 644 "\$RELEASE_DIR/$SYSTEMD_UNIT_NAME" /etc/systemd/system/$SYSTEMD_UNIT_NAME
-sudo install -m 644 "\$RELEASE_DIR/$DISK_CLEANUP_SERVICE_NAME" /etc/systemd/system/$DISK_CLEANUP_SERVICE_NAME
-sudo install -m 644 "\$RELEASE_DIR/$DISK_CLEANUP_TIMER_NAME" /etc/systemd/system/$DISK_CLEANUP_TIMER_NAME
+sudo install -m 644 "$APP_DIR/$SYSTEMD_UNIT_NAME" /etc/systemd/system/$SYSTEMD_UNIT_NAME
+sudo install -m 644 "$APP_DIR/$DISK_CLEANUP_SERVICE_NAME" /etc/systemd/system/$DISK_CLEANUP_SERVICE_NAME
+sudo install -m 644 "$APP_DIR/$DISK_CLEANUP_TIMER_NAME" /etc/systemd/system/$DISK_CLEANUP_TIMER_NAME
 sudo systemctl daemon-reload
 sudo systemctl enable --now $SYSTEMD_UNIT_NAME
 sudo systemctl enable --now $DISK_CLEANUP_TIMER_NAME
 
-sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "\$RELEASE_DIR/$COMPOSE_FILE_NAME" ps
+sudo docker-compose -p "$COMPOSE_PROJECT_NAME" -f "$APP_DIR/$COMPOSE_FILE_NAME" ps
 curl -fsS http://127.0.0.1:5000/api/health
 version_response="\$(curl -fsS http://127.0.0.1:5000/api/version)"
 echo "Deployed version: \$version_response"
-
-current_release="\$(readlink -f "$APP_DIR/current")"
-previous_release="\$(ls -1dt "$APP_DIR/releases"/* 2>/dev/null | grep -vx "\$current_release" | head -n 1 || true)"
-for release_path in "$APP_DIR"/releases/*; do
-  [ -d "\$release_path" ] || continue
-  if [ "\$release_path" = "\$current_release" ] || [ "\$release_path" = "\$previous_release" ]; then
-    continue
-  fi
-  rm -rf "\$release_path"
-done
 
 sudo docker container prune -f
 sudo docker image prune -af

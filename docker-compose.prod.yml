@@ -12,6 +12,7 @@ services:
       retries: 20
 
   server:
+    image: nearhub-server:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile.prod
