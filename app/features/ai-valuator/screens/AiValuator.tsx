@@ -364,7 +364,9 @@ export default function AiValuator() {
             : `Android reports ${batteryInfo.health.toLowerCase().replace('_', ' ')}`
         );
       }
-      setBatteryCycleCount(batteryInfo.batteryCycleCount > 0 ? batteryInfo.batteryCycleCount : null);
+      setBatteryCycleCount(
+        batteryInfo.batteryCycleCount > 0 ? batteryInfo.batteryCycleCount : null
+      );
       setBatteryTemperatureC(batteryInfo.temperatureC >= -40 ? batteryInfo.temperatureC : null);
       setNetworkType(batteryInfo.networkType || 'UNKNOWN');
       setAndroidApiLevel(batteryInfo.androidApiLevel > 0 ? batteryInfo.androidApiLevel : null);
@@ -498,7 +500,8 @@ export default function AiValuator() {
               releaseDate.getMonth()
           )
         : 0);
-    const ageSource = reportedPurchaseAge !== null ? 'user_reported' : deviceMaster ? 'model_release' : 'unknown';
+    const ageSource =
+      reportedPurchaseAge !== null ? 'user_reported' : deviceMaster ? 'model_release' : 'unknown';
     setIsEvaluating(true);
     setEvaluationProgress(5);
     const progressTimer = setInterval(() => {
@@ -613,19 +616,28 @@ export default function AiValuator() {
         </LinearGradient>
       </Pressable>
       <View style={styles.card}>
-        <View style={styles.sectionHeading}>
-          <View style={styles.smallIcon}>
-            <Feather name="smartphone" size={15} color="#29416F" />
+        <View style={styles.deviceHeading}>
+          <View style={styles.deviceHeadingIcon}>
+            <Feather name="smartphone" size={28} color="#214A78" />
           </View>
-          <Text style={styles.sectionTitle}>Device details</Text>
+          <View style={styles.deviceHeadingCopy}>
+            <Text style={styles.deviceTitle}>Device details</Text>
+            {detected ? (
+              <Text style={styles.deviceMeta}>
+                {manufacturer || brand || 'Unknown'} · Android {androidVersion || 'Unknown'} ·{' '}
+                {cpuArchitecture || 'Unknown processor'}
+              </Text>
+            ) : null}
+            {detected && (ram || storage) ? (
+              <Text style={styles.deviceMeta}>
+                {ram ? `${ram} RAM` : 'RAM unavailable'} ·{' '}
+                {storage ? `${storage} Storage` : 'Storage unavailable'}
+              </Text>
+            ) : null}
+          </View>
         </View>
         {detected ? (
           <>
-            <Text style={styles.detectedMeta}>
-              {manufacturer || 'Unknown manufacturer'} • Android{' '}
-              {androidVersion || 'Unknown version'} • CPU {cpuArchitecture || 'Unknown'} • Total
-              Storage {detectedStorage ? `${detectedStorage} GB` : 'Unknown'}
-            </Text>
             {displayAssessment ? (
               <View
                 style={[
@@ -644,153 +656,182 @@ export default function AiValuator() {
                 />
                 <Text style={styles.displayCheckText}>{displayAssessment.label}</Text>
               </View>
-            ) : null}
+            ) : (
+              <View style={styles.availabilityAlert}>
+                <Feather name="alert-triangle" size={20} color="#E9A513" />
+                <Text style={styles.availabilityAlertText}>Display not available</Text>
+              </View>
+            )}
           </>
         ) : null}
-        <View style={styles.row}>
-          <View style={styles.fieldColumn}>
-            <Text style={styles.fieldLabel}>Brand</Text>
-            <TextInput
-              style={[styles.input, detected && styles.inputLocked]}
-              editable={!detected}
-              placeholder="e.g. Samsung"
-              value={brand}
-              onChangeText={setBrand}
-            />
-          </View>
-          <View style={styles.fieldColumn}>
-            <Text style={styles.fieldLabel}>Model</Text>
-            <TextInput
-              style={[styles.input, detected && styles.inputLocked]}
-              editable={!detected}
-              placeholder="e.g. S24"
-              value={model}
-              onChangeText={setModel}
-            />
-          </View>
-        </View>
-        <View style={styles.row}>
-          <View style={styles.fieldColumn}>
-            <Text style={styles.fieldLabel}>RAM</Text>
-            <TextInput
-              style={[styles.input, detected && styles.inputLocked]}
-              editable={!detected}
-              keyboardType="numeric"
-              placeholder="8 GB"
-              value={ram}
-              onChangeText={setRam}
-            />
-          </View>
-          <View style={styles.fieldColumn}>
-            <Text style={styles.fieldLabel}>Total Storage</Text>
-            <TextInput
-              style={[styles.input, detected && styles.inputLocked]}
-              editable={!detected}
-              keyboardType="numeric"
-              placeholder="128 GB"
-              value={storage}
-              onChangeText={setStorage}
-            />
-          </View>
-        </View>
-        <View style={styles.labelRow}>
-          <View style={styles.smallIcon}>
-            <Feather name="cpu" size={14} color="#29416F" />
-          </View>
-          <Text style={styles.label}>Processor tier (auto-detected)</Text>
-        </View>
-        <View style={styles.chips}>
-          {PROCESSORS.map((item) => (
-            <View
-              key={item}
-              style={[styles.chip, processor === item && styles.processorChipActive]}
-            >
-              <Text style={[styles.chipText, processor === item && styles.processorChipTextActive]}>
-                {MOBILE_RATE_CARD.processor[item].label}
-              </Text>
+        <View style={styles.identityGrid}>
+          <View style={styles.identityRow}>
+            <View style={styles.identityField}>
+              <Text style={styles.fieldLabel}>Brand</Text>
+              <TextInput
+                style={styles.identityInput}
+                editable={!detected}
+                placeholder="e.g. Samsung"
+                value={brand}
+                onChangeText={setBrand}
+              />
             </View>
-          ))}
-        </View>
-        <View style={styles.labelRow}>
-          <View style={styles.smallIcon}>
-            <Feather name="smartphone" size={14} color="#29416F" />
+            <View style={styles.identityField}>
+              <Text style={styles.fieldLabel}>Model</Text>
+              <TextInput
+                style={styles.identityInput}
+                editable={!detected}
+                placeholder="e.g. S24"
+                value={model}
+                onChangeText={setModel}
+              />
+            </View>
           </View>
-          <Text style={styles.label}>Screen condition</Text>
-        </View>
-        <View style={styles.chips}>
-          {SCREEN_CONDITIONS.map((item) => (
-            <Pressable
-              key={item}
-              onPress={() => setScreenCondition(item)}
-              style={[styles.chip, screenCondition === item && styles.conditionChipActive]}
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  screenCondition === item && styles.conditionChipTextActive,
-                ]}
-              >
-                {item}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-        <View style={styles.labelRow}>
-          <View style={styles.smallIcon}>
-            <Feather name="shield" size={14} color="#29416F" />
+          <View style={styles.identityRow}>
+            <View style={styles.identityField}>
+              <Text style={styles.fieldLabel}>RAM</Text>
+              <TextInput
+                style={styles.identityInput}
+                editable={!detected}
+                keyboardType="numeric"
+                placeholder="8 GB"
+                value={ram}
+                onChangeText={setRam}
+              />
+            </View>
+            <View style={styles.identityField}>
+              <Text style={styles.fieldLabel}>Total Storage</Text>
+              <TextInput
+                style={styles.identityInput}
+                editable={!detected}
+                keyboardType="numeric"
+                placeholder="128 GB"
+                value={storage}
+                onChangeText={setStorage}
+              />
+            </View>
           </View>
-          <Text style={styles.label}>Body scratches &amp; defects</Text>
         </View>
-        <View style={styles.chips}>
-          {BODY_DEFECTS.map((item) => (
-            <Pressable
-              key={item}
-              onPress={() => setBodyDefect(item)}
-              style={[styles.chip, bodyDefect === item && styles.conditionChipActive]}
-            >
-              <Text
-                style={[styles.chipText, bodyDefect === item && styles.conditionChipTextActive]}
+        <View style={styles.detailCard}>
+          <View style={styles.detailCardHeading}>
+            <View style={styles.detailIcon}>
+              <Feather name="cpu" size={22} color="#214A78" />
+            </View>
+            <Text style={styles.detailTitle}>Processor tier (auto-detected)</Text>
+          </View>
+          <View style={styles.chips}>
+            {PROCESSORS.map((item) => (
+              <View
+                key={item}
+                style={[styles.chip, processor === item && styles.processorChipActive]}
               >
-                {item}
-              </Text>
-            </Pressable>
-          ))}
+                <Text
+                  style={[styles.chipText, processor === item && styles.processorChipTextActive]}
+                >
+                  {MOBILE_RATE_CARD.processor[item].label}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
-        <View style={styles.row}>
-          <View style={styles.fieldColumn}>
-            <Text style={styles.fieldLabel}>Purchased (MM/YY)</Text>
+        <View style={styles.detailCard}>
+          <View style={styles.detailCardHeading}>
+            <View style={styles.detailIcon}>
+              <Feather name="smartphone" size={22} color="#214A78" />
+            </View>
+            <Text style={styles.detailTitle}>Screen condition</Text>
+          </View>
+          <View style={styles.chips}>
+            {SCREEN_CONDITIONS.map((item) => (
+              <Pressable
+                key={item}
+                onPress={() => setScreenCondition(item)}
+                style={[styles.chip, screenCondition === item && styles.conditionChipActive]}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    screenCondition === item && styles.conditionChipTextActive,
+                  ]}
+                >
+                  {item}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        <View style={styles.detailCard}>
+          <View style={styles.detailCardHeading}>
+            <View style={styles.detailIcon}>
+              <Feather name="shield" size={22} color="#214A78" />
+            </View>
+            <Text style={styles.detailTitle}>Body scratches &amp; defects</Text>
+          </View>
+          <View style={styles.chips}>
+            {BODY_DEFECTS.map((item) => (
+              <Pressable
+                key={item}
+                onPress={() => setBodyDefect(item)}
+                style={[styles.chip, bodyDefect === item && styles.conditionChipActive]}
+              >
+                <Text
+                  style={[styles.chipText, bodyDefect === item && styles.conditionChipTextActive]}
+                >
+                  {item}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        <View style={styles.metadataPanel}>
+          <View style={styles.metadataRow}>
+            <View style={[styles.metadataIcon, styles.metadataIconBlue]}>
+              <Feather name="calendar" size={23} color="#214A78" />
+            </View>
+            <Text style={styles.metadataLabel}>
+              Purchased <Text style={styles.metadataLabelMuted}>(MM/YY)</Text>
+            </Text>
             <TextInput
-              style={styles.input}
+              style={styles.metadataInput}
               keyboardType="numeric"
               placeholder="MM/YY"
+              placeholderTextColor="#214A78"
               value={age}
               onChangeText={(value) => setAge(formatPurchaseMonthYear(value))}
               maxLength={7}
             />
           </View>
-          <View style={styles.fieldColumn}>
-            <Text style={styles.fieldLabel}>Battery health</Text>
-            <View style={styles.input}>
-              <Text style={styles.inputPlaceholder}>{battery || 'Not verified'}</Text>
+          <View style={styles.batteryGrid}>
+            <View style={styles.batteryColumn}>
+              <View style={styles.batteryColumnCopy}>
+                <Text style={styles.batteryColumnLabel}>Battery health</Text>
+                <Text style={styles.batteryColumnValue}>{battery || 'Not verified'}</Text>
+                <Text style={styles.batteryColumnHint}>Physical inspection required</Text>
+              </View>
             </View>
-            <Text style={styles.fieldHint}>
-              {battery ? batteryDiagnostic : 'Not verified. A physical inspection is required.'}
-            </Text>
-          </View>
-        </View>
-        {detected ? (
-          <View style={styles.row}>
-            <View style={styles.fieldColumn}>
-              <Text style={styles.fieldLabel}>Battery cycles</Text>
-              <View style={styles.input}>
-                <Text style={styles.inputPlaceholder}>
+            <View style={styles.batteryColumnDivider} />
+            <View style={styles.batteryColumn}>
+              <View style={styles.batteryColumnCopy}>
+                <Text style={styles.batteryColumnLabel}>Battery cycles</Text>
+                <Text style={styles.batteryColumnValue}>
                   {batteryCycleCount === null ? 'Not available' : String(batteryCycleCount)}
                 </Text>
+                <Text style={styles.batteryColumnHint}>Android reports only when supported</Text>
               </View>
-              <Text style={styles.fieldHint}>Reported by Android when supported</Text>
             </View>
           </View>
-        ) : null}
+          <View style={styles.batteryDisclaimer}>
+            <Feather name="info" size={21} color="#2685D8" />
+            <View style={styles.batteryDisclaimerCopy}>
+              <Text style={styles.batteryDisclaimerText}>
+                {battery ? batteryDiagnostic : 'Not verified. A physical inspection is required.'}
+              </Text>
+              <Text style={styles.batteryDisclaimerText}>
+                Battery cycles are reported by Android when supported.
+              </Text>
+            </View>
+          </View>
+        </View>
         <View style={styles.tipCard}>
           <Feather name="star" size={20} color="#3155D9" />
           <View style={styles.tipCopy}>
@@ -927,7 +968,7 @@ const styles = StyleSheet.create({
   headerIcon: {
     width: 54,
     height: 54,
-    borderRadius: 17,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -937,7 +978,7 @@ const styles = StyleSheet.create({
   trustBadge: {
     width: 67,
     paddingVertical: 11,
-    borderRadius: 15,
+    borderRadius: 12,
     backgroundColor: '#fff',
     alignItems: 'center',
     shadowColor: '#64748B',
@@ -965,7 +1006,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 14,
     marginTop: 14,
     backgroundColor: '#fff',
-    borderRadius: 22,
+    borderRadius: 18,
     padding: 16,
     shadowColor: '#35517A',
     shadowOpacity: 0.1,
@@ -974,6 +1015,65 @@ const styles = StyleSheet.create({
   },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 16 },
   sectionTitle: { fontSize: 18, fontWeight: '900', color: '#10244C' },
+  deviceHeading: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  deviceHeadingIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: '#EEF5FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deviceHeadingCopy: { flex: 1, minWidth: 0 },
+  deviceTitle: { color: '#10244C', fontSize: 20, lineHeight: 24, fontWeight: '900' },
+  deviceMeta: { color: '#52647F', fontSize: 13, lineHeight: 19, marginTop: 2 },
+  availabilityAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#F8D27A',
+    backgroundColor: '#FFFAED',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 12,
+  },
+  availabilityAlertText: { color: '#9C6708', fontSize: 11, fontWeight: '800' },
+  identityGrid: {
+    borderWidth: 1,
+    borderColor: '#E1E7EF',
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 12,
+  },
+  identityRow: { flexDirection: 'row', gap: 12, paddingVertical: 6 },
+  identityField: { flex: 1, minWidth: 0 },
+  identityInput: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#E1E7EF',
+    paddingVertical: 6,
+    color: '#10244C',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  detailCard: {
+    borderWidth: 1,
+    borderColor: '#E1E7EF',
+    borderRadius: 14,
+    padding: 10,
+    marginBottom: 10,
+  },
+  detailCardHeading: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 5 },
+  detailIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 11,
+    backgroundColor: '#EEF5FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailTitle: { flex: 1, color: '#10244C', fontSize: 14, fontWeight: '900' },
   smallIcon: {
     width: 28,
     height: 28,
@@ -984,7 +1084,7 @@ const styles = StyleSheet.create({
   },
   detectButton: {
     marginHorizontal: 14,
-    borderRadius: 18,
+    borderRadius: 14,
     overflow: 'hidden',
     shadowColor: '#3155D9',
     shadowOpacity: 0.24,
@@ -1027,6 +1127,71 @@ const styles = StyleSheet.create({
   displayCheckText: { flex: 1, color: '#334155', fontSize: 11, fontWeight: '700' },
   row: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   fieldColumn: { flex: 1, minWidth: 0 },
+  metadataPanel: {
+    borderWidth: 1,
+    borderColor: '#E5EAF1',
+    borderRadius: 14,
+    marginBottom: 14,
+    overflow: 'hidden',
+  },
+  metadataRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  metadataDivider: { height: 1, backgroundColor: '#E5EAF1' },
+  metadataIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metadataIconBlue: { backgroundColor: '#EEF5FD' },
+  metadataIconGreen: { backgroundColor: '#EAF9F0' },
+  metadataIconPurple: { backgroundColor: '#F4EEFF' },
+  metadataLabel: {
+    flex: 1,
+    color: '#172B52',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  metadataLabelMuted: { color: '#64748B', fontWeight: '500' },
+  metadataInput: {
+    width: 88,
+    height: 36,
+    borderWidth: 1.5,
+    borderColor: '#9AAAC1',
+    borderRadius: 11,
+    paddingHorizontal: 8,
+    color: '#214A78',
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  metadataValue: {
+    width: 142,
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  metadataValueWarning: { backgroundColor: '#FFF9E9', borderColor: '#FBE4AD' },
+  metadataValueInfo: { backgroundColor: '#F8F3FF', borderColor: '#E4D8FC' },
+  metadataValueWarningText: { color: '#9C6708', fontSize: 15, flexShrink: 1 },
+  metadataValueInfoText: { color: '#7254C7', fontSize: 15, flexShrink: 1 },
+  batteryGrid: { flexDirection: 'row', padding: 10, gap: 10 },
+  batteryColumn: { flex: 1, flexDirection: 'row', gap: 7, minWidth: 0 },
+  batteryColumnCopy: { flex: 1, minWidth: 0 },
+  batteryColumnDivider: { width: 1, backgroundColor: '#E5EAF1' },
+  batteryColumnLabel: { color: '#193A6A', fontSize: 11, fontWeight: '800' },
+  batteryColumnValue: { color: '#10244C', fontSize: 13, fontWeight: '800', marginTop: 3 },
+  batteryColumnHint: { color: '#52647F', fontSize: 8, lineHeight: 11, marginTop: 3 },
   fieldLabel: { color: '#172B52', fontSize: 12, fontWeight: '800', marginBottom: 7 },
   fieldHint: { color: '#64748B', fontSize: 9, lineHeight: 13, marginTop: 5 },
   input: {
@@ -1040,6 +1205,25 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     backgroundColor: '#fff',
   },
+  readOnlyValue: {
+    minHeight: 48,
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  batteryCyclesBlock: { marginTop: 14 },
+  batteryDisclaimer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    margin: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#D9E8FA',
+    borderRadius: 10,
+    backgroundColor: '#F4F8FE',
+  },
+  batteryDisclaimerCopy: { flex: 1, gap: 5 },
+  batteryDisclaimerText: { color: '#29416F', fontSize: 11, lineHeight: 16 },
   inputPlaceholder: {
     color: '#6B7280',
     fontSize: 16,
@@ -1052,7 +1236,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 10,
     paddingVertical: 10,
-    borderRadius: 16,
+    borderRadius: 11,
     backgroundColor: '#F3F5F9',
     alignItems: 'center',
     borderWidth: 1,
@@ -1069,7 +1253,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 3,
     padding: 13,
-    borderRadius: 15,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#D8E3FA',
     backgroundColor: '#F5F8FF',
@@ -1125,7 +1309,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 320,
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: 14,
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 24,
     paddingVertical: 28,
@@ -1164,14 +1348,14 @@ const styles = StyleSheet.create({
   score: {
     alignItems: 'center',
     backgroundColor: '#1D4ED8',
-    borderRadius: 14,
+    borderRadius: 12,
     padding: 10,
     minWidth: 66,
   },
   scoreValue: { color: '#fff', fontSize: 25, fontWeight: '900' },
   scoreLabel: { color: '#BFDBFE', fontSize: 10 },
   recommendation: { color: '#BFDBFE', marginTop: 12, fontWeight: '700' },
-  priceBox: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginTop: 15 },
+  priceBox: { backgroundColor: '#fff', borderRadius: 10, padding: 14, marginTop: 15 },
   priceLabel: { color: '#64748B', fontSize: 12 },
   price: { color: '#0F172A', fontSize: 22, fontWeight: '900', marginTop: 3 },
   depreciation: { color: '#DC2626', fontSize: 18, fontWeight: '900', marginBottom: 7 },
@@ -1181,7 +1365,7 @@ const styles = StyleSheet.create({
     color: '#E2E8F0',
     fontSize: 12,
     backgroundColor: '#1E3A56',
-    borderRadius: 7,
+    borderRadius: 6,
     paddingHorizontal: 9,
     paddingVertical: 6,
   },
@@ -1191,7 +1375,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     padding: 10,
     backgroundColor: '#4A3A16',
-    borderRadius: 9,
+    borderRadius: 8,
   },
   stolenNoticeText: { flex: 1, color: '#FDE68A', fontSize: 11, lineHeight: 16 },
   valid: { color: '#93C5FD', fontSize: 11, marginTop: 15 },
@@ -1199,7 +1383,7 @@ const styles = StyleSheet.create({
     margin: 16,
     marginTop: 0,
     backgroundColor: '#fff',
-    borderRadius: 18,
+    borderRadius: 14,
     padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
