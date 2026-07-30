@@ -1,6 +1,14 @@
 import { NativeModules, Platform } from 'react-native';
 
 export type BatteryDiagnostics = {
+  androidRelease: string;
+  androidApiLevel: number;
+  securityPatch: string;
+  buildFingerprint: string;
+  deviceCodeName: string;
+  productName: string;
+  hardware: string;
+  networkType: '2G' | '3G' | '4G' | '5G' | 'UNKNOWN';
   chargeLevel: number;
   health: string;
   healthPercent: number;

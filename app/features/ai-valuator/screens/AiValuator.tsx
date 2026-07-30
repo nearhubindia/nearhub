@@ -70,6 +70,9 @@ type Report = {
   usageHoursLast30Days?: number;
   batteryCycleCount?: number;
   androidVersion?: string;
+  networkType?: string;
+  androidApiLevel?: number;
+  securityPatch?: string;
   manufacturer?: string;
   cpuArchitecture?: string;
   detectedStorage?: number;
@@ -259,6 +262,9 @@ export default function AiValuator() {
   const [batteryCycleCount, setBatteryCycleCount] = useState<number | null>(null);
   const [usageAccessGranted, setUsageAccessGranted] = useState(false);
   const [androidVersion, setAndroidVersion] = useState('');
+  const [networkType, setNetworkType] = useState('UNKNOWN');
+  const [androidApiLevel, setAndroidApiLevel] = useState<number | null>(null);
+  const [securityPatch, setSecurityPatch] = useState('');
   const [manufacturer, setManufacturer] = useState('');
   const [detected, setDetected] = useState(false);
   const [cpuArchitecture, setCpuArchitecture] = useState('');
@@ -319,6 +325,7 @@ export default function AiValuator() {
     setCpuArchitecture(Device.supportedCpuArchitectures?.join(', ') || 'Unknown architecture');
     const batteryInfo = await readBatteryDiagnostics();
     if (batteryInfo) {
+      if (batteryInfo.androidRelease) setAndroidVersion(`Android ${batteryInfo.androidRelease}`);
       if (batteryInfo.healthPercent > 0) {
         setBattery(String(batteryInfo.healthPercent));
         setBatteryDiagnostic(`Measured by Android (${batteryInfo.healthPercent}%)`);
@@ -330,6 +337,9 @@ export default function AiValuator() {
         );
       }
       setBatteryCycleCount(batteryInfo.batteryCycleCount > 0 ? batteryInfo.batteryCycleCount : null);
+      setNetworkType(batteryInfo.networkType || 'UNKNOWN');
+      setAndroidApiLevel(batteryInfo.androidApiLevel > 0 ? batteryInfo.androidApiLevel : null);
+      setSecurityPatch(batteryInfo.securityPatch || '');
       setUsageAccessGranted(batteryInfo.usageAccessGranted);
       setUsageHoursLast30Days(
         batteryInfo.usageHoursLast30Days >= 0 ? Math.round(batteryInfo.usageHoursLast30Days * 10) / 10 : null
@@ -484,6 +494,9 @@ export default function AiValuator() {
           screenCondition,
           bodyDefect,
           androidVersion,
+          networkType,
+          androidApiLevel: androidApiLevel ?? undefined,
+          securityPatch: securityPatch || undefined,
           manufacturer,
           cpuArchitecture,
           detectedStorage: detectedStorage || undefined,

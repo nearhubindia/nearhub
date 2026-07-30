@@ -9,6 +9,7 @@ import android.provider.Settings
 import android.net.Uri
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
+import android.telephony.TelephonyManager
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -27,6 +28,33 @@ class BatteryDiagnosticsModule(reactContext: ReactApplicationContext) : ReactCon
         return
       }
       val result = Arguments.createMap()
+      result.putString("androidRelease", Build.VERSION.RELEASE ?: "")
+      result.putInt("androidApiLevel", Build.VERSION.SDK_INT)
+      result.putString("securityPatch", if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Build.VERSION.SECURITY_PATCH else "")
+      result.putString("buildFingerprint", Build.FINGERPRINT ?: "")
+      result.putString("deviceCodeName", Build.DEVICE ?: "")
+      result.putString("productName", Build.PRODUCT ?: "")
+      result.putString("hardware", Build.HARDWARE ?: "")
+      val telephony = reactApplicationContext.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+      result.putString("networkType", try {
+        when (telephony?.dataNetworkType) {
+          TelephonyManager.NETWORK_TYPE_NR -> "5G"
+          TelephonyManager.NETWORK_TYPE_LTE -> "4G"
+          TelephonyManager.NETWORK_TYPE_HSPAP,
+          TelephonyManager.NETWORK_TYPE_HSDPA,
+          TelephonyManager.NETWORK_TYPE_HSUPA,
+          TelephonyManager.NETWORK_TYPE_UMTS,
+          TelephonyManager.NETWORK_TYPE_TD_SCDMA -> "3G"
+          TelephonyManager.NETWORK_TYPE_GSM,
+          TelephonyManager.NETWORK_TYPE_GPRS,
+          TelephonyManager.NETWORK_TYPE_EDGE,
+          TelephonyManager.NETWORK_TYPE_CDMA,
+          TelephonyManager.NETWORK_TYPE_1xRTT -> "2G"
+          else -> "UNKNOWN"
+        }
+      } catch (_: SecurityException) {
+        "UNKNOWN"
+      })
       val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
       val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
       result.putInt("chargeLevel", if (level >= 0 && scale > 0) (level * 100 / scale) else -1)
