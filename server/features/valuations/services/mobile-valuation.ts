@@ -19,6 +19,7 @@ const BATTERY_REFURBISHMENT_THRESHOLD = 75;
 export const mobileValuationInputSchema = z.object({
   brand: z.string().trim().min(1).max(80),
   model: z.string().trim().min(1).max(120),
+  buildModel: z.string().trim().max(120).optional(),
   ram: z.coerce.number().int().min(1).max(32),
   storage: z.coerce.number().int().min(8).max(2048),
   processor: z.enum(['entry', 'mid', 'upperMid', 'flagship']),
@@ -48,6 +49,31 @@ const MODEL_RELEASES = [
     models: ['23124rn87c', 'redmi13c', 'pococ65'],
     releaseDate: '2023-11-10',
   },
+  ...[
+    ['oneplus 3', '2016-06-15'], ['oneplus 3t', '2016-11-22'],
+    ['oneplus 5', '2017-06-22'], ['oneplus 5t', '2017-11-21'],
+    ['oneplus 6', '2018-05-21'], ['oneplus 6t', '2018-11-01'],
+    ['oneplus 7', '2019-06-04'], ['oneplus 7 pro', '2019-05-17'],
+    ['oneplus 7t', '2019-09-28'], ['oneplus 7t pro', '2019-10-12'],
+    ['oneplus 8', '2020-04-29'], ['oneplus 8 pro', '2020-04-29'],
+    ['oneplus 8t', '2020-10-16'], ['oneplus 9', '2021-03-23'],
+    ['oneplus 9 pro', '2021-03-23'], ['oneplus 9r', '2021-04-14'],
+    ['oneplus 10 pro', '2022-03-31'], ['oneplus 10r', '2022-05-04'],
+    ['oneplus 10t', '2022-08-06'], ['oneplus 11', '2023-02-07'],
+    ['oneplus 11r', '2023-02-07'], ['oneplus 12', '2024-01-30'],
+    ['oneplus 12r', '2024-02-06'], ['oneplus 13', '2025-01-10'],
+    ['oneplus 13r', '2025-01-10'], ['oneplus nord', '2020-08-04'],
+    ['oneplus nord 2', '2021-07-28'], ['oneplus nord 2t', '2022-07-05'],
+    ['oneplus nord ce', '2021-06-16'], ['oneplus nord ce 2', '2022-04-22'],
+    ['oneplus nord ce 3', '2023-08-04'], ['oneplus nord ce 3 lite', '2023-04-04'],
+    ['oneplus nord 3', '2023-07-15'], ['oneplus nord ce 4', '2024-04-04'],
+    ['oneplus nord 4', '2024-08-08'], ['oneplus nord 5', '2025-07-08'],
+    ['oneplus nord ce 5', '2025-07-08'],
+  ].map(([model, releaseDate]) => ({
+    brands: ['oneplus'],
+    models: [model.replace(/ /g, '')],
+    releaseDate,
+  })),
 ] as const;
 
 const normalizeDeviceText = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -73,8 +99,11 @@ export function validateAndNormalizeMobileAge(
 } {
   const brand = normalizeDeviceText(input.brand || input.manufacturer);
   const model = normalizeDeviceText(input.model);
+  const fiveYearsAgo = new Date(now);
+  fiveYearsAgo.setUTCFullYear(fiveYearsAgo.getUTCFullYear() - 5);
   const knownModel = MODEL_RELEASES.find(
     (candidate) =>
+      new Date(`${candidate.releaseDate}T00:00:00Z`) >= fiveYearsAgo &&
       candidate.brands.includes(brand as never) && candidate.models.includes(model as never)
   );
   if (knownModel) {
@@ -118,6 +147,9 @@ type ComparableSummary = {
 type MarketSource = { title: string; uri: string };
 type AiReview = {
   used: boolean;
+  resolvedBrand: string | null;
+  resolvedModel: string | null;
+  releaseDate: string | null;
   adjustmentPercent: number;
   confidence: number;
   flags: string[];
@@ -133,6 +165,9 @@ type AiReview = {
 
 const unavailableAiReview = (flag: string, rationale: string): AiReview => ({
   used: false,
+  resolvedBrand: null,
+  resolvedModel: null,
+  releaseDate: null,
   adjustmentPercent: 0,
   confidence: 0,
   flags: [flag],
@@ -352,7 +387,7 @@ export function calculateAcquisitionAnalysis(
   };
 }
 
-async function getAiReview(
+export async function getAiReview(
   input: MobileValuationInput,
   baseline: ReturnType<typeof calculateMobileValuationBaseline>,
   comparables: ComparableSummary
@@ -362,7 +397,7 @@ async function getAiReview(
       'AI provider unavailable',
       'Rules-based fallback used; live market search was unavailable.'
     );
-  const prompt = `You are NearHub's used-mobile market validator in India. Use Google Search now to find (1) current model-specific used or refurbished asking prices and (2) the current new retail price, when this exact configuration is still sold, all in INR. Prefer recently updated reputable Indian resale, refurbishment and retail marketplaces. Match model number, RAM and storage. Exclude launch MSRP unless it is also the current selling price, accessories, exchange bonuses, EMI amounts, unrelated models and obvious outliers. Never invent a price or source. If fewer than two useful used-price observations exist, return null used market values and evidenceQuality "low". A discontinued or unavailable new device must have currentNewPriceInr null. Review the deterministic estimate separately and limit the qualitative adjustment to -5 through +5 percent. Return ONLY valid JSON with no markdown: {"marketMedianInr":number|null,"marketLowInr":number|null,"marketHighInr":number|null,"currentNewPriceInr":number|null,"evidenceQuality":"low|medium|high","adjustmentPercent":number,"confidence":number,"flags":["short flag"],"rationale":"one sentence describing the searched new and used market evidence"}. confidence must be 0-100.\nSearch date: ${new Date().toISOString().slice(0, 10)}\nDevice input: ${JSON.stringify(input)}\nDeterministic estimate INR: ${Math.round(baseline.centre)}\nNearHub comparable summary: ${JSON.stringify(comparables)}`;
+  const prompt = `You are NearHub's used-mobile market validator in India. First resolve the exact consumer model from the supplied readable model and Android build model. Then use Google Search now to find (1) current model-specific used or refurbished asking prices and (2) the current new retail price, when this exact configuration is still sold, all in INR. Prefer recently updated reputable Indian resale, refurbishment and retail marketplaces. Match model number, RAM and storage. Exclude launch MSRP unless it is also the current selling price, accessories, exchange bonuses, EMI amounts, unrelated models and obvious outliers. Never invent a price or source. If fewer than two useful used-price observations exist, return null used market values and evidenceQuality "low". A discontinued or unavailable new device must have currentNewPriceInr null. Return ONLY valid JSON with no markdown: {"resolvedBrand":"string|null","resolvedModel":"string|null","releaseDate":"YYYY-MM-DD|null","marketMedianInr":number|null,"marketLowInr":number|null,"marketHighInr":number|null,"currentNewPriceInr":number|null,"evidenceQuality":"low|medium|high","adjustmentPercent":number,"confidence":number,"flags":["short flag"],"rationale":"one sentence describing the resolved model and searched new and used market evidence"}. confidence must be 0-100.\nSearch date: ${new Date().toISOString().slice(0, 10)}\nDevice input: ${JSON.stringify(input)}\nDeterministic estimate INR: ${Math.round(baseline.centre)}\nNearHub comparable summary: ${JSON.stringify(comparables)}`;
   try {
     const ai = getGoogleGenAIClient();
     const response = await withTimeout(
@@ -414,6 +449,9 @@ async function getAiReview(
       flags: Array.isArray(parsed.flags) ? parsed.flags.slice(0, 5).map(String) : [],
       rationale: String(parsed.rationale || 'Grounded market validation completed.').slice(0, 400),
       model: AI_MODEL,
+      resolvedBrand: parsed.resolvedBrand ? String(parsed.resolvedBrand).slice(0, 80) : null,
+      resolvedModel: parsed.resolvedModel ? String(parsed.resolvedModel).slice(0, 120) : null,
+      releaseDate: /^\d{4}-\d{2}-\d{2}$/.test(String(parsed.releaseDate || '')) ? parsed.releaseDate : null,
       marketMedian,
       marketLow: marketMedian ? price(parsed.marketLowInr) : null,
       marketHigh: marketMedian ? price(parsed.marketHighInr) : null,
@@ -430,10 +468,78 @@ async function getAiReview(
   }
 }
 
+export async function storeAiKnowledge(input: MobileValuationInput, ai: AiReview): Promise<void> {
+  if (!ai.used || !ai.resolvedBrand || !ai.resolvedModel) return;
+  try {
+    await db.execute(sql`
+      INSERT INTO mobile_ai_knowledge (
+        brand, model, build_model, ram_gb, storage_gb, release_date,
+        current_new_price_inr, market_low_inr, market_median_inr, market_high_inr,
+        evidence_quality, confidence, source_urls, last_updated, expires_at
+      ) VALUES (
+        ${ai.resolvedBrand}, ${ai.resolvedModel}, ${input.buildModel || ''},
+        ${input.ram}, ${input.storage}, ${ai.releaseDate},
+        ${ai.currentNewPrice}, ${ai.marketLow}, ${ai.marketMedian}, ${ai.marketHigh},
+        ${ai.evidenceQuality}, ${ai.confidence}, ${JSON.stringify(ai.sources)}::jsonb,
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '1 month'
+      )
+      ON CONFLICT (brand, model, build_model, ram_gb, storage_gb) DO UPDATE SET
+        release_date = EXCLUDED.release_date,
+        current_new_price_inr = EXCLUDED.current_new_price_inr,
+        market_low_inr = EXCLUDED.market_low_inr,
+        market_median_inr = EXCLUDED.market_median_inr,
+        market_high_inr = EXCLUDED.market_high_inr,
+        evidence_quality = EXCLUDED.evidence_quality,
+        confidence = EXCLUDED.confidence,
+        source_urls = EXCLUDED.source_urls,
+        last_updated = CURRENT_TIMESTAMP,
+        expires_at = CURRENT_TIMESTAMP + INTERVAL '1 month'
+    `);
+  } catch (error) {
+    console.warn('[MobileValuation] Could not store AI knowledge:', error);
+  }
+}
+
+export async function getFreshAiKnowledge(input: MobileValuationInput): Promise<AiReview | null> {
+  try {
+    const result = await db.execute(sql`
+      SELECT * FROM mobile_ai_knowledge
+      WHERE (lower(brand) = lower(${input.brand}) OR lower(brand) = lower(${input.manufacturer || ''}))
+        AND (lower(model) = lower(${input.model}) OR build_model = ${input.model} OR build_model = ${input.buildModel || ''})
+        AND ram_gb = ${input.ram}
+        AND storage_gb = ${input.storage}
+        AND expires_at > CURRENT_TIMESTAMP
+      ORDER BY last_updated DESC LIMIT 1
+    `);
+    const row: any = result.rows?.[0];
+    if (!row) return null;
+    return {
+      used: true,
+      resolvedBrand: String(row.brand),
+      resolvedModel: String(row.model),
+      releaseDate: row.release_date ? String(row.release_date).slice(0, 10) : null,
+      adjustmentPercent: 0,
+      confidence: Number(row.confidence) || 0,
+      flags: ['Reused market intelligence updated within the last month.'],
+      rationale: 'Market intelligence was reused because it is less than one month old.',
+      model: 'stored-gemini-result',
+      marketMedian: row.market_median_inr ? Number(row.market_median_inr) : null,
+      marketLow: row.market_low_inr ? Number(row.market_low_inr) : null,
+      marketHigh: row.market_high_inr ? Number(row.market_high_inr) : null,
+      currentNewPrice: row.current_new_price_inr ? Number(row.current_new_price_inr) : null,
+      evidenceQuality: row.evidence_quality || 'low',
+      sources: Array.isArray(row.source_urls) ? row.source_urls : [],
+    };
+  } catch (error) {
+    console.warn('[MobileValuation] Could not read AI knowledge:', error);
+    return null;
+  }
+}
+
 export async function createMobileValuation(input: MobileValuationInput, userId?: string | null) {
-  const ageValidation = validateAndNormalizeMobileAge(input);
+  let ageValidation = validateAndNormalizeMobileAge(input);
   input = ageValidation.input;
-  const baseline = calculateMobileValuationBaseline(input);
+  let baseline = calculateMobileValuationBaseline(input);
   // External market intelligence is the benchmark source. NearHub's own
   // listings are intentionally excluded because the sample is too small.
   const comparables: ComparableSummary = {
@@ -442,7 +548,25 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     minimum: null,
     maximum: null,
   };
-  const ai = await getAiReview(input, baseline, comparables);
+  const ai = (await getFreshAiKnowledge(input)) || (await getAiReview(input, baseline, comparables));
+  if (ai.model !== 'stored-gemini-result') await storeAiKnowledge(input, ai);
+  if (ai.releaseDate) {
+    const resolvedAge = monthsSince(ai.releaseDate, new Date());
+    input = {
+      ...input,
+      brand: ai.resolvedBrand || input.brand,
+      model: ai.resolvedModel || input.model,
+      ageMonths: resolvedAge,
+      ageSource: 'model_release',
+    };
+    ageValidation = {
+      input,
+      ageBasis: 'model_release',
+      verifiedReleaseDate: ai.releaseDate,
+      flags: ageValidation.flags,
+    };
+    baseline = calculateMobileValuationBaseline(input);
+  }
   let adjustedCentre = baseline.centre;
   let pricingBasis: 'current_market' | 'estimated_market' = 'estimated_market';
   if (ai.marketMedian) {
@@ -496,6 +620,7 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     modelVersion: MODEL_VERSION,
     brand: input.brand,
     model: input.model,
+    buildModel: input.buildModel,
     ram: input.ram,
     storage: input.storage,
     processor: input.processor,
@@ -531,6 +656,9 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
       status: ai.used ? 'ai_validated' : 'rules_fallback',
       provider: ai.used ? 'google_search' : 'none',
       model: ai.model,
+      resolvedBrand: ai.resolvedBrand,
+      resolvedModel: ai.resolvedModel,
+      resolvedReleaseDate: ai.releaseDate,
       rationale: ai.rationale,
       flags: [...ageValidation.flags, ...ai.flags],
       adjustmentPercent: ai.adjustmentPercent,

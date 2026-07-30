@@ -548,7 +548,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <StatusBar barStyle="light-content" backgroundColor="#0B3470" translucent={false} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" translucent={false} />
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <GestureWrapper style={{ flex: 1 }}>

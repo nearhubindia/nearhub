@@ -41,6 +41,14 @@ const PROGRESS_RING_RADIUS = 54;
 const PROGRESS_RING_STROKE = 10;
 const PROGRESS_RING_CIRCUMFERENCE = 2 * Math.PI * PROGRESS_RING_RADIUS;
 
+// Android reports memory available to the OS, which can be below the RAM
+// capacity printed on the retail box because hardware/system memory is reserved.
+const normalizeDetectedRamGb = (totalMemoryBytes: number): number => {
+  const reportedGb = totalMemoryBytes / 1024 / 1024 / 1024;
+  const marketedTiers = [2, 3, 4, 6, 8, 12, 16, 18, 24, 32];
+  return marketedTiers.find((tier) => tier >= reportedGb) || Math.ceil(reportedGb);
+};
+
 type Report = {
   id: string;
   brand: string;
@@ -175,13 +183,13 @@ function ReportBreakdown({ report }: { report: Report }) {
       </Text>
       <View style={{ backgroundColor: '#EFF6FF', borderRadius: 14, padding: 16, marginTop: 18 }}>
         <Text style={{ color: '#475569', fontSize: 12, fontWeight: '800' }}>
-          RECOMMENDED SELLING PRICE
+          EXPECTED SELLING RANGE
         </Text>
         <Text style={{ color: '#1D4ED8', fontSize: 31, fontWeight: '900', marginTop: 9 }}>
-          {money(recommendedSellingPrice)}
+          {money(report.low)} – {money(report.high)}
         </Text>
         <Text style={{ color: '#475569', fontSize: 11, marginTop: 6 }}>
-          Expected selling range: {money(report.low)} – {money(report.high)}
+          Recommended listing price: {money(recommendedSellingPrice)}
         </Text>
       </View>
       <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
@@ -231,6 +239,7 @@ export default function AiValuator() {
   const { user } = useAuth();
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
+  const [buildModel, setBuildModel] = useState('');
   const [ram, setRam] = useState('8');
   const [storage, setStorage] = useState('128');
   const [processor, setProcessor] = useState<MobileProcessor>('mid');
@@ -281,16 +290,20 @@ export default function AiValuator() {
     setManufacturer(detectedManufacturer);
     setBrand(detectedBrand);
     setModel(detectedModel);
+    // modelId is Android's hardware/build model (for example CPH2573). Keep
+    // it alongside the readable name so the server/AI can resolve both.
+    setBuildModel(Device.modelId || '');
     setAndroidVersion(
       Platform.OS === 'android'
         ? Device.osVersion || 'Unknown'
         : `${Device.osName || Platform.OS} ${Device.osVersion || ''}`.trim()
     );
-    if (Device.totalMemory) setRam(String(Math.round(Device.totalMemory / 1024 / 1024 / 1024)));
+    const detectedRamGb = Device.totalMemory ? normalizeDetectedRamGb(Device.totalMemory) : 0;
+    if (detectedRamGb) setRam(String(detectedRamGb));
     // deviceYearClass describes relative hardware performance, not manufacture/purchase year.
     // Treating it as a calendar year made new entry-level phones appear many years old.
     setAge('');
-    const memoryGb = Device.totalMemory ? Device.totalMemory / 1024 / 1024 / 1024 : 0;
+    const memoryGb = detectedRamGb;
     setProcessor(
       memoryGb >= 12 ? 'flagship' : memoryGb >= 8 ? 'upperMid' : memoryGb >= 4 ? 'mid' : 'entry'
     );
@@ -353,7 +366,7 @@ export default function AiValuator() {
       <header class="header"><img class="brand-logo" src="${escapeHtml(logoSource)}" alt="NearHub"><div class="document-title"><h1>MOBILE DEVICE<br><span class="orange">VALUATION REPORT</span></h1><p>Independent market assessment</p></div></header>
       <div class="meta"><span><strong>Report ID:</strong> ${escapeHtml(report.reportId)} &nbsp;|&nbsp; <strong>Issued:</strong> ${dateLabel(report.createdAt)}</span><span class="status">${report.validation.status === 'ai_validated' ? '✓ AI VALIDATED' : 'RULES VALIDATED'}</span></div>
       <section class="device-block"><div class="eyebrow">Device assessed</div><h2 class="device">${escapeHtml(report.brand)} ${escapeHtml(report.model)}</h2></section>
-      <section class="range"><div class="range-label">Recommended selling price</div><div class="range-value">${money(report.recommendedSellingPrice ?? Math.round((report.low + report.high) / 2))}</div><div style="position:relative;z-index:1;margin-top:7px;color:#bcd5ee">Expected selling range: ${money(report.low)} – ${money(report.high)}</div></section>
+      <section class="range"><div class="range-label">Expected selling range</div><div class="range-value">${money(report.low)} – ${money(report.high)}</div><div style="position:relative;z-index:1;margin-top:7px;color:#bcd5ee">Recommended listing price: ${money(report.recommendedSellingPrice ?? Math.round((report.low + report.high) / 2))}</div></section>
       <div class="summary"><div class="summary-card accent"><span class="eyebrow">Valuation confidence</span><strong>${report.confidence}%</strong></div><div class="summary-card"><span class="eyebrow">Report validity</span><strong>${MOBILE_RATE_CARD.validityDays} Days</strong></div><div class="summary-card"><span class="eyebrow">Overall assessment</span><strong>${report.score}/100</strong></div></div>
       <p class="explanation"><strong>Valuation opinion:</strong> Most transactions for a comparable device in this reported condition are expected to fall within the range above.</p><p class="disclaimer">Final value may vary following physical inspection and verification of accessories, battery health, ownership status and local demand.</p>
 
@@ -439,6 +452,7 @@ export default function AiValuator() {
         body: JSON.stringify({
           brand: brand.trim(),
           model: model.trim(),
+          buildModel: buildModel.trim(),
           ram: r,
           storage: s,
           processor,

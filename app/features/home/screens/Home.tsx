@@ -1035,7 +1035,7 @@ export default function HomeScreen() {
                 end={{ x: 1, y: 1 }}
                 style={styles.homeHeaderGradient}
               >
-                <View style={styles.homeHeaderTopRow}>
+                <View style={[styles.homeHeaderTopRow, { paddingTop: 8 + insets.top }]}>
                   <Pressable style={styles.logoWrap} onPress={() => router.replace('/(tabs)')}>
                     <Logo size="md" showText={true} />
                   </Pressable>

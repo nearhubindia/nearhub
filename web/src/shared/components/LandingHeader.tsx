@@ -536,8 +536,8 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
     <header className="fixed left-0 right-0 top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
       <Container className="flex h-[72px] min-w-0 items-center justify-between gap-2 px-3 sm:h-[82px] sm:gap-4">
         <Link to="/" onClick={() => setIsMenuOpen(false)} className="min-w-0 shrink">
-          <Logo size="sm" className="sm:hidden" />
-          <Logo size="md" className="hidden sm:flex" />
+          <Logo size="sm" monochrome className="sm:hidden" />
+          <Logo size="md" monochrome className="hidden sm:flex" />
         </Link>
 
         <form onSubmit={submitSearch} className="hidden flex-1 items-center gap-4 md:flex">
@@ -939,7 +939,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
             type="button"
             onClick={detectLocation}
             disabled={isLocating}
-            className="flex h-11 min-w-0 max-w-[142px] flex-1 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 text-left shadow-sm disabled:opacity-60 min-[390px]:max-w-[162px] sm:h-12 sm:max-w-[190px] sm:px-3"
+            className="flex h-11 min-w-0 max-w-[158px] flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-left shadow-sm disabled:opacity-60 min-[390px]:max-w-[174px] sm:h-12 sm:max-w-[200px] sm:px-3.5"
             aria-label="Detect location"
           >
             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#0759e6] text-white">

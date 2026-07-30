@@ -69,7 +69,7 @@ export function LandingFooter(): ReactElement {
         <div className="max-md:px-3">
           <div className="grid grid-cols-2 gap-x-8 gap-y-10 md:grid-cols-2 md:gap-10 lg:grid-cols-[1.35fr_0.75fr_0.75fr_0.9fr]">
             <div className="col-span-2 md:col-span-1">
-              <Logo size="md" />
+              <Logo size="md" monochrome />
               <p className="mt-4 max-w-sm text-sm leading-6 text-blue-100/85">
                 NearHub - Buy, Sell & Discover Local Deals Near You. Buy, sell and connect with
                 trusted local listings, deals, and services across India.
