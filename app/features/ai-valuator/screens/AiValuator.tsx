@@ -785,7 +785,7 @@ export default function AiValuator() {
         {detected ? (
           <View style={styles.row}>
             <View style={styles.fieldColumn}>
-              <Text style={styles.fieldLabel}>Usage (last 30 days)</Text>
+              <Text style={styles.fieldLabel}>App activity (last 30 days)</Text>
               <View style={styles.input}>
                 <Text style={styles.inputPlaceholder}>
                   {usageHoursLast30Days === null ? 'Not available' : `${usageHoursLast30Days} hours`}
@@ -795,7 +795,9 @@ export default function AiValuator() {
                 <Pressable onPress={() => void openUsageAccessSettings()}>
                   <Text style={styles.fieldHint}>Enable Android usage access</Text>
                 </Pressable>
-              ) : null}
+              ) : (
+                <Text style={styles.fieldHint}>Foreground app time; not lifetime screen-on time</Text>
+              )}
             </View>
             <View style={styles.fieldColumn}>
               <Text style={styles.fieldLabel}>Battery cycles</Text>
