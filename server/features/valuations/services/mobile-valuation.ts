@@ -212,9 +212,13 @@ const unavailableAiReview = (flag: string, rationale: string): AiReview => ({
 function normalizeUsedMarketEvidence(review: AiReview, input: MobileValuationInput): AiReview {
   if (!review.currentNewPrice || !review.marketMedian) return review;
 
-  const ageMonths = review.releaseDate
-    ? monthsSince(review.releaseDate, new Date())
-    : input.ageMonths;
+  // Purchase/activation evidence is the primary age signal. Gemini's release
+  // date is only a fallback when the user did not provide device-age evidence.
+  const ageMonths = input.ageSource === 'user_reported' || input.purchaseDate
+    ? input.ageMonths
+    : review.releaseDate
+      ? monthsSince(review.releaseDate, new Date())
+      : input.ageMonths;
   const maximumRatio =
     ageMonths < 12 ? 0.8 : ageMonths < 24 ? 0.7 : ageMonths < 36 ? 0.6 : ageMonths < 48 ? 0.5 : 0.4;
   const ceiling = Math.round(review.currentNewPrice * maximumRatio);
