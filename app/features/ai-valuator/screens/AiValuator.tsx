@@ -182,8 +182,6 @@ async function getReportLogoSource(): Promise<string> {
 }
 
 function ReportBreakdown({ report }: { report: Report }) {
-  const recommendedSellingPrice =
-    report.recommendedSellingPrice ?? Math.round((report.low + report.high) / 2);
   return (
     <View
       style={{
@@ -218,9 +216,6 @@ function ReportBreakdown({ report }: { report: Report }) {
         </Text>
         <Text style={{ color: '#1D4ED8', fontSize: 31, fontWeight: '900', marginTop: 9 }}>
           {money(report.low)} – {money(report.high)}
-        </Text>
-        <Text style={{ color: '#475569', fontSize: 11, marginTop: 6 }}>
-          Recommended listing price: {money(recommendedSellingPrice)}
         </Text>
       </View>
       <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
@@ -258,15 +253,6 @@ function ReportBreakdown({ report }: { report: Report }) {
         Final value may vary after physical inspection, accessories, battery health and local
         demand.
       </Text>
-      <View style={{ marginTop: 16 }}>
-        <Text style={{ color: '#64748B', fontSize: 11, fontWeight: '800' }}>PRICE OPTIONS</Text>
-        <Text style={{ color: '#334155', fontSize: 12, marginTop: 6 }}>
-          Dealer offer: {report.dealerBuyPrice ? money(report.dealerBuyPrice) : 'Unavailable'} • Instant cash: {report.instantCashOffer ? money(report.instantCashOffer) : 'Unavailable'}
-        </Text>
-        <Text style={{ color: '#334155', fontSize: 12, marginTop: 4 }}>
-          Marketplace average: {report.marketplaceAverage ? money(report.marketplaceAverage) : 'Unavailable'}
-        </Text>
-      </View>
       <Text style={{ color: '#64748B', fontSize: 10, marginTop: 10 }}>
         Issued {dateLabel(report.createdAt)} • Valid until {dateLabel(report.validUntil)}
       </Text>
@@ -429,7 +415,7 @@ export default function AiValuator() {
       <header class="header"><img class="brand-logo" src="${escapeHtml(logoSource)}" alt="NearHub"><div class="document-title"><h1>MOBILE DEVICE<br><span class="orange">VALUATION REPORT</span></h1><p>Independent market assessment</p></div></header>
       <div class="meta"><span><strong>Report ID:</strong> ${escapeHtml(report.reportId)} &nbsp;|&nbsp; <strong>Issued:</strong> ${dateLabel(report.createdAt)}</span><span class="status">${report.validation.status === 'ai_validated' ? '✓ AI VALIDATED' : 'RULES VALIDATED'}</span></div>
       <section class="device-block"><div class="eyebrow">Device assessed</div><h2 class="device">${escapeHtml(report.brand)} ${escapeHtml(report.model)}</h2></section>
-      <section class="range"><div class="range-label">Expected selling range</div><div class="range-value">${money(report.low)} – ${money(report.high)}</div><div style="position:relative;z-index:1;margin-top:7px;color:#bcd5ee">Recommended listing price: ${money(report.recommendedSellingPrice ?? Math.round((report.low + report.high) / 2))}</div></section>
+      <section class="range"><div class="range-label">Expected selling range</div><div class="range-value">${money(report.low)} – ${money(report.high)}</div></section>
       <div class="summary"><div class="summary-card accent"><span class="eyebrow">Valuation confidence</span><strong>${report.confidence}%</strong></div><div class="summary-card"><span class="eyebrow">Report validity</span><strong>${MOBILE_RATE_CARD.validityDays} Days</strong></div><div class="summary-card"><span class="eyebrow">Overall assessment</span><strong>${report.score}/100</strong></div></div>
       <p class="explanation"><strong>Valuation opinion:</strong> Most transactions for a comparable device in this reported condition are expected to fall within the range above.</p><p class="disclaimer">Final value may vary following physical inspection and verification of accessories, battery health, ownership status and local demand.</p>
 
@@ -454,7 +440,7 @@ export default function AiValuator() {
 
       <section class="section"><div class="section-heading"><span class="section-number">03</span><h2>Current market evidence</h2></div><div class="market-grid"><div class="market-card"><span class="eyebrow">Current new price</span><strong>${report.validation.currentNewPrice ? money(report.validation.currentNewPrice) : 'Not available'}</strong></div><div class="market-card"><span class="eyebrow">Observed used market</span><strong>${report.validation.marketLow && report.validation.marketHigh ? `${money(report.validation.marketLow)} – ${money(report.validation.marketHigh)}` : report.validation.marketMedian ? money(report.validation.marketMedian) : 'Insufficient evidence'}</strong></div><div class="market-card"><span class="eyebrow">Estimated value retained</span><strong>${retainedValue === null ? 'Not available' : `${retainedValue}%`}</strong></div></div><p class="market-note">Evidence quality: ${escapeHtml(report.validation.evidenceQuality || 'none')} • Search checked: ${report.validation.searchedAt ? dateLabel(report.validation.searchedAt) : 'Not available'} • Asking prices are not confirmed sale prices.</p>${sourceList}</section>
 
-      <section class="section"><div class="section-heading"><span class="section-number">04</span><h2>Selling recommendation</h2></div><div class="method"><p><strong>List near ${money(report.recommendedSellingPrice ?? Math.round((report.low + report.high) / 2))}.</strong> Based on the submitted device configuration and condition, a realistic selling outcome is expected between ${money(report.low)} and ${money(report.high)}.</p><p>The final transaction price can vary with buyer demand, physical verification, accessories and negotiation.</p></div></section>
+      <section class="section"><div class="section-heading"><span class="section-number">04</span><h2>Selling recommendation</h2></div><div class="method"><p>Based on the submitted device configuration and condition, a realistic selling outcome is expected between ${money(report.low)} and ${money(report.high)}.</p><p>The final transaction price can vary with buyer demand, physical verification, accessories and negotiation.</p></div></section>
 
       <section class="section"><div class="section-heading"><span class="section-number">05</span><h2>Valuation methodology</h2></div><div class="method"><p>The NearHub valuation engine assesses hardware configuration, model age, reported physical condition, battery health, software support and current market demand.</p><p>${report.ageBasis === 'model_release' ? 'The displayed age is the model age calculated from its release date; this device’s purchase or activation date has not been verified.' : report.ageBasis === 'user_reported' ? 'Device age was reported by the user and has not been independently verified.' : 'Device age was unavailable and is not presented as a verified fact.'}</p><p>${escapeHtml(report.validation.rationale)} ${report.validation.comparableCount ? `${report.validation.comparableCount} current NearHub market comparables were included.` : 'No sufficiently relevant NearHub market comparables were available.'}</p><p>The selling range is 20% wide (±10% around the recommended price). Confidence reflects input completeness, grounded market evidence, comparable evidence and validation quality.</p></div></section>
 
