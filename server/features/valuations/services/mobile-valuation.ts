@@ -39,6 +39,14 @@ export const mobileValuationInputSchema = z.object({
   networkType: z.enum(['2G', '3G', '4G', '5G', 'UNKNOWN']).optional(),
   androidApiLevel: z.coerce.number().int().min(1).max(100).optional(),
   securityPatch: z.string().trim().max(40).optional(),
+  chargingStatus: z.enum(['USB', 'AC', 'WIRELESS', 'NOT_CHARGING']).optional(),
+  nfcAvailable: z.boolean().optional(),
+  activeSimCount: z.coerce.number().int().min(0).max(8).optional(),
+  eSimSupported: z.boolean().optional(),
+  functionalIssues: z.string().trim().max(1000).optional(),
+  accessoriesAvailable: z.array(z.string().trim().max(80)).max(20).optional(),
+  originalBillAvailable: z.boolean().optional(),
+  boxAvailable: z.boolean().optional(),
   manufacturer: z.string().trim().max(80).optional().default(''),
   cpuArchitecture: z.string().trim().max(160).optional().default(''),
   detectedStorage: z.coerce.number().int().min(1).max(4096).optional(),
@@ -768,6 +776,9 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     adjustedCentre,
     baseline.batteryMultiplier
   );
+  const marketplaceAverage = Math.round(adjustedCentre);
+  const dealerBuyPrice = Math.round(adjustedCentre * 0.85);
+  const instantCashOffer = Math.round(adjustedCentre * 0.9);
   const completeness =
     [
       input.brand,
@@ -815,6 +826,14 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     networkType: input.networkType || 'UNKNOWN',
     androidApiLevel: input.androidApiLevel,
     securityPatch: input.securityPatch,
+    chargingStatus: input.chargingStatus,
+    nfcAvailable: input.nfcAvailable,
+    activeSimCount: input.activeSimCount,
+    eSimSupported: input.eSimSupported,
+    functionalIssues: input.functionalIssues,
+    accessoriesAvailable: input.accessoriesAvailable,
+    originalBillAvailable: input.originalBillAvailable,
+    boxAvailable: input.boxAvailable,
     manufacturer: input.manufacturer,
     cpuArchitecture: input.cpuArchitecture,
     detectedStorage: input.detectedStorage,
@@ -834,6 +853,11 @@ export async function createMobileValuation(input: MobileValuationInput, userId?
     low: adjustedCentre * 0.9,
     high: adjustedCentre * 1.1,
     recommendedSellingPrice: Math.round(adjustedCentre),
+    marketplaceAverage,
+    dealerBuyPrice,
+    instantCashOffer,
+    expectedSellingRange7Days: { low: Math.round(adjustedCentre * 0.95), high: Math.round(adjustedCentre * 1.02) },
+    expectedSellingRange30Days: { low: Math.round(adjustedCentre * 0.9), high: Math.round(adjustedCentre * 1.1) },
     pricingBasis,
     estimatedMarketValueInr: Math.round(adjustedCentre),
     recommendedCustomerPayoutInr: Math.round(adjustedCentre),

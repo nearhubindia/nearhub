@@ -1,6 +1,12 @@
 import { NativeModules, Platform } from 'react-native';
 
 export type BatteryDiagnostics = {
+  chargingStatus: 'USB' | 'AC' | 'WIRELESS' | 'NOT_CHARGING';
+  isCharging: boolean;
+  fastCharging: 'FAST' | 'NORMAL' | 'UNKNOWN';
+  nfcAvailable: boolean;
+  activeSimCount: number;
+  eSimSupported: boolean;
   androidRelease: string;
   androidApiLevel: number;
   securityPatch: string;

@@ -73,6 +73,15 @@ type Report = {
   networkType?: string;
   androidApiLevel?: number;
   securityPatch?: string;
+  chargingStatus?: string;
+  nfcAvailable?: boolean;
+  activeSimCount?: number;
+  eSimSupported?: boolean;
+  dealerBuyPrice?: number;
+  instantCashOffer?: number;
+  marketplaceAverage?: number;
+  expectedSellingRange7Days?: { low: number; high: number };
+  expectedSellingRange30Days?: { low: number; high: number };
   manufacturer?: string;
   cpuArchitecture?: string;
   detectedStorage?: number;
@@ -236,6 +245,15 @@ function ReportBreakdown({ report }: { report: Report }) {
         Final value may vary after physical inspection, accessories, battery health and local
         demand.
       </Text>
+      <View style={{ marginTop: 16 }}>
+        <Text style={{ color: '#64748B', fontSize: 11, fontWeight: '800' }}>PRICE OPTIONS</Text>
+        <Text style={{ color: '#334155', fontSize: 12, marginTop: 6 }}>
+          Dealer offer: {report.dealerBuyPrice ? money(report.dealerBuyPrice) : 'Unavailable'} • Instant cash: {report.instantCashOffer ? money(report.instantCashOffer) : 'Unavailable'}
+        </Text>
+        <Text style={{ color: '#334155', fontSize: 12, marginTop: 4 }}>
+          Marketplace average: {report.marketplaceAverage ? money(report.marketplaceAverage) : 'Unavailable'}
+        </Text>
+      </View>
       <Text style={{ color: '#64748B', fontSize: 10, marginTop: 10 }}>
         Issued {dateLabel(report.createdAt)} • Valid until {dateLabel(report.validUntil)}
       </Text>
@@ -265,6 +283,10 @@ export default function AiValuator() {
   const [networkType, setNetworkType] = useState('UNKNOWN');
   const [androidApiLevel, setAndroidApiLevel] = useState<number | null>(null);
   const [securityPatch, setSecurityPatch] = useState('');
+  const [chargingStatus, setChargingStatus] = useState('NOT_CHARGING');
+  const [nfcAvailable, setNfcAvailable] = useState<boolean | null>(null);
+  const [activeSimCount, setActiveSimCount] = useState<number | null>(null);
+  const [eSimSupported, setESimSupported] = useState<boolean | null>(null);
   const [manufacturer, setManufacturer] = useState('');
   const [detected, setDetected] = useState(false);
   const [cpuArchitecture, setCpuArchitecture] = useState('');
@@ -340,6 +362,10 @@ export default function AiValuator() {
       setNetworkType(batteryInfo.networkType || 'UNKNOWN');
       setAndroidApiLevel(batteryInfo.androidApiLevel > 0 ? batteryInfo.androidApiLevel : null);
       setSecurityPatch(batteryInfo.securityPatch || '');
+      setChargingStatus(batteryInfo.chargingStatus || 'NOT_CHARGING');
+      setNfcAvailable(batteryInfo.nfcAvailable);
+      setActiveSimCount(batteryInfo.activeSimCount >= 0 ? batteryInfo.activeSimCount : null);
+      setESimSupported(batteryInfo.eSimSupported);
       setUsageAccessGranted(batteryInfo.usageAccessGranted);
       setUsageHoursLast30Days(
         batteryInfo.usageHoursLast30Days >= 0 ? Math.round(batteryInfo.usageHoursLast30Days * 10) / 10 : null
@@ -497,6 +523,10 @@ export default function AiValuator() {
           networkType,
           androidApiLevel: androidApiLevel ?? undefined,
           securityPatch: securityPatch || undefined,
+          chargingStatus,
+          nfcAvailable: nfcAvailable ?? undefined,
+          activeSimCount: activeSimCount ?? undefined,
+          eSimSupported: eSimSupported ?? undefined,
           manufacturer,
           cpuArchitecture,
           detectedStorage: detectedStorage || undefined,

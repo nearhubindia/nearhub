@@ -3,6 +3,7 @@ package com.synvide.nearhub.battery
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.BatteryManager
 import android.os.Build
 import android.provider.Settings
@@ -10,6 +11,8 @@ import android.net.Uri
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
 import android.telephony.TelephonyManager
+import android.nfc.NfcAdapter
+import android.telephony.SubscriptionManager
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -28,6 +31,29 @@ class BatteryDiagnosticsModule(reactContext: ReactApplicationContext) : ReactCon
         return
       }
       val result = Arguments.createMap()
+      val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+      val chargingStatus = when (plugged) {
+        BatteryManager.BATTERY_PLUGGED_USB -> "USB"
+        BatteryManager.BATTERY_PLUGGED_AC -> "AC"
+        BatteryManager.BATTERY_PLUGGED_WIRELESS -> "WIRELESS"
+        else -> "NOT_CHARGING"
+      }
+      result.putString("chargingStatus", chargingStatus)
+      result.putBoolean("isCharging", chargingStatus != "NOT_CHARGING")
+      result.putBoolean("nfcAvailable", NfcAdapter.getDefaultAdapter(reactApplicationContext) != null)
+      result.putString("fastCharging", "UNKNOWN")
+      result.putInt("activeSimCount", try {
+        SubscriptionManager.from(reactApplicationContext).activeSubscriptionInfoCount
+      } catch (_: SecurityException) {
+        -1
+      })
+      result.putBoolean("eSimSupported", try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+          reactApplicationContext.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_EUICC)
+        } else false
+      } catch (_: SecurityException) {
+        false
+      })
       result.putString("androidRelease", Build.VERSION.RELEASE ?: "")
       result.putInt("androidApiLevel", Build.VERSION.SDK_INT)
       result.putString("securityPatch", if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Build.VERSION.SECURITY_PATCH else "")
@@ -96,6 +122,9 @@ class BatteryDiagnosticsModule(reactContext: ReactApplicationContext) : ReactCon
       promise.reject("E_BATTERY_READ_FAILED", "Failed to read battery diagnostics", error)
     }
   }
+
+  private fun telephonyManager(context: Context): TelephonyManager =
+    context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
 
   @ReactMethod
   fun openUsageAccessSettings(promise: Promise) {
