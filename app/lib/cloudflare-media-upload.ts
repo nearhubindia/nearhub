@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { getApiUrl } from '@/lib/query-client';
+import { compressImage, getImageCompressionOptions } from '@/lib/image-compressor';
+import type { ImageCompressionPresetName } from '../../shared/media/image-compression';
 
 type MediaType = 'image' | 'video';
 
@@ -18,6 +20,15 @@ interface PresignResponse {
   publicUrl: string;
   expiresInSeconds: number;
   headers: Record<string, string>;
+}
+
+interface BackendImageUploadResponse {
+  success?: boolean;
+  error?: string;
+  data?: {
+    publicUrl?: string;
+    objectKey?: string;
+  };
 }
 
 export interface UploadedMedia {
@@ -103,6 +114,73 @@ async function requestPresignedUpload(params: PresignRequest): Promise<PresignRe
   }
 
   return payload.data as PresignResponse;
+}
+
+function getBackendImageUploadUrl(params: {
+  fileName: string;
+  preset: ImageCompressionPresetName;
+}): string {
+  const url = new URL('/api/media/upload-image', getApiUrl());
+  url.searchParams.set('fileName', params.fileName || 'image');
+  url.searchParams.set('preset', params.preset);
+  return url.toString();
+}
+
+function parseBackendImageUploadBody(body: string, status: number): UploadedMedia {
+  let payload: BackendImageUploadResponse | null = null;
+  try {
+    payload = JSON.parse(body) as BackendImageUploadResponse;
+  } catch {
+    payload = null;
+  }
+  const publicUrl = payload?.data?.publicUrl;
+  const objectKey = payload?.data?.objectKey;
+  if (status < 200 || status >= 300 || !payload?.success || !publicUrl || !objectKey) {
+    throw new Error(payload?.error || `Image upload failed (${status})`);
+  }
+  return { url: publicUrl, objectKey };
+}
+
+async function parseBackendImageUploadResponse(response: Response): Promise<UploadedMedia> {
+  return parseBackendImageUploadBody(await response.text(), response.status);
+}
+
+async function uploadImageThroughBackend(params: {
+  sourceUri: string;
+  contentType: string;
+  fileName: string;
+  preset: ImageCompressionPresetName;
+  userId?: string;
+  token?: string;
+}): Promise<UploadedMedia> {
+  const url = getBackendImageUploadUrl({ fileName: params.fileName, preset: params.preset });
+  const headers: Record<string, string> = {
+    'Content-Type': params.contentType,
+  };
+  if (params.token) headers.Authorization = `Bearer ${params.token}`;
+  if (params.userId) headers['x-user-id'] = params.userId;
+
+  if (Platform.OS !== 'web' && isNativeLocalUri(params.sourceUri)) {
+    const response = await FileSystem.uploadAsync(url, params.sourceUri, {
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      headers,
+    });
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`Image upload failed (${response.status})`);
+    }
+    return parseBackendImageUploadBody(response.body, response.status);
+  }
+
+  const source = await fetch(params.sourceUri);
+  if (!source.ok) throw new Error(`Failed to read image source (${source.status})`);
+  const blob = await source.blob();
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: blob,
+  });
+  return parseBackendImageUploadResponse(response);
 }
 
 async function uploadWithFetch(uploadUrl: string, contentType: string, uri: string): Promise<void> {
@@ -210,24 +288,45 @@ export async function uploadMediaToCloudflare(params: {
   fileName?: string;
   mimeType?: string;
   userId?: string;
+  token?: string;
+  compressionPreset?: ImageCompressionPresetName;
+  compressBeforeUpload?: boolean;
 }): Promise<UploadedMedia> {
   let sourceUri = params.uri;
+  if (params.mediaType === 'image' && params.compressBeforeUpload !== false) {
+    sourceUri = (
+      await compressImage(
+        params.uri,
+        getImageCompressionOptions(params.compressionPreset || 'listing')
+      )
+    ).uri;
+  }
   let stagedTempUri: string | null = null;
-  const parsedDataUri = parseDataUri(params.uri);
+  const parsedDataUri = parseDataUri(sourceUri);
 
   if (Platform.OS !== 'web' && parsedDataUri) {
-    stagedTempUri = await dataUriToTempFile(params.uri, params.mediaType);
+    stagedTempUri = await dataUriToTempFile(sourceUri, params.mediaType);
     sourceUri = stagedTempUri;
   }
 
   const fileName = params.fileName || buildFileName(sourceUri, params.mediaType);
-  const contentType = params.mimeType || inferMimeType(params.uri, params.mediaType);
+  const contentType = params.mimeType || inferMimeType(sourceUri, params.mediaType);
   if (params.mediaType === 'video') {
     assertSupportedVideoMime(contentType);
   }
-  const fileSizeBytes = await getFileSizeBytes(params.uri);
-
   try {
+    if (params.mediaType === 'image') {
+      return await uploadImageThroughBackend({
+        sourceUri,
+        contentType,
+        fileName,
+        preset: params.compressionPreset || 'listing',
+        userId: params.userId,
+        token: params.token,
+      });
+    }
+
+    const fileSizeBytes = await getFileSizeBytes(sourceUri);
     const signed = await requestPresignedUpload({
       mediaType: params.mediaType,
       fileName,

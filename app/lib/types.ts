@@ -12,6 +12,7 @@ export interface Listing {
   subCategory?: Category; // Explicit subcategory for new taxonomy model
   subcategory?: Category; // Backward/alternate casing from APIs
   category: Category;
+  attributes?: Record<string, string | number | boolean>;
   images: string[]; // Up to 5 images
   imageHashes?: string[]; // SHA256 hashes for deduplication
   videos?: string[]; // Up to 5 video URLs

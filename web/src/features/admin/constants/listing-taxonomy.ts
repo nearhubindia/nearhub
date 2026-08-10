@@ -1,6 +1,8 @@
 export type AdminCategoryGroup = {
   mainCategory: string;
+  mainCategoryIcon?: string;
   subcategories: string[];
+  subcategoryIcons?: Record<string, string>;
 };
 
 export type ListingAttributeDefinition = {

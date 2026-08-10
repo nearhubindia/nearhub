@@ -86,6 +86,16 @@ export default function SearchScreen() {
       ),
     [categoryGroups]
   );
+  const categoryIconByName = useMemo(() => {
+    const iconMap = new Map<string, string>();
+    categoryGroups.forEach((group) => {
+      group.subcategories.forEach((subcategory) => {
+        const iconUrl = group.subcategoryIcons?.[subcategory];
+        if (iconUrl) iconMap.set(subcategory, iconUrl);
+      });
+    });
+    return iconMap;
+  }, [categoryGroups]);
   const initialCategory =
     categoryValue === 'All' ? 'All' : ((categoryValue || 'All') as Category | 'All');
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>(initialCategory);
@@ -373,6 +383,7 @@ export default function SearchScreen() {
           <View style={styles.categoriesGrid}>
             {topCategoryTiles.map((item) => {
               const meta = getCategoryDisplayMeta(item);
+              const iconUrl = categoryIconByName.get(item);
               const isSelected = selectedCategory === item;
 
               return (
@@ -382,15 +393,23 @@ export default function SearchScreen() {
                   onPress={() => navigateToCategoryResults(item)}
                 >
                   <View style={[styles.iconTile, isSelected && styles.iconTileSelected]}>
-                    {meta.pictureImage ? (
+                    {iconUrl ? (
+                      <Image
+                        source={{ uri: iconUrl }}
+                        style={styles.pictureImage}
+                        contentFit="contain"
+                        cachePolicy="memory-disk"
+                      />
+                    ) : meta.pictureImage ? (
                       <Image
                         source={{ uri: meta.pictureImage }}
                         style={styles.pictureImage}
                         contentFit="contain"
                         cachePolicy="memory-disk"
                       />
-                    ) : null}
-                    <Text style={styles.pictureIconFallback}>{meta.picture}</Text>
+                    ) : (
+                      <Text style={styles.pictureIconFallback}>{meta.picture}</Text>
+                    )}
                   </View>
                   <Text style={[styles.categoryLabel, isSelected && styles.categoryLabelSelected]}>
                     {item}

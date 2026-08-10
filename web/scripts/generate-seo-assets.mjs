@@ -168,6 +168,24 @@ function buildJsonLd(pathname, canonicalUrl, meta, siteUrl, defaultImageUrl) {
     });
   }
 
+  if (normalizedPath === '/ai-mobile-valuator') {
+    graph.push({
+      '@type': 'SoftwareApplication',
+      '@id': `${canonicalUrl}#application`,
+      name: 'NearHub AI Mobile Valuator',
+      applicationCategory: 'FinanceApplication',
+      operatingSystem: 'Android',
+      description:
+        'AI-powered mobile valuation tool for estimating a used phone resale value in India.',
+      downloadUrl: 'https://play.google.com/store/apps/details?id=com.synvide.nearhub',
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'INR',
+      },
+    });
+  }
+
   return {
     '@context': 'https://schema.org',
     '@graph': graph,

@@ -119,6 +119,9 @@ export const adminSettings = pgTable('admin_settings', {
   listingCategoryGroups: jsonb('listing_category_groups'),
   listingPriceUnits: jsonb('listing_price_units'),
   attributesByKey: jsonb('attributes_by_key'),
+  listingAttributeCatalog: jsonb('listing_attribute_catalog'),
+  listingAttributeAssignmentsByKey: jsonb('listing_attribute_assignments_by_key'),
+  listingCommonFieldAssignments: jsonb('listing_common_field_assignments'),
   inactiveUserReviewDays: integer('inactive_user_review_days').notNull().default(90), // Users inactive for N days become eligible for deletion review
 
   // Hard update settings (app version enforcement)
@@ -241,6 +244,7 @@ export const masterListingCategories = pgTable(
       .default(sql`gen_random_uuid()`),
 
     name: varchar('name', { length: 120 }).notNull(),
+    iconUrl: text('icon_url'),
     sortOrder: integer('sort_order').notNull().default(0),
     isActive: boolean('is_active').notNull().default(true),
 
@@ -267,6 +271,7 @@ export const masterListingSubcategories = pgTable(
       .notNull()
       .references(() => masterListingCategories.id, { onDelete: 'cascade' }),
     name: varchar('name', { length: 120 }).notNull(),
+    iconUrl: text('icon_url'),
     sortOrder: integer('sort_order').notNull().default(0),
     isActive: boolean('is_active').notNull().default(true),
 
@@ -293,6 +298,9 @@ export const masterListingUnits = pgTable(
       .default(sql`gen_random_uuid()`),
 
     name: varchar('name', { length: 120 }).notNull(),
+    subcategoryId: varchar('subcategory_id').references(() => masterListingSubcategories.id, {
+      onDelete: 'cascade',
+    }),
     sortOrder: integer('sort_order').notNull().default(0),
     isActive: boolean('is_active').notNull().default(true),
 
@@ -304,7 +312,10 @@ export const masterListingUnits = pgTable(
       .notNull(),
   },
   (table) => ({
-    nameUnique: uniqueIndex('master_listing_units_name_unique').on(table.name),
+    subcategoryNameUnique: uniqueIndex('master_listing_units_subcategory_name_unique').on(
+      table.subcategoryId,
+      table.name
+    ),
   })
 );
 

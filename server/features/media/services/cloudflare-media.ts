@@ -218,7 +218,7 @@ export async function createPresignedUpload(
     throw new Error(`Unsupported ${input.mediaType} content type: ${input.contentType}`);
   }
 
-  if (!input.fileSizeBytes || input.fileSizeBytes <= 0) {
+  if (!Number.isSafeInteger(input.fileSizeBytes) || input.fileSizeBytes <= 0) {
     throw new Error('fileSizeBytes must be greater than 0');
   }
 

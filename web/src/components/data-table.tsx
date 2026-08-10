@@ -3,7 +3,6 @@
 import * as React from 'react';
 import {
   type ColumnDef,
-  type ColumnFiltersState,
   type PaginationState,
   type SortingState,
   type Updater,
@@ -63,6 +62,7 @@ export interface DataTableProps<TData, TValue> {
   rowCount?: number;
   manualPagination?: boolean;
   className?: string;
+  dense?: boolean;
 }
 
 function getSearchableText(value: unknown): string {
@@ -105,10 +105,10 @@ export function DataTable<TData, TValue>({
   rowCount,
   manualPagination = false,
   className,
+  dense = false,
 }: DataTableProps<TData, TValue>) {
   const [internalSorting, setInternalSorting] = React.useState<SortingState>([]);
   const [internalGlobalFilter, setInternalGlobalFilter] = React.useState<string>('');
-  const [internalColumnFilters, setInternalColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [internalColumnVisibility, setInternalColumnVisibility] = React.useState<VisibilityState>(
     {}
   );
@@ -185,7 +185,6 @@ export function DataTable<TData, TValue>({
     state: {
       sorting: internalSorting,
       globalFilter: resolvedGlobalFilter,
-      columnFilters: internalColumnFilters,
       columnVisibility: internalColumnVisibility,
       pagination: {
         pageIndex: resolvedPageIndex,
@@ -209,7 +208,6 @@ export function DataTable<TData, TValue>({
     },
     onSortingChange: setInternalSorting,
     onGlobalFilterChange: setResolvedGlobalFilter,
-    onColumnFiltersChange: setInternalColumnFilters,
     onColumnVisibilityChange: setInternalColumnVisibility,
     onPaginationChange: handlePaginationChange,
     getCoreRowModel: getCoreRowModel(),
@@ -225,9 +223,9 @@ export function DataTable<TData, TValue>({
     if (resolvedPageIndex !== 0) {
       setResolvedPageIndex(0);
     }
-    // Reset to the first page whenever filters/search change.
+    // Reset to the first page whenever the global search changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedGlobalFilter, internalColumnFilters]);
+  }, [resolvedGlobalFilter]);
 
   useClickAway(closeColumnMenu, isColumnMenuOpen, columnMenuRef);
 
@@ -255,10 +253,10 @@ export function DataTable<TData, TValue>({
   };
 
   return (
-    <div className={cn('w-full space-y-4', className)}>
+    <div className={cn('min-w-0 w-full space-y-4', className)}>
       {(toolbarLeft || toolbarRight || showSearch || showColumnVisibility || showPagination) && (
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             {toolbarLeft}
 
             {showSearch && (
@@ -346,7 +344,12 @@ export function DataTable<TData, TValue>({
         </div>
       )}
 
-      <div className="w-full overflow-x-auto border border-slate-200 bg-white shadow-sm">
+      <div
+        className={cn(
+          'w-full overflow-x-auto border border-slate-200 bg-white shadow-sm',
+          dense && 'rounded-xl'
+        )}
+      >
         <Table className="min-w-full">
           <TableHeader className="bg-slate-900">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -360,7 +363,8 @@ export function DataTable<TData, TValue>({
                         key={header.id}
                         onClick={isSortable ? header.column.getToggleSortingHandler() : undefined}
                         className={cn(
-                          'select-none py-4 text-sm font-semibold tracking-wide text-white',
+                          'font-semibold tracking-wide text-white',
+                          dense ? 'h-10 !px-3 !py-2 text-xs' : 'py-4 text-sm',
                           isSortable && 'cursor-pointer',
                           header.column.columnDef.meta?.headerClassName
                         )}
@@ -380,23 +384,6 @@ export function DataTable<TData, TValue>({
                     );
                   })}
                 </TableRow>
-
-                <TableRow className="bg-white hover:bg-transparent">
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className="p-2">
-                      {header.column.getCanFilter() ? (
-                        <Input
-                          placeholder={
-                            header.column.columnDef.meta?.filterPlaceholder ?? 'Filter...'
-                          }
-                          value={(header.column.getFilterValue() as string) ?? ''}
-                          onChange={(event) => header.column.setFilterValue(event.target.value)}
-                          className="h-8 text-xs shadow-none"
-                        />
-                      ) : null}
-                    </TableHead>
-                  ))}
-                </TableRow>
               </React.Fragment>
             ))}
           </TableHeader>
@@ -408,7 +395,10 @@ export function DataTable<TData, TValue>({
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className={cn(cell.column.columnDef.meta?.cellClassName)}
+                      className={cn(
+                        dense && '!px-3 !py-2 !text-xs',
+                        cell.column.columnDef.meta?.cellClassName
+                      )}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
@@ -430,7 +420,12 @@ export function DataTable<TData, TValue>({
       </div>
 
       {showPagination && (
-        <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-600 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className={cn(
+            'flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white text-sm text-slate-600 shadow-sm sm:flex-row sm:items-center sm:justify-between',
+            dense ? 'px-3 py-2' : 'px-4 py-4'
+          )}
+        >
           <div>
             Showing {rangeStart}-{rangeEnd} of {filteredRowCount} filtered rows
           </div>

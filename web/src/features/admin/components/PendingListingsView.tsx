@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { CheckCircle2, Eye, Search, X, XCircle } from 'lucide-react';
+import { CheckCircle2, Eye, Search, XCircle } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
 import type { Listing } from '@/features/admin/types/admin-types';
 import { useListingById, useListings, useReviewListing } from '@/features/admin/hooks';
 import { getApiUrl } from '@/lib/config';
+import AdminDrawer from '@/features/admin/components/AdminDrawer';
+import AdminActionMenu from './AdminActionMenu';
 
 export default function PendingListingsView() {
   const apiBaseUrl = getApiUrl();
@@ -183,41 +185,36 @@ export default function PendingListingsView() {
       enableHiding: false,
       accessorFn: () => '',
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setDetailsListingId(row.original.id)}
-            className="inline-flex items-center gap-1 rounded-lg bg-slate-700 px-3 py-1.5 text-white transition hover:bg-slate-800"
-            type="button"
-          >
-            <Eye size={14} />
-            View Details
-          </button>
-          <button
-            onClick={() => handleReview(row.original.id, 'approve')}
-            disabled={reviewListing.isPending}
-            className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-            type="button"
-          >
-            <CheckCircle2 size={14} />
-            Approve
-          </button>
-          <button
-            onClick={() => handleReview(row.original.id, 'reject')}
-            disabled={reviewListing.isPending}
-            className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-            type="button"
-          >
-            <XCircle size={14} />
-            Reject
-          </button>
-        </div>
+        <AdminActionMenu
+          label="Pending listing actions"
+          items={[
+            {
+              label: 'View Details',
+              icon: <Eye size={15} />,
+              onSelect: () => setDetailsListingId(row.original.id),
+            },
+            {
+              label: 'Approve',
+              icon: <CheckCircle2 size={15} />,
+              onSelect: () => void handleReview(row.original.id, 'approve'),
+              disabled: reviewListing.isPending,
+            },
+            {
+              label: 'Reject',
+              icon: <XCircle size={15} />,
+              tone: 'danger',
+              onSelect: () => void handleReview(row.original.id, 'reject'),
+              disabled: reviewListing.isPending,
+            },
+          ]}
+        />
       ),
     },
   ];
 
   return (
     <div>
-      <div className="border-b border-amber-800 bg-gradient-to-r from-amber-700 to-orange-700 p-4 text-white sm:p-6">
+      <div className="admin-page-header border-b border-amber-800 bg-gradient-to-r from-amber-700 to-orange-700 px-4 py-3 text-white sm:px-6 sm:py-3">
         <h1 className="mb-2 text-3xl font-black sm:text-4xl">Approval Pending</h1>
         <p className="text-amber-100">Review and approve/reject new listings</p>
       </div>
@@ -284,122 +281,115 @@ export default function PendingListingsView() {
       </div>
 
       {detailsListingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+        <AdminDrawer
+          onClose={() => setDetailsListingId(null)}
+          ariaLabel="Listing details"
+          panelClassName="sm:w-[min(94vw,72rem)] lg:w-[min(82vw,80rem)]"
+          bodyClassName="p-5 sm:p-7"
+          header={
+            <div className="border-b border-slate-200 bg-white px-5 py-4 pr-16 sm:px-6 sm:py-5 sm:pr-20">
               <div>
                 <h2 className="text-xl font-black text-slate-900">Listing Details</h2>
                 <p className="text-sm text-slate-500">Review the listing before approving it</p>
               </div>
-              <button
-                onClick={() => setDetailsListingId(null)}
-                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-                type="button"
-              >
-                <X size={20} />
-              </button>
             </div>
-
-            <div className="p-6">
-              {isDetailsLoading ? (
-                <div className="py-16 text-center text-slate-500">Loading details...</div>
-              ) : detailsListing ? (
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <div className="space-y-4">
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-sm text-slate-500">Title</p>
-                      <p className="mt-1 text-lg font-bold text-slate-900">
-                        {detailsListing.title}
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="rounded-lg border border-slate-200 p-4">
-                        <p className="text-sm text-slate-500">Price</p>
-                        <p className="mt-1 font-semibold text-slate-900">₹{detailsListing.price}</p>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 p-4">
-                        <p className="text-sm text-slate-500">Category</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailsListing.category || '-'}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 p-4">
-                        <p className="text-sm text-slate-500">Location</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {detailsListing.location || '-'}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 p-4">
-                        <p className="text-sm text-slate-500">Phone</p>
-                        <p className="mt-1 font-semibold text-slate-900">{detailsPhone}</p>
-                      </div>
+          }
+        >
+          <div>
+            {isDetailsLoading ? (
+              <div className="py-16 text-center text-slate-500">Loading details...</div>
+            ) : detailsListing ? (
+              <div className="grid gap-6 lg:grid-cols-2">
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm text-slate-500">Title</p>
+                    <p className="mt-1 text-lg font-bold text-slate-900">{detailsListing.title}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-lg border border-slate-200 p-4">
+                      <p className="text-sm text-slate-500">Price</p>
+                      <p className="mt-1 font-semibold text-slate-900">₹{detailsListing.price}</p>
                     </div>
                     <div className="rounded-lg border border-slate-200 p-4">
-                      <p className="text-sm text-slate-500">Description</p>
-                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-                        {detailsListing.description || 'No description available.'}
+                      <p className="text-sm text-slate-500">Category</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {detailsListing.category || '-'}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 p-4">
+                      <p className="text-sm text-slate-500">Location</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {detailsListing.location || '-'}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 p-4">
+                      <p className="text-sm text-slate-500">Phone</p>
+                      <p className="mt-1 font-semibold text-slate-900">{detailsPhone}</p>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 p-4">
+                    <p className="text-sm text-slate-500">Description</p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                      {detailsListing.description || 'No description available.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-slate-200 p-4">
+                    <p className="mb-3 text-sm font-semibold text-slate-700">Images</p>
+                    {detailImages.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        {detailImages.map((image) => (
+                          <img
+                            key={image}
+                            src={image}
+                            alt={detailsListing.title}
+                            className="h-40 w-full rounded-lg object-cover"
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">No images available.</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200 p-4">
+                    <p className="mb-3 text-sm font-semibold text-slate-700">Videos</p>
+                    {detailVideos.length > 0 ? (
+                      <div className="space-y-3">
+                        {detailVideos.map((video) => (
+                          <video key={video} controls className="w-full rounded-lg">
+                            <source src={video} />
+                          </video>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">No videos available.</p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-lg border border-slate-200 p-4">
+                      <p className="text-sm text-slate-500">User ID</p>
+                      <p className="mt-1 break-all font-semibold text-slate-900">
+                        {detailsListing.userId || '-'}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 p-4">
+                      <p className="text-sm text-slate-500">Posted</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {formatDateTime(detailsListing.createdAt || detailsListing.date)}
                       </p>
                     </div>
                   </div>
-
-                  <div className="space-y-4">
-                    <div className="rounded-lg border border-slate-200 p-4">
-                      <p className="mb-3 text-sm font-semibold text-slate-700">Images</p>
-                      {detailImages.length > 0 ? (
-                        <div className="grid grid-cols-2 gap-3">
-                          {detailImages.map((image) => (
-                            <img
-                              key={image}
-                              src={image}
-                              alt={detailsListing.title}
-                              className="h-40 w-full rounded-lg object-cover"
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500">No images available.</p>
-                      )}
-                    </div>
-
-                    <div className="rounded-lg border border-slate-200 p-4">
-                      <p className="mb-3 text-sm font-semibold text-slate-700">Videos</p>
-                      {detailVideos.length > 0 ? (
-                        <div className="space-y-3">
-                          {detailVideos.map((video) => (
-                            <video key={video} controls className="w-full rounded-lg">
-                              <source src={video} />
-                            </video>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-500">No videos available.</p>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="rounded-lg border border-slate-200 p-4">
-                        <p className="text-sm text-slate-500">User ID</p>
-                        <p className="mt-1 break-all font-semibold text-slate-900">
-                          {detailsListing.userId || '-'}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-slate-200 p-4">
-                        <p className="text-sm text-slate-500">Posted</p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {formatDateTime(detailsListing.createdAt || detailsListing.date)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
                 </div>
-              ) : (
-                <div className="py-16 text-center text-slate-500">
-                  Listing details not available.
-                </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="py-16 text-center text-slate-500">Listing details not available.</div>
+            )}
           </div>
-        </div>
+        </AdminDrawer>
       )}
     </div>
   );

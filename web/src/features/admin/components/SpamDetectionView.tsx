@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Eye, XCircle } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
 import { useSpamReports, useSpamTrends, useReviewSpamReport } from '@/features/admin/hooks';
+import AdminActionMenu from './AdminActionMenu';
 
 interface SpamRow {
   id?: string;
@@ -80,37 +81,43 @@ export default function SpamDetectionView() {
       enableColumnFilter: false,
       enableHiding: false,
       accessorFn: () => '',
-      cell: ({ row }) =>
-        filter === 'pending' ? (
-          <div className="flex gap-2">
-            <button
-              onClick={() => handleReview(row.original.id as string, 'approve')}
-              disabled={reviewSpam.isPending}
-              className="inline-flex items-center rounded-lg bg-green-100 px-3 py-1 text-green-700 transition hover:bg-green-200 disabled:cursor-not-allowed disabled:opacity-50"
-              type="button"
-            >
-              <CheckCircle className="mr-1 h-4 w-4" />
-              Approve
-            </button>
-            <button
-              onClick={() => handleReview(row.original.id as string, 'reject')}
-              disabled={reviewSpam.isPending}
-              className="inline-flex items-center rounded-lg bg-red-100 px-3 py-1 text-red-700 transition hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-50"
-              type="button"
-            >
-              <XCircle className="mr-1 h-4 w-4" />
-              Reject
-            </button>
-          </div>
-        ) : (
-          <span className="text-xs text-slate-500">View only</span>
-        ),
+      cell: ({ row }) => (
+        <AdminActionMenu
+          label="Spam report actions"
+          items={
+            filter === 'pending'
+              ? [
+                  {
+                    label: 'Approve',
+                    icon: <CheckCircle size={15} />,
+                    onSelect: () => void handleReview(row.original.id as string, 'approve'),
+                    disabled: reviewSpam.isPending,
+                  },
+                  {
+                    label: 'Reject',
+                    icon: <XCircle size={15} />,
+                    tone: 'danger' as const,
+                    onSelect: () => void handleReview(row.original.id as string, 'reject'),
+                    disabled: reviewSpam.isPending,
+                  },
+                ]
+              : [
+                  {
+                    label: 'View only',
+                    icon: <Eye size={15} />,
+                    onSelect: () => undefined,
+                    disabled: true,
+                  },
+                ]
+          }
+        />
+      ),
     },
   ];
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex min-h-full items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-teal-500" />
       </div>
     );

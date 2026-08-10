@@ -1,5 +1,15 @@
-import { useState } from 'react';
-import { BadgePercent, CalendarDays, Layers, Plus, Sparkles, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  BadgePercent,
+  CalendarDays,
+  Layers,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
 import {
@@ -9,6 +19,7 @@ import {
   useDeleteSubscriptionTier,
 } from '@/features/admin/hooks';
 import { ApiError } from '@/features/admin/api';
+import AdminDrawer from '@/features/admin/components/AdminDrawer';
 
 interface TierRow {
   id: string;
@@ -47,6 +58,120 @@ interface TierFormData {
   boostCredits: number | null;
   highlight: boolean;
   isActive: boolean;
+}
+
+type TierActionMenuProps = {
+  onEdit: () => void;
+  onDelete: () => void;
+};
+
+function TierActionMenu({ onEdit, onDelete }: TierActionMenuProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const closeOnOutsideClick = (event: MouseEvent): void => {
+      const target = event.target as Node;
+      if (buttonRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setIsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    const closeOnViewportChange = (): void => setIsOpen(false);
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('resize', closeOnViewportChange);
+    window.addEventListener('scroll', closeOnViewportChange, true);
+
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('resize', closeOnViewportChange);
+      window.removeEventListener('scroll', closeOnViewportChange, true);
+    };
+  }, [isOpen]);
+
+  const toggleMenu = (): void => {
+    if (!buttonRef.current) return;
+
+    if (!isOpen) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const menuWidth = 144;
+      const menuHeight = 88;
+      const gap = 8;
+      const top =
+        rect.bottom + gap + menuHeight > window.innerHeight
+          ? Math.max(8, rect.top - gap - menuHeight)
+          : rect.bottom + gap;
+      const left = Math.min(
+        Math.max(8, rect.right - menuWidth),
+        Math.max(8, window.innerWidth - menuWidth - 8)
+      );
+      setPosition({ top, left });
+    }
+
+    setIsOpen((current) => !current);
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label="Plan actions"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        onClick={toggleMenu}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-cyan-100"
+      >
+        <MoreVertical size={18} />
+      </button>
+
+      {isOpen
+        ? createPortal(
+            <div
+              ref={menuRef}
+              role="menu"
+              aria-label="Plan actions"
+              className="fixed z-[100] w-36 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"
+              style={{ top: position.top, left: position.left }}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsOpen(false);
+                  onEdit();
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700"
+              >
+                <Pencil size={15} />
+                Edit
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsOpen(false);
+                  onDelete();
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-red-600 transition hover:bg-red-50 hover:text-red-700"
+              >
+                <Trash2 size={15} />
+                Delete
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
+    </>
+  );
 }
 
 export default function SubscriptionPlansView() {
@@ -330,21 +455,11 @@ export default function SubscriptionPlansView() {
       enableHiding: false,
       accessorFn: () => '',
       cell: ({ row }) => (
-        <div className="space-x-2 text-right">
-          <button
-            onClick={() => openEditModal(row.original)}
-            className="cursor-pointer font-bold text-blue-600 transition hover:text-blue-800 hover:underline"
-            type="button"
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => handleDeleteTier(row.original.id as string)}
-            className="cursor-pointer font-bold text-red-600 transition hover:text-red-800 hover:underline"
-            type="button"
-          >
-            Delete
-          </button>
+        <div className="flex justify-end">
+          <TierActionMenu
+            onEdit={() => openEditModal(row.original)}
+            onDelete={() => void handleDeleteTier(row.original.id as string)}
+          />
         </div>
       ),
     },
@@ -388,17 +503,11 @@ export default function SubscriptionPlansView() {
 
         {/* Create/Edit Tier Modal */}
         {showCreateModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-2 backdrop-blur-sm sm:p-6">
-            <div className="relative w-full max-w-[min(96vw,56rem)] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-[0_24px_80px_-24px_rgba(2,6,23,0.65)] sm:rounded-3xl">
-              <button
-                onClick={closeModal}
-                aria-label="Close modal"
-                className="absolute right-3 top-3 z-20 rounded-full bg-white/90 p-2 text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-900 sm:right-4 sm:top-4"
-              >
-                <X size={16} />
-              </button>
-
-              <div className="relative overflow-hidden border-b border-cyan-200 bg-gradient-to-r from-cyan-600 to-teal-500 px-4 py-5 text-white sm:px-8 sm:py-6">
+          <AdminDrawer
+            onClose={closeModal}
+            ariaLabel={editingTier ? 'Edit subscription tier' : 'Create subscription tier'}
+            header={
+              <div className="relative overflow-hidden border-b border-cyan-200 bg-gradient-to-r from-cyan-600 to-teal-500 px-4 py-5 pr-16 text-white sm:px-8 sm:py-6 sm:pr-20">
                 <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/15 blur-2xl" />
                 <div className="absolute -bottom-12 left-1/2 h-24 w-32 rounded-full bg-cyan-200/20 blur-2xl" />
                 <p className="relative mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide">
@@ -412,218 +521,220 @@ export default function SubscriptionPlansView() {
                   Set pricing, validity, and benefits for this plan.
                 </p>
               </div>
-
-              <div className="max-h-[80vh] space-y-5 overflow-y-auto p-4 sm:space-y-6 sm:p-8">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div>
-                      <label className={labelClass}>Tier Name</label>
-                      <input
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className={inputClass}
-                        placeholder="e.g., Premium Plan"
-                      />
-                    </div>
-
-                    <div>
-                      <label className={labelClass}>Tier Type</label>
-                      <select
-                        value={formData.type}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            type: e.target.value as 'bundle' | 'boost',
-                          })
-                        }
-                        className={inputClass}
-                      >
-                        <option value="bundle">Bundle (Listings + optional boosts)</option>
-                        <option value="boost">Boost Pack (credits only)</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                    <label className={`${labelClass} flex items-center gap-2`}>
-                      <BadgePercent size={14} /> Price (₹)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.price ?? ''}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          price: e.target.value === '' ? null : Number(e.target.value),
-                        })
-                      }
-                      className={inputClass}
-                      min="0"
-                    />
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                    <label className={`${labelClass} flex items-center gap-2`}>
-                      <BadgePercent size={14} /> Offer Price (₹)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.offerPrice ?? ''}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          offerPrice: e.target.value === '' ? null : Number(e.target.value),
-                        })
-                      }
-                      className={inputClass}
-                      min="0"
-                      placeholder="Optional"
-                    />
-                    {formData.offerPrice !== null &&
-                      formData.price !== null &&
-                      formData.offerPrice >= formData.price && (
-                        <p className="mt-2 text-xs font-medium text-rose-600">
-                          Offer price must be less than regular price.
-                        </p>
-                      )}
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                    <label className={`${labelClass} flex items-center gap-2`}>
-                      <CalendarDays size={14} /> Duration (Days)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.durationDays ?? ''}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          durationDays: e.target.value === '' ? null : Number(e.target.value),
-                        })
-                      }
-                      className={inputClass}
-                      min="1"
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-                  <label className={labelClass}>Description</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className={inputClass}
-                    placeholder="Describe this tier..."
-                    rows={3}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {formData.type !== 'boost' && (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                      <label className={`${labelClass} flex items-center gap-2`}>
-                        <Layers size={14} /> Max Listings
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.maxListings ?? ''}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            maxListings: e.target.value === '' ? null : Number(e.target.value),
-                          })
-                        }
-                        className={inputClass}
-                        min="-1"
-                        placeholder="-1 for unlimited"
-                      />
-                    </div>
-                  )}
-
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                    <label className={`${labelClass} flex items-center gap-2`}>
-                      <Sparkles size={14} /> Boost Credits
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.boostCredits ?? ''}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          boostCredits: e.target.value === '' ? null : Number(e.target.value),
-                        })
-                      }
-                      className={inputClass}
-                      min="0"
-                      placeholder="Credits per purchase"
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
-                  <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-700">
-                    <Sparkles size={14} /> Features
-                  </h3>
-                  <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
-                    <p className="font-semibold text-slate-900">Boost Visibility</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Boost entitlement is controlled by <strong>Boost Credits</strong> for both
-                      bundle and boost-pack plans. Image/video uploads are no longer managed as
-                      subscription feature toggles.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-cyan-300 hover:shadow-sm">
-                    <input
-                      type="checkbox"
-                      checked={formData.highlight}
-                      onChange={(e) => setFormData({ ...formData, highlight: e.target.checked })}
-                      className="mt-0.5 h-5 w-5 accent-cyan-600"
-                    />
-                    <span>
-                      <span className="block font-bold text-slate-900">Mark as Most Popular</span>
-                      <span className="text-sm text-slate-500">Highlights this tier in UI</span>
-                    </span>
-                  </label>
-
-                  <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-cyan-300 hover:shadow-sm">
-                    <input
-                      type="checkbox"
-                      checked={formData.isActive}
-                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                      className="mt-0.5 h-5 w-5 accent-cyan-600"
-                    />
-                    <span>
-                      <span className="block font-bold text-slate-900">Active</span>
-                      <span className="text-sm text-slate-500">
-                        Users can subscribe to this tier
-                      </span>
-                    </span>
-                  </label>
-                </div>
-              </div>
-
+            }
+            footer={
               <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-4 sm:flex-row sm:p-6">
                 <button
+                  type="button"
                   onClick={closeModal}
                   className="w-full rounded-xl border border-slate-300 bg-white px-6 py-3 font-bold text-slate-700 transition hover:bg-slate-100 sm:flex-1"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleSaveTier}
-                  className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-200 transition hover:brightness-105 sm:flex-1"
+                  type="button"
+                  onClick={() => void handleSaveTier()}
+                  disabled={createTier.isPending || updateTier.isPending}
+                  className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-200 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
                 >
                   {editingTier ? 'Update Tier' : 'Create Tier'}
                 </button>
               </div>
+            }
+          >
+            <div className="space-y-5 sm:space-y-6">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>Tier Name</label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className={inputClass}
+                      placeholder="e.g., Premium Plan"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Tier Type</label>
+                    <select
+                      value={formData.type}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          type: e.target.value as 'bundle' | 'boost',
+                        })
+                      }
+                      className={inputClass}
+                    >
+                      <option value="bundle">Bundle (Listings + optional boosts)</option>
+                      <option value="boost">Boost Pack (credits only)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <label className={`${labelClass} flex items-center gap-2`}>
+                    <BadgePercent size={14} /> Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.price ?? ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        price: e.target.value === '' ? null : Number(e.target.value),
+                      })
+                    }
+                    className={inputClass}
+                    min="0"
+                  />
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <label className={`${labelClass} flex items-center gap-2`}>
+                    <BadgePercent size={14} /> Offer Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.offerPrice ?? ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        offerPrice: e.target.value === '' ? null : Number(e.target.value),
+                      })
+                    }
+                    className={inputClass}
+                    min="0"
+                    placeholder="Optional"
+                  />
+                  {formData.offerPrice !== null &&
+                    formData.price !== null &&
+                    formData.offerPrice >= formData.price && (
+                      <p className="mt-2 text-xs font-medium text-rose-600">
+                        Offer price must be less than regular price.
+                      </p>
+                    )}
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <label className={`${labelClass} flex items-center gap-2`}>
+                    <CalendarDays size={14} /> Duration (Days)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.durationDays ?? ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        durationDays: e.target.value === '' ? null : Number(e.target.value),
+                      })
+                    }
+                    className={inputClass}
+                    min="1"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                <label className={labelClass}>Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className={inputClass}
+                  placeholder="Describe this tier..."
+                  rows={3}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {formData.type !== 'boost' && (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                    <label className={`${labelClass} flex items-center gap-2`}>
+                      <Layers size={14} /> Max Listings
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.maxListings ?? ''}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          maxListings: e.target.value === '' ? null : Number(e.target.value),
+                        })
+                      }
+                      className={inputClass}
+                      min="-1"
+                      placeholder="-1 for unlimited"
+                    />
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <label className={`${labelClass} flex items-center gap-2`}>
+                    <Sparkles size={14} /> Boost Credits
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.boostCredits ?? ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        boostCredits: e.target.value === '' ? null : Number(e.target.value),
+                      })
+                    }
+                    className={inputClass}
+                    min="0"
+                    placeholder="Credits per purchase"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-700">
+                  <Sparkles size={14} /> Features
+                </h3>
+                <div className="rounded-xl border border-cyan-100 bg-cyan-50/60 p-4">
+                  <p className="font-semibold text-slate-900">Boost Visibility</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Boost entitlement is controlled by <strong>Boost Credits</strong> for both
+                    bundle and boost-pack plans. Image/video uploads are no longer managed as
+                    subscription feature toggles.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-cyan-300 hover:shadow-sm">
+                  <input
+                    type="checkbox"
+                    checked={formData.highlight}
+                    onChange={(e) => setFormData({ ...formData, highlight: e.target.checked })}
+                    className="mt-0.5 h-5 w-5 accent-cyan-600"
+                  />
+                  <span>
+                    <span className="block font-bold text-slate-900">Mark as Most Popular</span>
+                    <span className="text-sm text-slate-500">Highlights this tier in UI</span>
+                  </span>
+                </label>
+
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-cyan-300 hover:shadow-sm">
+                  <input
+                    type="checkbox"
+                    checked={formData.isActive}
+                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                    className="mt-0.5 h-5 w-5 accent-cyan-600"
+                  />
+                  <span>
+                    <span className="block font-bold text-slate-900">Active</span>
+                    <span className="text-sm text-slate-500">Users can subscribe to this tier</span>
+                  </span>
+                </label>
+              </div>
             </div>
-          </div>
+          </AdminDrawer>
         )}
       </div>
     </div>

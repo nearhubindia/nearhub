@@ -67,6 +67,11 @@ export function registerAdminSettingsRoutes(app: Express) {
           geoRadiusKm: settings.geoRadiusKm,
           listingCategoryGroups: masterData.listingCategoryGroups,
           listingPriceUnits: masterData.listingPriceUnits,
+          listingUnitsByKey: masterData.listingUnitsByKey,
+          attributeCatalog: masterData.attributeCatalog,
+          commonFieldAssignments: masterData.commonFieldAssignments,
+          commonFields: masterData.commonFields,
+          attributeAssignmentsByKey: masterData.attributeAssignmentsByKey,
           attributesByKey: masterData.attributesByKey,
           inactiveUserReviewDays: settings.inactiveUserReviewDays,
           forceUpdateEnabled: settings.forceUpdateEnabled,
@@ -151,6 +156,10 @@ export function registerAdminSettingsRoutes(app: Express) {
           geoRadiusKm,
           listingCategoryGroups,
           listingPriceUnits,
+          listingUnitsByKey,
+          attributeCatalog,
+          commonFieldAssignments,
+          attributeAssignmentsByKey,
           attributesByKey,
           inactiveUserReviewDays,
           forceUpdateEnabled,
@@ -217,11 +226,58 @@ export function registerAdminSettingsRoutes(app: Express) {
             .json({ error: 'listingPriceUnits must be an array of non-empty strings' });
         }
         if (
+          listingUnitsByKey !== undefined &&
+          listingUnitsByKey !== null &&
+          (typeof listingUnitsByKey !== 'object' ||
+            Array.isArray(listingUnitsByKey) ||
+            Object.entries(listingUnitsByKey).some(
+              ([, units]) =>
+                !Array.isArray(units) ||
+                units.some((unit) => typeof unit !== 'string' || !unit.trim())
+            ))
+        ) {
+          return res
+            .status(400)
+            .json({ error: 'listingUnitsByKey must be an object map of unit arrays' });
+        }
+        if (
           attributesByKey !== undefined &&
           attributesByKey !== null &&
           (typeof attributesByKey !== 'object' || Array.isArray(attributesByKey))
         ) {
           return res.status(400).json({ error: 'attributesByKey must be an object map' });
+        }
+        if (
+          attributeCatalog !== undefined &&
+          attributeCatalog !== null &&
+          !Array.isArray(attributeCatalog)
+        ) {
+          return res.status(400).json({ error: 'attributeCatalog must be an array' });
+        }
+        if (
+          attributeAssignmentsByKey !== undefined &&
+          attributeAssignmentsByKey !== null &&
+          (typeof attributeAssignmentsByKey !== 'object' ||
+            Array.isArray(attributeAssignmentsByKey))
+        ) {
+          return res.status(400).json({ error: 'attributeAssignmentsByKey must be an object map' });
+        }
+        if (
+          commonFieldAssignments !== undefined &&
+          commonFieldAssignments !== null &&
+          (!Array.isArray(commonFieldAssignments) ||
+            commonFieldAssignments.some((item: unknown) =>
+              typeof item === 'string'
+                ? !item.trim()
+                : !item ||
+                  typeof item !== 'object' ||
+                  typeof (item as { attributeId?: unknown }).attributeId !== 'string' ||
+                  !(item as { attributeId: string }).attributeId.trim()
+            ))
+        ) {
+          return res
+            .status(400)
+            .json({ error: 'commonFieldAssignments must be an array of attribute assignments' });
         }
         if (
           inactiveUserReviewDays !== undefined &&
@@ -272,6 +328,22 @@ export function registerAdminSettingsRoutes(app: Express) {
             listingPriceUnits !== undefined
               ? listingPriceUnits.map((item: unknown) => String(item || '').trim()).filter(Boolean)
               : currentMasterData.listingPriceUnits,
+          listingUnitsByKey:
+            listingUnitsByKey !== undefined
+              ? ((listingUnitsByKey || {}) as Record<string, string[]>)
+              : currentMasterData.listingUnitsByKey,
+          attributeCatalog:
+            attributeCatalog !== undefined
+              ? attributeCatalog || []
+              : currentMasterData.attributeCatalog,
+          commonFieldAssignments:
+            commonFieldAssignments !== undefined
+              ? ((commonFieldAssignments || []) as unknown[])
+              : currentMasterData.commonFieldAssignments,
+          attributeAssignmentsByKey:
+            attributeAssignmentsByKey !== undefined
+              ? ((attributeAssignmentsByKey || {}) as Record<string, unknown>)
+              : currentMasterData.attributeAssignmentsByKey,
           attributesByKey:
             attributesByKey !== undefined
               ? (attributesByKey as Record<string, unknown>)
@@ -340,6 +412,13 @@ export function registerAdminSettingsRoutes(app: Express) {
           updates.listingPriceUnits = nextMasterData.listingPriceUnits as never;
         if (attributesByKey !== undefined)
           updates.attributesByKey = nextMasterData.attributesByKey as never;
+        if (attributeCatalog !== undefined)
+          updates.listingAttributeCatalog = nextMasterData.attributeCatalog as never;
+        if (attributeAssignmentsByKey !== undefined)
+          updates.listingAttributeAssignmentsByKey =
+            nextMasterData.attributeAssignmentsByKey as never;
+        if (commonFieldAssignments !== undefined)
+          updates.listingCommonFieldAssignments = nextMasterData.commonFieldAssignments as never;
         if (inactiveUserReviewDays !== undefined)
           updates.inactiveUserReviewDays = Number(inactiveUserReviewDays);
         if (forceUpdateEnabled !== undefined)

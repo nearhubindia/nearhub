@@ -9,7 +9,6 @@ import {
   FileText,
   CreditCard,
   AlertTriangle,
-  Film,
   Tag,
   CircleDollarSign,
   BarChart3,
@@ -29,7 +28,6 @@ import CreateListingModal from '../components/CreateListingModal';
 import CouponsView from '../components/CouponsView';
 import SubscriptionPlansView from '../components/SubscriptionPlansView';
 import SpamDetectionView from '../components/SpamDetectionView';
-import VideoManagementView from '../components/VideoManagementView';
 import InAppNotificationsView from '../components/InAppNotificationsView';
 
 // Import types and constants
@@ -84,8 +82,6 @@ export default function AdminDashboard() {
         return <SubscriptionPlansView />;
       case 'spam':
         return <SpamDetectionView />;
-      case 'videos':
-        return <VideoManagementView />;
       case 'coupons':
         return <CouponsView />;
       case 'revenue':
@@ -130,7 +126,6 @@ export default function AdminDashboard() {
             { id: 'users', name: 'Users', icon: Users },
             { id: 'plans', name: 'Subscriptions', icon: CreditCard },
             { id: 'spam', name: 'Spam Detection', icon: AlertTriangle },
-            { id: 'videos', name: 'Video Management', icon: Film },
             { id: 'coupons', name: 'Coupons', icon: Tag },
             { id: 'notifications', name: 'Notifications', icon: Bell },
             { id: 'revenue', name: 'Revenue', icon: CircleDollarSign },

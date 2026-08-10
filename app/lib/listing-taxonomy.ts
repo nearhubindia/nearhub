@@ -63,7 +63,9 @@ const CONDITION_OPTIONAL_SUBCATEGORIES = new Set([
 
 export type CategoryGroup = {
   mainCategory: MainCategory;
+  mainCategoryIcon?: string;
   subcategories: Category[];
+  subcategoryIcons?: Record<string, string>;
 };
 
 export const DEFAULT_CATEGORY_GROUPS: CategoryGroup[] = Object.entries(CATEGORY_TAXONOMY).map(

@@ -1,13 +1,8 @@
 import { useMemo, useState } from 'react';
-import { AlertOctagon, RefreshCcw, Search } from 'lucide-react';
+import { Activity, RefreshCcw, Search, SlidersHorizontal, Trash2 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
-import {
-  useCleanupErrorLogs,
-  useErrorLogs,
-  useResetErrorLogs,
-  useResolveErrorLog,
-} from '@/features/admin/hooks';
+import { useCleanupErrorLogs, useErrorLogs } from '@/features/admin/hooks';
 
 function formatDateTime(value: string | null): string {
   if (!value) return '-';
@@ -26,10 +21,10 @@ function levelBadge(level: string): string {
 }
 
 export default function ErrorLogsView() {
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  const [levelInput, setLevelInput] = useState('');
   const [level, setLevel] = useState('');
-  const [environment, setEnvironment] = useState('');
-  const [includeResolved, setIncludeResolved] = useState(false);
   const [limit, setLimit] = useState(50);
 
   const queryParams = useMemo(
@@ -37,18 +32,21 @@ export default function ErrorLogsView() {
       limit,
       offset: 0,
       level: level || undefined,
-      environment: environment || undefined,
       search: search.trim() || undefined,
-      include_resolved: includeResolved || undefined,
+      // OPD365 monitoring shows both unresolved and resolved records by default.
+      include_resolved: true,
     }),
-    [environment, includeResolved, level, limit, search]
+    [level, limit, search]
   );
 
   const { data, isLoading, refetch, isRefetching } = useErrorLogs(queryParams);
-  const resetLogs = useResetErrorLogs();
   const cleanupLogs = useCleanupErrorLogs();
-  const resolveOneLog = useResolveErrorLog();
   const logs = data?.logs || [];
+
+  const applyFilters = (): void => {
+    setSearch(searchInput.trim());
+    setLevel(levelInput);
+  };
 
   const columns = useMemo<ColumnDef<(typeof logs)[number]>[]>(
     () => [
@@ -128,11 +126,6 @@ export default function ErrorLogsView() {
               <p className="text-xs text-slate-500">
                 last seen: {formatDateTime(log.lastSeenAt || log.createdAt)}
               </p>
-              {log.resolved && (
-                <span className="mt-1 inline-flex rounded bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">
-                  resolved
-                </span>
-              )}
             </div>
           );
         },
@@ -151,142 +144,136 @@ export default function ErrorLogsView() {
           </div>
         ),
       },
-      {
-        id: 'actions',
-        header: 'Actions',
-        enableSorting: false,
-        enableColumnFilter: false,
-        enableHiding: false,
-        accessorFn: () => '',
-        cell: ({ row }) => (
-          <button
-            onClick={() =>
-              resolveOneLog.mutate({
-                id: row.original.id,
-                resolved: !row.original.resolved,
-              })
-            }
-            disabled={resolveOneLog.isPending}
-            className={`rounded px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${
-              row.original.resolved
-                ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                : 'bg-teal-600 text-white hover:bg-teal-700'
-            }`}
-            type="button"
-          >
-            {resolveOneLog.isPending
-              ? 'Saving...'
-              : row.original.resolved
-                ? 'Mark Unresolved'
-                : 'Mark Resolved'}
-          </button>
-        ),
-      },
     ],
-    [resolveOneLog]
+    []
   );
 
   return (
     <div>
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-6 border-b border-slate-700">
-        <h1 className="text-3xl sm:text-4xl font-black mb-2">Error Logs</h1>
-        <p className="text-slate-300">
-          Centralized runtime errors from mobile app, web app, and backend APIs
-        </p>
+      <div className="admin-page-header border-b border-slate-700 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="mb-1 text-3xl font-black sm:text-4xl">Error Logs</h1>
+            <p className="text-slate-300">
+              Centralized runtime errors from mobile app, web app, and backend APIs
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200">
+            <Activity size={14} className="text-teal-300" />
+            Runtime monitoring
+          </div>
+        </div>
       </div>
 
-      <div className="p-4 sm:p-6 space-y-4">
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
-          <div className="relative lg:col-span-2">
-            <Search className="absolute left-3 top-3 text-slate-400" size={18} />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search message, stack, endpoint..."
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-            />
+      <div className="space-y-4 p-3 sm:p-5">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+            <div className="flex items-start gap-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-teal-50 text-teal-600">
+                <SlidersHorizontal size={16} />
+              </span>
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Runtime monitoring</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Review application errors across NearHub surfaces and clear them when necessary.
+                </p>
+              </div>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+              {logs.length} of {data?.total || 0} loaded
+            </span>
           </div>
-          <select
-            value={level}
-            onChange={(e) => setLevel(e.target.value)}
-            className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-          >
-            <option value="">All levels</option>
-            <option value="fatal">fatal</option>
-            <option value="error">error</option>
-            <option value="warn">warn</option>
-            <option value="info">info</option>
-            <option value="debug">debug</option>
-          </select>
-          <input
-            type="text"
-            value={environment}
-            onChange={(e) => setEnvironment(e.target.value)}
-            placeholder="Environment (production)"
-            className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-          />
-          <div className="flex gap-2">
-            <label className="inline-flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 bg-white">
-              <input
-                type="checkbox"
-                checked={includeResolved}
-                onChange={(e) => setIncludeResolved(e.target.checked)}
-                className="accent-teal-600"
-              />
-              Resolved
-            </label>
-            <select
-              value={String(limit)}
-              onChange={(e) => setLimit(Number(e.target.value) || 100)}
-              className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-            >
-              <option value="50">50</option>
-              <option value="100">100</option>
-              <option value="200">200</option>
-            </select>
-            <button
-              onClick={() => refetch()}
-              disabled={isRefetching}
-              className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-100 transition font-semibold text-slate-700 disabled:opacity-50 inline-flex items-center justify-center gap-2"
-            >
-              <RefreshCcw size={16} className={isRefetching ? 'animate-spin' : ''} />
-              Refresh
-            </button>
-          </div>
-        </div>
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => {
-              if (!confirm('Mark all currently filtered unresolved logs as resolved?')) return;
-              resetLogs.mutate({
-                level: level || undefined,
-                app_name: undefined,
-                include_resolved: false,
-              });
+          <form
+            className="space-y-3 p-4 sm:p-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              applyFilters();
             }}
-            disabled={resetLogs.isPending}
-            className="px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold disabled:opacity-50"
           >
-            {resetLogs.isPending ? 'Resolving...' : 'Resolve Filtered Logs'}
-          </button>
-          <button
-            onClick={() => {
-              if (!confirm('Delete all resolved logs permanently?')) return;
-              cleanupLogs.mutate({
-                mode: 'resolved',
-              });
-            }}
-            disabled={cleanupLogs.isPending}
-            className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-semibold disabled:opacity-50"
-          >
-            {cleanupLogs.isPending ? 'Cleaning...' : 'Cleanup Resolved Logs'}
-          </button>
-        </div>
+            <div className="grid gap-3 lg:grid-cols-4">
+              <div className="lg:col-span-2">
+                <label className="mb-1 block text-xs font-semibold text-slate-600">Search</label>
+                <div className="relative">
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    size={16}
+                  />
+                  <input
+                    type="text"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder="Message, stack, endpoint, screen"
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-100"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">Level</label>
+                <select
+                  value={levelInput}
+                  onChange={(e) => setLevelInput(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm outline-none focus:border-teal-500 focus:ring-4 focus:ring-teal-100"
+                >
+                  <option value="">All levels</option>
+                  <option value="fatal">fatal</option>
+                  <option value="error">error</option>
+                  <option value="warn">warn</option>
+                  <option value="info">info</option>
+                  <option value="debug">debug</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">Rows</label>
+                <select
+                  value={String(limit)}
+                  onChange={(e) => setLimit(Number(e.target.value) || 50)}
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm outline-none focus:border-teal-500 focus:ring-4 focus:ring-teal-100"
+                >
+                  <option value="50">50 rows</option>
+                  <option value="100">100 rows</option>
+                  <option value="200">200 rows</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+              <button
+                type="submit"
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-teal-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 focus:outline-none focus:ring-4 focus:ring-teal-100"
+              >
+                <Search size={16} />
+                Apply filters
+              </button>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                disabled={isRefetching}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RefreshCcw size={16} className={isRefetching ? 'animate-spin' : ''} />
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!confirm('Delete all error logs permanently?')) return;
+                  cleanupLogs.mutate({ mode: 'all' });
+                }}
+                disabled={cleanupLogs.isPending}
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-red-200 bg-white px-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Trash2 size={15} />
+                {cleanupLogs.isPending ? 'Clearing...' : 'Clear All Logs'}
+              </button>
+            </div>
+          </form>
+        </section>
 
         {isLoading ? (
-          <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-600">
+          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-600">
             Loading logs...
           </div>
         ) : (
@@ -294,12 +281,16 @@ export default function ErrorLogsView() {
             columns={columns}
             data={logs}
             showSearch={false}
+            showColumnVisibility={false}
+            showPagination={false}
             searchPlaceholder="Search logs..."
+            initialPageSize={limit}
+            pageSizeOptions={[50, 100, 200]}
+            dense
           />
         )}
 
-        <div className="text-sm text-slate-600 inline-flex items-center gap-2">
-          <AlertOctagon size={16} />
+        <div className="inline-flex items-center gap-2 text-xs font-medium text-slate-500">
           Showing {logs.length} of {data?.total || 0} logs
         </div>
       </div>

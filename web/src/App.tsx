@@ -20,6 +20,7 @@ import { SeoManager } from './shared/components/SeoManager';
 import { WhatsAppFloatingButton } from './shared/components/WhatsAppFloatingButton';
 const UserHomePage = lazy(() => import('./features/landing/pages/UserHomePage'));
 const Features = lazy(() => import('./features/landing/pages/Features'));
+const AiMobileValuatorPage = lazy(() => import('./features/landing/pages/AiMobileValuatorPage'));
 const Contact = lazy(() => import('./features/landing/pages/Contact'));
 const BrowseListings = lazy(() => import('./features/landing/pages/BrowseListings'));
 const DealsPage = lazy(() => import('./features/landing/pages/DealsPage'));
@@ -52,7 +53,6 @@ const PendingListingsPage = lazy(() => import('./features/admin/pages/PendingLis
 const UsersPage = lazy(() => import('./features/admin/pages/UsersPage'));
 const SubscriptionsPage = lazy(() => import('./features/admin/pages/SubscriptionsPage'));
 const SpamDetectionPage = lazy(() => import('./features/admin/pages/SpamDetectionPage'));
-const VideoManagementPage = lazy(() => import('./features/admin/pages/VideoManagementPage'));
 const CouponsPage = lazy(() => import('./features/admin/pages/CouponsPage'));
 const BannersPage = lazy(() => import('./features/admin/pages/BannersPage'));
 const InAppNotificationsPage = lazy(() => import('./features/admin/pages/InAppNotificationsPage'));
@@ -95,7 +95,7 @@ function MobileBottomNav() {
   ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-[70] border-t border-slate-200 bg-white/95 shadow-[0_-14px_30px_-24px_rgba(15,23,42,0.7)] backdrop-blur-xl md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-[70] border-t border-slate-200 bg-white/95 shadow-[0_-14px_30px_-24px_rgba(15,23,42,0.7)] backdrop-blur-xl xl:hidden">
       <div className="grid h-[76px] grid-cols-5 items-center px-2 pb-[env(safe-area-inset-bottom)]">
         {items.map((item) => {
           const Icon = item.icon;
@@ -126,6 +126,30 @@ function MobileBottomNav() {
       </div>
     </nav>
   );
+}
+
+function isAdminPath(pathname: string): boolean {
+  return pathname === '/admin' || pathname.startsWith('/admin/');
+}
+
+function ContextualMobileBottomNav() {
+  const { pathname } = useLocation();
+
+  if (isAdminPath(pathname)) {
+    return null;
+  }
+
+  return <MobileBottomNav />;
+}
+
+function ContextualWhatsAppButton() {
+  const { pathname } = useLocation();
+
+  if (isAdminPath(pathname)) {
+    return null;
+  }
+
+  return <WhatsAppFloatingButton />;
 }
 
 function SplashScreen() {
@@ -169,9 +193,7 @@ function RouteTransitionShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className={
-        (isTransitioning ? 'route-transitioning' : 'route-transitioned') + ' pb-[76px] md:pb-0'
-      }
+      className={`${isTransitioning ? 'route-transitioning' : 'route-transitioned'} ${isAdminPath(location.pathname) ? '' : 'pb-[76px] xl:pb-0'}`}
     >
       {isTransitioning ? <div className="route-loading-bar" /> : null}
       {children}
@@ -246,12 +268,13 @@ function App() {
         <SeoManager />
         <WebTelemetry />
         <ScrollToTop />
-        {!showInitialSplash ? <WhatsAppFloatingButton /> : null}
+        {!showInitialSplash ? <ContextualWhatsAppButton /> : null}
         <Suspense fallback={<SplashScreen />}>
           <RouteTransitionShell>
             <Routes>
               <Route path="/" element={<UserHomePage />} />
               <Route path="/features" element={<Features />} />
+              <Route path="/ai-mobile-valuator" element={<AiMobileValuatorPage />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/search" element={<BrowseListings />} />
               <Route path="/browse" element={<Navigate to="/search" replace />} />
@@ -302,7 +325,6 @@ function App() {
                 <Route path="users" element={<UsersPage />} />
                 <Route path="subscriptions" element={<SubscriptionsPage />} />
                 <Route path="spam" element={<SpamDetectionPage />} />
-                <Route path="videos" element={<VideoManagementPage />} />
                 <Route path="coupons" element={<CouponsPage />} />
                 <Route path="banners" element={<BannersPage />} />
                 <Route path="notifications" element={<InAppNotificationsPage />} />
@@ -321,7 +343,7 @@ function App() {
             </Routes>
           </RouteTransitionShell>
         </Suspense>
-        <MobileBottomNav />
+        <ContextualMobileBottomNav />
       </BrowserRouter>
     </QueryClientProvider>
   );

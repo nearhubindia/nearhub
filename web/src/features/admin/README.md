@@ -24,7 +24,6 @@ admin/
 │   ├── CouponsView.tsx
 │   ├── SubscriptionPlansView.tsx
 │   ├── SpamDetectionView.tsx
-│   ├── VideoManagementView.tsx
 │   └── ...other views
 ├── types/                    # TypeScript type definitions
 │   └── admin-types.ts
@@ -62,7 +61,6 @@ const listingQueryKey = adminKeys.listingsList({ limit: 50 });
 - `couponsApi` - Coupon management
 - `subscriptionTiersApi` - Tier management
 - `spamDetectionApi` - Spam reports and moderation
-- `videosApi` - Video listings
 - `revenueApi` - Revenue analytics
 - `reportsApi` - Platform reports
 - `usersApi` - User management
@@ -104,7 +102,6 @@ export function CouponsView() {
 - `useCoupons`, `useCreateCoupon`, `useUpdateCoupon`, `useDeleteCoupon`
 - `useSubscriptionTiers`, `useSubscriptionTierById`, `useCreateSubscriptionTier`, `useUpdateSubscriptionTier`, `useDeleteSubscriptionTier`
 - `useSpamReports`, `useSpamTrends`, `useReviewSpamReport`
-- `useVideos`, `useVideoById`
 - `useRevenueStats`
 - `useGrowthReport`, `usePerformanceReport`, `useTransactionReport`, `useModerationReport`
 - `useUsers`, `useUserById`, `useSuspendUser`, `useUnsuspendUser`

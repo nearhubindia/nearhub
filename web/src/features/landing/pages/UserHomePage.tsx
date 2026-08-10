@@ -747,7 +747,7 @@ export default function UserHomePage(): ReactElement {
   };
 
   return (
-    <div className="min-h-screen bg-white pb-[66px] text-slate-950 md:pb-0">
+    <div className="min-h-screen bg-white text-slate-950">
       <LandingHeader active="home" />
       <main>
         <section className="w-full px-4 pt-[82px] sm:hidden">

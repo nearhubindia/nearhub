@@ -7,11 +7,13 @@ import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { parseMediaList, parseTextList } from '@/features/landing/lib';
 import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 import {
-  ADMIN_CATEGORY_GROUPS,
+  getAttributeKey,
   getDefaultAdminMainCategory,
   getSubCategoriesForMainCategory,
+  type ListingAttributeDefinition,
   shouldRequireConditionForCategory,
 } from '@/features/admin/constants/listing-taxonomy';
+import { useListingTaxonomy } from '@/features/admin/hooks/useListingTaxonomy';
 
 type StoredUser = { id?: string; phone?: string; name?: string };
 type PurchaseLimitType = 'ONE_TIME' | 'UNLIMITED' | '';
@@ -73,7 +75,10 @@ type EditableListing = {
   warranty_text?: string;
   dealExtraFeatures?: string[] | string;
   deal_extra_features?: string[] | string;
+  attributes?: Record<string, string | number | boolean>;
 };
+
+type ListingAttributeValue = string | number | boolean;
 
 const defaultMainCategory = getDefaultAdminMainCategory();
 const defaultSubCategory = getSubCategoriesForMainCategory(defaultMainCategory)[0] || 'Other';
@@ -237,16 +242,60 @@ export default function EditListingPage(): ReactElement {
   const [emiAvailable, setEmiAvailable] = useState(false);
   const [warrantyText, setWarrantyText] = useState('');
   const [extraFeaturesText, setExtraFeaturesText] = useState('');
+  const [attributeValues, setAttributeValues] = useState<Record<string, ListingAttributeValue>>({});
 
   const headers = useMemo(
     () => ({ 'Content-Type': 'application/json', 'x-user-id': userId, 'x-user-phone': userPhone }),
     [userId, userPhone]
   );
+  const { groups: categoryGroups, priceUnits, attributesByKey } = useListingTaxonomy();
+  const mainCategoryOptions = useMemo(
+    () => categoryGroups.map((group) => group.mainCategory),
+    [categoryGroups]
+  );
   const subCategories = useMemo(
-    () => getSubCategoriesForMainCategory(mainCategory),
-    [mainCategory]
+    () =>
+      categoryGroups.find((entry) => entry.mainCategory === mainCategory)?.subcategories ||
+      getSubCategoriesForMainCategory(mainCategory),
+    [categoryGroups, mainCategory]
+  );
+  const attributeDefinitions: ListingAttributeDefinition[] = useMemo(
+    () => attributesByKey[getAttributeKey(mainCategory, subCategory)] || [],
+    [attributesByKey, mainCategory, subCategory]
   );
   const shouldRequireCondition = shouldRequireConditionForCategory(mainCategory, subCategory);
+
+  const normalizeAttributeValue = (
+    attribute: ListingAttributeDefinition,
+    value: ListingAttributeValue
+  ): ListingAttributeValue | null => {
+    if (typeof value === 'boolean') return value;
+    const normalizedType = attribute.fieldType.trim().toLowerCase();
+    if (normalizedType === 'number' || normalizedType === 'price') {
+      const numericValue = Number(value);
+      return Number.isFinite(numericValue) ? numericValue : null;
+    }
+    const textValue = String(value).trim();
+    return textValue || null;
+  };
+
+  useEffect(() => {
+    if (categoryGroups.length === 0) return;
+    const nextMain = mainCategoryOptions.includes(mainCategory)
+      ? mainCategory
+      : mainCategoryOptions[0];
+    const nextSubCategories =
+      categoryGroups.find((entry) => entry.mainCategory === nextMain)?.subcategories || [];
+    const nextSub = nextSubCategories.includes(subCategory)
+      ? subCategory
+      : nextSubCategories[0] || 'Other';
+
+    if (nextMain && nextMain !== mainCategory) setMainCategory(nextMain);
+    if (nextSub !== subCategory) setSubCategory(nextSub);
+    if (priceUnits.length > 0 && !priceUnits.includes(priceUnit)) {
+      setPriceUnit(priceUnits[0]);
+    }
+  }, [categoryGroups, mainCategory, mainCategoryOptions, priceUnit, priceUnits, subCategory]);
 
   useEffect(() => {
     if (!id || !userId) return;
@@ -311,6 +360,7 @@ export default function EditListingPage(): ReactElement {
         );
         setImagesText(parseMediaList(listing.images).join('\n'));
         setVideosText(parseMediaList(listing.videos).join('\n'));
+        setAttributeValues(listing.attributes || {});
         setDealType(
           String(listing.dealType || listing.deal_type || 'normal').toLowerCase() === 'combo'
             ? 'combo'
@@ -354,7 +404,9 @@ export default function EditListingPage(): ReactElement {
   }, [headers, id, userId, userPhone]);
 
   const selectMainCategory = (value: string) => {
-    const nextSubs = getSubCategoriesForMainCategory(value);
+    const nextSubs =
+      categoryGroups.find((entry) => entry.mainCategory === value)?.subcategories ||
+      getSubCategoriesForMainCategory(value);
     setMainCategory(value);
     setSubCategory(nextSubs[0] || 'Other');
   };
@@ -387,6 +439,14 @@ export default function EditListingPage(): ReactElement {
     }
     if (!/^\d{6}$/.test(pincode.trim())) {
       setMessage('Please enter a valid 6-digit pincode.');
+      return;
+    }
+    const missingAttribute = attributeDefinitions.find((attribute) => {
+      const value = attributeValues[attribute.name];
+      return attribute.required && (value === undefined || value === null || value === '');
+    });
+    if (missingAttribute) {
+      setMessage(`Please enter ${missingAttribute.name}.`);
       return;
     }
     if (visibilityMode === 'online') {
@@ -453,6 +513,16 @@ export default function EditListingPage(): ReactElement {
         isDeal && dealEndDate && dealEndTime
           ? new Date(`${dealEndDate}T${dealEndTime}`).toISOString()
           : undefined;
+      const attributes = attributeDefinitions.reduce<Record<string, ListingAttributeValue>>(
+        (result, attribute) => {
+          const value = attributeValues[attribute.name];
+          if (value === undefined || value === null || value === '') return result;
+          const normalized = normalizeAttributeValue(attribute, value);
+          if (normalized !== null) result[attribute.name] = normalized;
+          return result;
+        },
+        {}
+      );
       const body: Record<string, unknown> = {
         title: title.trim(),
         description: description.trim(),
@@ -484,6 +554,7 @@ export default function EditListingPage(): ReactElement {
           isDeal && postDealPriceMode === 'discount' && postDealDiscountPrice
             ? Number(postDealDiscountPrice)
             : undefined,
+        attributes,
       };
 
       const response = await fetch(`${getApiUrl()}/api/listings/${encodeURIComponent(id)}`, {
@@ -557,9 +628,9 @@ export default function EditListingPage(): ReactElement {
                     onChange={(event) => selectMainCategory(event.target.value)}
                     className={textInputClass()}
                   >
-                    {ADMIN_CATEGORY_GROUPS.map((group) => (
-                      <option key={group.mainCategory} value={group.mainCategory}>
-                        {group.mainCategory}
+                    {mainCategoryOptions.map((group) => (
+                      <option key={group} value={group}>
+                        {group}
                       </option>
                     ))}
                   </select>
@@ -659,13 +730,78 @@ export default function EditListingPage(): ReactElement {
                       onChange={(event) => setPriceUnit(event.target.value)}
                       className={textInputClass()}
                     >
-                      <option value="per unit">per unit</option>
-                      <option value="per piece">per piece</option>
+                      {priceUnits.map((unit) => (
+                        <option key={unit} value={unit}>
+                          {unit}
+                        </option>
+                      ))}
                     </select>
                   </label>
                 ) : null}
               </div>
             </Section>
+
+            {attributeDefinitions.length > 0 ? (
+              <Section title="Listing Fields">
+                <div className="grid gap-4 md:grid-cols-2">
+                  {attributeDefinitions.map((attribute) => {
+                    const value = attributeValues[attribute.name];
+                    const fieldType = attribute.fieldType.trim().toLowerCase();
+                    const isBoolean = fieldType === 'boolean';
+                    const fieldValue = value === undefined || value === null ? '' : String(value);
+                    return (
+                      <label key={attribute.name} className="block">
+                        <span className="mb-2 flex items-center justify-between text-sm font-black text-slate-700">
+                          <span>
+                            {attribute.name}
+                            {attribute.required ? ' *' : ''}
+                          </span>
+                          {attribute.unit ? (
+                            <span className="text-xs font-semibold text-slate-400">
+                              {attribute.unit}
+                            </span>
+                          ) : null}
+                        </span>
+                        {isBoolean ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAttributeValues((current) => ({
+                                ...current,
+                                [attribute.name]: current[attribute.name] !== true,
+                              }))
+                            }
+                            className={`flex h-11 w-full items-center justify-between rounded-xl border px-4 text-left text-sm font-semibold ${
+                              value === true
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                : 'border-slate-200 bg-white text-slate-600'
+                            }`}
+                          >
+                            <span>{value === true ? 'Yes' : 'No'}</span>
+                            <span className="text-xs text-slate-400">Boolean</span>
+                          </button>
+                        ) : (
+                          <input
+                            value={fieldValue}
+                            onChange={(event) =>
+                              setAttributeValues((current) => ({
+                                ...current,
+                                [attribute.name]: event.target.value,
+                              }))
+                            }
+                            inputMode={
+                              fieldType === 'number' || fieldType === 'price' ? 'numeric' : 'text'
+                            }
+                            placeholder={attribute.fieldType}
+                            className={textInputClass()}
+                          />
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </Section>
+            ) : null}
 
             <Section title="Description">
               <textarea

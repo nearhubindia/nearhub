@@ -51,9 +51,11 @@ import { compressImagesWithProgress, QUALITY_PRESETS } from '@/lib/image-compres
 import * as ImageStorage from '@/lib/image-storage';
 import * as ImageHasher from '@/lib/image-hasher';
 import RichTextEditor from '@/shared/components/RichTextEditor';
+import ListingAttributeFields from '@/shared/components/ListingAttributeFields';
 import { createResponsiveStyles } from '@/lib/responsive';
 import { trackCreateListingEvent } from '@/lib/firebase-analytics';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
+import type { ListingAttributeValue } from '@/lib/use-listing-taxonomy';
 
 interface LocationSuggestion {
   pincode: string;
@@ -95,7 +97,11 @@ export default function CreateScreen() {
   const authRedirect = pathname && pathname !== '/auth/register' ? pathname : '';
   const { addListing } = useListings();
   const { user, isAuthenticated } = useAuth();
-  const { groups: backendCategoryGroups, priceUnits: backendPriceUnits } = useListingTaxonomy();
+  const {
+    groups: backendCategoryGroups,
+    priceUnits: backendPriceUnits,
+    attributesByKey,
+  } = useListingTaxonomy();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -103,6 +109,7 @@ export default function CreateScreen() {
   const [offerPrice, setOfferPrice] = useState('');
   const [priceUnit, setPriceUnit] = useState<PriceUnit>('per unit');
   const [category, setCategory] = useState<Category>('Electronics');
+  const [attributeValues, setAttributeValues] = useState<Record<string, ListingAttributeValue>>({});
   const [condition, setCondition] = useState<'new' | 'like_new' | 'good' | 'fair' | 'poor'>('good');
   const [listingType, setListingType] = useState<'sell' | 'buy' | 'service' | 'job'>('sell');
   const [mainCategory, setMainCategory] = useState<MainCategory>(
@@ -293,6 +300,10 @@ export default function CreateScreen() {
     const current = categoryGroups.find((group) => group.mainCategory === mainCategory);
     return current?.subcategories || categoryGroups[0]?.subcategories || [];
   }, [categoryGroups, mainCategory]);
+  const attributeDefinitions = useMemo(
+    () => attributesByKey[`${mainCategory}::${category}`] || [],
+    [attributesByKey, mainCategory, category]
+  );
 
   const showConditionField = shouldRequireConditionForListing({
     listingType,
@@ -367,6 +378,12 @@ export default function CreateScreen() {
       setCategory(fallbackCategory);
     }
   }, [categoryGroups, mainCategory, category, listingType]);
+
+  useEffect(() => {
+    if (backendPriceUnits.length > 0 && !backendPriceUnits.includes(priceUnit)) {
+      setPriceUnit(backendPriceUnits[0]);
+    }
+  }, [backendPriceUnits, priceUnit]);
 
   const markLocationAsUserManaged = useCallback(() => {
     hasUserManagedLocationRef.current = true;
@@ -1480,6 +1497,8 @@ export default function CreateScreen() {
     return uploadImagesToCloudflareUtil(uris, {
       fileNamePrefix: 'listing_image',
       userId: user?.id || undefined,
+      token: user?.token || undefined,
+      skipCompression: true,
     });
   };
 
@@ -1583,20 +1602,12 @@ export default function CreateScreen() {
           }
         } catch (compressionError) {
           console.error('Image compression error:', compressionError);
-          // Fallback: use original image if compression fails
-          let finalImageData = asset.uri;
-          try {
-            finalImageData = await toPortableImageUri(asset.uri);
-          } catch (conversionError) {
-            console.error('[Create] Fallback conversion failed:', conversionError);
-            Alert.alert('Image Error', 'Failed to process image. Please try again.');
-            setIsCompressingImages(false);
-            setImageCompressionProgress(null);
-            return;
-          }
-
-          setValidationMessage('Using original image quality.');
-          setImages((prev) => [...prev, finalImageData]);
+          Alert.alert(
+            'Image Optimization Failed',
+            compressionError instanceof Error
+              ? compressionError.message
+              : 'Unable to optimize this image. Please choose another image and try again.'
+          );
         } finally {
           setIsCompressingImages(false);
           setImageCompressionProgress(null);
@@ -1857,6 +1868,14 @@ export default function CreateScreen() {
       Alert.alert('Missing Info', 'Please add at least one photo.');
       return;
     }
+    const missingAttribute = attributeDefinitions.find((attribute) => {
+      const value = attributeValues[attribute.name];
+      return attribute.required && (value === undefined || value === null || value === '');
+    });
+    if (missingAttribute) {
+      Alert.alert('Missing Info', `Please enter ${missingAttribute.name}.`);
+      return;
+    }
 
     setIsSubmitting(true);
     setIsUploading(false);
@@ -1941,6 +1960,23 @@ export default function CreateScreen() {
       setOverallProgress(75);
       setValidationMessage('📝 Finalizing your listing... Almost done!');
       const resolvedCondition = showConditionField ? condition : 'good';
+      const attributes = attributeDefinitions.reduce<Record<string, string | number | boolean>>(
+        (result, attribute) => {
+          const value = attributeValues[attribute.name];
+          if (value === undefined || value === null || value === '') return result;
+          const normalizedType = attribute.fieldType.trim().toLowerCase();
+          if (normalizedType === 'number' || normalizedType === 'price') {
+            const numericValue = Number(value);
+            if (Number.isFinite(numericValue)) result[attribute.name] = numericValue;
+          } else if (normalizedType === 'boolean') {
+            result[attribute.name] = value === true || value === 'true';
+          } else {
+            result[attribute.name] = String(value);
+          }
+          return result;
+        },
+        {}
+      );
 
       await addListing(
         {
@@ -1969,6 +2005,7 @@ export default function CreateScreen() {
             visibilityMode === 'online' ? Number(visibilityRadiusKm || 0) : undefined,
           condition: resolvedCondition,
           listingType,
+          attributes: Object.keys(attributes).length > 0 ? attributes : undefined,
           duration, // Pass duration for paid listings
         },
         duration,
@@ -2633,6 +2670,14 @@ export default function CreateScreen() {
                 ))}
               </View>
             </View>
+
+            <ListingAttributeFields
+              definitions={attributeDefinitions}
+              values={attributeValues}
+              onChange={(name, value) =>
+                setAttributeValues((current) => ({ ...current, [name]: value }))
+              }
+            />
 
             {/* Location Section */}
             <View style={styles.section}>

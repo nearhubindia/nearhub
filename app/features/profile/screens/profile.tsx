@@ -26,6 +26,7 @@ import { KeyboardAwareScrollViewCompat } from '@/shared/components/KeyboardAware
 import { useAuth } from '@/shared/contexts/auth-context';
 import { useAppScreenBanners } from '@/shared/hooks/use-app-screen-banners';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
+import { compressImage, getImageCompressionOptions } from '@/lib/image-compressor';
 import { getApiUrl } from '@/lib/query-client';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 import { isValidEmailAddress } from '@/lib/email-utils';
@@ -242,7 +243,18 @@ export default function ProfileScreen() {
 
     if (result.canceled || result.assets.length === 0) return;
 
-    setAvatarDraftUri(result.assets[0].uri);
+    try {
+      const compressed = await compressImage(
+        result.assets[0].uri,
+        getImageCompressionOptions('avatar')
+      );
+      setAvatarDraftUri(compressed.uri);
+    } catch (error) {
+      Alert.alert(
+        'Image Optimization Failed',
+        error instanceof Error ? error.message : 'Unable to optimize this image.'
+      );
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -268,6 +280,9 @@ export default function ProfileScreen() {
           uri: avatarDraftUri,
           mediaType: 'image',
           userId: user.id,
+          token: user.token,
+          compressionPreset: 'avatar',
+          compressBeforeUpload: false,
         });
         uploadedAvatarUrl = uploaded.url;
       }

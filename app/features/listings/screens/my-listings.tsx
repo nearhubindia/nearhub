@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Alert,
   Modal,
+  ScrollView,
 } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1207,7 +1208,12 @@ export default function MyListingsScreen() {
         <View style={styles.modalOverlay}>
           <Pressable style={styles.modalBackdrop} onPress={closeUpgradeModal} />
 
-          <View style={styles.upgradeModalSheet}>
+          <View
+            style={[
+              styles.upgradeModalSheet,
+              { maxHeight: '92%', paddingBottom: insets.bottom + 16 },
+            ]}
+          >
             <View style={styles.upgradeModalHeader}>
               <View>
                 <Text style={styles.upgradeModalTitle}>
@@ -1234,7 +1240,12 @@ export default function MyListingsScreen() {
               </Text>
             </View>
 
-            <View style={styles.plansContainer}>
+            <ScrollView
+              style={styles.upgradeModalPlansScroll}
+              contentContainerStyle={styles.plansContainer}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
               {getAvailableUpgradePlans(selectedUpgradeItem).length === 0 ? (
                 <View style={styles.noPlansContainer}>
                   <Text style={styles.noPlansText}>
@@ -1272,7 +1283,7 @@ export default function MyListingsScreen() {
                   </View>
                 ))
               )}
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1823,6 +1834,9 @@ const styles = createResponsiveStyles({
     paddingBottom: 28,
     borderWidth: 1,
     borderColor: Colors.borderLight,
+  },
+  upgradeModalPlansScroll: {
+    minHeight: 0,
   },
   upgradeModalHeader: {
     flexDirection: 'row',

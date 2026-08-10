@@ -21,7 +21,7 @@ import { checkAndExpireSubscriptions } from './features/subscriptions/workers/su
 import { checkAndDeactivateListings } from './features/listings/workers/listing-expiration';
 import { sendExpiryReminderNotifications } from './shared/services/notification-reminders';
 import { processListingModerationQueue } from './features/listings/workers/listing-moderation';
-import { generalLimiter } from './lib/rate-limiter';
+import { generalLimiter, uploadLimiter } from './lib/rate-limiter';
 import {
   resolveUserIdFromRequest,
   touchUserActivity,
@@ -188,6 +188,19 @@ function shouldTouchUserActivityNow(userId: string): boolean {
 }
 
 function setupBodyParsing(app: express.Application) {
+  // Image uploads are sent as binary bytes so the media route can normalize
+  // them server-side before writing to R2. This must run before express.json.
+  app.use('/api/media/upload-image', uploadLimiter);
+  app.use(
+    '/api/media/upload-image',
+    express.raw({
+      type: 'image/*',
+      // Allow normal camera originals to reach Sharp. The final stored image
+      // is still bounded by the shared compression policy.
+      limit: Math.max(10 * 1024 * 1024, SERVER_CONFIG.CLOUDFLARE_R2_MAX_IMAGE_BYTES),
+    })
+  );
+
   // Keep compatibility with existing payload sizes; only capture raw body
   // for endpoints that must verify signatures or troubleshoot auth payloads.
   app.use(
@@ -207,7 +220,11 @@ function setupBodyParsing(app: express.Application) {
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.method === 'POST' && req.path.startsWith('/api/')) {
       debugBody(`[BodyParser] ${req.method} ${req.path}`);
-      debugBody('[BodyParser] Body: %O', req.body);
+      if (req.path === '/api/media/upload-image' && Buffer.isBuffer(req.body)) {
+        debugBody('[BodyParser] Binary image bytes: %d', req.body.length);
+      } else {
+        debugBody('[BodyParser] Body: %O', req.body);
+      }
       debugBody(`[BodyParser] Content-Type: ${req.get('content-type')}`);
     }
     next();

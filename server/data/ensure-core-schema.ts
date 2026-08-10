@@ -43,21 +43,37 @@ async function applyCoreSchemaPatches(): Promise<void> {
       created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_deal boolean NOT NULL DEFAULT false`);
+  await db.execute(
+    sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_deal boolean NOT NULL DEFAULT false`
+  );
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_status varchar(20)`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_type varchar(20)`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_start_at timestamp`);
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_end_at timestamp`);
-  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_recurrence varchar(20) NOT NULL DEFAULT 'none'`);
-  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_recurrence_until timestamp`);
+  await db.execute(
+    sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_recurrence varchar(20) NOT NULL DEFAULT 'none'`
+  );
+  await db.execute(
+    sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_recurrence_until timestamp`
+  );
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_cycle_quantity integer`);
-  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_last_cycle_key varchar(40)`);
+  await db.execute(
+    sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_last_cycle_key varchar(40)`
+  );
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS max_deal_bookings integer`);
-  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_bookings_used integer NOT NULL DEFAULT 0`);
-  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS purchase_limit_type varchar(20)`);
+  await db.execute(
+    sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_bookings_used integer NOT NULL DEFAULT 0`
+  );
+  await db.execute(
+    sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS purchase_limit_type varchar(20)`
+  );
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_terms text`);
-  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS voucher_enabled boolean NOT NULL DEFAULT true`);
-  await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS visibility_mode varchar(20) NOT NULL DEFAULT 'local'`);
+  await db.execute(
+    sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS voucher_enabled boolean NOT NULL DEFAULT true`
+  );
+  await db.execute(
+    sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS visibility_mode varchar(20) NOT NULL DEFAULT 'local'`
+  );
   await db.execute(sql`ALTER TABLE listings ADD COLUMN IF NOT EXISTS visibility_radius_km integer`);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS deal_bookings (
@@ -75,7 +91,9 @@ async function applyCoreSchemaPatches(): Promise<void> {
       updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.execute(sql`ALTER TABLE deal_bookings ADD COLUMN IF NOT EXISTS deal_cycle_key varchar(40)`);
+  await db.execute(
+    sql`ALTER TABLE deal_bookings ADD COLUMN IF NOT EXISTS deal_cycle_key varchar(40)`
+  );
   await db.execute(sql`
     CREATE INDEX IF NOT EXISTS deal_bookings_buyer_idx
       ON deal_bookings (buyer_id, created_at DESC)
@@ -137,6 +155,34 @@ async function applyCoreSchemaPatches(): Promise<void> {
   await db.execute(
     sql`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS listing_category_groups jsonb`
   );
+  await db.execute(
+    sql`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS listing_attribute_catalog jsonb`
+  );
+  await db.execute(
+    sql`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS listing_attribute_assignments_by_key jsonb`
+  );
+  await db.execute(
+    sql`ALTER TABLE admin_settings ADD COLUMN IF NOT EXISTS listing_common_field_assignments jsonb`
+  );
+  await db.execute(sql`
+    DO $$
+    BEGIN
+      IF to_regclass('public.master_listing_categories') IS NOT NULL THEN
+        ALTER TABLE master_listing_categories ADD COLUMN IF NOT EXISTS icon_url text;
+      END IF;
+      IF to_regclass('public.master_listing_subcategories') IS NOT NULL THEN
+        ALTER TABLE master_listing_subcategories ADD COLUMN IF NOT EXISTS icon_url text;
+      END IF;
+      IF to_regclass('public.master_listing_units') IS NOT NULL THEN
+        ALTER TABLE master_listing_units
+          ADD COLUMN IF NOT EXISTS subcategory_id varchar
+          REFERENCES master_listing_subcategories(id) ON DELETE CASCADE;
+        DROP INDEX IF EXISTS master_listing_units_name_unique;
+        CREATE UNIQUE INDEX IF NOT EXISTS master_listing_units_subcategory_name_unique
+          ON master_listing_units (subcategory_id, name);
+      END IF;
+    END $$;
+  `);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS mobile_valuation_reports (
       id varchar PRIMARY KEY,
@@ -154,7 +200,9 @@ async function applyCoreSchemaPatches(): Promise<void> {
       created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS mobile_valuation_reports_user_idx ON mobile_valuation_reports (user_id, created_at DESC)`);
+  await db.execute(
+    sql`CREATE INDEX IF NOT EXISTS mobile_valuation_reports_user_idx ON mobile_valuation_reports (user_id, created_at DESC)`
+  );
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS mobile_market_intelligence (
       id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -174,7 +222,9 @@ async function applyCoreSchemaPatches(): Promise<void> {
       UNIQUE (brand, model, ram, storage)
     )
   `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS mobile_market_intelligence_fresh_idx ON mobile_market_intelligence (brand, model, ram, storage, expires_at)`);
+  await db.execute(
+    sql`CREATE INDEX IF NOT EXISTS mobile_market_intelligence_fresh_idx ON mobile_market_intelligence (brand, model, ram, storage, expires_at)`
+  );
 
   // Keep display_name useful when legacy rows only had username.
   await db.execute(sql`

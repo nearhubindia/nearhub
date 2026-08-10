@@ -11,10 +11,13 @@ import {
 
 type MasterCategoryGroup = {
   mainCategory: string;
+  mainCategoryIcon?: string;
   subcategories: string[];
+  subcategoryIcons?: Record<string, string>;
 };
 
 type MasterAttribute = {
+  id: string;
   name: string;
   fieldType: string;
   unit: string;
@@ -22,13 +25,25 @@ type MasterAttribute = {
   status: 'Active' | 'Inactive' | string;
 };
 
+type MasterAttributeAssignment = {
+  attributeId: string;
+  required: boolean;
+  status: string;
+};
+
 type MasterDataSnapshot = {
   listingCategoryGroups: MasterCategoryGroup[];
   listingPriceUnits: string[];
+  listingUnitsByKey: Record<string, string[]>;
+  attributeCatalog: MasterAttribute[];
+  commonFieldAssignments: MasterAttributeAssignment[];
+  commonFields: MasterAttribute[];
+  attributeAssignmentsByKey: Record<string, MasterAttributeAssignment[]>;
   attributesByKey: Record<string, MasterAttribute[]>;
 };
 
 type LegacyAttributeInput = {
+  id?: unknown;
   name?: unknown;
   fieldType?: unknown;
   unit?: unknown;
@@ -81,18 +96,48 @@ function normalizeText(value: unknown): string {
   return String(value || '').trim();
 }
 
+function normalizeIconMap(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, string>>(
+    (acc, [key, icon]) => {
+      const normalizedKey = normalizeText(key);
+      const normalizedIcon = normalizeText(icon);
+      if (normalizedKey && normalizedIcon) acc[normalizedKey] = normalizedIcon;
+      return acc;
+    },
+    {}
+  );
+}
+
+function buildAttributeId(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  return `attribute:${slug || 'field'}`;
+}
+
 function normalizeGroups(value: unknown): MasterCategoryGroup[] {
   if (!Array.isArray(value)) return [];
   return value
     .map((item) => {
-      const entry = item as { mainCategory?: unknown; subcategories?: unknown };
+      const entry = item as {
+        mainCategory?: unknown;
+        mainCategoryIcon?: unknown;
+        subcategories?: unknown;
+        subcategoryIcons?: unknown;
+      };
+      const mainCategoryIcon = normalizeText(entry.mainCategoryIcon);
+      const subcategoryIcons = normalizeIconMap(entry.subcategoryIcons);
       return {
         mainCategory: normalizeText(entry.mainCategory),
+        ...(mainCategoryIcon ? { mainCategoryIcon } : {}),
         subcategories: Array.isArray(entry.subcategories)
           ? Array.from(
               new Set(entry.subcategories.map((sub) => normalizeText(sub)).filter(Boolean))
             )
           : [],
+        ...(Object.keys(subcategoryIcons).length > 0 ? { subcategoryIcons } : {}),
       };
     })
     .filter((item) => item.mainCategory && item.subcategories.length > 0);
@@ -114,6 +159,7 @@ function normalizeAttributesByKey(value: unknown): Record<string, MasterAttribut
           const name = normalizeText(entry.name);
           if (!name) return null;
           return {
+            id: normalizeText(entry.id) || buildAttributeId(name),
             name,
             fieldType: normalizeText(entry.fieldType) || 'Text',
             unit: normalizeText(entry.unit),
@@ -127,6 +173,187 @@ function normalizeAttributesByKey(value: unknown): Record<string, MasterAttribut
     },
     {}
   );
+}
+
+function normalizeAttributeCatalog(value: unknown): MasterAttribute[] {
+  if (!Array.isArray(value)) return [];
+  const byId = new Map<string, MasterAttribute>();
+  for (const item of value) {
+    const entry = item as LegacyAttributeInput;
+    const name = normalizeText(entry.name);
+    if (!name) continue;
+    const id = normalizeText(entry.id) || buildAttributeId(name);
+    if (!byId.has(id)) {
+      byId.set(id, {
+        id,
+        name,
+        fieldType: normalizeText(entry.fieldType) || 'Text',
+        unit: normalizeText(entry.unit),
+        required: Boolean(entry.required),
+        status: normalizeText(entry.status) || 'Active',
+      });
+    }
+  }
+  return Array.from(byId.values());
+}
+
+function normalizeAttributeAssignmentsByKey(
+  value: unknown
+): Record<string, MasterAttributeAssignment[]> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.entries(value as Record<string, unknown>).reduce<
+    Record<string, MasterAttributeAssignment[]>
+  >((acc, [key, rawAssignments]) => {
+    const normalizedKey = normalizeText(key);
+    if (!normalizedKey || !Array.isArray(rawAssignments)) return acc;
+    const assignments = rawAssignments
+      .map((item) => {
+        if (typeof item === 'string') {
+          const attributeId = normalizeText(item);
+          return attributeId ? { attributeId, required: false, status: 'Active' } : null;
+        }
+        if (!item || typeof item !== 'object') return null;
+        const entry = item as {
+          attributeId?: unknown;
+          required?: unknown;
+          status?: unknown;
+        };
+        const attributeId = normalizeText(entry.attributeId);
+        if (!attributeId) return null;
+        return {
+          attributeId,
+          required: Boolean(entry.required),
+          status: normalizeText(entry.status) || 'Active',
+        } satisfies MasterAttributeAssignment;
+      })
+      .filter((item): item is MasterAttributeAssignment => Boolean(item));
+    if (assignments.length > 0) acc[normalizedKey] = assignments;
+    return acc;
+  }, {});
+}
+
+function normalizeCommonFieldAssignments(value: unknown): MasterAttributeAssignment[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value
+    .map((item) => {
+      if (typeof item === 'string') {
+        const attributeId = normalizeText(item);
+        return attributeId ? { attributeId, required: false, status: 'Active' } : null;
+      }
+      if (!item || typeof item !== 'object') return null;
+      const entry = item as {
+        attributeId?: unknown;
+        required?: unknown;
+        status?: unknown;
+      };
+      const attributeId = normalizeText(entry.attributeId);
+      if (!attributeId) return null;
+      return {
+        attributeId,
+        required: Boolean(entry.required),
+        status: normalizeText(entry.status) || 'Active',
+      } satisfies MasterAttributeAssignment;
+    })
+    .filter((item): item is MasterAttributeAssignment => {
+      if (!item || seen.has(item.attributeId)) return false;
+      seen.add(item.attributeId);
+      return true;
+    });
+}
+
+function buildAttributeModelFromExpanded(attributesByKey: Record<string, MasterAttribute[]>): {
+  attributeCatalog: MasterAttribute[];
+  attributeAssignmentsByKey: Record<string, MasterAttributeAssignment[]>;
+} {
+  const catalogById = new Map<string, MasterAttribute>();
+  const assignmentsByKey: Record<string, MasterAttributeAssignment[]> = {};
+  for (const [key, attributes] of Object.entries(attributesByKey)) {
+    const assignments: MasterAttributeAssignment[] = [];
+    for (const attribute of attributes) {
+      const id = normalizeText(attribute.id) || buildAttributeId(attribute.name);
+      if (!catalogById.has(id)) catalogById.set(id, { ...attribute, id });
+      assignments.push({
+        attributeId: id,
+        required: Boolean(attribute.required),
+        status: normalizeText(attribute.status) || 'Active',
+      });
+    }
+    if (assignments.length > 0) assignmentsByKey[key] = assignments;
+  }
+  return {
+    attributeCatalog: Array.from(catalogById.values()),
+    attributeAssignmentsByKey: assignmentsByKey,
+  };
+}
+
+function resolveAttributesByKey(
+  attributeCatalog: MasterAttribute[],
+  assignmentsByKey: Record<string, MasterAttributeAssignment[]>
+): Record<string, MasterAttribute[]> {
+  const catalogById = new Map(attributeCatalog.map((attribute) => [attribute.id, attribute]));
+  return Object.entries(assignmentsByKey).reduce<Record<string, MasterAttribute[]>>(
+    (acc, [key, assignments]) => {
+      const attributes = assignments
+        .map((assignment) => {
+          const attribute = catalogById.get(assignment.attributeId);
+          if (!attribute) return null;
+          return {
+            ...attribute,
+            required: Boolean(assignment.required),
+            status: assignment.status || attribute.status || 'Active',
+          };
+        })
+        .filter((attribute): attribute is MasterAttribute => Boolean(attribute));
+      if (attributes.length > 0) acc[key] = attributes;
+      return acc;
+    },
+    {}
+  );
+}
+
+function resolveAttributeAssignments(
+  attributeCatalog: MasterAttribute[],
+  assignments: MasterAttributeAssignment[]
+): MasterAttribute[] {
+  const catalogById = new Map(attributeCatalog.map((attribute) => [attribute.id, attribute]));
+  return assignments
+    .map((assignment) => {
+      const attribute = catalogById.get(assignment.attributeId);
+      if (!attribute) return null;
+      return {
+        ...attribute,
+        required: Boolean(assignment.required),
+        status: assignment.status || attribute.status || 'Active',
+      };
+    })
+    .filter((attribute): attribute is MasterAttribute => Boolean(attribute));
+}
+
+function mergeCommonAttributes(
+  commonFields: MasterAttribute[],
+  attributesByKey: Record<string, MasterAttribute[]>,
+  listingCategoryGroups: MasterCategoryGroup[]
+): Record<string, MasterAttribute[]> {
+  const keys = new Set(Object.keys(attributesByKey));
+  if (commonFields.length > 0) {
+    for (const group of listingCategoryGroups) {
+      for (const subcategory of group.subcategories) {
+        keys.add(buildAttributeKey(group.mainCategory, subcategory));
+      }
+    }
+  }
+
+  return Array.from(keys).reduce<Record<string, MasterAttribute[]>>((acc, key) => {
+    const byId = new Map<string, MasterAttribute>();
+    for (const attribute of commonFields) byId.set(attribute.id, attribute);
+    for (const attribute of attributesByKey[key] || []) {
+      if (!byId.has(attribute.id)) byId.set(attribute.id, attribute);
+    }
+    const attributes = Array.from(byId.values());
+    if (attributes.length > 0) acc[key] = attributes;
+    return acc;
+  }, {});
 }
 
 function buildAttributeKey(mainCategory: string, subCategory: string): string {
@@ -147,6 +374,7 @@ function groupAttributesByTableRows(
   return rows.reduce<Record<string, MasterAttribute[]>>((acc, row) => {
     const key = buildAttributeKey(row.categoryName, row.subcategoryName);
     const nextAttribute: MasterAttribute = {
+      id: buildAttributeId(row.attributeName),
       name: row.attributeName,
       fieldType: row.fieldType || 'Text',
       unit: row.unitName || '',
@@ -163,9 +391,14 @@ async function seedMasterDataFromLegacy(settings: AdminSettings): Promise<void> 
   const legacyGroups = normalizeGroups(settings.listingCategoryGroups);
   const legacyUnits = normalizeUnits(settings.listingPriceUnits);
   const legacyAttributes = normalizeAttributesByKey(settings.attributesByKey);
+  const legacyAttributeModel = buildAttributeModelFromExpanded(legacyAttributes);
   const snapshot: MasterDataSnapshot = {
     listingCategoryGroups: legacyGroups.length > 0 ? legacyGroups : DEFAULT_CATEGORY_GROUPS,
     listingPriceUnits: legacyUnits.length > 0 ? legacyUnits : DEFAULT_PRICE_UNITS,
+    listingUnitsByKey: {},
+    commonFieldAssignments: [],
+    commonFields: [],
+    ...legacyAttributeModel,
     attributesByKey: legacyAttributes,
   };
   await syncMasterDataTables(snapshot);
@@ -199,6 +432,7 @@ export async function loadMasterDataSnapshot(): Promise<MasterDataSnapshot> {
       categoryId: masterListingSubcategories.categoryId,
       categoryName: masterListingCategories.name,
       name: masterListingSubcategories.name,
+      iconUrl: masterListingSubcategories.iconUrl,
       sortOrder: masterListingSubcategories.sortOrder,
     })
     .from(masterListingSubcategories)
@@ -216,7 +450,12 @@ export async function loadMasterDataSnapshot(): Promise<MasterDataSnapshot> {
     );
 
   const unitRows = await db
-    .select()
+    .select({
+      id: masterListingUnits.id,
+      name: masterListingUnits.name,
+      subcategoryId: masterListingUnits.subcategoryId,
+      sortOrder: masterListingUnits.sortOrder,
+    })
     .from(masterListingUnits)
     .where(eq(masterListingUnits.isActive, true))
     .orderBy(masterListingUnits.sortOrder, masterListingUnits.name);
@@ -258,41 +497,99 @@ export async function loadMasterDataSnapshot(): Promise<MasterDataSnapshot> {
 
   const listingCategoryGroups = categoryRows.map((category) => ({
     mainCategory: category.name,
+    ...(category.iconUrl ? { mainCategoryIcon: category.iconUrl } : {}),
     subcategories: subcategoryRows
       .filter((sub) => sub.categoryId === category.id)
       .map((sub) => sub.name),
+    subcategoryIcons: Object.fromEntries(
+      subcategoryRows
+        .filter((sub) => sub.categoryId === category.id && sub.iconUrl)
+        .map((sub) => [sub.name, sub.iconUrl as string])
+    ),
   }));
 
-  const listingPriceUnits = unitRows.map((unit) => unit.name);
-  const attributesByKey = groupAttributesByTableRows(attributeRows);
+  const subcategoryById = new Map(
+    subcategoryRows.map((subcategory) => [subcategory.id, subcategory])
+  );
+  const listingUnitsByKey = unitRows.reduce<Record<string, string[]>>((acc, unit) => {
+    const subcategory = unit.subcategoryId ? subcategoryById.get(unit.subcategoryId) : undefined;
+    if (!subcategory) return acc;
+    const key = buildAttributeKey(subcategory.categoryName, subcategory.name);
+    if (!acc[key]) acc[key] = [];
+    if (!acc[key].includes(unit.name)) acc[key].push(unit.name);
+    return acc;
+  }, {});
+  const listingPriceUnits = Array.from(
+    new Set(unitRows.filter((unit) => !unit.subcategoryId).map((unit) => unit.name))
+  );
+  const legacyAttributesByKey = groupAttributesByTableRows(attributeRows);
+  const derivedAttributeModel = buildAttributeModelFromExpanded(legacyAttributesByKey);
+  const hasConfiguredAttributeModel =
+    Array.isArray(settings?.listingAttributeCatalog) &&
+    settings?.listingAttributeAssignmentsByKey &&
+    typeof settings.listingAttributeAssignmentsByKey === 'object' &&
+    !Array.isArray(settings.listingAttributeAssignmentsByKey);
+  const attributeCatalog = hasConfiguredAttributeModel
+    ? normalizeAttributeCatalog(settings.listingAttributeCatalog)
+    : derivedAttributeModel.attributeCatalog;
+  const attributeAssignmentsByKey = hasConfiguredAttributeModel
+    ? normalizeAttributeAssignmentsByKey(settings.listingAttributeAssignmentsByKey)
+    : derivedAttributeModel.attributeAssignmentsByKey;
+  const commonFieldAssignments = normalizeCommonFieldAssignments(
+    settings?.listingCommonFieldAssignments
+  );
+  const commonFields = resolveAttributeAssignments(attributeCatalog, commonFieldAssignments);
+  const localAttributesByKey = resolveAttributesByKey(attributeCatalog, attributeAssignmentsByKey);
+  const resolvedCategoryGroups =
+    listingCategoryGroups.length > 0 ? listingCategoryGroups : DEFAULT_CATEGORY_GROUPS;
+  const attributesByKey = mergeCommonAttributes(
+    commonFields,
+    localAttributesByKey,
+    resolvedCategoryGroups
+  );
 
   return {
-    listingCategoryGroups:
-      listingCategoryGroups.length > 0 ? listingCategoryGroups : DEFAULT_CATEGORY_GROUPS,
+    listingCategoryGroups: resolvedCategoryGroups,
     listingPriceUnits: listingPriceUnits.length > 0 ? listingPriceUnits : DEFAULT_PRICE_UNITS,
+    listingUnitsByKey,
+    attributeCatalog,
+    commonFieldAssignments,
+    commonFields,
+    attributeAssignmentsByKey,
     attributesByKey,
   };
 }
 
 export async function syncMasterDataTables(input: MasterDataSnapshot): Promise<void> {
   const categories = normalizeGroups(input.listingCategoryGroups);
-  const units = Array.from(
-    new Set(input.listingPriceUnits.map((unit) => normalizeText(unit)).filter(Boolean))
+  const attributeCatalog = normalizeAttributeCatalog(input.attributeCatalog);
+  const attributeAssignmentsByKey = normalizeAttributeAssignmentsByKey(
+    input.attributeAssignmentsByKey
   );
-  const attributesByKey = normalizeAttributesByKey(input.attributesByKey);
-
+  const commonFieldAssignments = normalizeCommonFieldAssignments(input.commonFieldAssignments);
+  const commonFields = resolveAttributeAssignments(attributeCatalog, commonFieldAssignments);
+  const localAttributesByKey = resolveAttributesByKey(attributeCatalog, attributeAssignmentsByKey);
+  const attributesByKey = mergeCommonAttributes(commonFields, localAttributesByKey, categories);
+  const listingUnitsByKey: Record<string, string[]> = {};
+  for (const [key, attributes] of Object.entries(attributesByKey)) {
+    const fieldUnits = attributes.map((attribute) => attribute.unit).filter(Boolean);
+    if (fieldUnits.length > 0) listingUnitsByKey[key] = Array.from(new Set(fieldUnits));
+  }
   await db.transaction(async (tx) => {
     const desiredCategoryNames = new Set(categories.map((category) => category.mainCategory));
-    const desiredUnitNames = new Set(units);
 
     const existingCategories = await tx.select().from(masterListingCategories);
     const categoryRows: Array<{ id: string; name: string }> = [];
     for (let categoryIndex = 0; categoryIndex < categories.length; categoryIndex += 1) {
       const group = categories[categoryIndex];
+      const existingCategory = existingCategories.find(
+        (category) => category.name === group.mainCategory
+      );
       const [categoryRow] = await tx
         .insert(masterListingCategories)
         .values({
           name: group.mainCategory,
+          iconUrl: group.mainCategoryIcon ?? existingCategory?.iconUrl ?? null,
           sortOrder: categoryIndex,
           isActive: true,
         })
@@ -300,6 +597,7 @@ export async function syncMasterDataTables(input: MasterDataSnapshot): Promise<v
           target: masterListingCategories.name,
           set: {
             sortOrder: categoryIndex,
+            iconUrl: group.mainCategoryIcon ?? existingCategory?.iconUrl ?? null,
             isActive: true,
             updatedAt: new Date(),
           },
@@ -321,20 +619,26 @@ export async function syncMasterDataTables(input: MasterDataSnapshot): Promise<v
       );
     }
 
-    const subcategoryRows: Array<{ id: string; categoryName: string; name: string }> = [];
     const existingSubcategories = await tx.select().from(masterListingSubcategories);
+    const subcategoryRows: Array<{ id: string; categoryName: string; name: string }> = [];
     const desiredSubcategoryPairs = new Set<string>();
     for (const categoryRow of categoryRows) {
       const group = categories.find((item) => item.mainCategory === categoryRow.name);
       if (!group) continue;
       for (let subIndex = 0; subIndex < group.subcategories.length; subIndex += 1) {
         const subcategoryName = group.subcategories[subIndex];
+        const existingSubcategory = existingSubcategories.find(
+          (subcategory) =>
+            subcategory.categoryId === categoryRow.id && subcategory.name === subcategoryName
+        );
+        const requestedIcon = group.subcategoryIcons?.[subcategoryName];
         desiredSubcategoryPairs.add(`${categoryRow.name}::${subcategoryName}`);
         const [subcategoryRow] = await tx
           .insert(masterListingSubcategories)
           .values({
             categoryId: categoryRow.id,
             name: subcategoryName,
+            iconUrl: requestedIcon ?? existingSubcategory?.iconUrl ?? null,
             sortOrder: subIndex,
             isActive: true,
           })
@@ -342,6 +646,7 @@ export async function syncMasterDataTables(input: MasterDataSnapshot): Promise<v
             target: [masterListingSubcategories.categoryId, masterListingSubcategories.name],
             set: {
               sortOrder: subIndex,
+              iconUrl: requestedIcon ?? existingSubcategory?.iconUrl ?? null,
               isActive: true,
               updatedAt: new Date(),
             },
@@ -375,30 +680,96 @@ export async function syncMasterDataTables(input: MasterDataSnapshot): Promise<v
       );
     }
 
-    const unitRows: Array<{ id: string; name: string }> = [];
+    const unitRows: Array<{ id: string; name: string; subcategoryId: string | null }> = [];
     const existingUnits = await tx.select().from(masterListingUnits);
-    for (let unitIndex = 0; unitIndex < units.length; unitIndex += 1) {
-      const unitName = units[unitIndex];
+    const subcategoryByKey = new Map(
+      subcategoryRows.map((subcategory) => [
+        buildAttributeKey(subcategory.categoryName, subcategory.name),
+        subcategory,
+      ])
+    );
+    const unitByScopedKey = new Map<string, { id: string; name: string; subcategoryId: string }>();
+    const unitByLegacyName = new Map<string, { id: string; name: string; subcategoryId: null }>();
+
+    for (const [key, scopedUnits] of Object.entries(listingUnitsByKey)) {
+      const subcategory = subcategoryByKey.get(key);
+      if (!subcategory) continue;
+      for (let unitIndex = 0; unitIndex < scopedUnits.length; unitIndex += 1) {
+        const unitName = scopedUnits[unitIndex];
+        const [unitRow] = await tx
+          .insert(masterListingUnits)
+          .values({
+            name: unitName,
+            subcategoryId: subcategory.id,
+            sortOrder: unitIndex,
+            isActive: true,
+          })
+          .onConflictDoUpdate({
+            target: [masterListingUnits.subcategoryId, masterListingUnits.name],
+            set: {
+              sortOrder: unitIndex,
+              isActive: true,
+              updatedAt: new Date(),
+            },
+          })
+          .returning({
+            id: masterListingUnits.id,
+            name: masterListingUnits.name,
+            subcategoryId: masterListingUnits.subcategoryId,
+          });
+        if (!unitRow || !unitRow.subcategoryId) continue;
+        const normalizedRow = {
+          id: unitRow.id,
+          name: unitRow.name,
+          subcategoryId: unitRow.subcategoryId,
+        };
+        unitRows.push(normalizedRow);
+        unitByScopedKey.set(`${subcategory.id}::${unitName}`, normalizedRow);
+      }
+    }
+
+    const legacyUnits = input.listingPriceUnits.map((unit) => normalizeText(unit)).filter(Boolean);
+    for (let unitIndex = 0; unitIndex < legacyUnits.length; unitIndex += 1) {
+      const unitName = legacyUnits[unitIndex];
+      const existingUnit = existingUnits.find(
+        (unit) => unit.subcategoryId === null && unit.name === unitName
+      );
+      if (existingUnit) {
+        await tx
+          .update(masterListingUnits)
+          .set({ sortOrder: unitIndex, isActive: true, updatedAt: new Date() })
+          .where(eq(masterListingUnits.id, existingUnit.id));
+        const normalizedRow = {
+          id: existingUnit.id,
+          name: existingUnit.name,
+          subcategoryId: null,
+        } as const;
+        unitRows.push(normalizedRow);
+        unitByLegacyName.set(unitName, normalizedRow);
+        continue;
+      }
+
       const [unitRow] = await tx
         .insert(masterListingUnits)
         .values({
           name: unitName,
+          subcategoryId: null,
           sortOrder: unitIndex,
           isActive: true,
         })
-        .onConflictDoUpdate({
-          target: masterListingUnits.name,
-          set: {
-            sortOrder: unitIndex,
-            isActive: true,
-            updatedAt: new Date(),
-          },
-        })
-        .returning({ id: masterListingUnits.id, name: masterListingUnits.name });
-      if (unitRow) unitRows.push(unitRow);
+        .returning({
+          id: masterListingUnits.id,
+          name: masterListingUnits.name,
+          subcategoryId: masterListingUnits.subcategoryId,
+        });
+      if (unitRow) {
+        const normalizedRow = { id: unitRow.id, name: unitRow.name, subcategoryId: null } as const;
+        unitRows.push(normalizedRow);
+        unitByLegacyName.set(unitName, normalizedRow);
+      }
     }
-    const unitByName = new Map(unitRows.map((unit) => [unit.name, unit]));
-    const unitsToDelete = existingUnits.filter((unit) => !desiredUnitNames.has(unit.name));
+    const desiredUnitIds = new Set(unitRows.map((unit) => unit.id));
+    const unitsToDelete = existingUnits.filter((unit) => !desiredUnitIds.has(unit.id));
     if (unitsToDelete.length > 0) {
       await tx.delete(masterListingUnits).where(
         inArray(
@@ -420,6 +791,10 @@ export async function syncMasterDataTables(input: MasterDataSnapshot): Promise<v
 
       for (let attributeIndex = 0; attributeIndex < attributes.length; attributeIndex += 1) {
         const attribute = attributes[attributeIndex];
+        const scopedUnit = attribute.unit
+          ? unitByScopedKey.get(`${subcategory.id}::${attribute.unit}`)
+          : undefined;
+        const legacyUnit = attribute.unit ? unitByLegacyName.get(attribute.unit) : undefined;
         desiredAttributeKeys.add(`${subcategory.id}::${attribute.name}`);
         await tx
           .insert(masterListingAttributes)
@@ -427,7 +802,7 @@ export async function syncMasterDataTables(input: MasterDataSnapshot): Promise<v
             subcategoryId: subcategory.id,
             name: attribute.name,
             fieldType: attribute.fieldType || 'Text',
-            unitId: unitByName.get(attribute.unit)?.id || null,
+            unitId: scopedUnit?.id || legacyUnit?.id || null,
             required: Boolean(attribute.required),
             status: attribute.status || 'Active',
             sortOrder: attributeIndex,
@@ -436,7 +811,7 @@ export async function syncMasterDataTables(input: MasterDataSnapshot): Promise<v
             target: [masterListingAttributes.subcategoryId, masterListingAttributes.name],
             set: {
               fieldType: attribute.fieldType || 'Text',
-              unitId: unitByName.get(attribute.unit)?.id || null,
+              unitId: scopedUnit?.id || legacyUnit?.id || null,
               required: Boolean(attribute.required),
               status: attribute.status || 'Active',
               sortOrder: attributeIndex,

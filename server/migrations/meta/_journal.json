@@ -169,6 +169,34 @@
       "when": 1783560000000,
       "tag": "0026_drop_listing_combo_items",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786320000000,
+      "tag": "0031_master_listing_category_icons",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786320001000,
+      "tag": "0032_master_listing_unit_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1786320002000,
+      "tag": "0033_reusable_listing_attributes",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1786320003000,
+      "tag": "0034_common_listing_fields",
+      "breakpoints": true
     }
   ]
 }

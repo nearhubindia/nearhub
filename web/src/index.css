@@ -37,15 +37,60 @@ body,
   margin: 0;
   padding: 0;
   width: 100%;
-  min-height: 100%;
+  min-height: 100dvh;
   overflow-x: hidden;
 }
 
+html {
+  min-height: 100%;
+}
+
 body {
+  min-height: 100dvh;
   font-family: 'Geist Variable', 'Inter', sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Keep grid and flex children from forcing a wider viewport on compact devices. */
+main,
+section,
+article,
+form,
+.route-transitioning,
+.route-transitioned,
+.admin-typography,
+.admin-field-scope {
+  min-width: 0;
+}
+
+/* Avoid accidental horizontal panning while preserving intentional table/carousel scrolling. */
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+  }
+}
+
+/* Use the dynamic viewport on mobile browsers where the URL bar changes the
+ * available height. Existing utility classes keep their current semantics on
+ * desktop while avoiding 100vh overflow on small screens. */
+.min-h-screen {
+  min-height: 100dvh;
+}
+
+.h-screen {
+  height: 100dvh;
 }
 
 img,
@@ -220,6 +265,117 @@ svg {
 .admin-sidebar-scrollbar::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, rgba(45, 212, 191, 0.85), rgba(6, 182, 212, 0.85));
   border-radius: 999px;
+}
+
+.admin-drawer-panel {
+  min-width: 0;
+  min-height: 0;
+  animation: admin-drawer-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.admin-drawer-scroll {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-drawer-footer {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Keep admin form controls compact and square while preserving card and button styling. */
+.admin-field-scope :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+  border-radius: 2px !important;
+}
+
+.admin-field-scope button {
+  border-radius: 2px !important;
+}
+
+.admin-field-scope
+  :is(label, div)[class*='rounded']:has(
+    input:not([type='checkbox']):not([type='radio']),
+    select,
+    textarea
+  ) {
+  border-radius: 2px !important;
+}
+
+/* Use the same sleek radius for admin cards, sections, and nested surfaces. */
+.admin-field-scope
+  :is(section, article, fieldset, div, label)[class*='rounded']:not([class*='rounded-full']) {
+  border-radius: 2px !important;
+}
+
+@media (max-width: 639px) {
+  .admin-drawer-panel {
+    border-left-width: 0;
+  }
+
+  .admin-drawer-scroll {
+    scrollbar-gutter: auto;
+  }
+}
+
+/* Compact, consistent page headers across the admin workspace. */
+.admin-typography div.bg-gradient-to-r.from-slate-900 {
+  padding: 0.75rem 1.5rem;
+  background-image: linear-gradient(118deg, #0f172a 0%, #172554 58%, #0f766e 140%);
+}
+
+.admin-typography .admin-page-header {
+  padding: 0.75rem 1.5rem;
+}
+
+.admin-typography div.bg-gradient-to-r.from-slate-900 h1,
+.admin-typography .admin-page-header h1 {
+  margin-bottom: 0.125rem !important;
+  font-size: clamp(1.375rem, 1.8vw, 1.75rem);
+  line-height: 1.1;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em;
+}
+
+.admin-typography div.bg-gradient-to-r.from-slate-900 h1 svg,
+.admin-typography .admin-page-header h1 svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  vertical-align: -0.2rem;
+}
+
+.admin-typography div.bg-gradient-to-r.from-slate-900 > p,
+.admin-typography div.bg-gradient-to-r.from-slate-900 > div p,
+.admin-typography .admin-page-header > p,
+.admin-typography .admin-page-header > div p {
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
+@media (max-width: 639px) {
+  .admin-typography div.bg-gradient-to-r.from-slate-900 {
+    padding: 0.75rem 1rem;
+  }
+
+  .admin-typography .admin-page-header {
+    padding: 0.75rem 1rem;
+  }
+}
+
+@keyframes admin-drawer-in {
+  from {
+    opacity: 0.7;
+    transform: translateX(3.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-drawer-panel {
+    animation: none;
+  }
 }
 
 /* Keep admin page headers visually consistent and normal-weight. */
@@ -569,4 +725,16 @@ svg {
   th {
     letter-spacing: 0;
   }
+}
+
+/* Web-wide sharp visual language: buttons, cards, and section surfaces use 2px corners. */
+#root button {
+  border-radius: 2px !important;
+}
+
+#root
+  :is(section, article, fieldset, [role='dialog'], div, form, label)[class*='rounded']:not(
+    [class*='rounded-full']
+  ) {
+  border-radius: 2px !important;
 }

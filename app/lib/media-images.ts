@@ -1,9 +1,14 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
+import type { ImageCompressionPresetName } from '../../shared/media/image-compression';
 
 interface UploadImageOptions {
   fileNamePrefix?: string;
   userId?: string;
+  token?: string;
+  compressionPreset?: ImageCompressionPresetName;
+  /** Set when the caller already ran the shared compressor and verified the result. */
+  skipCompression?: boolean;
 }
 
 export function getMimeTypeFromUri(uri: string): string {
@@ -89,6 +94,9 @@ export async function uploadImagesToCloudflare(
       mediaType: 'image',
       fileName,
       userId: options.userId,
+      token: options.token,
+      compressionPreset: options.compressionPreset || 'listing',
+      compressBeforeUpload: options.skipCompression !== true,
     });
 
     uploaded.push(media.url);

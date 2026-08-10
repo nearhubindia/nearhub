@@ -15,6 +15,8 @@ import {
 import { Navigate, Link, useLocation } from 'react-router-dom';
 import { LandingHeader, LandingFooter } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { compressImageFile } from '@/lib/image-compression';
+import { uploadImageToBackend } from '@/lib/media-upload';
 import { readStoredWebUser, writeStoredWebUser, type StoredWebUser } from '@/lib/web-auth-storage';
 import { buildAuthRegisterPath } from '@/lib/auth-redirect';
 
@@ -231,7 +233,7 @@ export default function ProfilePage(): ReactElement {
     userId,
   ]);
 
-  const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
@@ -239,14 +241,20 @@ export default function ProfilePage(): ReactElement {
       event.target.value = '';
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAvatarUrl(String(reader.result || ''));
-      setMessage('Avatar selected. Save changes to update your profile.');
-    };
-    reader.onerror = () => setMessage('Failed to read image.');
-    reader.readAsDataURL(file);
-    event.target.value = '';
+    try {
+      const compressedFile = await compressImageFile(file, 'avatar');
+      setMessage('Uploading optimized avatar...');
+      const uploadedUrl = await uploadImageToBackend(compressedFile, {
+        preset: 'avatar',
+        userId,
+      });
+      setAvatarUrl(uploadedUrl);
+      setMessage('Avatar optimized. Save changes to update your profile.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to optimize image.');
+    } finally {
+      event.target.value = '';
+    }
   };
 
   const updateLatitude = (value: string) => {
@@ -384,7 +392,7 @@ export default function ProfilePage(): ReactElement {
   return (
     <div className="min-h-screen bg-[#eef4fb] text-slate-950">
       <LandingHeader active="browse" />
-      <main className="mx-auto w-full max-w-375 px-4 pb-14 pt-24 sm:px-6 lg:px-8">
+      <main className="mx-auto w-full max-w-[1380px] px-4 pb-14 pt-24 sm:px-6 lg:px-8">
         <div className="mb-8 flex items-center justify-between gap-4">
           <h1 className="text-2xl font-normal tracking-tight text-slate-950 sm:text-3xl">
             My Profile

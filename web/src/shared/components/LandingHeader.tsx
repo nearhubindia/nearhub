@@ -7,7 +7,6 @@ import {
   MapPin,
   CheckCircle2,
   ChevronDown,
-  ChevronRight,
   CircleUserRound,
   CreditCard,
   FileText,
@@ -536,11 +535,11 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
     <header className="fixed left-0 right-0 top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
       <Container className="flex h-[72px] min-w-0 items-center justify-between gap-2 px-3 sm:h-[82px] sm:gap-4">
         <Link to="/" onClick={() => setIsMenuOpen(false)} className="min-w-0 shrink">
-          <Logo size="sm" monochrome className="sm:hidden" />
-          <Logo size="md" monochrome className="hidden sm:flex" />
+          <Logo size="sm" transparent className="sm:hidden" />
+          <Logo size="md" transparent className="hidden sm:flex" />
         </Link>
 
-        <form onSubmit={submitSearch} className="hidden flex-1 items-center gap-4 md:flex">
+        <form onSubmit={submitSearch} className="hidden flex-1 items-center gap-4 xl:flex">
           <div className="relative flex min-w-0 flex-1 items-center">
             <div className="relative flex h-14 w-[220px] shrink-0 items-center rounded-l-[999px] border border-[#d7ebf3] bg-white px-4 shadow-[0_10px_28px_-18px_rgba(15,23,42,0.35)]">
               <MapPin size={14} className="mr-2 shrink-0 text-[#8a97a8]" />
@@ -675,7 +674,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
           </div>
         </form>
 
-        <nav className="hidden items-center gap-8 text-[15px] font-semibold md:flex">
+        <nav className="hidden items-center gap-8 text-[15px] font-semibold xl:flex">
           <Link to={appendSearch('/')} className={navLinkClass(active === 'home')}>
             Home
           </Link>
@@ -690,7 +689,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
           </Link>
           <Link
             to="/create-listing"
-            className="inline-flex h-11 items-center gap-2 rounded-full bg-[linear-gradient(135deg,#2f74ff_0%,#1d4ed8_100%)] px-5 text-sm font-semibold text-white shadow-[0_14px_30px_-16px_rgba(29,78,216,0.8)] transition hover:brightness-105"
+            className="inline-flex h-11 items-center gap-2 rounded-[2px] bg-[linear-gradient(135deg,#2f74ff_0%,#1d4ed8_100%)] px-5 text-sm font-semibold text-white shadow-[0_14px_30px_-16px_rgba(29,78,216,0.8)] transition hover:brightness-105"
           >
             <span className="text-lg leading-none">+</span>
             Create Listing
@@ -854,7 +853,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
             {isUserMenuOpen ? (
               <div
                 ref={userMenuPanelRef}
-                className="absolute right-0 z-50 mt-3 w-72 overflow-hidden rounded-[22px] border border-slate-200/80 bg-white/95 shadow-[0_28px_70px_-34px_rgba(15,23,42,0.6)] backdrop-blur"
+                className="absolute right-0 z-50 mt-3 w-64 overflow-hidden rounded-[22px] border border-slate-200/80 bg-white/95 shadow-[0_28px_70px_-34px_rgba(15,23,42,0.6)] backdrop-blur"
               >
                 {isLoggedIn ? (
                   <>
@@ -892,10 +891,6 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                               <Icon size={16} />
                             </span>
                             <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                            <ChevronRight
-                              size={17}
-                              className="text-slate-400 transition group-hover:text-[#0759e6]"
-                            />
                           </Link>
                         );
                       })}
@@ -910,10 +905,6 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                         <LogOut size={16} />
                       </span>
                       <span className="min-w-0 flex-1 truncate">Logout</span>
-                      <ChevronRight
-                        size={17}
-                        className="text-red-300 transition group-hover:text-red-600"
-                      />
                     </button>
                   </>
                 ) : (
@@ -926,7 +917,6 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
                       <LogIn size={16} />
                     </span>
                     <span className="min-w-0 flex-1 truncate">Sign In / Register</span>
-                    <ChevronRight size={17} />
                   </Link>
                 )}
               </div>
@@ -934,7 +924,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
           </div>
         </nav>
 
-        <div className="ml-auto flex items-center gap-2 md:hidden">
+        <div className="ml-auto flex items-center gap-2 xl:hidden">
           <button
             type="button"
             onClick={detectLocation}
@@ -970,7 +960,7 @@ export function LandingHeader({ active }: LandingHeaderProps): ReactElement {
       {isMenuOpen ? (
         <div
           ref={mobileMenuPanelRef}
-          className="border-t border-slate-200 bg-white px-4 py-3 md:hidden"
+          className="border-t border-slate-200 bg-white px-4 py-3 xl:hidden"
         >
           <Container className="flex flex-col gap-2 text-sm font-semibold">
             <Link

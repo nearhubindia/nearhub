@@ -6,7 +6,7 @@
 import { useState, useEffect, type ChangeEvent } from 'react';
 import { Send, Trash2, TrendingUp, AlertCircle, Upload, X } from 'lucide-react';
 import { getApiUrl } from '@/lib/config';
-import { uploadListingImages } from '@/features/admin/utils/listing-media-upload';
+import { uploadBannerImages } from '@/features/admin/utils/listing-media-upload';
 
 function getAdminToken() {
   return localStorage.getItem('adminToken') || '';
@@ -122,7 +122,7 @@ export default function InAppNotificationsView() {
     try {
       setIsUploadingBanner(true);
       setErrorMessage('');
-      const [publicUrl] = await uploadListingImages([selectedFile]);
+      const [publicUrl] = await uploadBannerImages([selectedFile]);
       setBannerImageUrl(publicUrl || '');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to upload banner image');

@@ -640,27 +640,6 @@ export function registerListingRoutes(app: Express) {
   });
 
   /**
-   * POST /api/listings/upload-images
-   * Pass-through: returns base64 images as-is
-   */
-  app.post('/api/listings/upload-images', (req: Request, res: Response) => {
-    try {
-      const { images } = req.body;
-      if (!images || !Array.isArray(images)) {
-        return res.status(400).json({ error: 'Images array required' });
-      }
-      return res.json({
-        success: true,
-        imageUrls: images,
-        message: `Uploaded ${images.length} image(s)`,
-      });
-    } catch (error) {
-      console.error('[Listings] Error uploading images:', error);
-      return res.status(500).json({ error: 'Failed to upload images' });
-    }
-  });
-
-  /**
    * GET /api/listings/search
    * Text + filter search for active listings.
    */

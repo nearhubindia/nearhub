@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Edit2, PauseCircle, PlayCircle, Plus, Trash2 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
+import AdminDrawer from '@/features/admin/components/AdminDrawer';
 import {
   useCoupons,
   useCreateCoupon,
@@ -12,6 +13,7 @@ import {
 } from '@/features/admin/hooks';
 import { formatters, validators } from '@/features/admin/utils';
 import { ApiError } from '@/features/admin/api';
+import AdminActionMenu from './AdminActionMenu';
 
 interface CouponRow {
   id: string;
@@ -166,39 +168,33 @@ export default function CouponsView() {
       enableHiding: false,
       accessorFn: () => '',
       cell: ({ row }) => (
-        <div className="space-x-2">
-          <button
-            onClick={() => handleEdit(row.original)}
-            className="cursor-pointer font-bold text-teal-600 transition hover:text-teal-800 hover:underline"
-            type="button"
-          >
-            Edit
-          </button>
-          {row.original.isActive ? (
-            <button
-              onClick={() => void handleDeactivate(row.original)}
-              className="cursor-pointer font-bold text-amber-600 transition hover:text-amber-800 hover:underline"
-              type="button"
-            >
-              Deactivate
-            </button>
-          ) : (
-            <button
-              onClick={() => void handleActivate(row.original)}
-              className="cursor-pointer font-bold text-emerald-600 transition hover:text-emerald-800 hover:underline"
-              type="button"
-            >
-              Activate
-            </button>
-          )}
-          <button
-            onClick={() => handleDelete(row.original)}
-            className="cursor-pointer font-bold text-red-600 transition hover:text-red-800 hover:underline"
-            type="button"
-          >
-            Delete
-          </button>
-        </div>
+        <AdminActionMenu
+          label="Coupon actions"
+          items={[
+            {
+              label: 'Edit',
+              icon: <Edit2 size={15} />,
+              onSelect: () => handleEdit(row.original),
+            },
+            row.original.isActive
+              ? {
+                  label: 'Deactivate',
+                  icon: <PauseCircle size={15} />,
+                  onSelect: () => void handleDeactivate(row.original),
+                }
+              : {
+                  label: 'Activate',
+                  icon: <PlayCircle size={15} />,
+                  onSelect: () => void handleActivate(row.original),
+                },
+            {
+              label: 'Delete',
+              icon: <Trash2 size={15} />,
+              tone: 'danger',
+              onSelect: () => handleDelete(row.original),
+            },
+          ]}
+        />
       ),
     },
   ];
@@ -375,149 +371,148 @@ export default function CouponsView() {
       </div>
 
       {showCouponModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl">
-            <div className="sticky top-0 border-b bg-gradient-to-r from-teal-500 to-cyan-500 p-6 text-white">
+        <AdminDrawer
+          onClose={closeCouponModal}
+          onSubmit={handleSubmit}
+          ariaLabel={editingCoupon ? 'Edit coupon' : 'Create coupon'}
+          header={
+            <div className="border-b bg-gradient-to-r from-teal-500 to-cyan-500 p-5 pr-16 text-white sm:p-6 sm:pr-20">
               <h2 className="text-2xl font-black">
                 {editingCoupon ? 'Edit Coupon' : 'Create New Coupon'}
               </h2>
             </div>
-
-            <form onSubmit={handleSubmit} className="space-y-6 p-4 sm:p-6">
-              {formErrors.submit && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
-                  {formErrors.submit}
-                </div>
-              )}
-
-              {!editingCoupon && (
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-900">Code</label>
-                  <input
-                    type="text"
-                    value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value.toUpperCase() })
-                    }
-                    placeholder="e.g., SAVE30"
-                    className={`w-full rounded-lg border px-4 py-2 focus:outline-none ${
-                      formErrors.code
-                        ? 'border-red-500 focus:border-red-700'
-                        : 'border-slate-300 focus:border-teal-500'
-                    }`}
-                    required
-                  />
-                  {formErrors.code && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.code}</p>
-                  )}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-900">Discount %</label>
-                  <input
-                    type="number"
-                    value={formData.discountPercentage}
-                    onChange={(e) =>
-                      setFormData({ ...formData, discountPercentage: e.target.value })
-                    }
-                    className={`w-full rounded-lg border px-4 py-2 focus:outline-none ${
-                      formErrors.discountPercentage
-                        ? 'border-red-500 focus:border-red-700'
-                        : 'border-slate-300 focus:border-teal-500'
-                    }`}
-                  />
-                  {formErrors.discountPercentage && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.discountPercentage}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-900">Max Usage</label>
-                  <input
-                    type="number"
-                    value={formData.maxUsageCount}
-                    onChange={(e) => setFormData({ ...formData, maxUsageCount: e.target.value })}
-                    className={`w-full rounded-lg border px-4 py-2 focus:outline-none ${
-                      formErrors.maxUsageCount
-                        ? 'border-red-500 focus:border-red-700'
-                        : 'border-slate-300 focus:border-teal-500'
-                    }`}
-                  />
-                  {formErrors.maxUsageCount && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.maxUsageCount}</p>
-                  )}
-                </div>
+          }
+          footer={
+            <div className="flex flex-col gap-3 border-t border-slate-200 bg-white p-4 sm:flex-row sm:justify-end sm:p-5">
+              <button
+                type="button"
+                onClick={closeCouponModal}
+                className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={createCoupon.isPending || updateCoupon.isPending}
+                className="rounded-lg bg-teal-600 px-4 py-2 font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {editingCoupon ? 'Save Changes' : 'Create Coupon'}
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-6">
+            {formErrors.submit && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+                {formErrors.submit}
               </div>
+            )}
 
+            {!editingCoupon && (
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-900">Plan Name(s)</label>
-                <div
-                  className={`max-h-48 space-y-2 overflow-y-auto rounded-lg border p-3 ${
-                    formErrors.applicableTiers ? 'border-red-500' : 'border-slate-300'
-                  }`}
-                >
-                  {tiers
-                    .filter((tier) => tier.isActive)
-                    .sort((a, b) => Number(a.durationDays || 0) - Number(b.durationDays || 0))
-                    .map((tier) => (
-                      <label
-                        key={tier.id}
-                        className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-slate-50"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={formData.applicableTiers.includes(tier.id)}
-                          onChange={(e) => {
-                            const next = e.target.checked
-                              ? [...formData.applicableTiers, tier.id]
-                              : formData.applicableTiers.filter((id) => id !== tier.id);
-                            setFormData({ ...formData, applicableTiers: next });
-                          }}
-                        />
-                        <span className="text-sm text-slate-800">
-                          {tier.name} ({formatDuration(Number(tier.durationDays || 0))})
-                        </span>
-                      </label>
-                    ))}
-                </div>
-                {formErrors.applicableTiers && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.applicableTiers}</p>
-                )}
-                <p className="mt-1 text-xs text-slate-500">
-                  Required. Choose the plans this coupon should apply to (e.g., 30/90/180 days).
-                </p>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-900">Expires At</label>
+                <label className="mb-2 block text-sm font-bold text-slate-900">Code</label>
                 <input
-                  type="date"
-                  value={formData.expiresAt}
-                  onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-teal-500 focus:outline-none"
+                  type="text"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                  placeholder="e.g., SAVE30"
+                  className={`w-full rounded-lg border px-4 py-2 focus:outline-none ${
+                    formErrors.code
+                      ? 'border-red-500 focus:border-red-700'
+                      : 'border-slate-300 focus:border-teal-500'
+                  }`}
+                  required
                 />
+                {formErrors.code && <p className="mt-1 text-sm text-red-600">{formErrors.code}</p>}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-bold text-slate-900">Discount %</label>
+                <input
+                  type="number"
+                  value={formData.discountPercentage}
+                  onChange={(e) => setFormData({ ...formData, discountPercentage: e.target.value })}
+                  className={`w-full rounded-lg border px-4 py-2 focus:outline-none ${
+                    formErrors.discountPercentage
+                      ? 'border-red-500 focus:border-red-700'
+                      : 'border-slate-300 focus:border-teal-500'
+                  }`}
+                />
+                {formErrors.discountPercentage && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.discountPercentage}</p>
+                )}
               </div>
 
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={closeCouponModal}
-                  className="rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-lg bg-teal-600 px-4 py-2 font-semibold text-white transition hover:bg-teal-700"
-                >
-                  Save Coupon
-                </button>
+              <div>
+                <label className="mb-2 block text-sm font-bold text-slate-900">Max Usage</label>
+                <input
+                  type="number"
+                  value={formData.maxUsageCount}
+                  onChange={(e) => setFormData({ ...formData, maxUsageCount: e.target.value })}
+                  className={`w-full rounded-lg border px-4 py-2 focus:outline-none ${
+                    formErrors.maxUsageCount
+                      ? 'border-red-500 focus:border-red-700'
+                      : 'border-slate-300 focus:border-teal-500'
+                  }`}
+                />
+                {formErrors.maxUsageCount && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.maxUsageCount}</p>
+                )}
               </div>
-            </form>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-bold text-slate-900">Plan Name(s)</label>
+              <div
+                className={`max-h-48 space-y-2 overflow-y-auto rounded-lg border p-3 ${
+                  formErrors.applicableTiers ? 'border-red-500' : 'border-slate-300'
+                }`}
+              >
+                {tiers
+                  .filter((tier) => tier.isActive)
+                  .sort((a, b) => Number(a.durationDays || 0) - Number(b.durationDays || 0))
+                  .map((tier) => (
+                    <label
+                      key={tier.id}
+                      className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-slate-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData.applicableTiers.includes(tier.id)}
+                        onChange={(e) => {
+                          const next = e.target.checked
+                            ? [...formData.applicableTiers, tier.id]
+                            : formData.applicableTiers.filter((id) => id !== tier.id);
+                          setFormData({ ...formData, applicableTiers: next });
+                        }}
+                      />
+                      <span className="text-sm text-slate-800">
+                        {tier.name} ({formatDuration(Number(tier.durationDays || 0))})
+                      </span>
+                    </label>
+                  ))}
+              </div>
+              {formErrors.applicableTiers && (
+                <p className="mt-1 text-sm text-red-600">{formErrors.applicableTiers}</p>
+              )}
+              <p className="mt-1 text-xs text-slate-500">
+                Required. Choose the plans this coupon should apply to (e.g., 30/90/180 days).
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-bold text-slate-900">Expires At</label>
+              <input
+                type="date"
+                value={formData.expiresAt}
+                onChange={(e) => setFormData({ ...formData, expiresAt: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-teal-500 focus:outline-none"
+              />
+            </div>
           </div>
-        </div>
+        </AdminDrawer>
       )}
 
       {showDeleteModal && (

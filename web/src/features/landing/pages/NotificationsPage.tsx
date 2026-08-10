@@ -113,7 +113,7 @@ export default function NotificationsPage(): ReactElement {
   return (
     <div className="min-h-screen bg-[#f7faff] text-slate-950">
       <LandingHeader active="browse" />
-      <main className="mx-auto max-w-4xl px-4 pb-24 pt-28 sm:px-6 md:pb-14 lg:px-8">
+      <main className="mx-auto max-w-4xl px-4 pb-24 pt-28 sm:px-6 xl:pb-14 lg:px-8">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <h1 className="inline-flex items-center gap-2 text-2xl font-black text-slate-950">

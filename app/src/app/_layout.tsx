@@ -243,7 +243,12 @@ function HardUpdateScreen({ message, storeUrl }: { message: string; storeUrl: st
 
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerBackTitle: 'Back' }}>
+    <Stack
+      screenOptions={{
+        headerBackTitle: 'Back',
+        contentStyle: { backgroundColor: '#F8FAFC' },
+      }}
+    >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="search"

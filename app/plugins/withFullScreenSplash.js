@@ -46,13 +46,15 @@ module.exports = function withFullScreenSplash(config) {
       console.log('[withFullScreenSplash] Created transparent icon');
 
       // Override theme that keeps legacy and Android 12+ splash visuals consistent.
+      // Do not set android:windowFullscreen here. The activity uses this theme
+      // during startup, and keeping that flag on the launch theme can leave the
+      // runtime content viewport fighting the status-bar insets on Android.
       const overrideThemeXml = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
   <style name="Theme.App.SplashScreen.FullScreen" parent="Theme.App.SplashScreen">
     <item name="android:windowBackground">@drawable/splash_fullscreen_bg</item>
     <item name="windowSplashScreenBackground">#0A0F1A</item>
     <item name="windowSplashScreenAnimatedIcon">@drawable/splashscreen_logo</item>
-    <item name="android:windowFullscreen">true</item>
     <item name="android:windowNoTitle">true</item>
   </style>
 </resources>

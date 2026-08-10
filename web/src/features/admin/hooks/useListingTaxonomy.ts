@@ -15,6 +15,7 @@ function isValidGroup(value: unknown): value is AdminCategoryGroup {
   return (
     typeof entry.mainCategory === 'string' &&
     Array.isArray(entry.subcategories) &&
+    entry.subcategories.length > 0 &&
     entry.subcategories.every((item) => typeof item === 'string')
   );
 }
@@ -43,7 +44,9 @@ function normalizeAttributesByKey(value: unknown): Record<string, ListingAttribu
     Record<string, ListingAttributeDefinition[]>
   >((acc, [key, rawValue]) => {
     if (!Array.isArray(rawValue)) return acc;
-    const next = rawValue.filter(isValidAttribute);
+    const next = rawValue
+      .filter(isValidAttribute)
+      .filter((attribute) => String(attribute.status || 'Active').toLowerCase() !== 'inactive');
     if (next.length > 0) acc[key] = next;
     return acc;
   }, {});

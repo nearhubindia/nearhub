@@ -22,6 +22,7 @@ import { useAuth } from '@/shared/contexts/auth-context';
 import { getApiUrl } from '@/lib/query-client';
 import { createResponsiveStyles } from '@/lib/responsive';
 import { uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
+import { compressImage, getImageCompressionOptions } from '@/lib/image-compressor';
 import { isValidEmailAddress } from '@/lib/email-utils';
 import { sanitizeAlphabeticName } from '@/lib/name-utils';
 import { trackSignUp } from '@/lib/firebase-analytics';
@@ -29,7 +30,7 @@ import { trackSignUp } from '@/lib/firebase-analytics';
 export default function CompleteProfileScreen() {
   const insets = useSafeAreaInsets();
   const { phone, redirect } = useLocalSearchParams<{ phone: string; redirect?: string }>();
-  const { login } = useAuth();
+  const { login, user } = useAuth();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -64,7 +65,18 @@ export default function CompleteProfileScreen() {
     });
 
     if (!result.canceled && result.assets.length > 0) {
-      setLocalAvatarUri(result.assets[0].uri);
+      try {
+        const compressed = await compressImage(
+          result.assets[0].uri,
+          getImageCompressionOptions('avatar')
+        );
+        setLocalAvatarUri(compressed.uri);
+      } catch (error) {
+        Alert.alert(
+          'Image Optimization Failed',
+          error instanceof Error ? error.message : 'Unable to optimize this image.'
+        );
+      }
     }
   };
 
@@ -92,7 +104,10 @@ export default function CompleteProfileScreen() {
         const uploaded = await uploadMediaToCloudflare({
           uri: localAvatarUri,
           mediaType: 'image',
-          userId: phoneValue || undefined,
+          userId: user?.id,
+          token: user?.token,
+          compressionPreset: 'avatar',
+          compressBeforeUpload: false,
         });
         uploadedAvatarUrl = uploaded.url;
         setAvatarUrl(uploaded.url);

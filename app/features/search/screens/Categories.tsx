@@ -12,6 +12,7 @@ import { getCategoryDisplayMeta } from '@/lib/category-display';
 interface CategoryItem {
   key: string;
   label: Category;
+  iconUrl?: string;
 }
 
 export default function CategoriesScreen() {
@@ -22,10 +23,14 @@ export default function CategoriesScreen() {
   const categoryItems = React.useMemo(
     () =>
       Array.from(new Set(categoryGroups.flatMap((group) => group.subcategories))).map(
-        (category) => ({
-          key: category,
-          label: category,
-        })
+        (category) => {
+          const group = categoryGroups.find((item) => item.subcategories.includes(category));
+          return {
+            key: category,
+            label: category,
+            iconUrl: group?.subcategoryIcons?.[category],
+          };
+        }
       ),
     [categoryGroups]
   );
@@ -73,15 +78,23 @@ export default function CategoriesScreen() {
           return (
             <Pressable style={styles.categoryCard} onPress={() => handleCategoryPress(item.label)}>
               <View style={styles.iconTile}>
-                {meta.pictureImage ? (
+                {item.iconUrl ? (
+                  <Image
+                    source={{ uri: item.iconUrl }}
+                    style={styles.pictureImage}
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                  />
+                ) : meta.pictureImage ? (
                   <Image
                     source={{ uri: meta.pictureImage }}
                     style={styles.pictureImage}
                     contentFit="contain"
                     cachePolicy="memory-disk"
                   />
-                ) : null}
-                <Text style={styles.pictureIconFallback}>{meta.picture}</Text>
+                ) : (
+                  <Text style={styles.pictureIconFallback}>{meta.picture}</Text>
+                )}
               </View>
               <Text style={styles.categoryText} numberOfLines={2}>
                 {item.label}

@@ -265,7 +265,11 @@ export function AppHeader({
             </View>
 
             {/* Menu Items */}
-            <ScrollView style={styles.drawerContent} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.drawerContent}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+              showsVerticalScrollIndicator={false}
+            >
               {menuItems.map((item, index) => (
                 <Pressable key={item.label} style={styles.drawerItem} onPress={item.onPress}>
                   <Feather
@@ -341,6 +345,9 @@ const styles = StyleSheet.create({
     width: '70%',
     maxWidth: 300,
     height: '100%',
+    maxHeight: '100%',
+    minHeight: 0,
+    overflow: 'hidden',
     backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: -2, height: 0 },
@@ -368,6 +375,7 @@ const styles = StyleSheet.create({
   },
   drawerContent: {
     flex: 1,
+    minHeight: 0,
     paddingVertical: responsiveModerateScale(12),
   },
   drawerItem: {

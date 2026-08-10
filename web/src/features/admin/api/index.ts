@@ -48,10 +48,6 @@ export const adminKeys = {
   spamReportsList: () => [...adminKeys.spamDetection(), 'reports'] as const,
   spamTrendsList: () => [...adminKeys.spamDetection(), 'trends'] as const,
 
-  // Videos
-  videos: () => [...adminKeys.all, 'videos'] as const,
-  videosList: (params?: { type?: string }) => [...adminKeys.videos(), { params }] as const,
-
   // Revenue
   revenue: () => [...adminKeys.all, 'revenue'] as const,
   revenueStats: () => [...adminKeys.revenue(), 'stats'] as const,
@@ -321,56 +317,6 @@ export const spamDetectionApi = {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify({ action }),
-    });
-    return handleResponse(response);
-  },
-};
-
-// ============================================================================
-// Videos API
-// ============================================================================
-
-export const videosApi = {
-  async getVideos(): Promise<unknown> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/listings`, {
-      headers: getAuthHeaders(),
-    });
-    const result = await handleResponse<
-      { data?: Array<Record<string, unknown>> } & Record<string, unknown>
-    >(response);
-
-    // Filter to only listings that have videos
-    if (Array.isArray(result.data)) {
-      const videosOnly = result.data.filter((listing) => {
-        const videos = listing.videos;
-        const normalizedVideos = Array.isArray(videos) ? videos : [];
-        return normalizedVideos.length > 0;
-      });
-      return { ...result, videos: videosOnly };
-    }
-
-    return result;
-  },
-
-  async getVideoById(id: string): Promise<unknown> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/listings/${id}`, {
-      headers: getAuthHeaders(),
-    });
-    return handleResponse(response);
-  },
-
-  async deleteVideo(videoId: string): Promise<unknown> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/listings/${videoId}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    });
-    return handleResponse(response);
-  },
-
-  async toggleVideoStatus(videoId: string): Promise<unknown> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/listings/${videoId}/toggle-status`, {
-      method: 'PATCH',
-      headers: getAuthHeaders(),
     });
     return handleResponse(response);
   },

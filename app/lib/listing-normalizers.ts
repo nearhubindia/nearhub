@@ -45,6 +45,18 @@ export function parseStringArrayValue(value: unknown): string[] {
   }
 }
 
+function normalizeListingAttributes(
+  value: unknown
+): Record<string, string | number | boolean> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+
+  const entries = Object.entries(value as Record<string, unknown>).filter(
+    ([, item]) => typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean'
+  ) as Array<[string, string | number | boolean]>;
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
 export function normalizeAppListingType(listing: any): Listing['listingType'] {
   const rawType =
     typeof listing?.listingType === 'string' ? listing.listingType.trim().toLowerCase() : '';
@@ -110,6 +122,7 @@ export function mapApiListing(listing: any, options: ListingNormalizerOptions = 
     subCategory: normalizedCategory,
     subcategory: normalizedCategory,
     category: normalizedCategory,
+    attributes: normalizeListingAttributes(listing?.attributes),
     images: parseMediaArray(listing?.images).map(normalizeMediaUrl),
     videos: parseMediaArray(listing?.videos).map(normalizeMediaUrl),
     sellerName: String(listing?.sellerName || listing?.seller?.name || 'Seller').trim() || 'Seller',

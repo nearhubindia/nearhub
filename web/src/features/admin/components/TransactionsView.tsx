@@ -157,7 +157,7 @@ export default function TransactionsView() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex min-h-full items-center justify-center">
         <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-teal-500" />
       </div>
     );

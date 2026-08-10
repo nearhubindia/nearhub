@@ -25,6 +25,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import Colors from '@/constants/colors';
 import { useListings } from '@/shared/contexts/listings-context';
+import { useAuth } from '@/shared/contexts/auth-context';
 import { Category, CONDITIONS, PriceUnit } from '@/lib/types';
 import {
   MainCategory,
@@ -38,11 +39,13 @@ import UploadProgressBar from '@/shared/components/UploadProgressBar';
 import { deleteCloudflareMedia, uploadMediaToCloudflare } from '@/lib/cloudflare-media-upload';
 import RichTextEditor from '@/shared/components/RichTextEditor';
 import { getApiUrl } from '@/lib/query-client';
+import ListingAttributeFields from '@/shared/components/ListingAttributeFields';
 import {
   isRemoteMediaUrl,
   toPortableImageUri,
   uploadImagesToCloudflare as uploadImagesToCloudflareUtil,
 } from '@/lib/media-images';
+import type { ListingAttributeValue } from '@/lib/use-listing-taxonomy';
 
 interface LocationSuggestion {
   pincode: string;
@@ -101,7 +104,12 @@ export default function EditListingScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getListingById, updateListing } = useListings();
-  const { groups: backendCategoryGroups, priceUnits: backendPriceUnits } = useListingTaxonomy();
+  const { user } = useAuth();
+  const {
+    groups: backendCategoryGroups,
+    priceUnits: backendPriceUnits,
+    attributesByKey,
+  } = useListingTaxonomy();
 
   const listing = getListingById(id);
 
@@ -114,6 +122,9 @@ export default function EditListingScreen() {
     listing?.listingType || 'sell'
   );
   const [category, setCategory] = useState<Category>(listing?.category || 'Electronics');
+  const [attributeValues, setAttributeValues] = useState<Record<string, ListingAttributeValue>>(
+    listing?.attributes || {}
+  );
   const [mainCategory, setMainCategory] = useState<MainCategory>(
     getMainCategoryForSubcategory(
       listing?.category || 'Electronics',
@@ -194,6 +205,10 @@ export default function EditListingScreen() {
       [],
     [categoryGroups, mainCategory]
   );
+  const attributeDefinitions = useMemo(
+    () => attributesByKey[`${mainCategory}::${category}`] || [],
+    [attributesByKey, mainCategory, category]
+  );
   const showConditionField = shouldRequireConditionForListing({
     listingType,
     mainCategory,
@@ -218,20 +233,11 @@ export default function EditListingScreen() {
     setDealEndTime(listing.dealEndAt ? toTimeInputValue(new Date(listing.dealEndAt)) : '');
   }, [listing?.dealStartAt, listing?.dealEndAt, listing]);
 
-  if (!listing) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top || webTopInset }]}>
-        <Text style={styles.errorText}>Listing not found</Text>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
   const uploadImagesToCloudflare = async (uris: string[]): Promise<string[]> => {
     return uploadImagesToCloudflareUtil(uris, {
       fileNamePrefix: 'listing_edit_image',
+      userId: user?.id || undefined,
+      token: user?.token || undefined,
     });
   };
 
@@ -258,6 +264,56 @@ export default function EditListingScreen() {
       setCategory(fallbackCategory);
     }
   }, [categoryGroups, mainCategory, category, listingType]);
+
+  useEffect(() => {
+    if (backendPriceUnits.length > 0 && !backendPriceUnits.includes(priceUnit)) {
+      setPriceUnit(backendPriceUnits[0]);
+    }
+  }, [backendPriceUnits, priceUnit]);
+
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+
+    const loadListingAttributes = async (): Promise<void> => {
+      try {
+        const response = await fetch(`${getApiUrl()}/api/listings/${encodeURIComponent(id)}`);
+        const payload = (await response.json().catch(() => ({}))) as {
+          listing?: { attributes?: unknown };
+        };
+        const attributes = payload.listing?.attributes;
+        if (!active || !attributes || typeof attributes !== 'object' || Array.isArray(attributes)) {
+          return;
+        }
+        setAttributeValues(
+          Object.fromEntries(
+            Object.entries(attributes).filter(
+              ([, value]) =>
+                typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+            )
+          ) as Record<string, ListingAttributeValue>
+        );
+      } catch {
+        // Existing listings without attributes remain editable.
+      }
+    };
+
+    void loadListingAttributes();
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  if (!listing) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top || webTopInset }]}>
+        <Text style={styles.errorText}>Listing not found</Text>
+        <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   const applyLocationSuggestion = (suggestion: LocationSuggestion) => {
     const cityName = suggestion.locationName?.trim() || suggestion.city?.trim() || 'Unknown';
@@ -1183,6 +1239,14 @@ export default function EditListingScreen() {
       Alert.alert('Error', 'Please add at least one image');
       return;
     }
+    const missingAttribute = attributeDefinitions.find((attribute) => {
+      const value = attributeValues[attribute.name];
+      return attribute.required && (value === undefined || value === null || value === '');
+    });
+    if (missingAttribute) {
+      Alert.alert('Error', `Please enter ${missingAttribute.name}.`);
+      return;
+    }
 
     if (!locationCity.trim()) {
       Alert.alert('Error', 'Please enter location');
@@ -1236,6 +1300,24 @@ export default function EditListingScreen() {
         return;
       }
 
+      const attributes = attributeDefinitions.reduce<Record<string, string | number | boolean>>(
+        (result, attribute) => {
+          const value = attributeValues[attribute.name];
+          if (value === undefined || value === null || value === '') return result;
+          const normalizedType = attribute.fieldType.trim().toLowerCase();
+          if (normalizedType === 'number' || normalizedType === 'price') {
+            const numericValue = Number(value);
+            if (Number.isFinite(numericValue)) result[attribute.name] = numericValue;
+          } else if (normalizedType === 'boolean') {
+            result[attribute.name] = value === true || value === 'true';
+          } else {
+            result[attribute.name] = String(value);
+          }
+          return result;
+        },
+        {}
+      );
+
       setSubmitProgress(80);
       setSubmitStatusMessage('Saving changes...');
 
@@ -1250,6 +1332,7 @@ export default function EditListingScreen() {
         subCategory: category,
         category,
         ...(showConditionField ? { condition } : {}),
+        attributes,
         location: {
           city: locationCity.trim(),
           latitude,
@@ -1569,6 +1652,14 @@ export default function EditListingScreen() {
               </View>
             )}
           </View>
+
+          <ListingAttributeFields
+            definitions={attributeDefinitions}
+            values={attributeValues}
+            onChange={(name, value) =>
+              setAttributeValues((current) => ({ ...current, [name]: value }))
+            }
+          />
 
           {showConditionField && (
             <View style={styles.section}>
@@ -1896,7 +1987,7 @@ export default function EditListingScreen() {
         onRequestClose={() => setShowLocationModal(false)}
       >
         <View style={styles.locationModalContainer}>
-          <View style={styles.locationModalHeader}>
+          <View style={[styles.locationModalHeader, { paddingTop: insets.top + 8 }]}>
             <Pressable
               style={styles.locationModalClose}
               onPress={() => {

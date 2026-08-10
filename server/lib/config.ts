@@ -79,7 +79,7 @@ export const SERVER_CONFIG = {
     10
   ),
   CLOUDFLARE_R2_MAX_IMAGE_BYTES: parseInt(
-    process.env.CLOUDFLARE_R2_MAX_IMAGE_BYTES || String(10 * 1024 * 1024),
+    process.env.CLOUDFLARE_R2_MAX_IMAGE_BYTES || String(5 * 1024 * 1024),
     10
   ),
   CLOUDFLARE_R2_MAX_VIDEO_BYTES: parseInt(

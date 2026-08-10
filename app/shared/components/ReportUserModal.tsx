@@ -10,6 +10,7 @@ import {
   Alert,
   StyleSheet,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSpamDetection, type ReportReason } from '@/lib/use-spam-detection';
 import { colors } from '@/constants/colors';
 
@@ -61,6 +62,7 @@ export const ReportUserModal: React.FC<ReportUserModalProps> = ({
   const [selectedReason, setSelectedReason] = useState<ReportReason | null>(null);
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const { reportUser, error, loading } = useSpamDetection();
 
@@ -106,7 +108,7 @@ export const ReportUserModal: React.FC<ReportUserModalProps> = ({
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} disabled={submitting || loading}>
@@ -116,7 +118,12 @@ export const ReportUserModal: React.FC<ReportUserModalProps> = ({
           <View style={{ width: 24 }} />
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Description */}
           <Text style={styles.sectionTitle}>Why are you reporting this user?</Text>
           <Text style={styles.sectionDescription}>
@@ -208,7 +215,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg_secondary,
-    paddingTop: 50,
   },
   header: {
     flexDirection: 'row',

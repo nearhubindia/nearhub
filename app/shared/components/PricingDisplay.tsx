@@ -15,6 +15,7 @@ import {
   Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface PricingOption {
   duration: number;
@@ -208,6 +209,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 }) => {
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const handleCheckout = async () => {
     if (!selectedDuration) {
@@ -228,7 +230,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   return (
     <Modal visible={visible} animationType="slide" transparent={true}>
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+        <View style={[styles.modalContent, { maxHeight: '92%' }]}>
           {/* Header */}
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Confirm Listing</Text>
@@ -238,7 +240,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </View>
 
           {/* Content */}
-          <ScrollView style={styles.modalBody}>
+          <ScrollView
+            style={styles.modalBody}
+            contentContainerStyle={{ paddingBottom: 16 }}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Listing Preview */}
             <View style={styles.previewCard}>
               <Text style={styles.previewTitle}>{listingTitle}</Text>
@@ -253,7 +259,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </ScrollView>
 
           {/* Action Button */}
-          <View style={styles.modalFooter}>
+          <View style={[styles.modalFooter, { paddingBottom: Math.max(insets.bottom, 16) }]}>
             <TouchableOpacity
               style={[styles.buttonPrimary, !selectedDuration && styles.buttonDisabled]}
               onPress={handleCheckout}

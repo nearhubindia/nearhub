@@ -1,8 +1,10 @@
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Edit2, Plus, Search, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/data-table';
 import type { Listing } from '@/features/admin/types/admin-types';
 import { useListings, useDeleteListing } from '@/features/admin/hooks';
+import AdminActionMenu from './AdminActionMenu';
 
 interface ListingsViewProps {
   onEditListing?: (listing: Listing) => void;
@@ -12,6 +14,17 @@ interface ListingsViewProps {
 export default function ListingsView({ onEditListing, onCreateListing }: ListingsViewProps) {
   const { data: listingsData, isLoading } = useListings();
   const deleteListing = useDeleteListing();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
+
+  const handleSearch = (): void => {
+    setAppliedSearchTerm(searchTerm.trim());
+  };
+
+  const handleClearSearch = (): void => {
+    setSearchTerm('');
+    setAppliedSearchTerm('');
+  };
 
   const listings: Listing[] = Array.isArray(listingsData?.data)
     ? (listingsData.data as Listing[])
@@ -186,25 +199,23 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
       enableHiding: false,
       accessorFn: () => '',
       cell: ({ row }) => (
-        <div className="flex gap-2">
-          <button
-            onClick={() => onEditListing && onEditListing(row.original)}
-            className="rounded-lg p-2 transition hover:bg-teal-100"
-            title="Edit"
-            type="button"
-          >
-            <Edit2 size={16} className="text-slate-600" />
-          </button>
-          <button
-            onClick={() => handleDelete(row.original.id)}
-            disabled={deleteListing.isPending}
-            className="rounded-lg p-2 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-            title="Delete"
-            type="button"
-          >
-            <Trash2 size={16} className="text-red-600" />
-          </button>
-        </div>
+        <AdminActionMenu
+          label="Listing actions"
+          items={[
+            {
+              label: 'Edit',
+              icon: <Edit2 size={15} />,
+              onSelect: () => onEditListing?.(row.original),
+            },
+            {
+              label: 'Delete',
+              icon: <Trash2 size={15} />,
+              tone: 'danger',
+              onSelect: () => void handleDelete(row.original.id),
+              disabled: deleteListing.isPending,
+            },
+          ]}
+        />
       ),
     },
   ];
@@ -228,7 +239,39 @@ export default function ListingsView({ onEditListing, onCreateListing }: Listing
           <DataTable
             columns={columns}
             data={listings}
+            showSearch={false}
+            searchValue={appliedSearchTerm}
             searchPlaceholder="Search by title, category, user ID, location, status, price..."
+            toolbarLeft={
+              <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                <div className="relative w-full sm:w-[360px] md:w-[420px] lg:w-[500px]">
+                  <Search className="absolute left-3 top-3 text-slate-400" size={18} />
+                  <input
+                    type="text"
+                    aria-label="Search listings"
+                    placeholder="Search by title, category, user ID, location..."
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSearch}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2 font-semibold text-white transition hover:bg-teal-700"
+                >
+                  <Search size={16} />
+                  Search
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearSearch}
+                  className="rounded-lg bg-slate-200 px-4 py-2 font-medium text-slate-900 transition hover:bg-slate-300 sm:w-auto"
+                >
+                  Clear
+                </button>
+              </div>
+            }
             toolbarRight={
               onCreateListing ? (
                 <button

@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { LandingFooter, LandingHeader } from '@/shared/components';
 import { getApiUrl } from '@/lib/config';
+import { compressImageFile } from '@/lib/image-compression';
+import { uploadImageToBackend } from '@/lib/media-upload';
 import { trackWebCreateListing } from '@/lib/firebase';
 import { readStoredWebUser } from '@/lib/web-auth-storage';
 import { buildAuthRegisterPath } from '@/lib/auth-redirect';
@@ -861,12 +863,18 @@ export default function CreateListingPage(): ReactElement {
   };
 
   const uploadFileToR2 = async (file: File, mediaType: 'image' | 'video'): Promise<string> => {
-    const contentType = file.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
+    if (mediaType === 'image') {
+      const compressedFile = await compressImageFile(file, 'listing');
+      return uploadImageToBackend(compressedFile, { preset: 'listing', userId });
+    }
+
+    const uploadFile = file;
+    const contentType = uploadFile.type || (mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
     const presign = await requestPresignedUpload({
       mediaType,
-      fileName: file.name,
+      fileName: uploadFile.name,
       contentType,
-      fileSizeBytes: file.size,
+      fileSizeBytes: uploadFile.size,
     });
 
     let uploadResponse: Response;
@@ -874,13 +882,13 @@ export default function CreateListingPage(): ReactElement {
       uploadResponse = await fetch(presign.uploadUrl, {
         method: 'PUT',
         headers: { 'Content-Type': contentType },
-        body: file,
+        body: uploadFile,
       });
     } catch (error) {
       if (!(error instanceof TypeError)) throw error;
       uploadResponse = await fetch(presign.uploadUrl, {
         method: 'PUT',
-        body: file,
+        body: uploadFile,
       });
     }
 

@@ -33,6 +33,7 @@ function ClassicTabLayout() {
           headerShown: false,
           lazy: true,
           freezeOnBlur: true,
+          tabBarHideOnKeyboard: true,
           tabBarStyle: {
             position: 'absolute',
             left: 0,

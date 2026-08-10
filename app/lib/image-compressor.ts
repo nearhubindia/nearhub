@@ -1,5 +1,11 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { Image as NativeImage } from 'react-native';
+import {
+  fitImageWithinMaxDimension,
+  getImageCompressionPreset,
+  type ImageCompressionPresetName,
+} from '../../shared/media/image-compression';
 
 export interface ImageCompressionResult {
   uri: string;
@@ -16,37 +22,52 @@ export interface CompressionOptions {
   maxHeight?: number;
   quality?: number; // 0-1, default 0.7
   format?: 'jpeg' | 'png' | 'webp';
+  maxBytes?: number;
 }
 
 /**
- * Quality presets for image compression
+ * Backwards-compatible names for existing UI code. The values come from the
+ * shared compression policy instead of being maintained separately in mobile.
  */
 export const QUALITY_PRESETS = {
   ultraLight: {
-    quality: 0.4,
-    maxWidth: 600,
-    maxHeight: 600,
-    label: 'Ultra Light (< 150 KB)',
+    ...getImageCompressionPreset('listing'),
+    maxWidth: getImageCompressionPreset('listing').maxDimension,
+    maxHeight: getImageCompressionPreset('listing').maxDimension,
+    label: 'Listing optimized (< 1.5 MB)',
   },
   low: {
-    quality: 0.5,
-    maxWidth: 800,
-    maxHeight: 800,
-    label: 'Low (< 250 KB)',
+    ...getImageCompressionPreset('avatar'),
+    maxWidth: getImageCompressionPreset('avatar').maxDimension,
+    maxHeight: getImageCompressionPreset('avatar').maxDimension,
+    label: 'Avatar optimized (< 500 KB)',
   },
   medium: {
-    quality: 0.65,
-    maxWidth: 1024,
-    maxHeight: 1024,
-    label: 'Medium (< 400 KB)',
+    ...getImageCompressionPreset('banner'),
+    maxWidth: getImageCompressionPreset('banner').maxDimension,
+    maxHeight: getImageCompressionPreset('banner').maxDimension,
+    label: 'Banner optimized (< 1.5 MB)',
   },
   high: {
-    quality: 0.8,
-    maxWidth: 1280,
-    maxHeight: 1280,
-    label: 'High (< 600 KB)',
+    ...getImageCompressionPreset('icon'),
+    maxWidth: getImageCompressionPreset('icon').maxDimension,
+    maxHeight: getImageCompressionPreset('icon').maxDimension,
+    label: 'Icon optimized (< 350 KB)',
   },
 } as const;
+
+export function getImageCompressionOptions(
+  preset: ImageCompressionPresetName = 'listing'
+): CompressionOptions {
+  const options = getImageCompressionPreset(preset);
+  return {
+    maxWidth: options.maxDimension,
+    maxHeight: options.maxDimension,
+    quality: options.quality,
+    maxBytes: options.maxBytes,
+    format: options.format,
+  };
+}
 
 /**
  * Get image file size in bytes
@@ -78,71 +99,102 @@ export async function getImageFileSize(uri: string): Promise<number> {
   }
 }
 
-/**
- * Compress a single image
- */
+function getImageDimensions(imageUri: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    NativeImage.getSize(imageUri, (width, height) => resolve({ width, height }), reject);
+  });
+}
+
+/** Compress a single image using the shared policy. */
 export async function compressImage(
   imageUri: string,
   options: CompressionOptions = {}
 ): Promise<ImageCompressionResult> {
+  let finalUri: string | null = null;
+  const generatedUris: string[] = [];
+
   try {
     const originalSize = await getImageFileSize(imageUri);
-
-    // Default options - ultra light for fast upload
-    const maxWidth = options.maxWidth ?? QUALITY_PRESETS.ultraLight.maxWidth;
-    const maxHeight = options.maxHeight ?? QUALITY_PRESETS.ultraLight.maxHeight;
-    const quality = options.quality ?? QUALITY_PRESETS.ultraLight.quality;
+    const sharedOptions = getImageCompressionPreset('listing');
+    const maxWidth = options.maxWidth ?? sharedOptions.maxDimension;
+    const maxHeight = options.maxHeight ?? sharedOptions.maxDimension;
+    const quality = options.quality ?? sharedOptions.quality;
+    const maxBytes = options.maxBytes ?? sharedOptions.maxBytes;
     const format = options.format ?? 'jpeg';
-
-    // Get image dimensions
-    let width = maxWidth;
-    let height = maxHeight;
-
-    // Manipulate and compress the image
-    const manipulated = await ImageManipulator.manipulateAsync(
-      imageUri,
-      [
-        {
-          resize: {
-            width: maxWidth,
-            height: maxHeight,
-          },
-        },
-      ],
-      {
-        compress: quality,
-        format:
-          ImageManipulator.SaveFormat[
-            format.toUpperCase() as keyof typeof ImageManipulator.SaveFormat
-          ],
-        base64: false,
-      }
+    const sourceDimensions = await getImageDimensions(imageUri);
+    const targetDimensions = fitImageWithinMaxDimension(
+      sourceDimensions.width,
+      sourceDimensions.height,
+      Math.min(maxWidth, maxHeight)
     );
+    const saveFormat =
+      ImageManipulator.SaveFormat[format.toUpperCase() as keyof typeof ImageManipulator.SaveFormat];
 
-    const compressedSize = await getImageFileSize(manipulated.uri);
+    let currentQuality = quality;
+    let manipulated: ImageManipulator.ImageResult | null = null;
+    let compressedSize = 0;
+    for (let attempt = 0; attempt < 7; attempt += 1) {
+      manipulated = await ImageManipulator.manipulateAsync(
+        imageUri,
+        [{ resize: targetDimensions }],
+        {
+          compress: currentQuality,
+          format: saveFormat,
+          base64: false,
+        }
+      );
+      generatedUris.push(manipulated.uri);
+      compressedSize = await getImageFileSize(manipulated.uri);
+      if (compressedSize <= maxBytes || currentQuality <= 0.35) break;
+      currentQuality = Math.max(0.35, currentQuality - 0.08);
+    }
 
+    if (!manipulated || compressedSize > maxBytes) {
+      throw new Error(
+        `Image could not be compressed below ${(maxBytes / 1024 / 1024).toFixed(1)} MB`
+      );
+    }
+
+    const sourceFits =
+      originalSize > 0 &&
+      originalSize <= maxBytes &&
+      compressedSize >= originalSize &&
+      targetDimensions.width === sourceDimensions.width &&
+      targetDimensions.height === sourceDimensions.height;
+    if (sourceFits) {
+      finalUri = imageUri;
+      return {
+        uri: imageUri,
+        originalSize,
+        compressedSize: originalSize,
+        compressionRatio: 100,
+        width: sourceDimensions.width,
+        height: sourceDimensions.height,
+        quality: 1,
+      };
+    }
+
+    finalUri = manipulated.uri;
     return {
       uri: manipulated.uri,
       originalSize,
       compressedSize,
-      compressionRatio: (compressedSize / originalSize) * 100,
-      width,
-      height,
-      quality,
+      compressionRatio: originalSize > 0 ? (compressedSize / originalSize) * 100 : 0,
+      width: manipulated.width,
+      height: manipulated.height,
+      quality: currentQuality,
     };
   } catch (error) {
     console.error('Image compression error:', error);
-    // Fallback: return original with metadata
-    const size = await getImageFileSize(imageUri);
-    return {
-      uri: imageUri,
-      originalSize: size,
-      compressedSize: size,
-      compressionRatio: 100,
-      width: QUALITY_PRESETS.medium.maxWidth,
-      height: QUALITY_PRESETS.medium.maxHeight,
-      quality: 1,
-    };
+    throw error instanceof Error
+      ? error
+      : new Error('Unable to compress image. Please choose another image or try again.');
+  } finally {
+    await Promise.all(
+      generatedUris
+        .filter((uri) => uri !== finalUri && uri !== imageUri)
+        .map((uri) => FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => undefined))
+    );
   }
 }
 
@@ -289,7 +341,8 @@ export function createBatchCompressionOptions(
     quality: p.quality,
     maxWidth: p.maxWidth,
     maxHeight: p.maxHeight,
-    format: 'jpeg',
+    maxBytes: p.maxBytes,
+    format: p.format,
   };
 }
 

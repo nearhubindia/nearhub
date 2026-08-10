@@ -15,7 +15,6 @@ import {
   couponsApi,
   subscriptionTiersApi,
   spamDetectionApi,
-  videosApi,
   revenueApi,
   reportsApi,
   usersApi,
@@ -86,19 +85,6 @@ interface SpamReportsQueryData {
 
 interface SpamTrendsQueryData {
   trends?: SpamReportData[];
-}
-
-interface VideoData {
-  id: string;
-  title: string;
-  userId?: string;
-  durationDays?: number;
-  isActive: boolean;
-  createdAt?: string;
-}
-
-interface VideosQueryData {
-  videos?: VideoData[];
 }
 
 interface RevenueStatsData {
@@ -389,51 +375,6 @@ export function useReviewSpamReport() {
       spamDetectionApi.reviewReport(reportId, action),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.spamDetection() });
-    },
-  });
-}
-
-// ============================================================================
-// Videos Hooks
-// ============================================================================
-
-export function useVideos() {
-  return useQuery<VideosQueryData>({
-    queryKey: adminKeys.videosList(),
-    queryFn: () => videosApi.getVideos() as Promise<VideosQueryData>,
-    staleTime: STALE_TIME,
-    gcTime: CACHE_TIME,
-  });
-}
-
-export function useVideoById(id: string) {
-  return useQuery({
-    queryKey: adminKeys.videos(),
-    queryFn: () => videosApi.getVideoById(id),
-    enabled: !!id,
-    staleTime: STALE_TIME,
-    gcTime: CACHE_TIME,
-  });
-}
-
-export function useDeleteVideo() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (videoId: string) => videosApi.deleteVideo(videoId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'videos'] });
-    },
-  });
-}
-
-export function useToggleVideoStatus() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (videoId: string) => videosApi.toggleVideoStatus(videoId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'videos'] });
     },
   });
 }

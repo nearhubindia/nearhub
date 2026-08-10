@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { BadgeCheck, Clock3, MapPin, ShieldCheck, User, X } from 'lucide-react';
+import { BadgeCheck, Clock3, MapPin, ShieldCheck, User } from 'lucide-react';
+import AdminDrawer from '@/features/admin/components/AdminDrawer';
 import { useCreateUser, useUpdateUser, useUserById } from '@/features/admin/hooks';
 import type {
   AdminUserRow,
@@ -121,18 +122,13 @@ export default function UserFormModal({ mode, user, onClose, onSaved }: UserForm
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4">
-      <div className="relative w-full max-w-[min(96vw,48rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close modal"
-          className="absolute right-3 top-3 z-20 rounded-full bg-white/90 p-2 text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-900 sm:right-4 sm:top-4"
-        >
-          <X size={16} />
-        </button>
-
-        <div className="relative overflow-hidden border-b border-cyan-200 bg-gradient-to-r from-cyan-600 to-teal-500 px-4 py-5 text-white sm:px-8 sm:py-6">
+    <AdminDrawer
+      onClose={onClose}
+      onSubmit={handleSubmit}
+      ariaLabel={mode === 'create' ? 'Add user' : 'Edit user'}
+      bodyClassName="p-0"
+      header={
+        <div className="relative overflow-hidden border-b border-cyan-200 bg-gradient-to-r from-cyan-600 to-teal-500 px-4 py-5 pr-16 text-white sm:px-8 sm:py-6 sm:pr-20">
           <div className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/15 blur-2xl" />
           <p className="relative mb-2 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide">
             <User size={14} />
@@ -148,211 +144,206 @@ export default function UserFormModal({ mode, user, onClose, onSaved }: UserForm
               : 'Update the seller profile details shown in admin and public listings.'}
           </p>
         </div>
+      }
+      footer={
+        <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-4 sm:flex-row sm:p-6">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSaving}
+            className="w-full rounded-xl border border-slate-300 bg-white px-6 py-3 font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={
+              isSaving ||
+              !formData.mobile.trim() ||
+              !formData.location.trim() ||
+              (mode === 'create' && !formData.displayName.trim())
+            }
+            className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-200 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
+          >
+            {isSaving
+              ? mode === 'create'
+                ? 'Creating...'
+                : 'Saving...'
+              : mode === 'create'
+                ? 'Create User'
+                : 'Save Changes'}
+          </button>
+        </div>
+      }
+    >
+      <div className="space-y-5 p-4 sm:space-y-6 sm:p-8">
+        {formErrors.submit && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
+            {formErrors.submit}
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-5 p-4 sm:space-y-6 sm:p-8">
-            {formErrors.submit && (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
-                {formErrors.submit}
-              </div>
+        <div className="grid grid-cols-1 gap-4">
+          <div>
+            <label className={labelClass}>
+              Display Name{' '}
+              {mode === 'create' ? (
+                '*'
+              ) : (
+                <span className="text-xs font-normal text-slate-500">Optional</span>
+              )}
+            </label>
+            <input
+              type="text"
+              value={formData.displayName}
+              onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+              placeholder="e.g. Arjun Sharma"
+              className={inputClass}
+            />
+            {formErrors.displayName && (
+              <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.displayName}</p>
             )}
+            <p className="mt-1 text-xs text-slate-500">
+              Buyers see this name on the listing card and seller profile.
+            </p>
+          </div>
 
-            <div className="grid grid-cols-1 gap-4">
+          <div>
+            <label className={labelClass}>Mobile *</label>
+            <input
+              type="tel"
+              value={formData.mobile}
+              onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+              placeholder="e.g. 9876543210"
+              className={inputClass}
+            />
+            {formErrors.mobile && (
+              <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.mobile}</p>
+            )}
+          </div>
+
+          <div>
+            <label className={`${labelClass} flex items-center gap-2`}>
+              <MapPin size={14} /> Location *
+            </label>
+            <input
+              type="text"
+              value={formData.location}
+              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              placeholder="City, State"
+              className={inputClass}
+            />
+            {formErrors.location && (
+              <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.location}</p>
+            )}
+          </div>
+        </div>
+
+        <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          <input
+            type="checkbox"
+            checked={formData.isVerified}
+            onChange={(e) => setFormData({ ...formData, isVerified: e.target.checked })}
+            className="h-4 w-4 accent-emerald-600"
+          />
+          <div>
+            <p className="text-sm font-semibold text-emerald-900">Verified Seller</p>
+            <p className="text-xs text-emerald-800">Mark this seller as trusted in admin views.</p>
+          </div>
+        </label>
+
+        {mode === 'edit' && (
+          <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <label className={labelClass}>
-                  Display Name{' '}
-                  {mode === 'create' ? (
-                    '*'
-                  ) : (
-                    <span className="text-xs font-normal text-slate-500">Optional</span>
-                  )}
-                </label>
-                <input
-                  type="text"
-                  value={formData.displayName}
-                  onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                  placeholder="e.g. Arjun Sharma"
-                  className={inputClass}
-                />
-                {formErrors.displayName && (
-                  <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.displayName}</p>
-                )}
-                <p className="mt-1 text-xs text-slate-500">
-                  Buyers see this name on the listing card and seller profile.
+                <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <ShieldCheck size={16} className="text-cyan-600" />
+                  Active Subscriptions
                 </p>
+                <p className="text-xs text-slate-500">Current active entitlements for this user.</p>
               </div>
-
-              <div>
-                <label className={labelClass}>Mobile *</label>
-                <input
-                  type="tel"
-                  value={formData.mobile}
-                  onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                  placeholder="e.g. 9876543210"
-                  className={inputClass}
-                />
-                {formErrors.mobile && (
-                  <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.mobile}</p>
-                )}
-              </div>
-
-              <div>
-                <label className={`${labelClass} flex items-center gap-2`}>
-                  <MapPin size={14} /> Location *
-                </label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="City, State"
-                  className={inputClass}
-                />
-                {formErrors.location && (
-                  <p className="mt-1 text-xs font-medium text-rose-600">{formErrors.location}</p>
-                )}
-              </div>
+              {userDetailQuery.isFetching ? (
+                <span className="text-xs font-medium text-slate-500">Loading...</span>
+              ) : (
+                <span className="text-xs font-semibold text-slate-500">
+                  {subscriptions.length} active
+                </span>
+              )}
             </div>
 
-            <label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <input
-                type="checkbox"
-                checked={formData.isVerified}
-                onChange={(e) => setFormData({ ...formData, isVerified: e.target.checked })}
-                className="h-4 w-4 accent-emerald-600"
-              />
-              <div>
-                <p className="text-sm font-semibold text-emerald-900">Verified Seller</p>
-                <p className="text-xs text-emerald-800">
-                  Mark this seller as trusted in admin views.
+            {subscriptions.length > 0 ? (
+              <div className="space-y-3">
+                {subscriptions.map((subscription) => (
+                  <div
+                    key={subscription.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-bold text-slate-900">
+                            {subscription.tier?.name || 'Subscription'}
+                          </p>
+                          <span className="inline-flex rounded-full bg-cyan-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-700">
+                            {subscription.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Tier ID: {subscription.subscriptionTierId}
+                        </p>
+                      </div>
+                      <div className="text-right text-xs text-slate-500">
+                        <p className="inline-flex items-center gap-1">
+                          <Clock3 size={12} />
+                          Expires {formatDate(subscription.expiresAt)}
+                        </p>
+                        <p className="mt-1">Started {formatDate(subscription.subscribedAt)}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="rounded-xl bg-slate-50 px-3 py-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Boosts
+                        </p>
+                        <p className="text-sm font-bold text-slate-900">
+                          {subscription.boostsRemaining ?? 0}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 px-3 py-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Auto Renew
+                        </p>
+                        <p className="text-sm font-bold text-slate-900">
+                          {subscription.autoRenew ? 'Enabled' : 'Disabled'}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 px-3 py-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Payment
+                        </p>
+                        <p className="truncate text-sm font-bold text-slate-900">
+                          {subscription.paymentId ||
+                            subscription.orderId ||
+                            subscription.invoiceId ||
+                            '-'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center">
+                <p className="text-sm font-semibold text-slate-800">No active subscriptions</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  This user does not currently have an active plan.
                 </p>
               </div>
-            </label>
-
-            {mode === 'edit' && (
-              <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
-                <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
-                      <ShieldCheck size={16} className="text-cyan-600" />
-                      Active Subscriptions
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Current active entitlements for this user.
-                    </p>
-                  </div>
-                  {userDetailQuery.isFetching ? (
-                    <span className="text-xs font-medium text-slate-500">Loading...</span>
-                  ) : (
-                    <span className="text-xs font-semibold text-slate-500">
-                      {subscriptions.length} active
-                    </span>
-                  )}
-                </div>
-
-                {subscriptions.length > 0 ? (
-                  <div className="space-y-3">
-                    {subscriptions.map((subscription) => (
-                      <div
-                        key={subscription.id}
-                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                      >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-sm font-bold text-slate-900">
-                                {subscription.tier?.name || 'Subscription'}
-                              </p>
-                              <span className="inline-flex rounded-full bg-cyan-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-700">
-                                {subscription.status}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-xs text-slate-500">
-                              Tier ID: {subscription.subscriptionTierId}
-                            </p>
-                          </div>
-                          <div className="text-right text-xs text-slate-500">
-                            <p className="inline-flex items-center gap-1">
-                              <Clock3 size={12} />
-                              Expires {formatDate(subscription.expiresAt)}
-                            </p>
-                            <p className="mt-1">Started {formatDate(subscription.subscribedAt)}</p>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                          <div className="rounded-xl bg-slate-50 px-3 py-2">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                              Boosts
-                            </p>
-                            <p className="text-sm font-bold text-slate-900">
-                              {subscription.boostsRemaining ?? 0}
-                            </p>
-                          </div>
-                          <div className="rounded-xl bg-slate-50 px-3 py-2">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                              Auto Renew
-                            </p>
-                            <p className="text-sm font-bold text-slate-900">
-                              {subscription.autoRenew ? 'Enabled' : 'Disabled'}
-                            </p>
-                          </div>
-                          <div className="rounded-xl bg-slate-50 px-3 py-2">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                              Payment
-                            </p>
-                            <p className="truncate text-sm font-bold text-slate-900">
-                              {subscription.paymentId ||
-                                subscription.orderId ||
-                                subscription.invoiceId ||
-                                '-'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center">
-                    <p className="text-sm font-semibold text-slate-800">No active subscriptions</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      This user does not currently have an active plan.
-                    </p>
-                  </div>
-                )}
-              </section>
             )}
-          </div>
-
-          <div className="flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-4 sm:flex-row sm:p-6">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSaving}
-              className="w-full rounded-xl border border-slate-300 bg-white px-6 py-3 font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={
-                isSaving ||
-                !formData.mobile.trim() ||
-                !formData.location.trim() ||
-                (mode === 'create' && !formData.displayName.trim())
-              }
-              className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 px-6 py-3 font-bold text-white shadow-lg shadow-cyan-200 transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-1"
-            >
-              {isSaving
-                ? mode === 'create'
-                  ? 'Creating...'
-                  : 'Saving...'
-                : mode === 'create'
-                  ? 'Create User'
-                  : 'Save Changes'}
-            </button>
-          </div>
-        </form>
+          </section>
+        )}
       </div>
-    </div>
+    </AdminDrawer>
   );
 }

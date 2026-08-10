@@ -325,6 +325,9 @@ const styles = StyleSheet.create({
     width: '84%',
     maxWidth: responsiveWidth(92),
     height: '100%',
+    maxHeight: '100%',
+    minHeight: 0,
+    overflow: 'hidden',
     backgroundColor: '#EFF3FA',
     borderTopLeftRadius: 30,
     borderBottomLeftRadius: 30,
@@ -523,6 +526,7 @@ const styles = StyleSheet.create({
   },
   menuScroll: {
     flex: 1,
+    minHeight: 0,
   },
   menuGroup: {
     marginHorizontal: 16,

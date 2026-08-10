@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Outlet, useLocation } from 'react-router-dom';
 import {
   Menu,
@@ -11,7 +11,6 @@ import {
   CreditCard,
   AlertTriangle,
   Clock3,
-  Film,
   Tag,
   CircleDollarSign,
   HandCoins,
@@ -36,6 +35,7 @@ export default function AdminLayout() {
   );
   const navigate = useNavigate();
   const location = useLocation();
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const { data: pendingListingsData } = useListings({ status: 'pending', limit: 500 });
 
   useEffect(() => {
@@ -66,6 +66,10 @@ export default function AdminLayout() {
     };
   }, [isMobile, sidebarOpen]);
 
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname, location.search]);
+
   const pendingCount = Array.isArray(pendingListingsData?.data)
     ? pendingListingsData.data.length
     : Array.isArray(pendingListingsData?.listings)
@@ -85,7 +89,6 @@ export default function AdminLayout() {
     { path: '/admin/users', name: 'Users', icon: Users },
     { path: '/admin/subscriptions', name: 'Subscriptions', icon: CreditCard },
     { path: '/admin/spam', name: 'Spam Detection', icon: AlertTriangle },
-    { path: '/admin/videos', name: 'Video Mgt', icon: Film },
     { path: '/admin/coupons', name: 'Coupons', icon: Tag },
     { path: '/admin/banners', name: 'Banners', icon: Image },
     { path: '/admin/notifications', name: 'Notifications', icon: Bell },
@@ -101,7 +104,7 @@ export default function AdminLayout() {
   const isExpanded = isMobile || sidebarOpen;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="admin-field-scope flex h-svh min-h-0 overflow-hidden bg-slate-100">
       {isMobile && sidebarOpen && (
         <button
           type="button"
@@ -115,17 +118,28 @@ export default function AdminLayout() {
       <div
         className={`${
           isMobile
-            ? `fixed inset-y-0 left-0 z-40 w-[min(84vw,18rem)] transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+            ? `fixed inset-y-0 left-0 z-40 h-[100dvh] max-h-[100dvh] w-[min(84vw,18rem)] transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
             : sidebarOpen
               ? 'w-64'
               : 'w-20'
-        } bg-gradient-to-b from-slate-900 to-slate-950 text-white transition-all duration-300 flex flex-col shadow-2xl overflow-hidden`}
+        } flex shrink-0 flex-col overflow-hidden bg-gradient-to-b from-slate-900 to-slate-950 text-white shadow-2xl transition-all duration-300`}
       >
-        <div className="p-4 flex items-center justify-between border-b border-slate-700">
+        <div className="flex items-center justify-between border-b border-slate-700 p-4">
           {isExpanded && (
-            <span className="text-xl font-black bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent">
-              nearhub Admin
-            </span>
+            <div className="flex min-w-0 items-center gap-2">
+              <img
+                src="/nearhub-logo-transparent.png"
+                alt="NearHub"
+                className="h-12 w-[10.5rem] object-contain brightness-0 invert"
+              />
+            </div>
+          )}
+          {!isExpanded && (
+            <img
+              src="/nearhub-logo-transparent.png"
+              alt="NearHub"
+              className="h-10 w-10 object-cover object-left brightness-0 invert"
+            />
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -206,9 +220,9 @@ export default function AdminLayout() {
       </div>
 
       {/* Main Content */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {isMobile && (
-          <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
+          <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
@@ -217,11 +231,20 @@ export default function AdminLayout() {
             >
               <Menu size={18} />
             </button>
-            <span className="truncate text-sm font-bold text-slate-800">nearhub Admin</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <img
+                src="/nearhub-logo-transparent.png"
+                alt="NearHub"
+                className="h-8 w-[8.5rem] object-contain brightness-0 invert"
+              />
+            </div>
           </div>
         )}
 
-        <div className="admin-typography min-w-0 flex-1">
+        <div
+          ref={contentRef}
+          className="admin-typography admin-field-scope min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
+        >
           <Outlet />
         </div>
       </div>
