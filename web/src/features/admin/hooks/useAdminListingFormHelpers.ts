@@ -3,8 +3,8 @@ import {
   getDefaultAdminMainCategory,
   getDefaultAdminSubCategory,
   shouldRequireConditionForCategory,
-} from '@/features/admin/constants/listing-taxonomy';
-import { useListingTaxonomy } from '@/features/admin/hooks/useListingTaxonomy';
+} from '@/features/listings';
+import { useListingTaxonomy } from '@/features/listings';
 import { validators } from '@/features/admin/utils';
 import { getApiUrl } from '@/lib/config';
 

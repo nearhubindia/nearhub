@@ -138,8 +138,8 @@ function checkServerFrameworkContracts() {
 }
 
 requirePackageScripts('app', ['type-check', 'lint', 'format:check']);
-requirePackageScripts('server', ['type-check', 'lint', 'format:check']);
-requirePackageScripts('web', ['type-check', 'lint', 'format:check']);
+requirePackageScripts('server', ['type-check', 'lint', 'format:check', 'test:unit', 'test:coverage']);
+requirePackageScripts('web', ['type-check', 'lint', 'format:check', 'test', 'test:coverage', 'e2e']);
 
 checkAppFrameworkContracts();
 checkWebFrameworkContracts();

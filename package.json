@@ -1,0 +1,22 @@
+{
+  "name": "nearhub-repo",
+  "private": true,
+  "version": "1.0.0",
+  "description": "NearHub feature-based web and backend workspace",
+  "scripts": {
+    "dev:web": "npm run dev --prefix web",
+    "dev:server": "npm run dev --prefix server",
+    "build:web": "npm run build --prefix web",
+    "build:server": "npm run build --prefix server",
+    "test:unit": "npm run test:unit --prefix server && npm run test --prefix web",
+    "test:coverage": "npm run test:coverage --prefix server && npm run test:coverage --prefix web",
+    "test:all": "npm run test:coverage && npm run e2e",
+    "test:unit:server": "npm run test:unit --prefix server",
+    "test:unit:web": "npm run test --prefix web",
+    "e2e": "npm run e2e --prefix web",
+    "quality:server": "npm run type-check --prefix server && npm run lint --prefix server",
+    "quality:web": "npm run type-check --prefix web && npm run lint --prefix web",
+    "guard:architecture": "node scripts/gates/architecture-gate.mjs",
+    "guard:framework": "node scripts/gates/framework-gate.mjs"
+  }
+}

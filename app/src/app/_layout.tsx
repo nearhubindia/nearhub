@@ -1,4 +1,4 @@
-import '@/lib/button-style-normalizer';
+import { MOBILE_CORNER_RADIUS } from '@/lib/button-style-normalizer';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack, usePathname } from 'expo-router';
 import React, { useEffect, useCallback } from 'react';
@@ -228,7 +228,7 @@ function HardUpdateScreen({ message, storeUrl }: { message: string; storeUrl: st
         style={{
           marginTop: 24,
           backgroundColor: '#2563EB',
-          borderRadius: 12,
+          borderRadius: MOBILE_CORNER_RADIUS,
           paddingHorizontal: 24,
           paddingVertical: 12,
         }}

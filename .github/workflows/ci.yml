@@ -76,6 +76,9 @@ jobs:
       - name: Type-check
         run: npm run type-check
 
+      - name: Feature unit tests
+        run: npm run test:coverage
+
   web:
     name: Web checks
     runs-on: ubuntu-latest
@@ -99,3 +102,9 @@ jobs:
 
       - name: Type-check
         run: npm run type-check
+
+      - name: Feature unit tests
+        run: npm run test:coverage
+
+      - name: Playwright tests
+        run: npx playwright install --with-deps chromium && npm run e2e

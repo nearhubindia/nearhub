@@ -80,3 +80,5 @@ release/
 # Server build/test artifacts
 server/coverage/
 server/uploads/
+web/coverage/
+web/test-results/

@@ -5,3 +5,4 @@ export * from './services/geolocation';
 export * from './services/location';
 export * from './routes/search';
 export * from './routes/geo-search';
+export * from './routes/location';

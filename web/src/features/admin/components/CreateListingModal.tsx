@@ -8,10 +8,7 @@ import {
 } from '@/features/admin/components/AdminListingFormFields';
 import { AdminDealFields } from '@/features/admin/components/AdminDealFields';
 import { AdminListingModalFrame } from '@/features/admin/components/AdminListingModalFrame';
-import {
-  getDefaultAdminSubCategory,
-  getMainCategoryForSubCategory,
-} from '@/features/admin/constants/listing-taxonomy';
+import { getDefaultAdminSubCategory, getMainCategoryForSubCategory } from '@/features/listings';
 import { useCreateListing } from '@/features/admin/hooks';
 import {
   useAdminListingCategoryOptions,

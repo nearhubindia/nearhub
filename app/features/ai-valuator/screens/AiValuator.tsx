@@ -33,6 +33,7 @@ import {
   type DisplayAssessment,
 } from '@/lib/display-capabilities';
 import { getApiUrl } from '@/lib/query-client';
+import { MOBILE_CORNER_RADIUS } from '@/lib/button-style-normalizer';
 import { useAuth } from '@/shared/contexts/auth-context';
 import { buildUserAuthHeaders } from '@/lib/user-auth-headers';
 
@@ -192,7 +193,7 @@ function ReportBreakdown({ report }: { report: Report }) {
         margin: 16,
         marginBottom: 0,
         backgroundColor: '#fff',
-        borderRadius: 16,
+        borderRadius: MOBILE_CORNER_RADIUS,
         padding: 16,
         borderWidth: 1,
         borderColor: '#E2E8F0',
@@ -214,7 +215,14 @@ function ReportBreakdown({ report }: { report: Report }) {
       <Text style={{ color: '#475569', fontSize: 12, marginTop: 6 }}>
         Device quality score: {report.deviceQualityScore ?? report.score}/100
       </Text>
-      <View style={{ backgroundColor: '#EFF6FF', borderRadius: 14, padding: 16, marginTop: 18 }}>
+      <View
+        style={{
+          backgroundColor: '#EFF6FF',
+          borderRadius: MOBILE_CORNER_RADIUS,
+          padding: 16,
+          marginTop: 18,
+        }}
+      >
         <Text style={{ color: '#475569', fontSize: 12, fontWeight: '800' }}>
           EXPECTED SELLING RANGE
         </Text>

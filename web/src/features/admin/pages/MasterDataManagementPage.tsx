@@ -14,10 +14,7 @@ import { compressImageFile } from '@/lib/image-compression';
 import { uploadImageToBackend } from '@/lib/media-upload';
 import { getAdminToken } from '@/features/admin/constants/admin-constants';
 import AdminDrawer from '@/features/admin/components/AdminDrawer';
-import {
-  ADMIN_CATEGORY_GROUPS,
-  type AdminCategoryGroup,
-} from '@/features/admin/constants/listing-taxonomy';
+import { ADMIN_CATEGORY_GROUPS, type AdminCategoryGroup } from '@/features/listings';
 
 type ListingAttribute = {
   id: string;

@@ -38,6 +38,9 @@ node scripts/gates/framework-gate.mjs
 - `web` must include React + React Router + Vite wiring and required core files.
 - `server` must include Express dependency and route bootstrap wiring.
 - All three projects must define: `type-check`, `lint`, and `format:check` scripts.
+- The backend must expose a feature-scoped `test:unit` script.
+- The backend and web app must expose thresholded `test:coverage` scripts.
+- The web app must expose `test` and `e2e` scripts for unit and Playwright coverage.
 
 ## Updating Gate Rules
 

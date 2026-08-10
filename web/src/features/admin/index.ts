@@ -1,3 +1,5 @@
+import { lazy } from 'react';
+
 /**
  * Admin Feature - Barrel Exports
  * Central entry point for all admin feature exports
@@ -9,8 +11,25 @@
  */
 
 // Pages
-export { default as AdminDashboard } from './pages/Admin';
-export { default as AdminLogin } from './pages/AdminLogin';
+export const AdminDashboard = lazy(() => import('./pages/Admin'));
+export const AdminLogin = lazy(() => import('./pages/AdminLogin'));
+export const AdminLayout = lazy(() => import('./pages/AdminLayout'));
+export const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+export const ListingsPage = lazy(() => import('./pages/ListingsPage'));
+export const PendingListingsPage = lazy(() => import('./pages/PendingListingsPage'));
+export const UsersPage = lazy(() => import('./pages/UsersPage'));
+export const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage'));
+export const SpamDetectionPage = lazy(() => import('./pages/SpamDetectionPage'));
+export const CouponsPage = lazy(() => import('./pages/CouponsPage'));
+export const BannersPage = lazy(() => import('./pages/BannersPage'));
+export const InAppNotificationsPage = lazy(() => import('./pages/InAppNotificationsPage'));
+export const RevenuePage = lazy(() => import('./pages/RevenuePage'));
+export const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+export const TransactionsPage = lazy(() => import('./pages/TransactionsPage'));
+export const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+export const MasterDataManagementPage = lazy(() => import('./pages/MasterDataManagementPage'));
+export const ContactSubmissionsPage = lazy(() => import('./pages/ContactSubmissionsPage'));
+export const ErrorLogsPage = lazy(() => import('./pages/ErrorLogsPage'));
 
 // API Layer
 export {
@@ -86,3 +105,15 @@ export {
   categoryData,
   COLORS,
 } from './constants/admin-constants';
+
+export {
+  ADMIN_CATEGORY_GROUPS,
+  getAttributeKey,
+  getDefaultAdminMainCategory,
+  getDefaultAdminSubCategory,
+  getMainCategoryForSubCategory,
+  getSubCategoriesForMainCategory,
+  shouldRequireConditionForCategory,
+} from './constants/listing-taxonomy';
+export type { AdminCategoryGroup, ListingAttributeDefinition } from './constants/listing-taxonomy';
+export { useListingTaxonomy } from './hooks/useListingTaxonomy';

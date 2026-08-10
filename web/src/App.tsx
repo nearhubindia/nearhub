@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { CirclePercent, Home, MessageCircle, Plus, UserRound } from 'lucide-react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
@@ -18,54 +18,55 @@ import './index.css';
 import { ProtectedRoute } from './shared/components/ProtectedRoute';
 import { SeoManager } from './shared/components/SeoManager';
 import { WhatsAppFloatingButton } from './shared/components/WhatsAppFloatingButton';
-const UserHomePage = lazy(() => import('./features/landing/pages/UserHomePage'));
-const Features = lazy(() => import('./features/landing/pages/Features'));
-const AiMobileValuatorPage = lazy(() => import('./features/landing/pages/AiMobileValuatorPage'));
-const Contact = lazy(() => import('./features/landing/pages/Contact'));
-const BrowseListings = lazy(() => import('./features/landing/pages/BrowseListings'));
-const DealsPage = lazy(() => import('./features/landing/pages/DealsPage'));
-const AuthRegister = lazy(() => import('./features/landing/pages/AuthRegister'));
-const AuthVerifyOtp = lazy(() => import('./features/landing/pages/AuthVerifyOtp'));
-const ProfilePage = lazy(() => import('./features/landing/pages/ProfilePage'));
-const MyListingsPage = lazy(() => import('./features/landing/pages/MyListingsPage'));
-const CreateListingPage = lazy(() => import('./features/landing/pages/CreateListingPage'));
-const SavedPage = lazy(() => import('./features/landing/pages/SavedPage'));
-const MessagesPage = lazy(() => import('./features/landing/pages/MessagesPage'));
-const NotificationsPage = lazy(() => import('./features/landing/pages/NotificationsPage'));
-const DealInboxPage = lazy(() => import('./features/landing/pages/DealInboxPage'));
-const MyOrdersPage = lazy(() => import('./features/landing/pages/MyOrdersPage'));
-const UserSubscriptionsPage = lazy(() => import('./features/landing/pages/SubscriptionsPage'));
-const SubscriptionsDeepLink = lazy(() => import('./features/landing/pages/SubscriptionsDeepLink'));
-const InvoicesPage = lazy(() => import('./features/landing/pages/InvoicesPage'));
-const UserSettingsPage = lazy(() => import('./features/landing/pages/SettingsPage'));
-const ConversationPage = lazy(() => import('./features/landing/pages/ConversationPage'));
-const FooterPage = lazy(() => import('./features/landing/pages/FooterPage'));
-const CompliancePage = lazy(() => import('./features/landing/pages/CompliancePage'));
-const ListingDetailsPage = lazy(() => import('./features/landing/pages/ListingDetailsPage'));
-const OrderSummaryPage = lazy(() => import('./features/landing/pages/OrderSummaryPage'));
-const NotFound = lazy(() => import('./features/landing/pages/NotFound'));
-const EditListingPage = lazy(() => import('./features/landing/pages/EditListingPage'));
-
-const AdminLayout = lazy(() => import('./features/admin/pages/AdminLayout'));
-const DashboardPage = lazy(() => import('./features/admin/pages/DashboardPage'));
-const ListingsPage = lazy(() => import('./features/admin/pages/ListingsPage'));
-const PendingListingsPage = lazy(() => import('./features/admin/pages/PendingListingsPage'));
-const UsersPage = lazy(() => import('./features/admin/pages/UsersPage'));
-const SubscriptionsPage = lazy(() => import('./features/admin/pages/SubscriptionsPage'));
-const SpamDetectionPage = lazy(() => import('./features/admin/pages/SpamDetectionPage'));
-const CouponsPage = lazy(() => import('./features/admin/pages/CouponsPage'));
-const BannersPage = lazy(() => import('./features/admin/pages/BannersPage'));
-const InAppNotificationsPage = lazy(() => import('./features/admin/pages/InAppNotificationsPage'));
-const RevenuePage = lazy(() => import('./features/admin/pages/RevenuePage'));
-const ReportsPage = lazy(() => import('./features/admin/pages/ReportsPage'));
-const TransactionsPage = lazy(() => import('./features/admin/pages/TransactionsPage'));
-const SettingsPage = lazy(() => import('./features/admin/pages/SettingsPage'));
-const MasterDataManagementPage = lazy(
-  () => import('./features/admin/pages/MasterDataManagementPage')
-);
-const ContactSubmissionsPage = lazy(() => import('./features/admin/pages/ContactSubmissionsPage'));
-const ErrorLogsPage = lazy(() => import('./features/admin/pages/ErrorLogsPage'));
-const AdminLogin = lazy(() => import('./features/admin/pages/AdminLogin'));
+import {
+  AiMobileValuatorPage,
+  AuthRegister,
+  AuthVerifyOtp,
+  BrowseListings,
+  CompliancePage,
+  Contact,
+  ConversationPage,
+  CreateListingPage,
+  DealInboxPage,
+  DealsPage,
+  EditListingPage,
+  Features,
+  FooterPage,
+  InvoicesPage,
+  ListingDetailsPage,
+  MessagesPage,
+  MyListingsPage,
+  MyOrdersPage,
+  NotFound,
+  NotificationsPage,
+  OrderSummaryPage,
+  ProfilePage,
+  SavedPage,
+  SubscriptionsDeepLink,
+  UserHomePage,
+  UserSettingsPage,
+  UserSubscriptionsPage,
+} from './features/landing';
+import {
+  AdminLayout,
+  AdminLogin,
+  BannersPage,
+  ContactSubmissionsPage,
+  CouponsPage,
+  DashboardPage,
+  ErrorLogsPage,
+  InAppNotificationsPage,
+  ListingsPage,
+  MasterDataManagementPage,
+  PendingListingsPage,
+  ReportsPage,
+  RevenuePage,
+  SettingsPage,
+  SpamDetectionPage,
+  SubscriptionsPage,
+  TransactionsPage,
+  UsersPage,
+} from './features/admin';
 
 function MobileBottomNav() {
   const location = useLocation();

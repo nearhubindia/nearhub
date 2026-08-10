@@ -5,9 +5,10 @@ const path = require('path');
 /**
  * Config plugin for a consistent Android splash on all API levels.
  *
- * Android 12+ uses the system splash with a centered icon, while Android 11
- * and below use windowBackground. We intentionally keep both paths aligned:
- * dark background + centered splashscreen_logo with no stretching.
+ * Android 12+ uses the system splash with a centered, masked icon, while
+ * Android 11 and below use windowBackground. The checked-in
+ * splashscreen_logo is deliberately padded so neither path clips the logo or
+ * the wordmark.
  */
 module.exports = function withFullScreenSplash(config) {
   config = withDangerousMod(config, [

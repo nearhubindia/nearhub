@@ -12,8 +12,8 @@ import {
   getSubCategoriesForMainCategory,
   type ListingAttributeDefinition,
   shouldRequireConditionForCategory,
-} from '@/features/admin/constants/listing-taxonomy';
-import { useListingTaxonomy } from '@/features/admin/hooks/useListingTaxonomy';
+} from '@/features/listings';
+import { useListingTaxonomy } from '@/features/listings';
 
 type StoredUser = { id?: string; phone?: string; name?: string };
 type PurchaseLimitType = 'ONE_TIME' | 'UNLIMITED' | '';

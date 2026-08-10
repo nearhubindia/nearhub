@@ -26,7 +26,7 @@
       "package": "com.synvide.nearhub",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "backgroundColor": "#1a2332",
+        "backgroundColor": "#0A0F1A",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },

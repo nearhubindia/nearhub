@@ -1,10 +1,12 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
-const STANDARD_BUTTON_RADIUS = 12;
+export const MOBILE_CORNER_RADIUS = 2;
 const BUTTON_STYLE_KEY =
   /(button|btn|cta|action|submit|continue|apply|send|save|post|buy|pay|message)/i;
-const NON_BUTTON_STYLE_KEY =
-  /(container|wrapper|row|column|card|pill|chip|badge|avatar|image|thumb|dot|indicator|progress|track|bar|backdrop|overlay|sheet|modal|header|footer|tab|item|content)/i;
+const SECTION_STYLE_KEY =
+  /(section|card|panel|shell|surface|group|container|input|field|item|row|wrap|banner|prompt|option|tier|summary|history|report|spec|notice|availability|metadata|detail|activity|price|listing|invoice|subscription|profile)/i;
+const EXCLUDED_STYLE_KEY =
+  /(pill|chip|badge|avatar|image|thumb|dot|indicator|progress|track|bar|backdrop|overlay|sheet|modal|header|footer|tab|icon|bubble|glow|orb|circle|gradient|photo|counter|handle|logo|wordmark|splash)/i;
 
 let isInstalled = false;
 
@@ -13,7 +15,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function shouldNormalize(styleKey: string, styleValue: Record<string, unknown>): boolean {
-  if (!BUTTON_STYLE_KEY.test(styleKey) || NON_BUTTON_STYLE_KEY.test(styleKey)) {
+  if (Platform.OS === 'web') {
+    return false;
+  }
+
+  const isButton = BUTTON_STYLE_KEY.test(styleKey);
+  const isSection = SECTION_STYLE_KEY.test(styleKey);
+  const isSurface = styleValue.backgroundColor !== undefined;
+  if ((!isButton && !isSection && !isSurface) || (!isButton && EXCLUDED_STYLE_KEY.test(styleKey))) {
     return false;
   }
 
@@ -23,6 +32,13 @@ function shouldNormalize(styleKey: string, styleValue: Record<string, unknown>):
   const radius = typeof styleValue.borderRadius === 'number' ? styleValue.borderRadius : undefined;
 
   if (width && height && width === height && radius && radius >= width / 2 - 1) {
+    return false;
+  }
+
+  // Do not introduce corners on ordinary colored surfaces that were not
+  // rounded already. Buttons still receive the standard radius when their
+  // style omitted one entirely.
+  if (radius === undefined && !isButton) {
     return false;
   }
 
@@ -48,10 +64,10 @@ export function installButtonStyleNormalizer(): void {
       const currentRadius =
         typeof styleValue.borderRadius === 'number' ? styleValue.borderRadius : undefined;
 
-      if (currentRadius !== STANDARD_BUTTON_RADIUS) {
+      if (currentRadius !== MOBILE_CORNER_RADIUS) {
         normalizedStyles[styleKey] = {
           ...styleValue,
-          borderRadius: STANDARD_BUTTON_RADIUS,
+          borderRadius: MOBILE_CORNER_RADIUS,
         };
       } else {
         normalizedStyles[styleKey] = styleValue;

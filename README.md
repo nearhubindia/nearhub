@@ -41,6 +41,20 @@ npm install
 npm run dev
 ```
 
+## Feature tests
+
+From the repository root:
+
+```bash
+npm run test:unit       # backend feature units + web feature units
+npm run test:coverage   # thresholded feature coverage reports
+npm run test:all        # coverage + production-bundle Playwright tests
+npm run e2e             # web Playwright suite
+```
+
+Backend unit tests live under `server/features/**/tests`, web unit tests live
+under `web/src/features/**/tests`, and browser workflows live under `web/e2e`.
+
 ## Current Important Notes
 
 - Listings now expose live metrics:
