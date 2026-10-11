@@ -209,12 +209,6 @@ Add screenshots of the mobile application, web admin interface, and key marketpl
 
 Only include publicly accessible links and screenshots that are safe to share.
 
-## Security
-
-- Never commit API keys, passwords, tokens, or production credentials.
-- Keep environment-specific configuration in local environment files.
-- Review deployment settings before exposing services publicly.
-- Use sample data when demonstrating the application.
 
 ## License
 
